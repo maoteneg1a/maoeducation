@@ -36,4 +36,15 @@ const { title = 'THE HILDA' } = Astro.props
   body {
     overflow-x: hidden;
   }
+
+  /*
+    Cada pantalla (.hilda-cover, .hilda-file, .hilda-reveal, .hilda-final, .hilda-plan)
+    fija su propio "display" en flex para centrar contenido. Un estilo de autor con
+    display explícito gana siempre sobre la regla por defecto del navegador para
+    [hidden] (display: none), sin importar el orden o la especificidad. Sin esta
+    regla, las pantallas "ocultas" seguían renderizadas y apiladas.
+  */
+  [data-hilda-screen][hidden] {
+    display: none !important;
+  }
 </style>
