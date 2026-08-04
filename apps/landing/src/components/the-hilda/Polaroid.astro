@@ -1,0 +1,70 @@
+---
+interface Props {
+  src?: string
+  alt: string
+  caption?: string
+  rotate?: number
+  class?: string
+}
+
+const { src, alt, caption, rotate = -2, class: className = '' } = Astro.props
+const fallback = '/the-hilda/images/placeholder.svg'
+---
+
+<figure class:list={['hilda-polaroid', className]} style={`--hilda-polaroid-rotate: ${rotate}deg`}>
+  <span class="hilda-polaroid__tape" aria-hidden="true"></span>
+  <img
+    src={src ?? fallback}
+    alt={alt}
+    loading="lazy"
+    class="hilda-polaroid__img"
+    onerror={`this.onerror=null;this.src='${fallback}';this.classList.add('hilda-polaroid__img--placeholder')`}
+  />
+  {caption && <figcaption class="hilda-polaroid__caption">{caption}</figcaption>}
+</figure>
+
+<style>
+  .hilda-polaroid {
+    display: inline-block;
+    background: #f6f1e6;
+    padding: 0.6rem 0.6rem 1.1rem;
+    border-radius: 2px;
+    box-shadow: 0 10px 20px -8px rgba(0, 0, 0, 0.6);
+    transform: rotate(var(--hilda-polaroid-rotate));
+    position: relative;
+    max-width: 220px;
+  }
+
+  .hilda-polaroid__tape {
+    position: absolute;
+    top: -0.6rem;
+    left: 50%;
+    width: 3.2rem;
+    height: 1.1rem;
+    transform: translateX(-50%) rotate(-3deg);
+    background: rgba(233, 220, 178, 0.75);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  }
+
+  .hilda-polaroid__img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 5;
+    object-fit: cover;
+    background: #d8cdb4;
+  }
+
+  .hilda-polaroid__img--placeholder {
+    object-fit: contain;
+    padding: 1.25rem;
+    background: #e7dcc0;
+  }
+
+  .hilda-polaroid__caption {
+    margin-top: 0.5rem;
+    text-align: center;
+    font-family: 'Caveat', cursive;
+    font-size: 1.05rem;
+    color: #3a3226;
+  }
+</style>

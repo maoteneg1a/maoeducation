@@ -1,0 +1,170 @@
+---
+import TheHildaLayout from '../layouts/TheHildaLayout.astro'
+import TheHildaCover from '../components/the-hilda/TheHildaCover.astro'
+import PlayFile from '../components/the-hilda/PlayFile.astro'
+import PlayStep from '../components/the-hilda/PlayStep.astro'
+import RevealSection from '../components/the-hilda/RevealSection.astro'
+import FinalMessage from '../components/the-hilda/FinalMessage.astro'
+import ProgressIndicator from '../components/the-hilda/ProgressIndicator.astro'
+import { THE_HILDA_STEPS } from '../data/the-hilda'
+---
+
+<TheHildaLayout title="THE HILDA">
+  <main>
+    <TheHildaCover />
+
+    <PlayFile />
+
+    <section class="hilda-plan" data-hilda-screen="plan" hidden aria-labelledby="hilda-plan-heading">
+      <div class="hilda-plan__frame">
+        <h2 id="hilda-plan-heading" class="hilda-plan__title" tabindex="-1">El plan</h2>
+        <div class="hilda-plan__steps">
+          {THE_HILDA_STEPS.map((step) => (
+            <PlayStep step={step} />
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <RevealSection />
+
+    <FinalMessage />
+  </main>
+
+  <ProgressIndicator />
+
+  <script>
+    import { evaluateUnlocks, unlockFinal } from '../lib/the-hilda-progress'
+    import { THE_HILDA_STEPS } from '../data/the-hilda'
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    const screens = Array.from(document.querySelectorAll<HTMLElement>('[data-hilda-screen]'))
+    const progressDots = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-hilda-progress-dot]'))
+
+    function reachableScreens(revealed: boolean, finalUnlocked: boolean): Set<string> {
+      const reachable = new Set(['cover', 'file', 'plan'])
+      if (revealed) reachable.add('reveal')
+      if (finalUnlocked) reachable.add('final')
+      return reachable
+    }
+
+    function setActiveScreen(id: string) {
+      for (const screen of screens) {
+        const isActive = screen.dataset.hildaScreen === id
+        screen.hidden = !isActive
+        if (isActive) {
+          const heading = screen.querySelector<HTMLElement>('h1, h2')
+          heading?.focus({ preventScroll: true })
+        }
+      }
+      for (const dot of progressDots) {
+        const isActive = dot.dataset.hildaProgressDot === id
+        dot.setAttribute('aria-current', isActive ? 'true' : 'false')
+      }
+      window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' })
+    }
+
+    function updateReachability(revealed: boolean, finalUnlocked: boolean) {
+      const reachable = reachableScreens(revealed, finalUnlocked)
+      for (const dot of progressDots) {
+        const id = dot.dataset.hildaProgressDot ?? ''
+        dot.disabled = !reachable.has(id)
+      }
+    }
+
+    function applyStepUnlockState(stepId: string, options: { animate: boolean }) {
+      const article = document.querySelector<HTMLElement>(`[data-hilda-step="${stepId}"]`)
+      if (!article) return
+      article.dataset.hildaStepState = 'unlocked'
+      const lockedView = article.querySelector<HTMLElement>('.hilda-play-step__locked')
+      const unlockedView = article.querySelector<HTMLElement>('.hilda-play-step__unlocked')
+      if (lockedView) lockedView.hidden = true
+      if (unlockedView) unlockedView.hidden = false
+
+      if (options.animate) {
+        const stamp = article.querySelector<HTMLElement>('[data-hilda-new-stamp]')
+        if (stamp) {
+          stamp.hidden = false
+          if (!prefersReducedMotion) stamp.setAttribute('data-hilda-just-unlocked', '')
+        }
+      }
+    }
+
+    const params = new URLSearchParams(window.location.search)
+    const { progress, newlyUnlockedStepIds } = evaluateUnlocks(params)
+
+    for (const step of THE_HILDA_STEPS) {
+      const unlocked = progress.unlockedStepIds.includes(step.id)
+      if (!unlocked) continue
+      applyStepUnlockState(step.id, { animate: newlyUnlockedStepIds.includes(step.id) })
+    }
+
+    updateReachability(progress.revealed, progress.finalUnlocked)
+
+    let initialScreen = 'cover'
+    if (params.get('revelacion') === 'true' && progress.revealed) {
+      initialScreen = 'reveal'
+    } else if (params.has('paso')) {
+      initialScreen = 'plan'
+    }
+    setActiveScreen(initialScreen)
+
+    document.querySelector('[data-hilda-open-trick]')?.addEventListener('click', (event) => {
+      const cover = (event.currentTarget as HTMLElement).closest<HTMLElement>('[data-hilda-screen="cover"]')
+      if (cover && !prefersReducedMotion) {
+        cover.setAttribute('data-hilda-closing', '')
+        setTimeout(() => setActiveScreen('file'), 380)
+      } else {
+        setActiveScreen('file')
+      }
+    })
+
+    for (const trigger of document.querySelectorAll<HTMLElement>('[data-hilda-goto]')) {
+      trigger.addEventListener('click', () => {
+        const target = trigger.dataset.hildaGoto
+        if (target) setActiveScreen(target)
+      })
+    }
+
+    document.querySelector('[data-hilda-reveal-final]')?.addEventListener('click', () => {
+      unlockFinal()
+      updateReachability(progress.revealed, true)
+      setActiveScreen('final')
+    })
+
+    for (const dot of progressDots) {
+      dot.addEventListener('click', () => {
+        const target = dot.dataset.hildaProgressDot
+        if (target && !dot.disabled) setActiveScreen(target)
+      })
+    }
+  </script>
+</TheHildaLayout>
+
+<style>
+  .hilda-plan {
+    min-height: 100dvh;
+    padding: 3rem 1.25rem 6rem;
+  }
+
+  .hilda-plan__frame {
+    max-width: 34rem;
+    margin: 0 auto;
+  }
+
+  .hilda-plan__title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 800;
+    font-size: 2rem;
+    color: #efe6d3;
+    text-align: center;
+    margin: 0 0 2rem;
+  }
+
+  .hilda-plan__steps {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+</style>

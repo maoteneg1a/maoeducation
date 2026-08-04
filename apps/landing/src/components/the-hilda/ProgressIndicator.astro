@@ -1,0 +1,95 @@
+---
+import { THE_HILDA_SCREENS } from '../../data/the-hilda'
+---
+
+<nav class="hilda-progress" aria-label="Progreso del truco" data-hilda-progress>
+  <ol class="hilda-progress__list">
+    {
+      THE_HILDA_SCREENS.map((screen) => (
+        <li>
+          <button
+            type="button"
+            class="hilda-progress__dot"
+            data-hilda-progress-dot={screen.id}
+            aria-label={screen.label}
+            aria-current={screen.id === 'cover' ? 'true' : undefined}
+            disabled={screen.id === 'reveal' || screen.id === 'final'}
+          >
+            <span class="hilda-progress__dot-mark" aria-hidden="true"></span>
+            <span class="hilda-progress__dot-label">{screen.label}</span>
+          </button>
+        </li>
+      ))
+    }
+  </ol>
+</nav>
+
+<style>
+  .hilda-progress {
+    position: fixed;
+    left: 50%;
+    bottom: 0.9rem;
+    transform: translateX(-50%);
+    z-index: 40;
+    background: rgba(11, 10, 8, 0.85);
+    border: 1px solid rgba(201, 162, 75, 0.35);
+    border-radius: 999px;
+    padding: 0.4rem 0.6rem;
+    backdrop-filter: blur(6px);
+  }
+
+  .hilda-progress__list {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .hilda-progress__dot {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: none;
+    border: none;
+    padding: 0.3rem 0.5rem;
+    border-radius: 999px;
+    cursor: pointer;
+    color: rgba(239, 230, 211, 0.55);
+  }
+
+  .hilda-progress__dot:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+
+  .hilda-progress__dot-mark {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .hilda-progress__dot[aria-current='true'] {
+    color: #c9a24b;
+  }
+
+  .hilda-progress__dot[aria-current='true'] .hilda-progress__dot-mark {
+    box-shadow: 0 0 0 3px rgba(201, 162, 75, 0.25);
+  }
+
+  .hilda-progress__dot-label {
+    font-family: 'Special Elite', 'Courier New', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    display: none;
+  }
+
+  @media (min-width: 640px) {
+    .hilda-progress__dot-label {
+      display: inline;
+    }
+  }
+</style>

@@ -1,0 +1,68 @@
+---
+interface Props {
+  text: string
+  tone?: 'gold' | 'red'
+  rotate?: number
+  class?: string
+  hidden?: boolean
+}
+
+const { text, tone = 'gold', rotate = -4, class: className = '', hidden = false } = Astro.props
+---
+
+<span
+  class:list={['hilda-stamp', `hilda-stamp--${tone}`, className]}
+  style={`--hilda-stamp-rotate: ${rotate}deg`}
+  data-hilda-stamp
+  hidden={hidden}
+>
+  {text}
+</span>
+
+<style>
+  .hilda-stamp {
+    display: inline-block;
+    padding: 0.4rem 0.9rem;
+    border: 2px solid currentColor;
+    border-radius: 3px;
+    font-family: 'Special Elite', 'Courier New', monospace;
+    font-size: 0.7rem;
+    font-weight: 400;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transform: rotate(var(--hilda-stamp-rotate));
+    box-shadow: 0 0 0 1px currentColor inset;
+    opacity: 0.9;
+    mix-blend-mode: normal;
+  }
+
+  .hilda-stamp--gold {
+    color: #c9a24b;
+  }
+
+  .hilda-stamp--red {
+    color: #b3352c;
+  }
+
+  .hilda-stamp[data-hilda-just-unlocked] {
+    animation: hilda-stamp-in 0.6s ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hilda-stamp[data-hilda-just-unlocked] {
+      animation: none;
+    }
+  }
+
+  @keyframes hilda-stamp-in {
+    from {
+      opacity: 0;
+      transform: rotate(var(--hilda-stamp-rotate)) scale(1.8);
+    }
+    to {
+      opacity: 0.9;
+      transform: rotate(var(--hilda-stamp-rotate)) scale(1);
+    }
+  }
+</style>

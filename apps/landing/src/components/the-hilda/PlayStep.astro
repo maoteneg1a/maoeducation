@@ -1,0 +1,108 @@
+---
+import type { PlayStep } from '../../data/the-hilda'
+import LockedStep from './LockedStep.astro'
+import Polaroid from './Polaroid.astro'
+import QrPlaceholder from './QrPlaceholder.astro'
+import ConfidentialStamp from './ConfidentialStamp.astro'
+
+interface Props {
+  step: PlayStep
+}
+
+const { step } = Astro.props
+const defaultUnlocked = step.unlockRule.type === 'initial'
+---
+
+<article
+  class="hilda-play-step"
+  data-hilda-step={step.id}
+  data-hilda-step-state={defaultUnlocked ? 'unlocked' : 'locked'}
+>
+  <div class="hilda-play-step__locked" hidden={defaultUnlocked}>
+    <LockedStep number={step.number} hint={step.lockedHint} />
+  </div>
+
+  <div class="hilda-play-step__unlocked" hidden={!defaultUnlocked}>
+    <div class="hilda-play-step__header">
+      <span class="hilda-play-step__number">Paso {step.number}</span>
+      {step.annotation && <span class="hilda-play-step__annotation">{step.annotation}</span>}
+    </div>
+    <h3 class="hilda-play-step__title">{step.title}</h3>
+    <p class="hilda-play-step__description">{step.description}</p>
+
+    {step.image && (
+      <div class="hilda-play-step__media">
+        <Polaroid src={step.image} alt={step.imageAlt ?? step.title} />
+      </div>
+    )}
+
+    {step.hasQrArea && (
+      <div class="hilda-play-step__media">
+        <QrPlaceholder label="QR sorpresa" />
+      </div>
+    )}
+
+    <ConfidentialStamp
+      text="Pista descubierta"
+      tone="gold"
+      class="hilda-play-step__stamp"
+      data-hilda-new-stamp
+      hidden={true}
+    />
+  </div>
+</article>
+
+<style>
+  .hilda-play-step {
+    padding: 1.5rem;
+    border: 1px solid rgba(201, 162, 75, 0.25);
+    border-radius: 8px;
+    background: rgba(23, 19, 16, 0.6);
+  }
+
+  .hilda-play-step__header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .hilda-play-step__number {
+    font-family: 'Special Elite', 'Courier New', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #c9a24b;
+  }
+
+  .hilda-play-step__annotation {
+    font-family: 'Caveat', cursive;
+    font-size: 1.1rem;
+    color: rgba(239, 230, 211, 0.7);
+  }
+
+  .hilda-play-step__title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 800;
+    font-size: 1.35rem;
+    margin: 0.4rem 0 0.6rem;
+    color: #efe6d3;
+  }
+
+  .hilda-play-step__description {
+    font-family: 'Lora', serif;
+    line-height: 1.6;
+    color: rgba(239, 230, 211, 0.85);
+    margin: 0 0 1rem;
+  }
+
+  .hilda-play-step__media {
+    margin: 1rem 0;
+    display: flex;
+    justify-content: center;
+  }
+
+  .hilda-play-step__stamp {
+    margin-top: 0.5rem;
+  }
+</style>
