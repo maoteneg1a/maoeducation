@@ -1,0 +1,155 @@
+---
+import { COVER_CONTENT } from '../../data/the-hilda'
+import ConfidentialStamp from './ConfidentialStamp.astro'
+---
+
+<section
+  class="hilda-cover"
+  data-hilda-screen="cover"
+  aria-labelledby="hilda-cover-heading"
+>
+  <div class="hilda-cover__frame">
+    <p class="hilda-cover__file-number">{COVER_CONTENT.fileNumber}</p>
+
+    <h1 id="hilda-cover-heading" class="hilda-cover__name" tabindex="-1">
+      {COVER_CONTENT.name}
+    </h1>
+    <p class="hilda-cover__subtitle">{COVER_CONTENT.subtitle}</p>
+
+    <div class="hilda-cover__byline">
+      <p>Compilado por <span>{COVER_CONTENT.compiledBy}</span></p>
+      <p>Ejecutado por <span>{COVER_CONTENT.executedBy}</span></p>
+    </div>
+
+    <div class="hilda-cover__stamps">
+      {COVER_CONTENT.classification.map((label, i) => (
+        <ConfidentialStamp text={label} tone={i === 0 ? 'red' : 'gold'} rotate={i === 0 ? -4 : 3} />
+      ))}
+    </div>
+
+    <p class="hilda-cover__footnote">{COVER_CONTENT.footnote}</p>
+
+    <button type="button" class="hilda-cover__cta" data-hilda-open-trick>
+      {COVER_CONTENT.cta}
+    </button>
+  </div>
+</section>
+
+<style>
+  .hilda-cover {
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2.5rem 1.25rem;
+    background:
+      radial-gradient(ellipse at top, rgba(201, 162, 75, 0.08), transparent 60%),
+      #0b0a08;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    transform-origin: top center;
+  }
+
+  .hilda-cover[data-hilda-closing] {
+    opacity: 0;
+    transform: rotateX(-12deg) translateY(-24px) scale(0.97);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hilda-cover[data-hilda-closing] {
+      transform: none;
+    }
+  }
+
+  .hilda-cover__frame {
+    max-width: 30rem;
+    width: 100%;
+    text-align: center;
+    border: 1px solid rgba(201, 162, 75, 0.4);
+    border-radius: 10px;
+    padding: 2.5rem 1.75rem;
+    background: rgba(23, 19, 16, 0.55);
+    box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.8);
+  }
+
+  .hilda-cover__file-number {
+    font-family: 'Special Elite', 'Courier New', monospace;
+    letter-spacing: 0.2em;
+    font-size: 0.8rem;
+    color: rgba(239, 230, 211, 0.6);
+    margin: 0 0 1.25rem;
+  }
+
+  .hilda-cover__name {
+    font-family: 'Playfair Display', serif;
+    font-weight: 900;
+    font-size: clamp(2.5rem, 10vw, 4rem);
+    letter-spacing: 0.03em;
+    margin: 0;
+    background: linear-gradient(135deg, #e6c878 0%, #c9a24b 60%, #9c7a33 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .hilda-cover__subtitle {
+    font-family: 'Special Elite', 'Courier New', monospace;
+    font-size: 0.85rem;
+    letter-spacing: 0.14em;
+    color: rgba(239, 230, 211, 0.75);
+    margin: 0.75rem 0 1.75rem;
+  }
+
+  .hilda-cover__byline {
+    font-family: 'Caveat', cursive;
+    font-size: 1.25rem;
+    color: rgba(239, 230, 211, 0.85);
+    margin-bottom: 1.5rem;
+  }
+
+  .hilda-cover__byline p {
+    margin: 0.15rem 0;
+  }
+
+  .hilda-cover__byline span {
+    color: #c9a24b;
+  }
+
+  .hilda-cover__stamps {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.75rem;
+  }
+
+  .hilda-cover__footnote {
+    font-family: 'Lora', serif;
+    font-style: italic;
+    font-size: 0.75rem;
+    color: rgba(239, 230, 211, 0.5);
+    margin: 0 0 2rem;
+  }
+
+  .hilda-cover__cta {
+    font-family: 'Special Elite', 'Courier New', monospace;
+    letter-spacing: 0.12em;
+    font-size: 0.95rem;
+    color: #0b0a08;
+    background: linear-gradient(135deg, #e6c878, #c9a24b);
+    border: none;
+    padding: 0.9rem 2rem;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 12px 24px -10px rgba(201, 162, 75, 0.5);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .hilda-cover__cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 28px -10px rgba(201, 162, 75, 0.6);
+  }
+
+  .hilda-cover__cta:active {
+    transform: translateY(0);
+  }
+</style>

@@ -1,0 +1,138 @@
+---
+import { FINAL_CONTENT } from '../../data/the-hilda'
+---
+
+<section
+  class="hilda-final"
+  data-hilda-screen="final"
+  hidden
+  aria-labelledby="hilda-final-heading"
+>
+  <div class="hilda-final__sparkles" aria-hidden="true">
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+
+  <div class="hilda-final__frame">
+    <h2 id="hilda-final-heading" class="hilda-final__headline" tabindex="-1">
+      {FINAL_CONTENT.headline.map((line) => (
+        <span class="hilda-final__line">{line}</span>
+      ))}
+    </h2>
+
+    <p class="hilda-final__signature">{FINAL_CONTENT.signature}</p>
+
+    <div class="hilda-final__closing">
+      {FINAL_CONTENT.closingLines.map((line) => (
+        <p>{line}</p>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .hilda-final {
+    position: relative;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1.25rem 6rem;
+    background: #0b0a08;
+    overflow: hidden;
+  }
+
+  .hilda-final__frame {
+    max-width: 30rem;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hilda-final__headline {
+    display: flex;
+    flex-direction: column;
+    font-family: 'Playfair Display', serif;
+    font-weight: 900;
+    font-size: clamp(2.1rem, 9vw, 3.2rem);
+    line-height: 1.15;
+    margin: 0 0 1.5rem;
+    background: linear-gradient(135deg, #e6c878 0%, #c9a24b 60%, #9c7a33 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .hilda-final__signature {
+    font-family: 'Caveat', cursive;
+    font-size: 1.6rem;
+    color: #c9a24b;
+    margin: 0 0 2rem;
+  }
+
+  .hilda-final__closing {
+    font-family: 'Lora', serif;
+    font-style: italic;
+    font-size: 1rem;
+    color: rgba(239, 230, 211, 0.75);
+    line-height: 1.7;
+  }
+
+  .hilda-final__closing p {
+    margin: 0 0 0.35rem;
+  }
+
+  .hilda-final__sparkles span {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: #e6c878;
+    opacity: 0;
+    animation: hilda-sparkle 3.2s ease-in-out infinite;
+  }
+
+  .hilda-final__sparkles span:nth-child(1) {
+    top: 18%;
+    left: 22%;
+    animation-delay: 0s;
+  }
+  .hilda-final__sparkles span:nth-child(2) {
+    top: 30%;
+    left: 78%;
+    animation-delay: 0.6s;
+  }
+  .hilda-final__sparkles span:nth-child(3) {
+    top: 65%;
+    left: 12%;
+    animation-delay: 1.2s;
+  }
+  .hilda-final__sparkles span:nth-child(4) {
+    top: 75%;
+    left: 85%;
+    animation-delay: 1.8s;
+  }
+  .hilda-final__sparkles span:nth-child(5) {
+    top: 45%;
+    left: 50%;
+    animation-delay: 2.4s;
+  }
+
+  @keyframes hilda-sparkle {
+    0%,
+    100% {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    50% {
+      opacity: 0.9;
+      transform: scale(1.6);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hilda-final__sparkles span {
+      animation: none;
+      opacity: 0.4;
+    }
+  }
+</style>
