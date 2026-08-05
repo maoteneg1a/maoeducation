@@ -36,6 +36,35 @@ const defaultUnlocked = step.unlockRule.type === 'initial'
       </div>
     )}
 
+    {step.video && (
+      <div class="hilda-play-step__media hilda-play-step__video-wrap">
+        {step.videoAlt && <p class="hilda-play-step__media-label">{step.videoAlt}</p>}
+        <video
+          class="hilda-play-step__video"
+          controls
+          preload="metadata"
+          playsinline
+          onerror="this.closest('.hilda-play-step__video-wrap')?.setAttribute('hidden','')"
+        >
+          <source src={step.video} />
+        </video>
+      </div>
+    )}
+
+    {step.audio && (
+      <div class="hilda-play-step__media hilda-play-step__audio-wrap">
+        {step.audioLabel && <p class="hilda-play-step__media-label">{step.audioLabel}</p>}
+        <audio
+          class="hilda-play-step__audio"
+          controls
+          preload="metadata"
+          onerror="this.closest('.hilda-play-step__audio-wrap')?.setAttribute('hidden','')"
+        >
+          <source src={step.audio} />
+        </audio>
+      </div>
+    )}
+
     {step.hasQrArea && (
       <div class="hilda-play-step__media">
         <QrPlaceholder label="QR sorpresa" />
@@ -99,7 +128,31 @@ const defaultUnlocked = step.unlockRule.type === 'initial'
   .hilda-play-step__media {
     margin: 1rem 0;
     display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
+  }
+
+  .hilda-play-step__media[hidden] {
+    display: none;
+  }
+
+  .hilda-play-step__media-label {
+    font-family: 'Caveat', cursive;
+    font-size: 1.1rem;
+    color: rgba(239, 230, 211, 0.8);
+    margin: 0 0 0.4rem;
+  }
+
+  .hilda-play-step__video,
+  .hilda-play-step__audio {
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .hilda-play-step__video {
+    border-radius: 8px;
+    background: #000;
   }
 
   .hilda-play-step__stamp {
