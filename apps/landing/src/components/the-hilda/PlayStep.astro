@@ -19,7 +19,7 @@ const defaultUnlocked = step.unlockRule.type === 'initial'
   data-hilda-step-state={defaultUnlocked ? 'unlocked' : 'locked'}
 >
   <div class="hilda-play-step__locked" hidden={defaultUnlocked}>
-    <LockedStep number={step.number} hint={step.lockedHint} />
+    <LockedStep number={step.number} hint={step.lockedHint} hasCode={step.unlockRule.type === 'code'} />
   </div>
 
   <div class="hilda-play-step__unlocked" hidden={!defaultUnlocked}>

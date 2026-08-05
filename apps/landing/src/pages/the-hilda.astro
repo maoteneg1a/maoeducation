@@ -34,7 +34,7 @@ import { THE_HILDA_STEPS } from '../data/the-hilda'
   <ProgressIndicator />
 
   <script>
-    import { evaluateUnlocks, unlockFinal } from '../lib/the-hilda-progress'
+    import { loadProgress, unlockStepByCode, unlockFinal } from '../lib/the-hilda-progress'
     import { THE_HILDA_STEPS } from '../data/the-hilda'
 
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -91,24 +91,38 @@ import { THE_HILDA_STEPS } from '../data/the-hilda'
       }
     }
 
-    const params = new URLSearchParams(window.location.search)
-    const { progress, newlyUnlockedStepIds } = evaluateUnlocks(params)
+    let progress = loadProgress()
 
     for (const step of THE_HILDA_STEPS) {
-      const unlocked = progress.unlockedStepIds.includes(step.id)
-      if (!unlocked) continue
-      applyStepUnlockState(step.id, { animate: newlyUnlockedStepIds.includes(step.id) })
+      if (!progress.unlockedStepIds.includes(step.id)) continue
+      applyStepUnlockState(step.id, { animate: false })
     }
 
     updateReachability(progress.revealed, progress.finalUnlocked)
+    setActiveScreen('cover')
 
-    let initialScreen = 'cover'
-    if (params.get('revelacion') === 'true' && progress.revealed) {
-      initialScreen = 'reveal'
-    } else if (params.has('paso')) {
-      initialScreen = 'plan'
+    for (const form of document.querySelectorAll<HTMLFormElement>('[data-hilda-code-form]')) {
+      form.addEventListener('submit', (event) => {
+        event.preventDefault()
+        const article = form.closest<HTMLElement>('[data-hilda-step]')
+        const stepId = article?.dataset.hildaStep
+        const step = THE_HILDA_STEPS.find((s) => s.id === stepId)
+        const input = form.querySelector<HTMLInputElement>('[data-hilda-code-input]')
+        const errorEl = form.querySelector<HTMLElement>('[data-hilda-code-error]')
+        if (!step || !input) return
+
+        const result = unlockStepByCode(step, input.value)
+        if (!result.success) {
+          if (errorEl) errorEl.hidden = false
+          return
+        }
+
+        if (errorEl) errorEl.hidden = true
+        progress = result.progress
+        applyStepUnlockState(step.id, { animate: true })
+        updateReachability(progress.revealed, progress.finalUnlocked)
+      })
     }
-    setActiveScreen(initialScreen)
 
     document.querySelector('[data-hilda-open-trick]')?.addEventListener('click', (event) => {
       const cover = (event.currentTarget as HTMLElement).closest<HTMLElement>('[data-hilda-screen="cover"]')
@@ -128,8 +142,8 @@ import { THE_HILDA_STEPS } from '../data/the-hilda'
     }
 
     document.querySelector('[data-hilda-reveal-final]')?.addEventListener('click', () => {
-      unlockFinal()
-      updateReachability(progress.revealed, true)
+      progress = unlockFinal()
+      updateReachability(progress.revealed, progress.finalUnlocked)
       setActiveScreen('final')
     })
 

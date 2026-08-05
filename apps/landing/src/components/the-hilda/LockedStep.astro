@@ -2,9 +2,11 @@
 interface Props {
   number: number
   hint: string
+  hasCode?: boolean
 }
 
-const { number, hint } = Astro.props
+const { number, hint, hasCode = false } = Astro.props
+const inputId = `hilda-code-input-${number}`
 ---
 
 <div class="hilda-locked-step">
@@ -12,9 +14,29 @@ const { number, hint } = Astro.props
     <rect x="5" y="11" width="14" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6" />
     <path d="M8 11V7a4 4 0 0 1 8 0v4" fill="none" stroke="currentColor" stroke-width="1.6" />
   </svg>
-  <div>
+  <div class="hilda-locked-step__body">
     <p class="hilda-locked-step__number">Paso {number}</p>
     <p class="hilda-locked-step__hint">{hint}</p>
+
+    {hasCode && (
+      <form class="hilda-locked-step__form" data-hilda-code-form autocomplete="off">
+        <label class="hilda-locked-step__label" for={inputId}>Código secreto</label>
+        <div class="hilda-locked-step__row">
+          <input
+            id={inputId}
+            type="text"
+            inputmode="text"
+            class="hilda-locked-step__input"
+            data-hilda-code-input
+            placeholder="Escribe el código"
+          />
+          <button type="submit" class="hilda-locked-step__submit">Desbloquear</button>
+        </div>
+        <p class="hilda-locked-step__error" data-hilda-code-error role="alert" hidden>
+          Código incorrecto. Inténtalo de nuevo.
+        </p>
+      </form>
+    )}
   </div>
 </div>
 
@@ -47,5 +69,65 @@ const { number, hint } = Astro.props
     font-style: italic;
     font-size: 0.9rem;
     margin: 0;
+  }
+
+  .hilda-locked-step__body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .hilda-locked-step__form {
+    margin-top: 0.9rem;
+  }
+
+  .hilda-locked-step__label {
+    display: block;
+    font-family: 'Special Elite', 'Courier New', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin: 0 0 0.4rem;
+    color: rgba(239, 230, 211, 0.55);
+  }
+
+  .hilda-locked-step__row {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .hilda-locked-step__input {
+    flex: 1;
+    min-width: 8rem;
+    font-family: 'Lora', serif;
+    font-size: 0.95rem;
+    color: #efe6d3;
+    background: rgba(11, 10, 8, 0.6);
+    border: 1px solid rgba(201, 162, 75, 0.4);
+    border-radius: 6px;
+    padding: 0.55rem 0.75rem;
+  }
+
+  .hilda-locked-step__input::placeholder {
+    color: rgba(239, 230, 211, 0.35);
+  }
+
+  .hilda-locked-step__submit {
+    font-family: 'Special Elite', 'Courier New', monospace;
+    letter-spacing: 0.08em;
+    font-size: 0.8rem;
+    color: #0b0a08;
+    background: linear-gradient(135deg, #e6c878, #c9a24b);
+    border: none;
+    padding: 0.55rem 1.1rem;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .hilda-locked-step__error {
+    font-family: 'Lora', serif;
+    font-size: 0.82rem;
+    color: #e08a7d;
+    margin: 0.5rem 0 0;
   }
 </style>
