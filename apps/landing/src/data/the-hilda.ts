@@ -13,6 +13,10 @@ export interface PlayStep {
   description: string
   image?: string
   imageAlt?: string
+  video?: string
+  videoAlt?: string
+  audio?: string
+  audioLabel?: string
   hasQrArea?: boolean
   annotation?: string
   unlockRule: UnlockRule
@@ -92,7 +96,7 @@ export const THE_HILDA_STEPS: PlayStep[] = [
   {
     id: 'paso-1',
     number: 1,
-    title: 'Prepara un desayuno que pienses que le guste',
+    title: 'Preparar un desayuno que sepa que le va a encantar',
     description:
       'Prepara un desayuno que creas que le encantará: algo fitness, saludable y delicioso para comenzar el día con una sonrisa.',
     image: '/the-hilda/images/desayuno.jpg',
@@ -103,11 +107,15 @@ export const THE_HILDA_STEPS: PlayStep[] = [
   {
     id: 'paso-3',
     number: 3,
-    title: 'Haz que tus hijos también te ayuden en esto',
+    title: 'Colaborar con mis hijos para que sea perfecto',
     description:
       'Necesitaba que mis hijos me ayudaran en esto para que te enviaran mensajes y detalles que te llegaran directo al corazón.',
     image: '/the-hilda/images/hijos.jpg',
     imageAlt: 'Los niños ayudando con el plan',
+    video: '/the-hilda/video/hijo.mp4',
+    videoAlt: 'Mensaje en video de tu hijo',
+    audio: '/the-hilda/audio/hija.mp3',
+    audioLabel: 'Mensaje de tu hija',
     annotation: 'No hay Paso 2. Así es el truco.',
     unlockRule: { type: 'query', parameter: 'paso', value: '3' },
     lockedHint: 'Este paso todavía no forma parte de tu historia.',
@@ -115,7 +123,7 @@ export const THE_HILDA_STEPS: PlayStep[] = [
   {
     id: 'paso-4',
     number: 4,
-    title: 'Hazle creer que ahora sí es el final',
+    title: 'Hacerle creer que ya es el final',
     description: 'Muéstrale algo que parezca el regalo final para que piense que la sorpresa ha terminado.',
     hasQrArea: true,
     unlockRule: { type: 'query', parameter: 'paso', value: '4' },
@@ -124,7 +132,7 @@ export const THE_HILDA_STEPS: PlayStep[] = [
   {
     id: 'paso-5',
     number: 5,
-    title: 'Espera que le guste',
+    title: 'Esperar que le guste',
     description: 'Espera su reacción, su sonrisa y su emoción. Disfrútala al máximo. Ese es el verdadero objetivo.',
     unlockRule: { type: 'query', parameter: 'revelacion', value: 'true' },
     lockedHint: 'Este paso todavía no forma parte de tu historia.',
