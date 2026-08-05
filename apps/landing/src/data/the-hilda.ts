@@ -1,10 +1,7 @@
 // Contenido y configuración central de "THE HILDA".
 // Separado de la presentación: los componentes solo leen de aquí.
 
-export type UnlockRule =
-  | { type: 'initial' }
-  | { type: 'query'; parameter: string; value: string }
-  | { type: 'datetime'; unlockAt: string }
+export type UnlockRule = { type: 'initial' } | { type: 'code'; code: string }
 
 export interface PlayStep {
   id: string
@@ -21,6 +18,8 @@ export interface PlayStep {
   annotation?: string
   unlockRule: UnlockRule
   lockedHint: string
+  /** Al desbloquear este paso con su código, también se abre la pantalla de revelación. */
+  revealsFinale?: boolean
 }
 
 export interface TrickFile {
@@ -88,7 +87,7 @@ export const TRICK_FILE: TrickFile = {
     'Conseguir que Hilda tenga el mejor cumpleaños de su vida sin descubrir el verdadero truco hasta el final.',
   difficultyStars: 5,
   prepTime: '365 días',
-  accomplices: ['Dos niños', 'Flores', 'Desayuno fitness', 'Códigos QR', 'Muchísimo amor'],
+  accomplices: ['Dos niños', 'Flores', 'Desayuno fitness', 'Códigos secretos', 'Muchísimo amor'],
   successRate: 'Desconocida...',
 }
 
@@ -100,7 +99,7 @@ export const THE_HILDA_STEPS: PlayStep[] = [
     description:
       'Prepara un desayuno que creas que le encantará: algo fitness, saludable y delicioso para comenzar el día con una sonrisa.',
     unlockRule: { type: 'initial' },
-    lockedHint: 'Este paso todavía no forma parte de tu historia.',
+    lockedHint: 'Pídele el código a Mauricio para desbloquear este paso.',
   },
   {
     id: 'paso-3',
@@ -113,24 +112,25 @@ export const THE_HILDA_STEPS: PlayStep[] = [
     audio: '/the-hilda/audio/hija.mp3',
     audioLabel: 'Mensaje de tu hija',
     annotation: 'No hay Paso 2. Así es el truco.',
-    unlockRule: { type: 'query', parameter: 'paso', value: '3' },
-    lockedHint: 'Este paso todavía no forma parte de tu historia.',
+    unlockRule: { type: 'code', code: 'FAMILIA' },
+    lockedHint: 'Pídele el código a Mauricio para desbloquear este paso.',
   },
   {
     id: 'paso-4',
     number: 4,
     title: 'Hacerle creer que ya es el final',
     description: 'Muéstrale algo que parezca el regalo final para que piense que la sorpresa ha terminado.',
-    unlockRule: { type: 'query', parameter: 'paso', value: '4' },
-    lockedHint: 'Este paso todavía no forma parte de tu historia.',
+    unlockRule: { type: 'code', code: 'FLORES' },
+    lockedHint: 'Pídele el código a Mauricio para desbloquear este paso.',
   },
   {
     id: 'paso-5',
     number: 5,
     title: 'Esperar que le guste',
     description: 'Espera su reacción, su sonrisa y su emoción. Disfrútala al máximo. Ese es el verdadero objetivo.',
-    unlockRule: { type: 'query', parameter: 'revelacion', value: 'true' },
-    lockedHint: 'Este paso todavía no forma parte de tu historia.',
+    unlockRule: { type: 'code', code: 'COSHI' },
+    lockedHint: 'Pídele el código a Mauricio para desbloquear este paso.',
+    revealsFinale: true,
   },
 ]
 

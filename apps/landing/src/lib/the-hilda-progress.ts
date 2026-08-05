@@ -1,7 +1,7 @@
 // Estado del truco: qué pasos están desbloqueados y si ya se llegó a la revelación/final.
 // Vive en localStorage. Sin backend, sin base de datos.
 
-import { THE_HILDA_STEPS, type PlayStep } from '../data/the-hilda'
+import type { PlayStep } from '../data/the-hilda'
 
 const STORAGE_KEY = 'the-hilda:progress'
 
@@ -9,12 +9,6 @@ export interface StoredProgress {
   unlockedStepIds: string[]
   revealed: boolean
   finalUnlocked: boolean
-}
-
-export interface UnlockResult {
-  progress: StoredProgress
-  newlyUnlockedStepIds: string[]
-  revealedNow: boolean
 }
 
 function emptyProgress(): StoredProgress {
@@ -44,38 +38,31 @@ export function saveProgress(progress: StoredProgress): void {
   }
 }
 
-function stepShouldUnlock(step: PlayStep, params: URLSearchParams, now: Date): boolean {
-  const rule = step.unlockRule
-  if (rule.type === 'initial') return true
-  if (rule.type === 'query') return params.get(rule.parameter) === rule.value
-  if (rule.type === 'datetime') return now >= new Date(rule.unlockAt)
-  return false
+function normalizeCode(input: string): string {
+  return input.trim().toUpperCase()
 }
 
-/** Combina el progreso guardado con los parámetros de la URL actual y persiste el resultado. */
-export function evaluateUnlocks(params: URLSearchParams, now: Date = new Date()): UnlockResult {
-  const stored = loadProgress()
-  const unlockedSet = new Set(stored.unlockedStepIds)
-  const newlyUnlockedStepIds: string[] = []
+export interface CodeUnlockResult {
+  success: boolean
+  progress: StoredProgress
+}
 
-  for (const step of THE_HILDA_STEPS) {
-    if (unlockedSet.has(step.id)) continue
-    if (stepShouldUnlock(step, params, now)) {
-      unlockedSet.add(step.id)
-      newlyUnlockedStepIds.push(step.id)
-    }
+/** Verifica el código escrito contra el del paso; si acierta, desbloquea (y persiste) el paso. */
+export function unlockStepByCode(step: PlayStep, code: string): CodeUnlockResult {
+  const stored = loadProgress()
+  if (step.unlockRule.type !== 'code' || normalizeCode(code) !== normalizeCode(step.unlockRule.code)) {
+    return { success: false, progress: stored }
   }
 
-  const revealedNow = !stored.revealed && params.get('revelacion') === 'true'
+  const unlockedSet = new Set(stored.unlockedStepIds)
+  unlockedSet.add(step.id)
   const progress: StoredProgress = {
     unlockedStepIds: Array.from(unlockedSet),
-    revealed: stored.revealed || revealedNow,
+    revealed: stored.revealed || Boolean(step.revealsFinale),
     finalUnlocked: stored.finalUnlocked,
   }
-
   saveProgress(progress)
-
-  return { progress, newlyUnlockedStepIds, revealedNow }
+  return { success: true, progress }
 }
 
 export function isStepUnlocked(step: PlayStep, progress: StoredProgress): boolean {
