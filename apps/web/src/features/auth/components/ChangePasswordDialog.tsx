@@ -23,7 +23,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: Props) {
   const reset = () => { setCurrent(''); setNext(''); setConfirm('') }
 
   const mutation = useMutation({
-    mutationFn: () => apiPost<void>('/auth/change-password', { currentPassword: current, newPassword: next }),
+    mutationFn: () => apiPost<void>('auth/change-password', { currentPassword: current, newPassword: next }),
     onSuccess: () => {
       toast.success('Contraseña cambiada correctamente')
       reset()
