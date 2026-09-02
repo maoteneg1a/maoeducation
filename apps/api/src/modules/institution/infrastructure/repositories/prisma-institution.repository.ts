@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
-import { NotFoundError } from '../../../../shared/domain/errors/app.errors'
+import { BadRequestError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import {
   GradingConfig,
   InstitutionBranding,
@@ -25,6 +25,7 @@ function extractGradingConfig(settings: unknown): GradingConfig {
   const s = (settings ?? {}) as Record<string, unknown>
   const gc = (s.gradingConfig ?? {}) as Partial<GradingConfig>
   return {
+    gradingScaleMax: gc.gradingScaleMax ?? DEFAULT_GRADING_CONFIG.gradingScaleMax,
     qualitativeScale:
       gc.qualitativeScale && gc.qualitativeScale.length > 0
         ? gc.qualitativeScale
@@ -104,6 +105,9 @@ export class PrismaInstitutionRepository {
     institutionId: string,
     dto: UpdateGradingConfigDto,
   ): Promise<GradingConfig> {
+    if (dto.gradingScaleMax !== undefined && (!Number.isFinite(dto.gradingScaleMax) || dto.gradingScaleMax <= 0)) {
+      throw new BadRequestError('La nota máxima de la escala debe ser mayor a 0')
+    }
     const inst = await prisma.institution.findUnique({
       where: { id: institutionId },
       select: { settings: true },
@@ -113,6 +117,7 @@ export class PrismaInstitutionRepository {
     const currentSettings = (inst.settings ?? {}) as Record<string, unknown>
     const current = extractGradingConfig(inst.settings)
     const next: GradingConfig = {
+      gradingScaleMax: dto.gradingScaleMax ?? current.gradingScaleMax,
       qualitativeScale: dto.qualitativeScale ?? current.qualitativeScale,
       behaviorScale: dto.behaviorScale ?? current.behaviorScale,
       promotion: { ...current.promotion, ...(dto.promotion ?? {}) },

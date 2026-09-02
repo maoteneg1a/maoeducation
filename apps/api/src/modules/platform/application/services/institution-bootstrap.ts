@@ -248,6 +248,8 @@ export const DEFAULT_ANAMNESIS_SCHEMA = {
 
 // Configuración de calificación por defecto (escala MINEDUC), editable por el admin
 export const DEFAULT_GRADING_CONFIG = {
+  // Escala numérica general de la institución (por ejemplo, notas sobre 5 o sobre 10).
+  gradingScaleMax: 10,
   qualitativeScale: [
     { min: 9.0, max: 10.0, code: 'DAR', label: 'Domina los aprendizajes requeridos' },
     { min: 7.0, max: 8.99, code: 'AAR', label: 'Alcanza los aprendizajes requeridos' },

@@ -62,7 +62,9 @@ export class PrismaPromotionRepository {
     })
     if (!year) throw new NotFoundError('Año lectivo no encontrado')
 
-    const config = (await institutionRepo.getGradingConfig(institutionId)).promotion
+    const gradingConfig = await institutionRepo.getGradingConfig(institutionId)
+    const config = gradingConfig.promotion
+    const gradingScaleMax = gradingConfig.gradingScaleMax
 
     const periods = await prisma.academicPeriod.findMany({
       where: { academicYearId: yearId },
@@ -200,7 +202,7 @@ export class PrismaPromotionRepository {
           const annualByPeriod = periodIds.map((pId) => {
             const groups = bucket.get(key(sId, a.id, pId))
             if (!groups) return null
-            const rawTotal = computePeriodSummary([...groups.values()], a.examWeight).total
+            const rawTotal = computePeriodSummary([...groups.values()], a.examWeight, gradingScaleMax).total
             const pedRec = pedRecMap.get(`${sId}:${a.id}:${pId}`) ?? null
             return applyRecovery(rawTotal, pedRec, pedRecoveryMode)
           })
@@ -284,7 +286,10 @@ export class PrismaPromotionRepository {
       return { ok: true }
     }
 
-    if (dto.score < 0 || dto.score > 10) throw new BadRequestError('La nota debe estar entre 0 y 10')
+    const gradingScaleMax = (await institutionRepo.getGradingConfig(institutionId)).gradingScaleMax
+    if (dto.score < 0 || dto.score > gradingScaleMax) {
+      throw new BadRequestError(`La nota debe estar entre 0 y ${gradingScaleMax}`)
+    }
 
     await prisma.subjectRecovery.upsert({
       where: {
