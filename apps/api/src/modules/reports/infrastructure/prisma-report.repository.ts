@@ -38,11 +38,21 @@ export class PrismaReportRepository {
     return average(scores)
   }
 
+  private async gradingScaleMax(institutionId: string): Promise<number> {
+    const institution = await prisma.institution.findUnique({
+      where: { id: institutionId },
+      select: { settings: true },
+    })
+    return (institution?.settings as { gradingConfig?: { gradingScaleMax?: number } } | null)
+      ?.gradingConfig?.gradingScaleMax ?? 10
+  }
+
   async getGradesReport(
     institutionId: string,
     query: GradesReportQuery,
     caller?: { userId: string; roles: string[] },
   ) {
+    const gradingScaleMax = await this.gradingScaleMax(institutionId)
     const assignment = await prisma.courseAssignment.findFirst({
       where: { id: query.courseAssignmentId, institutionId },
       select: {
@@ -155,7 +165,7 @@ export class PrismaReportRepository {
             kind: activityKind(a.activityType.code),
           })),
         }))
-        const summary = { ...computePeriodSummary(groups, examWeight), examWeight }
+        const summary = { ...computePeriodSummary(groups, examWeight, gradingScaleMax), examWeight }
         return {
           student: e.student,
           grades: grades.size > 0 ? Object.fromEntries(grades) : {},
@@ -166,6 +176,7 @@ export class PrismaReportRepository {
   }
 
   async getMyGrades(institutionId: string, studentId: string, periodId: string) {
+    const gradingScaleMax = await this.gradingScaleMax(institutionId)
     const enrollments = await prisma.studentEnrollment.findMany({
       where: { institutionId, studentId },
       select: { parallelId: true, academicYearId: true },
@@ -241,7 +252,7 @@ export class PrismaReportRepository {
       ]
 
       const examWeight = assignment.examWeight
-      const summary = computePeriodSummary(groups, examWeight)
+      const summary = computePeriodSummary(groups, examWeight, gradingScaleMax)
       const avgById = new Map(summary.insumoAvgs.map((i) => [i.id, i.avg]))
 
       // Columnas: solo insumos con al menos una actividad formativa.
@@ -489,6 +500,7 @@ export class PrismaReportRepository {
     query: BulletinReportQuery,
     caller: { userId: string; roles: string[] },
   ) {
+    const gradingScaleMax = await this.gradingScaleMax(institutionId)
     const parallel = await prisma.parallel.findFirst({
       where: { id: query.parallelId, institutionId, academicYearId: query.yearId },
       select: {
@@ -679,7 +691,7 @@ export class PrismaReportRepository {
       const isQualitative = assignment.subject.isQualitative
       const periodGrades = periods.map((period) => {
         const groups = [...(bucket.get(`${assignment.id}:${period.id}`)?.values() ?? [])]
-        const s = computePeriodSummary(groups, assignment.examWeight)
+        const s = computePeriodSummary(groups, assignment.examWeight, gradingScaleMax)
         const pedRec = pedRecMap.get(`${assignment.id}:${period.id}`) ?? null
         const effectiveTotal = applyRecovery(s.total, pedRec, gradingCfg)
 

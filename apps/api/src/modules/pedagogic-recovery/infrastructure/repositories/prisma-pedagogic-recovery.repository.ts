@@ -35,6 +35,7 @@ export class PrismaPedagogicRecoveryRepository {
     const gc = await institutionRepo.getGradingConfig(institutionId)
     const recoveryMode = gc.pedagogicRecovery.mode
     const passingGrade = gc.promotion.minToPass
+    const gradingScaleMax = gc.gradingScaleMax
 
     const [enrollments, assignments] = await Promise.all([
       prisma.studentEnrollment.findMany({
@@ -124,7 +125,9 @@ export class PrismaPedagogicRecoveryRepository {
         const studentName = profile ? `${profile.lastName} ${profile.firstName}` : e.student.email
 
         const groups = bucket.get(key(sId, a.id))
-        const periodTotal = groups ? computePeriodSummary([...groups.values()], a.examWeight).total : null
+        const periodTotal = groups
+          ? computePeriodSummary([...groups.values()], a.examWeight, gradingScaleMax).total
+          : null
         const rec = recMap.get(`${sId}:${a.id}`)
         const recoveryScore = rec?.score != null ? Number(rec.score) : null
         const effectiveTotal = applyRecovery(periodTotal, recoveryScore, recoveryMode)
@@ -158,7 +161,10 @@ export class PrismaPedagogicRecoveryRepository {
       return { ok: true }
     }
 
-    if (dto.score < 0 || dto.score > 10) throw new BadRequestError('La nota debe estar entre 0 y 10')
+    const gradingScaleMax = (await institutionRepo.getGradingConfig(institutionId)).gradingScaleMax
+    if (dto.score < 0 || dto.score > gradingScaleMax) {
+      throw new BadRequestError(`La nota debe estar entre 0 y ${gradingScaleMax}`)
+    }
 
     await prisma.pedagogicRecovery.upsert({
       where: { studentId_courseAssignmentId_academicPeriodId: { studentId: dto.studentId, courseAssignmentId: dto.courseAssignmentId, academicPeriodId: dto.academicPeriodId } },

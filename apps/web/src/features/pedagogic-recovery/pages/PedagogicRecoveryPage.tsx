@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { cn } from '@/shared/lib/utils'
+import { useGradingConfig } from '@/features/settings/hooks/useSettings'
 import {
   getPedagogicRecovery,
   savePedagogicRecovery,
@@ -34,6 +35,8 @@ export function PedagogicRecoveryPage() {
   const [yearId, setYearId] = useState('')
   const [parallelId, setParallelId] = useState('')
   const [periodId, setPeriodId] = useState('')
+  const { data: gradingConfig } = useGradingConfig()
+  const gradingScaleMax = gradingConfig?.gradingScaleMax ?? 10
 
   const { data: years = [] } = useQuery({
     queryKey: ['academic-years-active'],
@@ -70,10 +73,10 @@ export function PedagogicRecoveryPage() {
     (studentId: string, assignmentId: string, value: string) => {
       if (!periodId) return
       const score = value === '' ? null : Number(value)
-      if (score !== null && (score < 0 || score > 10)) return
+      if (score !== null && (score < 0 || score > gradingScaleMax)) return
       saveMutation.mutate({ studentId, courseAssignmentId: assignmentId, academicPeriodId: periodId, score })
     },
-    [periodId, saveMutation],
+    [periodId, saveMutation, gradingScaleMax],
   )
 
   const passingGrade = data?.passingGrade ?? 7
@@ -176,6 +179,7 @@ export function PedagogicRecoveryPage() {
                       assignmentId={subject.assignmentId}
                       onScore={handleScore}
                       saving={saveMutation.isPending}
+                      gradingScaleMax={gradingScaleMax}
                     />
                   ))}
                 </div>
@@ -194,9 +198,10 @@ interface RecoveryRowProps {
   assignmentId: string
   onScore: (studentId: string, assignmentId: string, value: string) => void
   saving: boolean
+  gradingScaleMax: number
 }
 
-function RecoveryRow({ row, passingGrade, assignmentId, onScore, saving }: RecoveryRowProps) {
+function RecoveryRow({ row, passingGrade, assignmentId, onScore, saving, gradingScaleMax }: RecoveryRowProps) {
   const [draft, setDraft] = useState(row.recoveryScore != null ? String(row.recoveryScore) : '')
   const effective = row.effectiveTotal
   const passed = effective != null && effective >= passingGrade
@@ -213,7 +218,7 @@ function RecoveryRow({ row, passingGrade, assignmentId, onScore, saving }: Recov
         <Input
           type="number"
           min={0}
-          max={10}
+          max={gradingScaleMax}
           step={0.1}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

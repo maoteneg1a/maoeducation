@@ -32,11 +32,20 @@ export function toQualitativeCode(value: number | null, scale: QualitativeBand[]
   return band ? band.code : null
 }
 
-/** Normaliza una nota a escala /10 según su puntaje máximo. null si no hay nota. */
-export function normalize10(score: number | null | undefined, maxScore: number): number | null {
+/** Normaliza una nota a la escala institucional según el puntaje máximo de la actividad. */
+export function normalizeScore(
+  score: number | null | undefined,
+  maxScore: number,
+  gradingScaleMax = 10,
+): number | null {
   if (score == null) return null
-  if (!maxScore || maxScore <= 0) return null
-  return (score / maxScore) * 10
+  if (!maxScore || maxScore <= 0 || !gradingScaleMax || gradingScaleMax <= 0) return null
+  return (score / maxScore) * gradingScaleMax
+}
+
+/** Compatibilidad para consumidores que necesiten explícitamente la escala /10. */
+export function normalize10(score: number | null | undefined, maxScore: number): number | null {
+  return normalizeScore(score, maxScore, 10)
 }
 
 /** Tipo de actividad para el cálculo: formativa (regular), examen o proyecto. */
@@ -63,9 +72,13 @@ export interface InsumoGroupInput {
   activities: ScoredActivity[]
 }
 
-/** Promedio formativo de un insumo: promedio de sus actividades regulares normalizadas a /10. */
-export function insumoGroupAverage(activities: ScoredActivity[]): number | null {
-  return average(activities.filter((a) => a.kind === 'regular').map((a) => normalize10(a.score, a.maxScore)))
+/** Promedio formativo de un insumo, expresado en la escala institucional. */
+export function insumoGroupAverage(activities: ScoredActivity[], gradingScaleMax = 10): number | null {
+  return average(
+    activities
+      .filter((a) => a.kind === 'regular')
+      .map((a) => normalizeScore(a.score, a.maxScore, gradingScaleMax)),
+  )
 }
 
 export interface PeriodSummary {
@@ -122,19 +135,23 @@ export function applyRecovery(
  * base formativa (promedio por insumo), examen, proyecto, sumativa (promedio de ambos)
  * y total ponderado. `hasSummative` se basa en que existan actividades de examen o proyecto.
  */
-export function computePeriodSummary(groups: InsumoGroupInput[], summativeWeight: number): PeriodSummary {
+export function computePeriodSummary(
+  groups: InsumoGroupInput[],
+  summativeWeight: number,
+  gradingScaleMax = 10,
+): PeriodSummary {
   const insumoAvgs = groups.map((g) => ({
     id: g.id,
     name: g.name,
-    avg: insumoGroupAverage(g.activities),
+    avg: insumoGroupAverage(g.activities, gradingScaleMax),
   }))
   const insumosBase = average(insumoAvgs.map((i) => i.avg))
 
   const all = groups.flatMap((g) => g.activities)
   const examActivities = all.filter((a) => a.kind === 'exam')
   const projectActivities = all.filter((a) => a.kind === 'project')
-  const examenAvg = average(examActivities.map((a) => normalize10(a.score, a.maxScore)))
-  const proyectoAvg = average(projectActivities.map((a) => normalize10(a.score, a.maxScore)))
+  const examenAvg = average(examActivities.map((a) => normalizeScore(a.score, a.maxScore, gradingScaleMax)))
+  const proyectoAvg = average(projectActivities.map((a) => normalizeScore(a.score, a.maxScore, gradingScaleMax)))
   const summativeAvg = average([examenAvg, proyectoAvg])
   const hasSummative = examActivities.length > 0 || projectActivities.length > 0
 

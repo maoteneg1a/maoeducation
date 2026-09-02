@@ -19,6 +19,7 @@ import { cn, getErrorMessage } from '@/shared/lib/utils'
 import { useAcademicYears, useParallels } from '@/features/academic/hooks/useAcademic'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth.store'
+import { useGradingConfig } from '@/features/settings/hooks/useSettings'
 import {
   promotionApi,
   type PromotionStatus,
@@ -387,6 +388,8 @@ function SubjectRow({
   onSave: (type: RecoveryType, score: number | null) => void
   saving: boolean
 }) {
+  const { data: gradingConfig } = useGradingConfig()
+  const gradingScaleMax = gradingConfig?.gradingScaleMax ?? 10
   const needsRecovery = subject.status === 'supletorio' || subject.status === 'remedial'
   const [type, setType] = React.useState<RecoveryType>(subject.recovery?.type ?? (subject.status === 'remedial' ? 'remedial' : 'supletorio'))
   const [score, setScore] = React.useState<string>(subject.recovery ? String(subject.recovery.score) : '')
@@ -416,7 +419,7 @@ function SubjectRow({
             <Input
               type="number"
               min={0}
-              max={10}
+              max={gradingScaleMax}
               step={0.01}
               inputMode="decimal"
               value={score}
