@@ -30,6 +30,7 @@ import { getGradesReport, getMyGrades, type GradesReportData, type MyGradesSubje
 import { useGuardianStudentId } from '@/features/guardian/components/ChildSwitcher'
 import { academicApi, type AcademicPeriod } from '@/features/academic/api/academic.api'
 import { usePermissions } from '@/shared/hooks/usePermissions'
+import { useGradingConfig } from '@/features/settings/hooks/useSettings'
 
 // ---- Query keys ----
 const gradeKeys = {
@@ -155,6 +156,8 @@ function scoreColor(score: number | null | undefined, max: number) {
 }
 
 function GradesGrid({ data }: { data: GradesReportData }) {
+  const { data: gradingConfig } = useGradingConfig()
+  const gradingScaleMax = gradingConfig?.gradingScaleMax ?? 10
   const { insumos, students } = data
   const allActivities = insumos.flatMap((ins) => ins.activities.map((a) => ({ ...a, insumoName: ins.name })))
 
@@ -238,14 +241,14 @@ function GradesGrid({ data }: { data: GradesReportData }) {
                     )
                   }).concat(
                     <td key={`avg-${ins.id}-${student.id}`} className="border border-border px-2 py-2 text-center bg-muted/20 tabular-nums">
-                      <span className={scoreColor(insumoAvgs[idx], 10)}>
+                      <span className={scoreColor(insumoAvgs[idx], gradingScaleMax)}>
                         {insumoAvgs[idx] != null ? insumoAvgs[idx]!.toFixed(1) : '—'}
                       </span>
                     </td>
                   )
                 )}
                 <td className="border border-border px-3 py-2 text-center font-semibold tabular-nums bg-muted/20">
-                  <span className={scoreColor(overall, 10)}>
+                  <span className={scoreColor(overall, gradingScaleMax)}>
                     {overall != null ? overall.toFixed(2) : '—'}
                   </span>
                 </td>
@@ -273,6 +276,8 @@ interface CompactGridProps {
 }
 
 function CompactGrid({ data, examWeight, canEditWeight, onEditWeight }: CompactGridProps) {
+  const { data: gradingConfig } = useGradingConfig()
+  const gradingScaleMax = gradingConfig?.gradingScaleMax ?? 10
   const { insumos, students } = data
   const regularWeight = 100 - examWeight
   const halfWeight = Math.round(examWeight / 2)
@@ -371,34 +376,34 @@ function CompactGrid({ data, examWeight, canEditWeight, onEditWeight }: CompactG
                 </td>
                 {insumoAvgs.map((avg, idx) => (
                   <td key={regularInsumos[idx].id} className="border border-border px-3 py-2 text-center tabular-nums">
-                    <span className={scoreColor(avg, 10)}>
+                    <span className={scoreColor(avg, gradingScaleMax)}>
                       {avg != null ? avg.toFixed(2) : '—'}
                     </span>
                   </td>
                 ))}
                 {hasRegular && (
                   <td className="border border-border px-3 py-2 text-center tabular-nums bg-blue-50/50 font-semibold">
-                    <span className={scoreColor(regularAvg, 10)}>
+                    <span className={scoreColor(regularAvg, gradingScaleMax)}>
                       {regularAvg != null ? regularAvg.toFixed(2) : '—'}
                     </span>
                   </td>
                 )}
                 {hasExam && (
                   <td className="border border-border px-3 py-2 text-center tabular-nums">
-                    <span className={scoreColor(examenAvg, 10)}>
+                    <span className={scoreColor(examenAvg, gradingScaleMax)}>
                       {examenAvg != null ? examenAvg.toFixed(2) : '—'}
                     </span>
                   </td>
                 )}
                 {hasProject && (
                   <td className="border border-border px-3 py-2 text-center tabular-nums">
-                    <span className={scoreColor(proyectoAvg, 10)}>
+                    <span className={scoreColor(proyectoAvg, gradingScaleMax)}>
                       {proyectoAvg != null ? proyectoAvg.toFixed(2) : '—'}
                     </span>
                   </td>
                 )}
                 <td className="border border-border px-3 py-2 text-center font-bold tabular-nums bg-muted/20">
-                  <span className={scoreColor(total, 10)}>
+                  <span className={scoreColor(total, gradingScaleMax)}>
                     {total != null ? total.toFixed(2) : '—'}
                   </span>
                 </td>
@@ -632,6 +637,8 @@ function AnnualByPeriodGrid({
 }: {
   periodData: Array<{ period: AcademicPeriod; data: GradesReportData }>
 }) {
+  const { data: gradingConfig } = useGradingConfig()
+  const gradingScaleMax = gradingConfig?.gradingScaleMax ?? 10
   // Totales por período y unión de estudiantes
   const totalsByPeriod = periodData.map((pd) => periodTotalsByStudent(pd.data))
   const studentMap = new Map<string, { lastName: string; firstName: string }>()
@@ -678,11 +685,11 @@ function AnnualByPeriodGrid({
                 </td>
                 {perPeriod.map((v, idx) => (
                   <td key={periodData[idx].period.id} className="border border-border px-3 py-2 text-center tabular-nums">
-                    <span className={scoreColor(v, 10)}>{v != null ? v.toFixed(2) : '—'}</span>
+                    <span className={scoreColor(v, gradingScaleMax)}>{v != null ? v.toFixed(2) : '—'}</span>
                   </td>
                 ))}
                 <td className="border border-border bg-muted/20 px-3 py-2 text-center font-bold tabular-nums">
-                  <span className={scoreColor(annual, 10)}>{annual != null ? annual.toFixed(2) : '—'}</span>
+                  <span className={scoreColor(annual, gradingScaleMax)}>{annual != null ? annual.toFixed(2) : '—'}</span>
                 </td>
               </tr>
             )
@@ -718,6 +725,8 @@ function AnnualDetailGrid({
   periodData: Array<{ period: AcademicPeriod; data: GradesReportData }>
   examWeight: number
 }) {
+  const { data: gradingConfig } = useGradingConfig()
+  const gradingScaleMax = gradingConfig?.gradingScaleMax ?? 10
   const regularWeight = 100 - examWeight
   const halfWeight = Math.round(examWeight / 2)
   const cols = periodData.map((pd) => ({ period: pd.period, ...buildPeriodColumns(pd.data) }))
@@ -839,7 +848,7 @@ function AnnualDetailGrid({
                           idx === 0 && 'border-l-2 border-l-border/80',
                         )}
                       >
-                        <span className={scoreColor(avg, 10)}>{avg != null ? avg.toFixed(2) : '—'}</span>
+                        <span className={scoreColor(avg, gradingScaleMax)}>{avg != null ? avg.toFixed(2) : '—'}</span>
                       </td>
                     ))}
                     {c.hasRegular && (
@@ -849,17 +858,17 @@ function AnnualDetailGrid({
                           c.regularInsumos.length === 0 && 'border-l-2 border-l-border/80',
                         )}
                       >
-                        <span className={scoreColor(regularAvg, 10)}>{regularAvg != null ? regularAvg.toFixed(2) : '—'}</span>
+                        <span className={scoreColor(regularAvg, gradingScaleMax)}>{regularAvg != null ? regularAvg.toFixed(2) : '—'}</span>
                       </td>
                     )}
                     {c.hasExam && (
                       <td className="border border-border px-3 py-2 text-center tabular-nums">
-                        <span className={scoreColor(examenAvg, 10)}>{examenAvg != null ? examenAvg.toFixed(2) : '—'}</span>
+                        <span className={scoreColor(examenAvg, gradingScaleMax)}>{examenAvg != null ? examenAvg.toFixed(2) : '—'}</span>
                       </td>
                     )}
                     {c.hasProject && (
                       <td className="border border-border px-3 py-2 text-center tabular-nums">
-                        <span className={scoreColor(proyectoAvg, 10)}>{proyectoAvg != null ? proyectoAvg.toFixed(2) : '—'}</span>
+                        <span className={scoreColor(proyectoAvg, gradingScaleMax)}>{proyectoAvg != null ? proyectoAvg.toFixed(2) : '—'}</span>
                       </td>
                     )}
                     <td
@@ -868,7 +877,7 @@ function AnnualDetailGrid({
                         c.colCount === 1 && 'border-l-2 border-l-border/80',
                       )}
                     >
-                      <span className={scoreColor(total, 10)}>{total != null ? total.toFixed(2) : '—'}</span>
+                      <span className={scoreColor(total, gradingScaleMax)}>{total != null ? total.toFixed(2) : '—'}</span>
                     </td>
                   </React.Fragment>
                 )
@@ -901,6 +910,8 @@ function StudentGradesView({ periodId }: { periodId: string }) {
 
 /** Tabla presentacional Materia × insumos para un período (sin query). */
 function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
+  const { data: gradingConfig } = useGradingConfig()
+  const gradingScaleMax = gradingConfig?.gradingScaleMax ?? 10
   // Collect all unique insumo column names (preserve order from first subject)
   const allInsumoNames = subjects[0]?.insumoColumns.map((c) => c.name) ?? []
 
@@ -954,33 +965,33 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
                 const v = col?.avg ?? null
                 return (
                   <td key={name} className="border border-border px-3 py-2 text-center tabular-nums">
-                    <span className={scoreColor(v, 10)}>{v != null ? v.toFixed(2) : '—'}</span>
+                    <span className={scoreColor(v, gradingScaleMax)}>{v != null ? v.toFixed(2) : '—'}</span>
                   </td>
                 )
               })}
               {allInsumoNames.length > 0 && (
                 <td className="border border-border px-3 py-2 text-center tabular-nums bg-blue-50/50 font-semibold">
-                  <span className={scoreColor(s.regularAvg, 10)}>
+                  <span className={scoreColor(s.regularAvg, gradingScaleMax)}>
                     {s.regularAvg != null ? s.regularAvg.toFixed(2) : '—'}
                   </span>
                 </td>
               )}
               {subjects.some((sub) => sub.examenAvg != null) && (
                 <td className="border border-border px-3 py-2 text-center tabular-nums">
-                  <span className={scoreColor(s.examenAvg ?? null, 10)}>
+                  <span className={scoreColor(s.examenAvg ?? null, gradingScaleMax)}>
                     {s.examenAvg != null ? s.examenAvg.toFixed(2) : '—'}
                   </span>
                 </td>
               )}
               {subjects.some((sub) => sub.proyectoAvg != null) && (
                 <td className="border border-border px-3 py-2 text-center tabular-nums">
-                  <span className={scoreColor(s.proyectoAvg ?? null, 10)}>
+                  <span className={scoreColor(s.proyectoAvg ?? null, gradingScaleMax)}>
                     {s.proyectoAvg != null ? s.proyectoAvg.toFixed(2) : '—'}
                   </span>
                 </td>
               )}
               <td className="border border-border px-3 py-2 text-center font-bold tabular-nums bg-muted/20">
-                <span className={scoreColor(s.total, 10)}>
+                <span className={scoreColor(s.total, gradingScaleMax)}>
                   {s.total != null ? s.total.toFixed(2) : '—'}
                 </span>
               </td>
@@ -1072,6 +1083,8 @@ function StudentAnnualByPeriodGrid({
 }: {
   periodData: Array<{ period: AcademicPeriod; subjects: MyGradesSubject[] }>
 }) {
+  const { data: gradingConfig } = useGradingConfig()
+  const gradingScaleMax = gradingConfig?.gradingScaleMax ?? 10
   // Unión de materias por assignmentId (preserva nombre y docente)
   const subjectMap = new Map<string, { subjectName: string; teacherName: string }>()
   for (const pd of periodData) {
@@ -1119,11 +1132,11 @@ function StudentAnnualByPeriodGrid({
                 </td>
                 {perPeriod.map((v, idx) => (
                   <td key={periodData[idx].period.id} className="border border-border px-3 py-2 text-center tabular-nums">
-                    <span className={scoreColor(v, 10)}>{v != null ? v.toFixed(2) : '—'}</span>
+                    <span className={scoreColor(v, gradingScaleMax)}>{v != null ? v.toFixed(2) : '—'}</span>
                   </td>
                 ))}
                 <td className="border border-border bg-muted/20 px-3 py-2 text-center font-bold tabular-nums">
-                  <span className={scoreColor(annual, 10)}>{annual != null ? annual.toFixed(2) : '—'}</span>
+                  <span className={scoreColor(annual, gradingScaleMax)}>{annual != null ? annual.toFixed(2) : '—'}</span>
                 </td>
               </tr>
             )
