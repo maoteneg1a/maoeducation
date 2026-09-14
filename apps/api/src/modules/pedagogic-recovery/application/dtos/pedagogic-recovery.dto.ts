@@ -34,3 +34,63 @@ export interface PedagogicRecoveryPageDto {
   passingGrade: number
   subjects: PedagogicRecoverySubjectResult[]
 }
+
+// ─── Candidatos de refuerzo detectados automáticamente por destreza ────────
+// Se agrupan las notas (Grade) por Activity.curriculumSkillId y se comparan
+// contra el umbral de aprobación configurado — el docente nunca lo escribe
+// a mano, solo revisa y decide si crea la recuperación.
+
+export interface SkillReinforcementQuery {
+  courseAssignmentId: string
+  academicPeriodId: string
+}
+
+export interface SkillReinforcementStudent {
+  studentId: string
+  studentName: string
+  average: number
+}
+
+export interface SkillReinforcementCandidate {
+  curriculumSkillId: string
+  skillCode: string
+  skillDescription: string
+  passingGrade: number
+  students: SkillReinforcementStudent[]
+}
+
+// ─── Plan de Refuerzo Académico Individualizado ────────────────────────────
+// Documento formal por estudiante que agrupa las destrezas donde necesita
+// refuerzo (detectadas por notas bajas, o por adaptación curricular NEE).
+
+export type ReinforcementPlanType = 'academico' | 'nee'
+export type ReinforcementPlanStatus = 'borrador' | 'activo' | 'cerrado'
+
+export interface CreateReinforcementPlanDto {
+  studentId: string
+  courseAssignmentId: string
+  academicPeriodId: string
+  planType: ReinforcementPlanType
+  skills?: { curriculumSkillId: string; averageAtDetection?: number | null; notes?: string }[]
+  objetivoGeneral?: string
+  estrategias?: string
+  responsables?: string
+  fechaInicio?: string
+  fechaSeguimiento?: string
+}
+
+export interface UpdateReinforcementPlanDto {
+  status?: ReinforcementPlanStatus
+  objetivoGeneral?: string
+  estrategias?: string
+  responsables?: string
+  fechaInicio?: string | null
+  fechaSeguimiento?: string | null
+  observacionesFinales?: string
+  skills?: { curriculumSkillId: string; averageAtDetection?: number | null; notes?: string }[]
+}
+
+export interface ListReinforcementPlansQuery {
+  courseAssignmentId: string
+  academicPeriodId: string
+}

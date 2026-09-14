@@ -35,6 +35,7 @@ import {
   createStudentEnrollment,
   bulkEnroll,
   updateEnrollmentStatus,
+  updateEnrollmentAdaptation,
   getYears,
   getParallels,
   getStudents,
@@ -135,6 +136,128 @@ function useUpdateStatus(yearId: string, parallelId: string) {
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
+}
+
+function useUpdateAdaptation(yearId: string, parallelId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...data
+    }: { id: string; hasAdaptation: boolean; adaptationType?: 'temporal' | 'permanente' | null; adaptationNotes?: string | null }) =>
+      updateEnrollmentAdaptation(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['enrollments', yearId, parallelId] })
+      toast.success('Adaptación curricular actualizada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+// ---- AdaptationDialog sub-component ----
+// Marca la adaptación curricular NEE (temporal/permanente) del estudiante en esta
+// matrícula. Si está marcada, el PUD la muestra automáticamente en la sección DUA.
+
+interface AdaptationDialogProps {
+  enrollment: Enrollment
+  onUpdate: (data: { id: string; hasAdaptation: boolean; adaptationType?: 'temporal' | 'permanente' | null; adaptationNotes?: string | null }) => void
+  isPending: boolean
+}
+
+function AdaptationDialog({ enrollment, onUpdate, isPending }: AdaptationDialogProps) {
+  const [open, setOpen] = useState(false)
+  const [hasAdaptation, setHasAdaptation] = useState(enrollment.hasAdaptation ?? false)
+  const [adaptationType, setAdaptationType] = useState<'temporal' | 'permanente'>(
+    enrollment.adaptationType ?? 'temporal',
+  )
+  const [notes, setNotes] = useState(enrollment.adaptationNotes ?? '')
+
+  useEffect(() => {
+    if (open) {
+      setHasAdaptation(enrollment.hasAdaptation ?? false)
+      setAdaptationType(enrollment.adaptationType ?? 'temporal')
+      setNotes(enrollment.adaptationNotes ?? '')
+    }
+  }, [open, enrollment])
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button
+        type="button"
+        variant={enrollment.hasAdaptation ? 'default' : 'outline'}
+        size="sm"
+        onClick={() => setOpen(true)}
+      >
+        {enrollment.hasAdaptation ? `NEE: ${enrollment.adaptationType}` : 'Marcar NEE'}
+      </Button>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Adaptación curricular</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={hasAdaptation}
+              onChange={(e) => setHasAdaptation(e.target.checked)}
+            />
+            Este estudiante tiene una adaptación curricular (NEE)
+          </label>
+          {hasAdaptation && (
+            <>
+              <div className="space-y-1.5">
+                <Label>Tipo</Label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-1.5 text-sm">
+                    <input
+                      type="radio"
+                      checked={adaptationType === 'temporal'}
+                      onChange={() => setAdaptationType('temporal')}
+                    />
+                    Temporal
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm">
+                    <input
+                      type="radio"
+                      checked={adaptationType === 'permanente'}
+                      onChange={() => setAdaptationType('permanente')}
+                    />
+                    Permanente
+                  </label>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Observaciones (opcional)</Label>
+                <textarea
+                  rows={2}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                />
+              </div>
+            </>
+          )}
+        </div>
+        <DialogFooter>
+          <Button
+            onClick={() => {
+              onUpdate({
+                id: enrollment.id,
+                hasAdaptation,
+                adaptationType: hasAdaptation ? adaptationType : null,
+                adaptationNotes: hasAdaptation ? notes.trim() || null : null,
+              })
+              setOpen(false)
+            }}
+            loading={isPending}
+          >
+            Guardar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 // ---- StatusDropdown sub-component ----
@@ -310,6 +433,7 @@ export function EnrollmentPage() {
   const createMutation = useCreateEnrollment(yearId, parallelId)
   const bulkMutation = useBulkEnroll(yearId, parallelId)
   const statusMutation = useUpdateStatus(yearId, parallelId)
+  const adaptationMutation = useUpdateAdaptation(yearId, parallelId)
   const createStudentMutation = useMutation({
     mutationFn: (data: {
       firstName: string; lastName: string; dni: string; parallelId: string; academicYearId: string
@@ -472,6 +596,17 @@ export function EnrollmentPage() {
         <Badge variant={STATUS_VARIANT[row.original.status] ?? 'secondary'}>
           {STATUS_LABEL[row.original.status] ?? row.original.status}
         </Badge>
+      ),
+    },
+    {
+      id: 'nee',
+      header: 'NEE',
+      cell: ({ row }) => (
+        <AdaptationDialog
+          enrollment={row.original}
+          onUpdate={(data) => adaptationMutation.mutate(data)}
+          isPending={adaptationMutation.isPending}
+        />
       ),
     },
     {

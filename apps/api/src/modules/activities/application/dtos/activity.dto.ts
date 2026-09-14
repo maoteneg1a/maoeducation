@@ -32,6 +32,7 @@ export interface CreateActivityDto {
   activityTypeId: string
   insumoId?: string
   taskId?: string
+  curriculumSkillId?: string
   name: string
   description?: string
   maxScore: number
@@ -45,6 +46,7 @@ export interface UpdateActivityDto {
   maxScore?: number
   activityDate?: string
   insumoId?: string | null
+  curriculumSkillId?: string | null
   metadata?: Record<string, unknown>
 }
 

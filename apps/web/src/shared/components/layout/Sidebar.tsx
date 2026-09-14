@@ -3,7 +3,7 @@ import {
   Home, Users, Settings, BookOpen, GraduationCap,
   ClipboardList, AlertTriangle, MessageSquare, Calendar,
   FileText, ChevronDown, X, UserPlus, ShieldCheck,
-  ClipboardCheck, CalendarDays, Palette, Smile, Award, HeartHandshake, FolderOpen,
+  ClipboardCheck, CalendarDays, Palette, Smile, Award, HeartHandshake, FolderOpen, NotebookPen, Puzzle,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { usePermissions } from '@/shared/hooks/usePermissions'
@@ -53,7 +53,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Paralelos',  path: '/academic/parallels' },
       { label: 'Asignaciones', path: '/academic/assignments' },
       { label: 'Insumos por paralelo', path: '/academic/insumo-setup' },
-      { label: 'Escala de calificación', path: '/settings/calificacion' },
+      { label: 'Calificación y Asistente IA', path: '/settings/calificacion' },
     ],
   },
   {
@@ -69,6 +69,13 @@ const NAV_ITEMS: NavItem[] = [
     path: '/settings/anamnesis',
     permission: 'anamnesis:manage',
     module: 'anamnesis',
+  },
+  {
+    label: 'Planificaciones',
+    icon: NotebookPen,
+    path: '/planning',
+    permission: 'planning:read',
+    module: 'planning',
   },
   {
     label: 'Actividades',
@@ -97,6 +104,20 @@ const NAV_ITEMS: NavItem[] = [
     path: '/pedagogic-recovery',
     permission: 'grades:write',
     module: 'pedagogic_recovery',
+  },
+  {
+    label: 'Refuerzo y Adaptaciones',
+    icon: HeartHandshake,
+    path: '/reinforcement-plans',
+    permission: 'grades:write',
+    module: 'reinforcement_plans',
+  },
+  {
+    label: 'Proyectos Interdisciplinarios',
+    icon: Puzzle,
+    path: '/interdisciplinary-projects',
+    permission: 'planning:read',
+    module: 'interdisciplinary_projects',
   },
   {
     label: 'Promoción',

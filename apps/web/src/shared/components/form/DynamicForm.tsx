@@ -10,6 +10,7 @@ export interface DynamicField {
   type: 'text' | 'textarea' | 'select' | 'checkbox' | 'date'
   required?: boolean
   options?: string[]
+  placeholder?: string
 }
 
 export interface DynamicSection {
@@ -49,6 +50,7 @@ export function DynamicForm({ schema, values, onChange, disabled }: DynamicFormP
                     id={f.key}
                     value={(values[f.key] as string) ?? ''}
                     disabled={disabled}
+                    placeholder={f.placeholder}
                     onChange={(e) => onChange(f.key, e.target.value)}
                   />
                 )}
@@ -69,6 +71,7 @@ export function DynamicForm({ schema, values, onChange, disabled }: DynamicFormP
                     rows={2}
                     value={(values[f.key] as string) ?? ''}
                     disabled={disabled}
+                    placeholder={f.placeholder}
                     onChange={(e) => onChange(f.key, e.target.value)}
                     className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
                   />

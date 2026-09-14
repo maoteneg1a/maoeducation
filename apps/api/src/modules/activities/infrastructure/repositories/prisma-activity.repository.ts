@@ -158,6 +158,7 @@ export class PrismaActivityRepository {
       include: {
         activityType: true,
         insumo: { select: { id: true, name: true } },
+        curriculumSkill: { select: { id: true, code: true, description: true } },
         _count: { select: { grades: true } },
         creator: {
           select: {
@@ -203,6 +204,7 @@ export class PrismaActivityRepository {
         activityTypeId: dto.activityTypeId,
         insumoId: dto.insumoId,
         taskId: dto.taskId,
+        curriculumSkillId: dto.curriculumSkillId,
         name: dto.name,
         description: dto.description,
         maxScore: dto.maxScore,
@@ -214,6 +216,7 @@ export class PrismaActivityRepository {
       include: {
         activityType: true,
         insumo: { select: { id: true, name: true } },
+        curriculumSkill: { select: { id: true, code: true, description: true } },
       },
     })
   }
@@ -253,10 +256,12 @@ export class PrismaActivityRepository {
         }),
         ...(dto.metadata !== undefined && { metadata: dto.metadata as Prisma.InputJsonValue }),
         ...('insumoId' in dto && { insumoId: dto.insumoId ?? null }),
+        ...('curriculumSkillId' in dto && { curriculumSkillId: dto.curriculumSkillId ?? null }),
       },
       include: {
         activityType: true,
         insumo: { select: { id: true, name: true } },
+        curriculumSkill: { select: { id: true, code: true, description: true } },
       },
     })
   }

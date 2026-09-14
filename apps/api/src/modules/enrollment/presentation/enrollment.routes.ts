@@ -12,6 +12,7 @@ import type {
   CreateEnrollmentDto,
   BulkEnrollmentDto,
   UpdateEnrollmentStatusDto,
+  UpdateEnrollmentAdaptationDto,
   CreateStudentEnrollmentDto,
   BulkCreateStudentsDto,
 } from '../application/dtos/enrollment.dto'
@@ -122,6 +123,17 @@ export default async function enrollmentRoutes(app: FastifyInstance) {
       const current = await repo.findById(req.params.id, req.user.institutionId)
       await assertParallelInScope(req, current.parallelId)
       const enrollment = await repo.updateStatus(req.params.id, req.user.institutionId, req.body)
+      return reply.send(enrollment)
+    },
+  )
+
+  app.patch<{ Params: { id: string }; Body: UpdateEnrollmentAdaptationDto }>(
+    '/enrollments/:id/adaptation',
+    { preHandler: [requirePermission('enrollment', 'manage', 'own')] },
+    async (req, reply) => {
+      const current = await repo.findById(req.params.id, req.user.institutionId)
+      await assertParallelInScope(req, current.parallelId)
+      const enrollment = await repo.updateAdaptation(req.params.id, req.user.institutionId, req.body)
       return reply.send(enrollment)
     },
   )

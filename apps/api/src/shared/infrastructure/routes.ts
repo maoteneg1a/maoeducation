@@ -24,6 +24,10 @@ export async function registerRoutes(app: FastifyInstance) {
   app.register(import('../../modules/behavior/presentation/behavior.routes'), { prefix: '/api/v1' })
   app.register(import('../../modules/promotion/presentation/promotion.routes'), { prefix: '/api/v1' })
   app.register(import('../../modules/pedagogic-recovery/presentation/pedagogic-recovery.routes'), { prefix: '/api/v1' })
+  app.register(import('../../modules/curriculum/presentation/curriculum.routes'), { prefix: '/api/v1' })
+  app.register(import('../../modules/planning/presentation/planning.routes'), { prefix: '/api/v1' })
+  app.register(import('../../modules/ai-assistant/presentation/ai-assistant.routes'), { prefix: '/api/v1' })
+  app.register(import('../../modules/interdisciplinary-projects/presentation/interdisciplinary-project.routes'), { prefix: '/api/v1' })
   app.register(import('../../modules/leads/presentation/lead.routes'), { prefix: '/api/v1' })
   app.register(import('../../modules/analytics/presentation/analytics.routes'), { prefix: '/api/v1' })
 

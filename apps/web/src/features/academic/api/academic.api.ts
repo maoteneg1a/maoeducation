@@ -10,6 +10,8 @@ export interface Level {
   isActive: boolean
   /** "per_subject" (asistencia por materia) | "daily" (asistencia diaria por paralelo) */
   attendanceMode?: 'per_subject' | 'daily'
+  /** Subnivel MINEDUC del banco curricular: preparatoria | elemental | media | superior | bgu */
+  subnivel?: string | null
 }
 
 export interface Subject {
@@ -18,6 +20,7 @@ export interface Subject {
   code: string
   isActive: boolean
   isQualitative?: boolean
+  curriculumAreaId?: string | null
 }
 
 export interface AcademicYear {
@@ -63,7 +66,7 @@ export interface CourseAssignment {
   academicYearId: string
   isActive: boolean
   subject?: { id: string; name: string }
-  parallel?: { id: string; name: string; level: { name: string } }
+  parallel?: { id: string; name: string; level: { name: string; subnivel?: string | null } }
   teacher?: { id: string; profile: { firstName: string; lastName: string } }
   academicYear?: { id: string; name: string; isActive: boolean }
 }

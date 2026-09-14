@@ -10,6 +10,9 @@ export interface Enrollment {
   }
   parallel: { id: string; name: string; level: { id: string; name: string } }
   academicYear: { id: string; name: string; isActive: boolean }
+  hasAdaptation?: boolean
+  adaptationType?: 'temporal' | 'permanente' | null
+  adaptationNotes?: string | null
 }
 
 export interface AcademicYear {
@@ -47,6 +50,13 @@ export function bulkEnroll(data: { studentIds: string[]; parallelId: string; aca
 
 export function updateEnrollmentStatus(id: string, status: string) {
   return apiPatch(`enrollments/${id}/status`, { status })
+}
+
+export function updateEnrollmentAdaptation(
+  id: string,
+  data: { hasAdaptation: boolean; adaptationType?: 'temporal' | 'permanente' | null; adaptationNotes?: string | null },
+) {
+  return apiPatch<Enrollment>(`enrollments/${id}/adaptation`, data)
 }
 
 export function getYears() {

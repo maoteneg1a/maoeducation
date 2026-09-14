@@ -19,6 +19,9 @@ const schema = z.object({
   VAPID_SUBJECT:        z.string().default('mailto:hola@auleka.com'),
   RESEND_API_KEY:       z.string().optional(),
   APP_URL:              z.string().default('https://app.auleka.com'),
+  // Asistente IA de planificaciones (Claude) — opcional: sin esta key el asistente
+  // se deshabilita automáticamente, el resto del módulo de planificación sigue intacto.
+  ANTHROPIC_API_KEY:    z.string().optional(),
 })
 
 const parsed = schema.safeParse(process.env)

@@ -1,0 +1,187 @@
+import { apiClient, apiDelete, apiGet, apiPost, apiPut } from '@/shared/lib/api-client'
+
+export type PlanningTemplateType = 'pca'
+export type ApprovalStatus = 'borrador' | 'enviado' | 'aprobado'
+export type SituationStatus = 'borrador' | 'enviado' | 'revisado' | 'aprobado'
+
+export interface PlanningField {
+  key: string
+  label: string
+  type: 'text' | 'textarea' | 'select' | 'checkbox' | 'date'
+  required?: boolean
+  options?: string[]
+  placeholder?: string
+}
+
+export interface PlanningSection {
+  title: string
+  fields: PlanningField[]
+}
+
+export interface PlanningSchema {
+  sections: PlanningSection[]
+}
+
+export interface PlanningTemplate {
+  id: string
+  type: PlanningTemplateType
+  name: string
+  isDefault: boolean
+  isActive: boolean
+  schema: PlanningSchema
+}
+
+export interface CurriculumPlan {
+  id: string
+  courseAssignmentId: string
+  templateId: string
+  status: ApprovalStatus
+  data: Record<string, unknown>
+  createdAt: string
+  approvedAt: string | null
+  courseAssignment?: {
+    id: string
+    academicYearId: string
+    subject: { id: string; name: string }
+    parallel: { id: string; name: string; level: { id: string; name: string; subnivel: string | null } }
+  }
+  template?: PlanningTemplate
+  situations?: LearningSituation[]
+  _count?: { situations: number }
+}
+
+export interface LearningSituation {
+  id: string
+  planId: string
+  academicPeriodId: string
+  title: string
+  description: string | null
+  interdisciplinaryAreaIds: string[]
+  status: SituationStatus
+  createdAt: string
+  reviewedAt: string | null
+  approvedAt: string | null
+  academicPeriod?: { id: string; name: string }
+  plan?: CurriculumPlan
+  weeks?: PlanningWeek[]
+  _count?: { weeks: number }
+}
+
+export interface PlanningMoment {
+  estrategiasDua?: string
+  recursos?: string
+  tecnica?: string
+  instrumento?: string
+}
+
+export interface PlanningMomentos {
+  anticipacion?: PlanningMoment
+  construccionConocimiento?: PlanningMoment
+  consolidacion?: PlanningMoment
+}
+
+export interface PlanningWeek {
+  id: string
+  situationId: string
+  weekNumber: number
+  name: string | null
+  startDate: string | null
+  endDate: string | null
+  competenciasEspecificas: string | null
+  indicadoresEvaluacion: string | null
+  skillIds: string[]
+  saberIds: string[]
+  momentos: PlanningMomentos
+  createdAt: string
+}
+
+export const planningApi = {
+  // Plantillas (PCA)
+  listTemplates: (type?: PlanningTemplateType) =>
+    apiGet<PlanningTemplate[]>('planning/templates', type ? { type } : undefined),
+
+  // PCA
+  listPlans: (courseAssignmentIds?: string[]) =>
+    apiGet<CurriculumPlan[]>(
+      'planning/plans',
+      courseAssignmentIds?.length ? { courseAssignmentIds: courseAssignmentIds.join(',') } : undefined,
+    ),
+
+  getPlan: (id: string) => apiGet<CurriculumPlan>(`planning/plans/${id}`),
+
+  createPlan: (data: { courseAssignmentId: string; templateId?: string; data?: Record<string, unknown> }) =>
+    apiPost<CurriculumPlan>('planning/plans', data),
+
+  updatePlan: (id: string, data: { data: Record<string, unknown> }) =>
+    apiPut<CurriculumPlan>(`planning/plans/${id}`, data),
+
+  submitPlan: (id: string) => apiPost<CurriculumPlan>(`planning/plans/${id}/submit`),
+
+  approvePlan: (id: string) => apiPost<CurriculumPlan>(`planning/plans/${id}/approve`),
+
+  // Situaciones de aprendizaje
+  listSituations: (planId: string) => apiGet<LearningSituation[]>(`planning/plans/${planId}/situations`),
+
+  getSituation: (id: string) => apiGet<LearningSituation>(`planning/situations/${id}`),
+
+  createSituation: (data: {
+    planId: string
+    academicPeriodId: string
+    title: string
+    description?: string
+    interdisciplinaryAreaIds?: string[]
+  }) => apiPost<LearningSituation>('planning/situations', data),
+
+  updateSituation: (
+    id: string,
+    data: Partial<{ title: string; description: string; interdisciplinaryAreaIds: string[] }>,
+  ) => apiPut<LearningSituation>(`planning/situations/${id}`, data),
+
+  submitSituation: (id: string) => apiPost<LearningSituation>(`planning/situations/${id}/submit`),
+
+  reviewSituation: (id: string) => apiPost<LearningSituation>(`planning/situations/${id}/review`),
+
+  approveSituation: (id: string) => apiPost<LearningSituation>(`planning/situations/${id}/approve`),
+
+  // Semanas
+  listWeeks: (situationId: string) => apiGet<PlanningWeek[]>(`planning/situations/${situationId}/weeks`),
+
+  getWeek: (id: string) => apiGet<PlanningWeek>(`planning/weeks/${id}`),
+
+  createWeek: (data: {
+    situationId: string
+    weekNumber: number
+    name?: string
+    startDate?: string
+    endDate?: string
+    competenciasEspecificas?: string
+    indicadoresEvaluacion?: string
+    skillIds?: string[]
+    saberIds?: string[]
+    momentos?: PlanningMomentos
+  }) => apiPost<PlanningWeek>('planning/weeks', data),
+
+  updateWeek: (
+    id: string,
+    data: Partial<{
+      name: string
+      startDate: string | null
+      endDate: string | null
+      competenciasEspecificas: string
+      indicadoresEvaluacion: string
+      skillIds: string[]
+      saberIds: string[]
+      momentos: PlanningMomentos
+    }>,
+  ) => apiPut<PlanningWeek>(`planning/weeks/${id}`, data),
+
+  deleteWeek: (id: string) => apiDelete(`planning/weeks/${id}`),
+
+  /** Descarga el PDF autenticado y lo abre en una pestaña nueva (no un link directo — necesita el JWT en el header). */
+  async openSituationPdf(situationId: string) {
+    const blob = await apiClient.get(`planning/situations/${situationId}/pdf`).blob()
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  },
+}

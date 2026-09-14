@@ -38,6 +38,12 @@ export interface GradingConfig {
   pedagogicRecovery: PedagogicRecoveryConfig
 }
 
+export interface AiConfig {
+  enabled: boolean
+  model: string
+  monthlyTokenCap: number
+}
+
 export const settingsApi = {
   getSettings: () => apiGet<InstitutionSettings>('institution/settings'),
 
@@ -53,4 +59,7 @@ export const settingsApi = {
   getGradingConfig: () => apiGet<GradingConfig>('institution/grading-config'),
   updateGradingConfig: (data: GradingConfig) =>
     apiPut<GradingConfig>('institution/grading-config', data),
+
+  getAiConfig: () => apiGet<AiConfig>('institution/ai-config'),
+  updateAiConfig: (data: Partial<AiConfig>) => apiPut<AiConfig>('institution/ai-config', data),
 }

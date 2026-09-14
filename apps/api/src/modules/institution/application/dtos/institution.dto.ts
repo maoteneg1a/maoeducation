@@ -60,3 +60,19 @@ export interface UpdateGradingConfigDto {
   defaultExamWeight?: number
   pedagogicRecovery?: Partial<PedagogicRecoveryConfig>
 }
+
+// ---- Asistente IA de planificaciones (configurable por institución) ----
+
+export interface AiConfig {
+  /** El admin debe activarlo explícitamente — apagado por defecto. */
+  enabled: boolean
+  model: string
+  /** Tope mensual de tokens (input+output) para esta institución. 0 = sin tope. */
+  monthlyTokenCap: number
+}
+
+export interface UpdateAiConfigDto {
+  enabled?: boolean
+  model?: string
+  monthlyTokenCap?: number
+}

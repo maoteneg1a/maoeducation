@@ -14,6 +14,13 @@ export interface UpdateEnrollmentStatusDto {
   status: 'active' | 'withdrawn'
 }
 
+/** Adaptación curricular NEE — si está marcada, el PUD la muestra automáticamente para ese estudiante. */
+export interface UpdateEnrollmentAdaptationDto {
+  hasAdaptation: boolean
+  adaptationType?: 'temporal' | 'permanente' | null
+  adaptationNotes?: string | null
+}
+
 /** Crear un estudiante nuevo (rol student) y matricularlo, desde la matrícula. */
 export interface CreateStudentEnrollmentDto {
   firstName: string

@@ -1,5 +1,41 @@
 import { Prisma } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import fs from 'fs'
+import path from 'path'
+
+/**
+ * Banco curricular MINEDUC (Currículo Priorizado con Énfasis en Competencias,
+ * edición 2025 con Inserciones Curriculares 2024) cargado desde JSON pre-parseado
+ * de los documentos oficiales. Estructura: Área -> subnivel -> Criterio de
+ * Evaluación -> Destreza con Criterio de Desempeño (la desagregación oficial).
+ * Ver prisma/seeds/curriculum/default-curriculum.json.
+ */
+interface DefaultCurriculumSkill {
+  code: string
+  description: string
+  indicatorText: string | null
+  profileRefs: string[]
+  ageRange: string | null
+}
+interface DefaultCurriculumCriterion {
+  code: string
+  description: string
+  skills: DefaultCurriculumSkill[]
+}
+interface DefaultCurriculumArea {
+  code: string
+  name: string
+  subniveles: Record<string, DefaultCurriculumCriterion[]>
+}
+
+let cachedDefaultCurriculum: DefaultCurriculumArea[] | null = null
+
+export function loadDefaultCurriculum(): DefaultCurriculumArea[] {
+  if (cachedDefaultCurriculum) return cachedDefaultCurriculum
+  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/default-curriculum.json')
+  cachedDefaultCurriculum = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultCurriculumArea[]
+  return cachedDefaultCurriculum
+}
 
 /**
  * Configuración por defecto de una institución nueva.
@@ -42,6 +78,15 @@ export const BASE_PERMISSIONS = [
   { resource: 'anamnesis', action: 'read', scope: 'own' },
   { resource: 'anamnesis', action: 'manage', scope: 'all' },
   { resource: 'anamnesis', action: 'manage', scope: 'own' },
+  // banco curricular MINEDUC (destrezas/criterios de evaluación)
+  { resource: 'curriculum', action: 'read', scope: 'all' },
+  { resource: 'curriculum', action: 'write', scope: 'own' },
+  { resource: 'curriculum', action: 'manage', scope: 'all' },
+  // planificaciones (PCA/PUD)
+  { resource: 'planning', action: 'read', scope: 'all' },
+  { resource: 'planning', action: 'read', scope: 'own' },
+  { resource: 'planning', action: 'write', scope: 'own' },
+  { resource: 'planning', action: 'manage', scope: 'all' },
   // activities
   { resource: 'activities', action: 'read', scope: 'all' },
   { resource: 'activities', action: 'read', scope: 'own' },
@@ -106,6 +151,10 @@ export const ROLE_PERMISSIONS: Array<{ roleName: string; permKey: string }> = [
   { roleName: 'admin', permKey: 'reports:manage:all' },
   { roleName: 'admin', permKey: 'insumos:manage:all' },
   { roleName: 'admin', permKey: 'tasks:read:all' },
+  { roleName: 'admin', permKey: 'curriculum:read:all' },
+  { roleName: 'admin', permKey: 'curriculum:manage:all' },
+  { roleName: 'admin', permKey: 'planning:read:all' },
+  { roleName: 'admin', permKey: 'planning:manage:all' },
   // Rector / Autoridad — gestiona incidentes y aprueba medidas
   { roleName: 'rector', permKey: 'users:read:all' },
   { roleName: 'rector', permKey: 'incidents:manage:all' },
@@ -160,6 +209,10 @@ export const ROLE_PERMISSIONS: Array<{ roleName: string; permKey: string }> = [
   { roleName: 'teacher', permKey: 'insumos:write:own' },
   { roleName: 'teacher', permKey: 'tasks:read:own' },
   { roleName: 'teacher', permKey: 'tasks:write:own' },
+  { roleName: 'teacher', permKey: 'curriculum:read:all' },
+  { roleName: 'teacher', permKey: 'curriculum:write:own' },
+  { roleName: 'teacher', permKey: 'planning:read:own' },
+  { roleName: 'teacher', permKey: 'planning:write:own' },
   // Alumno/Padre
   { roleName: 'student', permKey: 'activities:read:own' },
   { roleName: 'student', permKey: 'grades:read:own' },
@@ -173,16 +226,22 @@ export const ROLE_PERMISSIONS: Array<{ roleName: string; permKey: string }> = [
   { roleName: 'guardian', permKey: 'tasks:read:own' },
 ]
 
+// `subnivel` alinea cada grado con el banco curricular MINEDUC (CurriculumCriterion.subnivel):
+// preparatoria (1ro EGB) | elemental (2do-4to) | media (5to-7mo) | superior (8vo-10mo) | bgu (bachillerato)
 export const DEFAULT_LEVELS = [
-  { code: '1B', name: '1ro de Básica', sortOrder: 1 },
-  { code: '2B', name: '2do de Básica', sortOrder: 2 },
-  { code: '3B', name: '3ro de Básica', sortOrder: 3 },
-  { code: '4B', name: '4to de Básica', sortOrder: 4 },
-  { code: '5B', name: '5to de Básica', sortOrder: 5 },
-  { code: '6B', name: '6to de Básica', sortOrder: 6 },
-  { code: '7B', name: '7mo de Básica', sortOrder: 7 },
-  { code: '8B', name: '8vo de Básica', sortOrder: 8 },
-  { code: '9B', name: '9no de Básica', sortOrder: 9 },
+  { code: '1B', name: '1ro de Básica', sortOrder: 1, subnivel: 'preparatoria' },
+  { code: '2B', name: '2do de Básica', sortOrder: 2, subnivel: 'elemental' },
+  { code: '3B', name: '3ro de Básica', sortOrder: 3, subnivel: 'elemental' },
+  { code: '4B', name: '4to de Básica', sortOrder: 4, subnivel: 'elemental' },
+  { code: '5B', name: '5to de Básica', sortOrder: 5, subnivel: 'media' },
+  { code: '6B', name: '6to de Básica', sortOrder: 6, subnivel: 'media' },
+  { code: '7B', name: '7mo de Básica', sortOrder: 7, subnivel: 'media' },
+  { code: '8B', name: '8vo de Básica', sortOrder: 8, subnivel: 'superior' },
+  { code: '9B', name: '9no de Básica', sortOrder: 9, subnivel: 'superior' },
+  { code: '10B', name: '10mo de Básica', sortOrder: 10, subnivel: 'superior' },
+  { code: '1BGU', name: '1ro de Bachillerato', sortOrder: 11, subnivel: 'bgu' },
+  { code: '2BGU', name: '2do de Bachillerato', sortOrder: 12, subnivel: 'bgu' },
+  { code: '3BGU', name: '3ro de Bachillerato', sortOrder: 13, subnivel: 'bgu' },
 ] as const
 
 export const DEFAULT_INCIDENT_TYPES = [
@@ -246,6 +305,62 @@ export const DEFAULT_ANAMNESIS_SCHEMA = {
   ],
 } as const
 
+// Plantilla PCA (Planificación Curricular Anual) por defecto, editable por institución.
+export const DEFAULT_PCA_SCHEMA = {
+  sections: [
+    {
+      title: 'Datos generales',
+      fields: [
+        {
+          key: 'ejes_transversales',
+          label: 'Ejes transversales',
+          type: 'textarea',
+          required: false,
+          placeholder: 'Ej: Educación para la ciudadanía, cuidado del medio ambiente, valores institucionales...',
+        },
+        {
+          key: 'objetivos_generales',
+          label: 'Objetivos generales del área/asignatura',
+          type: 'textarea',
+          required: true,
+          placeholder: 'Ej: Desarrollar el pensamiento lógico-matemático mediante la resolución de problemas cotidianos.',
+        },
+      ],
+    },
+    {
+      title: 'Metodología y evaluación',
+      fields: [
+        {
+          key: 'metodologia',
+          label: 'Orientaciones metodológicas',
+          type: 'textarea',
+          required: false,
+          placeholder: 'Ej: Aprendizaje basado en problemas, trabajo colaborativo en grupos pequeños...',
+        },
+        {
+          key: 'evaluacion',
+          label: 'Criterios generales de evaluación',
+          type: 'textarea',
+          required: false,
+          placeholder: 'Ej: Evaluación formativa continua, portafolio de evidencias, pruebas por trimestre...',
+        },
+        {
+          key: 'bibliografia',
+          label: 'Bibliografía / recursos',
+          type: 'textarea',
+          required: false,
+          placeholder: 'Ej: Texto oficial del MINEDUC 5to EGB, material concreto, recursos TIC...',
+        },
+      ],
+    },
+  ],
+} as const
+
+// NOTA: ya no existe DEFAULT_PUD_SCHEMA — la microplanificación (LearningSituation +
+// PlanningWeek) tiene estructura FIJA para reproducir el formato oficial institucional
+// "Planificación Microcurricular" (situación de aprendizaje + semanas con saberes
+// declarativo/procedimental/actitudinal + 3 momentos DUA), no una plantilla configurable.
+
 // Configuración de calificación por defecto (escala MINEDUC), editable por el admin
 export const DEFAULT_GRADING_CONFIG = {
   qualitativeScale: [
@@ -295,6 +410,15 @@ export const DEFAULT_QUALITATIVE_SUBJECTS = [
   'Cívica y acompañamiento integral en el aula',
   'Animación a la lectura',
 ] as const
+
+// Asistente IA de planificaciones — apagado por defecto, el admin lo activa
+// explícitamente desde Configuración. Modelo barato por defecto (tarea de
+// completar plantilla, no razonamiento profundo).
+export const DEFAULT_AI_CONFIG = {
+  enabled: false,
+  model: 'claude-haiku-4-5',
+  monthlyTokenCap: 2_000_000,
+} as const
 
 export interface BootstrapAdminInput {
   email: string
@@ -393,6 +517,50 @@ export async function bootstrapInstitution(
       schema: DEFAULT_ANAMNESIS_SCHEMA as unknown as Prisma.InputJsonValue,
     },
   })
+
+  // 7c-ter. Plantilla de PCA por defecto
+  await tx.planningTemplate.create({
+    data: {
+      institutionId: inst.id,
+      type: 'pca',
+      name: 'PCA — Planificación Curricular Anual',
+      isDefault: true,
+      schema: DEFAULT_PCA_SCHEMA as unknown as Prisma.InputJsonValue,
+    },
+  })
+
+  // 7c-bis. Banco curricular MINEDUC (Currículo Priorizado con Énfasis en Competencias)
+  const defaultCurriculum = loadDefaultCurriculum()
+  for (const area of defaultCurriculum) {
+    const createdArea = await tx.curriculumArea.create({
+      data: { institutionId: inst.id, code: area.code, name: area.name },
+    })
+    for (const [subnivel, criteria] of Object.entries(area.subniveles)) {
+      for (const criterion of criteria) {
+        const createdCriterion = await tx.curriculumCriterion.create({
+          data: {
+            areaId: createdArea.id,
+            subnivel,
+            code: criterion.code,
+            description: criterion.description,
+          },
+        })
+        if (criterion.skills.length) {
+          await tx.curriculumSkill.createMany({
+            data: criterion.skills.map((skill) => ({
+              criterionId: createdCriterion.id,
+              code: skill.code,
+              description: skill.description,
+              indicatorText: skill.indicatorText,
+              profileRefs: skill.profileRefs,
+              competencyTags: [] as string[],
+              insercionTags: [] as string[],
+            })),
+          })
+        }
+      }
+    }
+  }
 
   // 7d. Materias cualitativas por defecto (libreta)
   await tx.subject.createMany({

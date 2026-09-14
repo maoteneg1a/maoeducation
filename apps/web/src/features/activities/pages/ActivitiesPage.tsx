@@ -40,6 +40,7 @@ import { activitiesApi, type Activity, type ActivityType, type Insumo } from '..
 import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
 import { useAuthStore } from '@/store/auth.store'
 import { usePermissions } from '@/shared/hooks/usePermissions'
+import { useCurriculumSkillsForSubject } from '@/features/curriculum/hooks/useCurriculum'
 
 // ---- Query keys ----
 const activityKeys = {
@@ -165,6 +166,7 @@ const activitySchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   activityTypeId: z.string().min(1, 'El tipo es requerido'),
   insumoId: z.string().optional(),
+  curriculumSkillId: z.string().optional(),
   maxScore: z.coerce.number().min(0, 'Debe ser un número positivo'),
   activityDate: z.string().min(1, 'La fecha es requerida'),
   description: z.string().optional(),
@@ -447,6 +449,11 @@ export function ActivitiesPage() {
   }, [defaultPeriodId, selectedAssignmentId])
   const { data: types = [] } = useActivityTypes()
   const { data: insumos = [] } = useInsumos(selectedAssignmentId, selectedPeriodId)
+  const selectedAssignment = assignments.find((a) => a.id === selectedAssignmentId)
+  const { data: availableSkills = [] } = useCurriculumSkillsForSubject(
+    selectedAssignment?.subject?.id ?? selectedAssignment?.subjectId,
+    selectedAssignment?.parallel?.level?.subnivel ?? undefined,
+  )
   const { data: activities = [], isLoading: activitiesLoading } = useActivities(
     selectedAssignmentId,
     selectedPeriodId,
@@ -466,6 +473,7 @@ export function ActivitiesPage() {
       name: '',
       activityTypeId: '',
       insumoId: '',
+      curriculumSkillId: '',
       maxScore: 10,
       activityDate: new Date().toISOString().split('T')[0],
       description: '',
@@ -478,6 +486,7 @@ export function ActivitiesPage() {
       name: '',
       activityTypeId: '',
       insumoId: '',
+      curriculumSkillId: '',
       maxScore: 10,
       activityDate: new Date().toISOString().split('T')[0],
       description: '',
@@ -491,6 +500,7 @@ export function ActivitiesPage() {
       name: activity.name,
       activityTypeId: activity.activityTypeId,
       insumoId: activity.insumoId ?? '',
+      curriculumSkillId: activity.curriculumSkillId ?? '',
       maxScore: activity.maxScore,
       activityDate: activity.activityDate,
       description: activity.description ?? '',
@@ -502,6 +512,7 @@ export function ActivitiesPage() {
     const payload = {
       ...values,
       insumoId: values.insumoId || undefined,
+      curriculumSkillId: values.curriculumSkillId || undefined,
       courseAssignmentId: selectedAssignmentId,
       academicPeriodId: selectedPeriodId,
     }
@@ -756,6 +767,29 @@ export function ActivitiesPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Destreza del currículo (opcional)</Label>
+              <Select
+                value={form.watch('curriculumSkillId') ?? ''}
+                onValueChange={(v) => form.setValue('curriculumSkillId', v === 'none' ? '' : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Ninguna" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Ninguna</SelectItem>
+                  {availableSkills.map((skill) => (
+                    <SelectItem key={skill.id} value={skill.id}>
+                      {skill.code} — {skill.description.slice(0, 60)}
+                      {skill.description.length > 60 ? '…' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Vincula esta actividad a una destreza para habilitar la detección automática de refuerzo.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Descripción (opcional)</Label>
