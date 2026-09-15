@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { ConflictError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
+import { buildSituationTitle } from '../../domain/situation-title'
 import type {
   CreatePlanDto,
   CreateSituationDto,
@@ -186,16 +187,41 @@ export class PrismaPlanningRepository {
     const plan = await prisma.curriculumPlan.findFirst({ where: { id: dto.planId, institutionId } })
     if (!plan) throw new NotFoundError('Plan no encontrado')
 
+    const period = await prisma.academicPeriod.findUnique({
+      where: { id: dto.academicPeriodId },
+      select: { name: true, startDate: true, endDate: true },
+    })
+    if (!period) throw new NotFoundError('Periodo académico no encontrado')
+
+    const competencyIds = dto.competencyIds ?? []
+
+    // El título se deriva de la competencia para que el docente no tenga que
+    // escribir nada: solo selecciona periodo y competencia. Se resuelve aquí y
+    // no en el cliente porque el texto de la competencia ya está en la base.
+    let title = dto.title?.trim()
+    if (!title && competencyIds.length) {
+      const competency = await prisma.competency.findFirst({
+        where: { id: { in: competencyIds }, area: { institutionId } },
+        orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+        select: { code: true, text: true },
+      })
+      if (competency) title = buildSituationTitle(competency.code, competency.text)
+    }
+    if (!title) title = period.name
+
     return prisma.learningSituation.create({
       data: {
         institutionId,
         planId: dto.planId,
         academicPeriodId: dto.academicPeriodId,
-        title: dto.title,
+        title,
         description: dto.description,
-        startDate: dto.startDate ? new Date(dto.startDate) : null,
-        endDate: dto.endDate ? new Date(dto.endDate) : null,
+        // Sin fechas explícitas, el bloque cubre el periodo completo — el docente
+        // las ajusta después si el bloque es más corto.
+        startDate: dto.startDate ? new Date(dto.startDate) : period.startDate,
+        endDate: dto.endDate ? new Date(dto.endDate) : period.endDate,
         interdisciplinaryAreaIds: dto.interdisciplinaryAreaIds ?? [],
+        competencyIds,
         createdBy: actorId,
       },
     })
@@ -211,6 +237,7 @@ export class PrismaPlanningRepository {
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
         ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.competencyIds !== undefined && { competencyIds: dto.competencyIds }),
         ...(dto.startDate !== undefined && { startDate: dto.startDate ? new Date(dto.startDate) : null }),
         ...(dto.endDate !== undefined && { endDate: dto.endDate ? new Date(dto.endDate) : null }),
         ...(dto.interdisciplinaryAreaIds !== undefined && { interdisciplinaryAreaIds: dto.interdisciplinaryAreaIds }),
