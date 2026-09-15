@@ -1,6 +1,6 @@
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, BadRequestError } from '../../../../shared/domain/errors/app.errors'
-import { assertSkillsArePlanned } from '../../../../shared/infrastructure/services/planned-curriculum.service'
+import { assertSkillsArePlanned, assertCompetenciesArePlanned } from '../../../../shared/infrastructure/services/planned-curriculum.service'
 import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
 import {
   computePeriodSummary,
@@ -199,38 +199,52 @@ export class PrismaPedagogicRecoveryRepository {
     const gc = await institutionRepo.getGradingConfig(institutionId)
     const passingGrade = gc.promotion.minToPass
 
-    const activities = await prisma.activity.findMany({
-      where: {
-        courseAssignmentId: query.courseAssignmentId,
-        academicPeriodId: query.academicPeriodId,
-        curriculumSkillId: { not: null },
-      },
-      select: {
-        id: true,
-        curriculumSkillId: true,
-        curriculumSkill: { select: { code: true, description: true } },
-        grades: { select: { studentId: true, score: true, isExcused: true } },
-      },
-    })
+    const [skillActivities, competencyActivities] = await Promise.all([
+      prisma.activity.findMany({
+        where: {
+          courseAssignmentId: query.courseAssignmentId,
+          academicPeriodId: query.academicPeriodId,
+          curriculumSkillId: { not: null },
+        },
+        select: {
+          curriculumSkillId: true,
+          curriculumSkill: { select: { code: true, description: true } },
+          grades: { select: { studentId: true, score: true, isExcused: true } },
+        },
+      }),
+      prisma.activity.findMany({
+        where: {
+          courseAssignmentId: query.courseAssignmentId,
+          academicPeriodId: query.academicPeriodId,
+          competencyId: { not: null },
+        },
+        select: {
+          competencyId: true,
+          competency: { select: { code: true, text: true } },
+          grades: { select: { studentId: true, score: true, isExcused: true } },
+        },
+      }),
+    ])
 
-    // agrupa por destreza -> studentId -> [scores]
-    const bySkill = new Map<
+    // agrupa por destreza/competencia -> studentId -> [scores]
+    const byItem = new Map<
       string,
-      { code: string; description: string; scoresByStudent: Map<string, number[]> }
+      { code: string; description: string; kind: 'skill' | 'competency'; scoresByStudent: Map<string, number[]> }
     >()
 
-    for (const activity of activities) {
-      const skillId = activity.curriculumSkillId
-      if (!skillId || !activity.curriculumSkill) continue
-      if (!bySkill.has(skillId)) {
-        bySkill.set(skillId, {
-          code: activity.curriculumSkill.code,
-          description: activity.curriculumSkill.description,
-          scoresByStudent: new Map(),
-        })
+    const accumulate = (
+      itemId: string | null,
+      code: string | undefined,
+      description: string | undefined,
+      kind: 'skill' | 'competency',
+      grades: { studentId: string; score: unknown; isExcused: boolean }[],
+    ) => {
+      if (!itemId || !code) return
+      if (!byItem.has(itemId)) {
+        byItem.set(itemId, { code, description: description ?? '', kind, scoresByStudent: new Map() })
       }
-      const entry = bySkill.get(skillId)!
-      for (const grade of activity.grades) {
+      const entry = byItem.get(itemId)!
+      for (const grade of grades) {
         if (grade.isExcused || grade.score == null) continue
         const list = entry.scoresByStudent.get(grade.studentId) ?? []
         list.push(Number(grade.score))
@@ -238,8 +252,15 @@ export class PrismaPedagogicRecoveryRepository {
       }
     }
 
+    for (const activity of skillActivities) {
+      accumulate(activity.curriculumSkillId, activity.curriculumSkill?.code, activity.curriculumSkill?.description, 'skill', activity.grades)
+    }
+    for (const activity of competencyActivities) {
+      accumulate(activity.competencyId, activity.competency?.code, activity.competency?.text, 'competency', activity.grades)
+    }
+
     const studentIds = new Set<string>()
-    for (const entry of bySkill.values()) for (const id of entry.scoresByStudent.keys()) studentIds.add(id)
+    for (const entry of byItem.values()) for (const id of entry.scoresByStudent.keys()) studentIds.add(id)
     const students = studentIds.size
       ? await prisma.user.findMany({
           where: { id: { in: Array.from(studentIds) } },
@@ -251,7 +272,7 @@ export class PrismaPedagogicRecoveryRepository {
     )
 
     const candidates: SkillReinforcementCandidate[] = []
-    for (const [skillId, entry] of bySkill) {
+    for (const [itemId, entry] of byItem) {
       const below: { studentId: string; studentName: string; average: number }[] = []
       for (const [studentId, scores] of entry.scoresByStudent) {
         const average = scores.reduce((a, b) => a + b, 0) / scores.length
@@ -261,7 +282,8 @@ export class PrismaPedagogicRecoveryRepository {
       }
       if (below.length > 0) {
         candidates.push({
-          curriculumSkillId: skillId,
+          curriculumSkillId: entry.kind === 'skill' ? itemId : undefined,
+          competencyId: entry.kind === 'competency' ? itemId : undefined,
           skillCode: entry.code,
           skillDescription: entry.description,
           passingGrade,
@@ -276,7 +298,12 @@ export class PrismaPedagogicRecoveryRepository {
   // ─── Plan de Refuerzo Académico Individualizado ────────────────────────
   private static REINFORCEMENT_PLAN_INCLUDE = {
     student: { select: { id: true, profile: { select: { firstName: true, lastName: true } } } },
-    skills: { include: { curriculumSkill: { select: { id: true, code: true, description: true } } } },
+    skills: {
+      include: {
+        curriculumSkill: { select: { id: true, code: true, description: true } },
+        competency: { select: { id: true, code: true, text: true } },
+      },
+    },
   }
 
   async listReinforcementPlans(institutionId: string, query: ListReinforcementPlansQuery) {
@@ -318,7 +345,10 @@ export class PrismaPedagogicRecoveryRepository {
     if (existing) throw new BadRequestError('Ya existe un plan de refuerzo para este estudiante en este periodo')
 
     if (dto.skills?.length) {
-      await assertSkillsArePlanned(dto.courseAssignmentId, dto.academicPeriodId, dto.skills.map((s) => s.curriculumSkillId))
+      const skillIds = dto.skills.map((s) => s.curriculumSkillId).filter((id): id is string => !!id)
+      const competencyIds = dto.skills.map((s) => s.competencyId).filter((id): id is string => !!id)
+      await assertSkillsArePlanned(dto.courseAssignmentId, dto.academicPeriodId, skillIds)
+      await assertCompetenciesArePlanned(dto.courseAssignmentId, dto.academicPeriodId, competencyIds)
     }
 
     return prisma.reinforcementPlan.create({
@@ -338,6 +368,7 @@ export class PrismaPedagogicRecoveryRepository {
           ? {
               create: dto.skills.map((s) => ({
                 curriculumSkillId: s.curriculumSkillId,
+                competencyId: s.competencyId,
                 averageAtDetection: s.averageAtDetection ?? null,
                 notes: s.notes,
               })),
@@ -353,7 +384,10 @@ export class PrismaPedagogicRecoveryRepository {
     if (!plan) throw new NotFoundError('Plan de refuerzo no encontrado')
 
     if (dto.skills?.length) {
-      await assertSkillsArePlanned(plan.courseAssignmentId, plan.academicPeriodId, dto.skills.map((s) => s.curriculumSkillId))
+      const skillIds = dto.skills.map((s) => s.curriculumSkillId).filter((id): id is string => !!id)
+      const competencyIds = dto.skills.map((s) => s.competencyId).filter((id): id is string => !!id)
+      await assertSkillsArePlanned(plan.courseAssignmentId, plan.academicPeriodId, skillIds)
+      await assertCompetenciesArePlanned(plan.courseAssignmentId, plan.academicPeriodId, competencyIds)
     }
 
     if (dto.skills) {
@@ -363,6 +397,7 @@ export class PrismaPedagogicRecoveryRepository {
           data: dto.skills.map((s) => ({
             planId: id,
             curriculumSkillId: s.curriculumSkillId,
+            competencyId: s.competencyId,
             averageAtDetection: s.averageAtDetection ?? null,
             notes: s.notes,
           })),
@@ -401,7 +436,7 @@ export class PrismaPedagogicRecoveryRepository {
           },
         },
         academicPeriod: true,
-        skills: { include: { curriculumSkill: true } },
+        skills: { include: { curriculumSkill: true, competency: true } },
         creator: { include: { profile: true } },
       },
     })
@@ -436,12 +471,14 @@ export class PrismaPedagogicRecoveryRepository {
       fechaInicio: plan.fechaInicio,
       fechaSeguimiento: plan.fechaSeguimiento,
       observacionesFinales: plan.observacionesFinales,
-      skills: plan.skills.map((s) => ({
-        code: s.curriculumSkill.code,
-        description: s.curriculumSkill.description,
-        averageAtDetection: s.averageAtDetection ? Number(s.averageAtDetection) : null,
-        notes: s.notes,
-      })),
+      skills: plan.skills
+        .filter((s) => s.curriculumSkill || s.competency)
+        .map((s) => ({
+          code: s.curriculumSkill ? s.curriculumSkill.code : s.competency!.code,
+          description: s.curriculumSkill ? s.curriculumSkill.description : s.competency!.text,
+          averageAtDetection: s.averageAtDetection ? Number(s.averageAtDetection) : null,
+          notes: s.notes,
+        })),
       guardianName: guardianLink?.guardian.profile
         ? `${guardianLink.guardian.profile.firstName} ${guardianLink.guardian.profile.lastName}`
         : null,

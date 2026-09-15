@@ -16,14 +16,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { type Subject } from '../api/academic.api'
 import { useSubjects, useCreateSubject, useUpdateSubject } from '../hooks/useAcademic'
+import { useCurriculumAreas } from '@/features/curriculum/hooks/useCurriculum'
+import { useCompetencyAreas } from '@/features/competency-curriculum/hooks/useCompetencyCurriculum'
+import { usePlanningModel } from '@/features/settings/hooks/useSettings'
+
+const NONE = '__none__'
 
 const subjectSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   code: z.string().min(1, 'El código es requerido'),
   isQualitative: z.boolean().default(false),
+  curriculumAreaId: z.string().default(NONE),
+  competencyAreaId: z.string().default(NONE),
 })
 type SubjectForm = z.infer<typeof subjectSchema>
 
@@ -31,35 +39,50 @@ export function SubjectsPage() {
   const { data: subjects = [], isLoading } = useSubjects()
   const createSubject = useCreateSubject()
   const updateSubject = useUpdateSubject()
+  const { data: planningModel } = usePlanningModel()
+  const { data: curriculumAreas = [] } = useCurriculumAreas()
+  const { data: competencyAreas = [] } = useCompetencyAreas()
+  const isCompetencyModel = planningModel === 'competencias'
 
   const [open, setOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Subject | null>(null)
 
   const form = useForm<SubjectForm>({
     resolver: zodResolver(subjectSchema),
-    defaultValues: { name: '', code: '', isQualitative: false },
+    defaultValues: { name: '', code: '', isQualitative: false, curriculumAreaId: NONE, competencyAreaId: NONE },
   })
 
   function openCreate() {
     setEditing(null)
-    form.reset({ name: '', code: '', isQualitative: false })
+    form.reset({ name: '', code: '', isQualitative: false, curriculumAreaId: NONE, competencyAreaId: NONE })
     setOpen(true)
   }
 
   function openEdit(subject: Subject) {
     setEditing(subject)
-    form.reset({ name: subject.name, code: subject.code, isQualitative: subject.isQualitative ?? false })
+    form.reset({
+      name: subject.name,
+      code: subject.code,
+      isQualitative: subject.isQualitative ?? false,
+      curriculumAreaId: subject.curriculumAreaId ?? NONE,
+      competencyAreaId: subject.competencyAreaId ?? NONE,
+    })
     setOpen(true)
   }
 
   function onSubmit(values: SubjectForm) {
+    const data = {
+      ...values,
+      curriculumAreaId: values.curriculumAreaId === NONE ? null : values.curriculumAreaId,
+      competencyAreaId: values.competencyAreaId === NONE ? null : values.competencyAreaId,
+    }
     if (editing) {
       updateSubject.mutate(
-        { id: editing.id, data: values },
+        { id: editing.id, data },
         { onSuccess: () => setOpen(false) },
       )
     } else {
-      createSubject.mutate(values, { onSuccess: () => setOpen(false) })
+      createSubject.mutate(data, { onSuccess: () => setOpen(false) })
     }
   }
 
@@ -160,6 +183,31 @@ export function SubjectsPage() {
               {form.formState.errors.code && (
                 <p className="text-xs text-destructive">{form.formState.errors.code.message}</p>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label>Área {isCompetencyModel ? 'de competencias (CNC)' : 'curricular (Currículo Priorizado)'}</Label>
+              <Select
+                value={isCompetencyModel ? form.watch('competencyAreaId') : form.watch('curriculumAreaId')}
+                onValueChange={(v) =>
+                  isCompetencyModel ? form.setValue('competencyAreaId', v) : form.setValue('curriculumAreaId', v)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Ninguna" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>Ninguna</SelectItem>
+                  {(isCompetencyModel ? competencyAreas : curriculumAreas).map((area) => (
+                    <SelectItem key={area.id} value={area.id}>
+                      {area.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Vincula esta materia al banco {isCompetencyModel ? 'de competencias' : 'de destrezas'} para habilitar
+                su selector en la planificación semanal.
+              </p>
             </div>
             <label className="flex items-start gap-2 rounded-md border border-input p-3 cursor-pointer">
               <input

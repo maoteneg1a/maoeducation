@@ -43,3 +43,38 @@ export async function assertSkillsArePlanned(
     )
   }
 }
+
+/** Misma idea que getPlannedSkillIds pero para el modelo por COMPETENCIAS. */
+export async function getPlannedCompetencyIds(
+  courseAssignmentId: string,
+  academicPeriodId: string,
+): Promise<string[]> {
+  const weeks = await prisma.planningWeek.findMany({
+    where: {
+      situation: {
+        academicPeriodId,
+        plan: { courseAssignmentId },
+      },
+    },
+    select: { competencyIds: true },
+  })
+  const ids = new Set<string>()
+  for (const w of weeks) for (const id of w.competencyIds) ids.add(id)
+  return [...ids]
+}
+
+/** Lanza BadRequestError si alguna competencia dada no está entre las planificadas. */
+export async function assertCompetenciesArePlanned(
+  courseAssignmentId: string,
+  academicPeriodId: string,
+  competencyIds: string[],
+): Promise<void> {
+  if (competencyIds.length === 0) return
+  const planned = new Set(await getPlannedCompetencyIds(courseAssignmentId, academicPeriodId))
+  const notPlanned = competencyIds.filter((id) => !planned.has(id))
+  if (notPlanned.length > 0) {
+    throw new BadRequestError(
+      'Solo se pueden usar competencias que ya estén planificadas para este curso y periodo',
+    )
+  }
+}

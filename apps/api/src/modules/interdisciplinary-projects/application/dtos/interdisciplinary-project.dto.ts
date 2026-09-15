@@ -37,6 +37,8 @@ export interface UpdateContributionDto {
   responsabilidad?: string
   skillIds?: string[]
   saberIds?: string[]
+  competencyIds?: string[]
+  competencySaberIds?: string[]
 }
 
 // ─── Entrada de semana (integración por hitos) ─────────────────────────────

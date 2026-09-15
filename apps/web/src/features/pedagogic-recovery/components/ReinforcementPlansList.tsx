@@ -1,13 +1,17 @@
 import * as React from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ClipboardCheck, Download, HeartHandshake } from 'lucide-react'
+import { ClipboardCheck, Download, HeartHandshake, Search } from 'lucide-react'
 import { Card } from '@/shared/components/ui/card'
 import { Badge } from '@/shared/components/ui/badge'
 import { Button } from '@/shared/components/ui/button'
+import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
-import { getErrorMessage } from '@/shared/lib/utils'
+import { cn, getErrorMessage } from '@/shared/lib/utils'
 import { listEnrollments } from '@/features/enrollment/api/enrollment.api'
+import { usePlannedSkills, usePlannedCompetencies } from '@/features/planning/hooks/usePlanning'
+import { usePlanningModel } from '@/features/settings/hooks/useSettings'
+import { CheckBox } from '@/features/planning/components/SkillAndSaberSelector'
 import {
   listReinforcementPlans,
   updateReinforcementPlan,
@@ -99,7 +103,7 @@ export function ReinforcementPlansList({ courseAssignmentId, academicPeriodId, p
       {plans.length > 0 && (
         <div className="space-y-2">
           {plans.map((plan) => (
-            <PlanRow key={plan.id} plan={plan} />
+            <PlanRow key={plan.id} plan={plan} courseAssignmentId={courseAssignmentId} academicPeriodId={academicPeriodId} />
           ))}
         </div>
       )}
@@ -107,12 +111,24 @@ export function ReinforcementPlansList({ courseAssignmentId, academicPeriodId, p
   )
 }
 
-function PlanRow({ plan }: { plan: ReinforcementPlan }) {
+function PlanRow({
+  plan,
+  courseAssignmentId,
+  academicPeriodId,
+}: {
+  plan: ReinforcementPlan
+  courseAssignmentId: string
+  academicPeriodId: string
+}) {
   const qc = useQueryClient()
   const [expanded, setExpanded] = React.useState(false)
   const [objetivo, setObjetivo] = React.useState(plan.objetivoGeneral ?? '')
   const [estrategias, setEstrategias] = React.useState(plan.estrategias ?? '')
   const [responsables, setResponsables] = React.useState(plan.responsables ?? '')
+  const [skillIds, setSkillIds] = React.useState(plan.skills.filter((s) => s.curriculumSkill).map((s) => s.curriculumSkill!.id))
+  const [competencyIds, setCompetencyIds] = React.useState(plan.skills.filter((s) => s.competency).map((s) => s.competency!.id))
+  const { data: planningModel } = usePlanningModel()
+  const isCompetencyModel = planningModel === 'competencias'
 
   const update = useMutation({
     mutationFn: (data: Parameters<typeof updateReinforcementPlan>[1]) => updateReinforcementPlan(plan.id, data),
@@ -124,6 +140,19 @@ function PlanRow({ plan }: { plan: ReinforcementPlan }) {
   })
 
   const studentName = `${plan.student.profile.firstName} ${plan.student.profile.lastName}`
+  const itemCount = isCompetencyModel ? competencyIds.length : skillIds.length
+
+  const handleSave = () => {
+    update.mutate({
+      objetivoGeneral: objetivo,
+      estrategias,
+      responsables,
+      status: 'activo',
+      skills: isCompetencyModel
+        ? competencyIds.map((competencyId) => ({ competencyId }))
+        : skillIds.map((curriculumSkillId) => ({ curriculumSkillId })),
+    })
+  }
 
   return (
     <div className="rounded border">
@@ -134,22 +163,29 @@ function PlanRow({ plan }: { plan: ReinforcementPlan }) {
       >
         <span className="flex-1 font-medium">{studentName}</span>
         <span className="text-xs text-muted-foreground">
-          {plan.planType === 'nee' ? 'NEE' : 'Académico'} · {plan.skills.length} destreza(s)
+          {plan.planType === 'nee' ? 'NEE' : 'Académico'} · {itemCount} {isCompetencyModel ? 'competencia(s)' : 'destreza(s)'}
         </span>
         <Badge variant={STATUS_LABEL[plan.status].variant}>{STATUS_LABEL[plan.status].label}</Badge>
       </button>
 
       {expanded && (
         <div className="space-y-3 border-t p-3">
-          {plan.skills.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {plan.skills.map((s) => (
-                <span key={s.curriculumSkill.id} className="rounded-full bg-muted px-2 py-0.5 text-xs">
-                  {s.curriculumSkill.code}
-                  {s.averageAtDetection != null ? ` · ${s.averageAtDetection.toFixed(2)}` : ''}
-                </span>
-              ))}
-            </div>
+          {isCompetencyModel ? (
+            <ReinforcementItemSelector
+              courseAssignmentId={courseAssignmentId}
+              academicPeriodId={academicPeriodId}
+              kind="competency"
+              selectedIds={competencyIds}
+              onChange={setCompetencyIds}
+            />
+          ) : (
+            <ReinforcementItemSelector
+              courseAssignmentId={courseAssignmentId}
+              academicPeriodId={academicPeriodId}
+              kind="skill"
+              selectedIds={skillIds}
+              onChange={setSkillIds}
+            />
           )}
           <div className="space-y-1.5">
             <Label className="text-xs">Objetivo general</Label>
@@ -185,13 +221,95 @@ function PlanRow({ plan }: { plan: ReinforcementPlan }) {
             </Button>
             <Button
               size="sm"
-              onClick={() => update.mutate({ objetivoGeneral: objetivo, estrategias, responsables, status: 'activo' })}
+              onClick={handleSave}
               loading={update.isPending}
             >
               Guardar
             </Button>
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Selector simple de destrezas/competencias YA PLANIFICADAS (motor central) para
+ * marcar en qué está fallando el estudiante — sin saberes, este plan solo necesita
+ * identificar el ítem curricular, no redactar contenido pedagógico sobre él.
+ */
+function ReinforcementItemSelector({
+  courseAssignmentId,
+  academicPeriodId,
+  kind,
+  selectedIds,
+  onChange,
+}: {
+  courseAssignmentId: string
+  academicPeriodId: string
+  kind: 'skill' | 'competency'
+  selectedIds: string[]
+  onChange: (ids: string[]) => void
+}) {
+  const { data: plannedSkills = [] } = usePlannedSkills(
+    kind === 'skill' ? courseAssignmentId : undefined,
+    kind === 'skill' ? academicPeriodId : undefined,
+  )
+  const { data: plannedCompetencies = [] } = usePlannedCompetencies(
+    kind === 'competency' ? courseAssignmentId : undefined,
+    kind === 'competency' ? academicPeriodId : undefined,
+  )
+  const items = kind === 'skill'
+    ? plannedSkills.map((s) => ({ id: s.id, code: s.code, label: s.description }))
+    : plannedCompetencies.map((c) => ({ id: c.id, code: c.code, label: c.text }))
+
+  const [search, setSearch] = React.useState('')
+  const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  const filtered = React.useMemo(() => {
+    const query = normalize(search.trim())
+    const list = !query ? items : items.filter((i) => normalize(i.code).includes(query) || normalize(i.label).includes(query))
+    return [...list].sort((a, b) => Number(selectedIds.includes(b.id)) - Number(selectedIds.includes(a.id)))
+  }, [items, search, selectedIds])
+
+  const toggle = (id: string) => onChange(selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id])
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs">
+        {kind === 'skill' ? 'Destrezas' : 'Competencias'} planificadas ({selectedIds.length} seleccionada{selectedIds.length === 1 ? '' : 's'})
+      </Label>
+      {items.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Aún no hay {kind === 'skill' ? 'destrezas' : 'competencias'} planificadas para este curso y periodo.
+        </p>
+      ) : (
+        <>
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar..." className="h-8 pl-7 text-sm" />
+          </div>
+          <div className="max-h-40 space-y-1 overflow-y-auto rounded border p-2">
+            {filtered.map((item) => {
+              const selected = selectedIds.includes(item.id)
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => toggle(item.id)}
+                  className={cn(
+                    'flex w-full items-start gap-2 rounded px-2 py-1 text-left text-xs transition',
+                    selected ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50',
+                  )}
+                >
+                  <CheckBox selected={selected} />
+                  <span>
+                    <span className="font-mono text-muted-foreground">{item.code}</span> {item.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </>
       )}
     </div>
   )

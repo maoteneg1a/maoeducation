@@ -11,6 +11,11 @@ import {
   DEFAULT_QUALITATIVE_SUBJECTS,
   DEFAULT_PCA_SCHEMA,
   loadDefaultCurriculum,
+  loadDefaultCompetencies,
+  loadKeyCompetencies,
+  loadDuaCatalog,
+  loadAssessmentCatalog,
+  loadInsertionBanks,
 } from '../../src/modules/platform/application/services/institution-bootstrap'
 
 const prisma = new PrismaClient()
@@ -108,6 +113,133 @@ async function main() {
     console.log(`✓ Banco curricular: ${defaultCurriculum.length} áreas, ${criteriaCount} criterios, ${skillsCount} destrezas`)
   } else {
     console.log('✓ Banco curricular: ya existía, se omite')
+  }
+
+  // 4b-bis. Banco curricular por COMPETENCIAS (CNC-MINEDUC) — modelo alternativo, configurable
+  const existingCompetencyAreas = await prisma.competencyArea.count({ where: { institutionId: institution.id } })
+  if (existingCompetencyAreas === 0) {
+    const defaultCompetencies = loadDefaultCompetencies()
+    let competenciesCount = 0
+    for (const area of defaultCompetencies) {
+      const createdArea = await prisma.competencyArea.create({
+        data: { institutionId: institution.id, code: area.code, name: area.name },
+      })
+      for (const [subnivel, competencies] of Object.entries(area.subniveles)) {
+        for (const competency of competencies) {
+          competenciesCount++
+          const createdCompetency = await prisma.competency.create({
+            data: {
+              areaId: createdArea.id,
+              subnivel,
+              code: competency.code,
+              text: competency.text,
+              keyCompetencyCodes: competency.keyCompetencyCodes,
+            },
+          })
+          if (competency.indicators.length) {
+            await prisma.competencyIndicator.createMany({
+              data: competency.indicators.map((ind) => ({
+                competencyId: createdCompetency.id,
+                code: ind.code,
+                text: ind.text,
+              })),
+            })
+          }
+          if (competency.sabers.length) {
+            await prisma.competencySaber.createMany({
+              data: competency.sabers.map((saber) => ({
+                competencyId: createdCompetency.id,
+                type: saber.type,
+                code: saber.code,
+                description: saber.description,
+              })),
+            })
+          }
+        }
+      }
+    }
+    console.log(`✓ Banco por competencias: ${defaultCompetencies.length} áreas, ${competenciesCount} competencias`)
+  } else {
+    console.log('✓ Banco por competencias: ya existía, se omite')
+  }
+
+  // 4b-ter. Catálogos globales (no por institución): competencias clave, DUA, evaluación, inserciones
+  const existingKeyCompetencies = await prisma.keyCompetency.count()
+  if (existingKeyCompetencies === 0) {
+    const keyCompetencies = loadKeyCompetencies()
+    await prisma.keyCompetency.createMany({ data: keyCompetencies })
+    console.log(`✓ Competencias clave: ${keyCompetencies.length} creadas`)
+  } else {
+    console.log('✓ Competencias clave: ya existían, se omite')
+  }
+
+  const existingDuaCheckpoints = await prisma.duaCheckpoint.count()
+  if (existingDuaCheckpoints === 0) {
+    const duaCatalog = loadDuaCatalog()
+    let strategiesCount = 0
+    for (const checkpoint of duaCatalog) {
+      const created = await prisma.duaCheckpoint.create({
+        data: {
+          operationalCode: checkpoint.operationalCode,
+          principleName: checkpoint.principleName,
+          guidelineNumber: checkpoint.guidelineNumber,
+          guidelineName: checkpoint.guidelineName,
+          checkpointNumber: checkpoint.checkpointNumber,
+          checkpointText: checkpoint.checkpointText,
+          sortOrder: checkpoint.sortOrder,
+        },
+      })
+      if (checkpoint.strategies.length) {
+        strategiesCount += checkpoint.strategies.length
+        await prisma.duaStrategy.createMany({
+          data: checkpoint.strategies.map((s) => ({
+            checkpointId: created.id,
+            text: s.text,
+            compatiblePhases: s.compatiblePhases,
+            compatiblePurposes: s.compatiblePurposes,
+            sourcePage: s.sourcePage,
+          })),
+        })
+      }
+    }
+    console.log(`✓ Catálogo DUA: ${duaCatalog.length} checkpoints, ${strategiesCount} estrategias`)
+  } else {
+    console.log('✓ Catálogo DUA: ya existía, se omite')
+  }
+
+  const existingTechniques = await prisma.assessmentTechnique.count()
+  if (existingTechniques === 0) {
+    const assessmentCatalog = loadAssessmentCatalog()
+    await prisma.assessmentTechnique.createMany({ data: assessmentCatalog.techniques })
+    await prisma.assessmentInstrument.createMany({ data: assessmentCatalog.instruments })
+    console.log(`✓ Catálogo de evaluación: ${assessmentCatalog.techniques.length} técnicas, ${assessmentCatalog.instruments.length} instrumentos`)
+  } else {
+    console.log('✓ Catálogo de evaluación: ya existía, se omite')
+  }
+
+  const existingInsertionBanks = await prisma.curricularInsertionBank.count()
+  if (existingInsertionBanks === 0) {
+    const insertionBanks = loadInsertionBanks()
+    let candidatesCount = 0
+    for (const bank of insertionBanks) {
+      const created = await prisma.curricularInsertionBank.create({
+        data: { key: bank.key, title: bank.title },
+      })
+      if (bank.candidates.length) {
+        candidatesCount += bank.candidates.length
+        await prisma.curricularInsertionCandidate.createMany({
+          data: bank.candidates.map((c) => ({
+            bankId: created.id,
+            sourceCode: c.sourceCode,
+            text: c.text,
+            page: c.page,
+          })),
+        })
+      }
+    }
+    console.log(`✓ Ejes de inserción curricular: ${insertionBanks.length} bancos, ${candidatesCount} candidatos`)
+  } else {
+    console.log('✓ Ejes de inserción curricular: ya existían, se omite')
   }
 
   // 4b. Tipos de falta (debido proceso)

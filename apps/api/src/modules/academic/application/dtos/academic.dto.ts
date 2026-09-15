@@ -17,6 +17,8 @@ export interface CreateSubjectDto {
   description?: string
   color?: string
   isQualitative?: boolean
+  curriculumAreaId?: string | null
+  competencyAreaId?: string | null
 }
 
 export interface UpdateSubjectDto {
@@ -25,6 +27,8 @@ export interface UpdateSubjectDto {
   description?: string
   color?: string
   isQualitative?: boolean
+  curriculumAreaId?: string | null
+  competencyAreaId?: string | null
 }
 
 export interface CreateAcademicYearDto {

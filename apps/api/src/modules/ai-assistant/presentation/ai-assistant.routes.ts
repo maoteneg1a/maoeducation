@@ -3,7 +3,8 @@ import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.m
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import { draftWeek } from '../application/services/planning-ai.service'
 import { draftProject } from '../application/services/project-ai.service'
-import type { DraftProjectDto, DraftWeekDto } from '../application/dtos/ai-assistant.dto'
+import { draftCompetencyWeek } from '../application/services/competency-pedagogical-generator.service'
+import type { DraftCompetencyWeekDto, DraftProjectDto, DraftWeekDto } from '../application/dtos/ai-assistant.dto'
 
 export default async function aiAssistantRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware)
@@ -14,6 +15,17 @@ export default async function aiAssistantRoutes(app: FastifyInstance) {
     { preHandler: [requirePermission('planning', 'write', 'own')] },
     async (req, reply) => {
       const result = await draftWeek(req.user.institutionId, req.user.sub, req.body)
+      return reply.send(result)
+    },
+  )
+
+  // Igual que draft-week pero para el modelo por competencias — motor en dos capas
+  // (IA validada agresivamente + fallback determinista por catálogos DUA/evaluación).
+  app.post<{ Body: DraftCompetencyWeekDto }>(
+    '/ai-assistant/draft-competency-week',
+    { preHandler: [requirePermission('planning', 'write', 'own')] },
+    async (req, reply) => {
+      const result = await draftCompetencyWeek(req.user.institutionId, req.user.sub, req.body)
       return reply.send(result)
     },
   )

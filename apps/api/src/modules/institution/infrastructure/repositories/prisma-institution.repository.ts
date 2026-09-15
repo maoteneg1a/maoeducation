@@ -6,9 +6,11 @@ import {
   GradingConfig,
   InstitutionBranding,
   InstitutionSettingsDto,
+  PlanningModel,
   UpdateAiConfigDto,
   UpdateGradingConfigDto,
   UpdateInstitutionSettingsDto,
+  UpdatePlanningModelDto,
 } from '../../application/dtos/institution.dto'
 import { DEFAULT_AI_CONFIG, DEFAULT_GRADING_CONFIG } from '../../../platform/application/services/institution-bootstrap'
 
@@ -54,6 +56,12 @@ function extractAiConfig(settings: unknown): AiConfig {
     model: ac.model ?? DEFAULT_AI_CONFIG.model,
     monthlyTokenCap: ac.monthlyTokenCap ?? DEFAULT_AI_CONFIG.monthlyTokenCap,
   }
+}
+
+/** Modelo de planificación curricular activo — "destrezas" por defecto (compatibilidad con lo ya construido). */
+function extractPlanningModel(settings: unknown): PlanningModel {
+  const s = (settings ?? {}) as Record<string, unknown>
+  return (s.planningModel as PlanningModel | undefined) ?? 'destrezas'
 }
 
 export class PrismaInstitutionRepository {
@@ -178,6 +186,25 @@ export class PrismaInstitutionRepository {
       select: { settings: true },
     })
     return extractAiConfig(updated.settings)
+  }
+
+  async getPlanningModel(institutionId: string): Promise<PlanningModel> {
+    const inst = await prisma.institution.findUnique({ where: { id: institutionId }, select: { settings: true } })
+    if (!inst) throw new NotFoundError('Institución no encontrada')
+    return extractPlanningModel(inst.settings)
+  }
+
+  async updatePlanningModel(institutionId: string, dto: UpdatePlanningModelDto): Promise<PlanningModel> {
+    const inst = await prisma.institution.findUnique({ where: { id: institutionId }, select: { settings: true } })
+    if (!inst) throw new NotFoundError('Institución no encontrada')
+
+    const currentSettings = (inst.settings ?? {}) as Record<string, unknown>
+    const updated = await prisma.institution.update({
+      where: { id: institutionId },
+      data: { settings: { ...currentSettings, planningModel: dto.planningModel } as unknown as Prisma.InputJsonValue },
+      select: { settings: true },
+    })
+    return extractPlanningModel(updated.settings)
   }
 
   /** Guarda solo el logoUrl dentro de branding (tras subir el archivo). */

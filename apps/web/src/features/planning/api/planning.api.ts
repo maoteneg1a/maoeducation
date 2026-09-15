@@ -1,5 +1,6 @@
 import { apiClient, apiDelete, apiGet, apiPost, apiPut } from '@/shared/lib/api-client'
 import type { CurriculumSkill } from '@/features/curriculum/api/curriculum.api'
+import type { Competency } from '@/features/competency-curriculum/api/competency-curriculum.api'
 
 export type PlanningTemplateType = 'pca'
 export type ApprovalStatus = 'borrador' | 'enviado' | 'aprobado'
@@ -92,6 +93,9 @@ export interface PlanningWeek {
   indicadoresEvaluacion: string | null
   skillIds: string[]
   saberIds: string[]
+  competencyIds: string[]
+  competencyIndicatorIds: string[]
+  competencySaberIds: string[]
   momentos: PlanningMomentos
   createdAt: string
 }
@@ -159,6 +163,9 @@ export const planningApi = {
     indicadoresEvaluacion?: string
     skillIds?: string[]
     saberIds?: string[]
+    competencyIds?: string[]
+    competencyIndicatorIds?: string[]
+    competencySaberIds?: string[]
     momentos?: PlanningMomentos
   }) => apiPost<PlanningWeek>('planning/weeks', data),
 
@@ -172,6 +179,9 @@ export const planningApi = {
       indicadoresEvaluacion: string
       skillIds: string[]
       saberIds: string[]
+      competencyIds: string[]
+      competencyIndicatorIds: string[]
+      competencySaberIds: string[]
       momentos: PlanningMomentos
     }>,
   ) => apiPut<PlanningWeek>(`planning/weeks/${id}`, data),
@@ -181,6 +191,10 @@ export const planningApi = {
   /** Destrezas que ya están planificadas para este curso+periodo — lo único disponible para el resto del sistema. */
   listPlannedSkills: (courseAssignmentId: string, academicPeriodId: string) =>
     apiGet<CurriculumSkill[]>('planning/planned-skills', { courseAssignmentId, academicPeriodId }),
+
+  /** Igual que listPlannedSkills pero para el modelo por competencias. */
+  listPlannedCompetencies: (courseAssignmentId: string, academicPeriodId: string) =>
+    apiGet<Competency[]>('planning/planned-competencies', { courseAssignmentId, academicPeriodId }),
 
   /** Descarga el PDF autenticado y lo abre en una pestaña nueva (no un link directo — necesita el JWT en el header). */
   async openSituationPdf(situationId: string) {

@@ -84,6 +84,9 @@ export interface CreateWeekDto {
   indicadoresEvaluacion?: string
   skillIds?: string[]
   saberIds?: string[]
+  competencyIds?: string[]
+  competencyIndicatorIds?: string[]
+  competencySaberIds?: string[]
   momentos?: PlanningMomentos
 }
 
@@ -95,5 +98,8 @@ export interface UpdateWeekDto {
   indicadoresEvaluacion?: string
   skillIds?: string[]
   saberIds?: string[]
+  competencyIds?: string[]
+  competencyIndicatorIds?: string[]
+  competencySaberIds?: string[]
   momentos?: PlanningMomentos
 }

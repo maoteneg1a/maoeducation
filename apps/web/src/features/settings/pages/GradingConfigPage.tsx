@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react'
-import { Plus, Sparkles, Trash2 } from 'lucide-react'
+import { Plus, Sparkles, Trash2, BookOpen } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/shared/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
-import { useAiConfig, useGradingConfig, useUpdateAiConfig, useUpdateGradingConfig } from '../hooks/useSettings'
-import type { AiConfig, BehaviorLevel, GradingConfig, QualitativeLevel } from '../api/settings.api'
+import {
+  useAiConfig,
+  useGradingConfig,
+  usePlanningModel,
+  useUpdateAiConfig,
+  useUpdateGradingConfig,
+  useUpdatePlanningModel,
+} from '../hooks/useSettings'
+import type { AiConfig, BehaviorLevel, GradingConfig, PlanningModel, QualitativeLevel } from '../api/settings.api'
 
 export function GradingConfigPage() {
   const { data, isLoading } = useGradingConfig()
@@ -55,6 +62,8 @@ export function GradingConfigPage() {
         </div>
         <Button onClick={() => update.mutate(cfg)} loading={update.isPending}>Guardar</Button>
       </div>
+
+      <PlanningModelConfigCard />
 
       <AiAssistantConfigCard />
 
@@ -183,6 +192,45 @@ export function GradingConfigPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function PlanningModelConfigCard() {
+  const { data: planningModel } = usePlanningModel()
+  const update = useUpdatePlanningModel()
+
+  if (!planningModel) return null
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <BookOpen className="h-5 w-5" />
+          Modelo de planificación curricular
+        </CardTitle>
+        <CardDescription>
+          Decide cómo planifican los docentes: por destrezas (Currículo Priorizado MINEDUC) o por
+          competencias (Currículo Nacional por Competencias, CNC). Afecta el selector en la
+          planificación semanal, proyectos interdisciplinarios y refuerzo.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="max-w-sm space-y-1.5">
+        <Label>Modelo activo</Label>
+        <Select
+          value={planningModel}
+          onValueChange={(v: PlanningModel) => update.mutate(v)}
+          disabled={update.isPending}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="destrezas">Destrezas (Currículo Priorizado)</SelectItem>
+            <SelectItem value="competencias">Competencias (CNC)</SelectItem>
+          </SelectContent>
+        </Select>
+      </CardContent>
+    </Card>
   )
 }
 

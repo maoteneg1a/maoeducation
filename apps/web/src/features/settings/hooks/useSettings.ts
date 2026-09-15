@@ -2,13 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/shared/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
-import { settingsApi, type AiConfig, type GradingConfig, type InstitutionSettings } from '../api/settings.api'
+import { settingsApi, type AiConfig, type GradingConfig, type InstitutionSettings, type PlanningModel } from '../api/settings.api'
 import type { InstitutionBranding } from '@/store/auth.store'
 
 export const settingsKeys = {
   institution: ['institution-settings'] as const,
   gradingConfig: ['grading-config'] as const,
   aiConfig: ['ai-config'] as const,
+  planningModel: ['planning-model'] as const,
 }
 
 function syncStore(settings: InstitutionSettings) {
@@ -89,6 +90,28 @@ export function useUpdateAiConfig() {
     onSuccess: (config) => {
       qc.setQueryData(settingsKeys.aiConfig, config)
       toast.success('Configuración del asistente IA guardada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+/** Modelo de planificación activo (destrezas | competencias) — decide qué selector se muestra en toda la app. */
+export function usePlanningModel() {
+  return useQuery({
+    queryKey: settingsKeys.planningModel,
+    queryFn: settingsApi.getPlanningModel,
+    staleTime: 30 * 1000,
+    select: (data) => data.planningModel,
+  })
+}
+
+export function useUpdatePlanningModel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (planningModel: PlanningModel) => settingsApi.updatePlanningModel(planningModel),
+    onSuccess: (data) => {
+      qc.setQueryData(settingsKeys.planningModel, data)
+      toast.success('Modelo de planificación actualizado')
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })

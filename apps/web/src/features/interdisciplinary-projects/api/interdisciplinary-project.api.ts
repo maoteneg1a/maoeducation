@@ -22,9 +22,11 @@ export interface Contribution {
   responsabilidad: string | null
   skillIds: string[]
   saberIds: string[]
+  competencyIds: string[]
+  competencySaberIds: string[]
   courseAssignment?: {
     id: string
-    subject: { id: string; name: string; curriculumAreaId: string | null }
+    subject: { id: string; name: string; curriculumAreaId: string | null; competencyAreaId: string | null }
     teacher: { id: string; profile: { firstName: string; lastName: string } }
   }
   weekEntries?: WeekEntry[]
@@ -82,7 +84,14 @@ export const interdisciplinaryProjectApi = {
 
   updateContribution: (
     contributionId: string,
-    data: Partial<{ contribucion: string; responsabilidad: string; skillIds: string[]; saberIds: string[] }>,
+    data: Partial<{
+      contribucion: string
+      responsabilidad: string
+      skillIds: string[]
+      saberIds: string[]
+      competencyIds: string[]
+      competencySaberIds: string[]
+    }>,
   ) => apiPut<Contribution>(`interdisciplinary-projects/contributions/${contributionId}`, data),
 
   removeContribution: (contributionId: string) =>

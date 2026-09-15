@@ -222,3 +222,12 @@ export function usePlannedSkills(courseAssignmentId: string | undefined, academi
     enabled: !!courseAssignmentId && !!academicPeriodId,
   })
 }
+
+/** Igual que usePlannedSkills pero para el modelo por competencias. */
+export function usePlannedCompetencies(courseAssignmentId: string | undefined, academicPeriodId: string | undefined) {
+  return useQuery({
+    queryKey: ['planned-competencies', courseAssignmentId, academicPeriodId],
+    queryFn: () => planningApi.listPlannedCompetencies(courseAssignmentId!, academicPeriodId!),
+    enabled: !!courseAssignmentId && !!academicPeriodId,
+  })
+}

@@ -3,7 +3,7 @@ import { PrismaPlanningRepository } from '../infrastructure/repositories/prisma-
 import { buildMicrocurricularPdf } from '../application/services/microcurricular-pdf.service'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
-import { getPlannedSkillIds } from '../../../shared/infrastructure/services/planned-curriculum.service'
+import { getPlannedSkillIds, getPlannedCompetencyIds } from '../../../shared/infrastructure/services/planned-curriculum.service'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import type {
   CreatePlanDto,
@@ -176,6 +176,21 @@ export default async function planningRoutes(app: FastifyInstance) {
         orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
       })
       return reply.send(skills)
+    },
+  )
+
+  // Misma idea que planned-skills pero para el modelo por COMPETENCIAS
+  app.get<{ Querystring: { courseAssignmentId: string; academicPeriodId: string } }>(
+    '/planning/planned-competencies',
+    { preHandler: [requirePermission('planning', 'read', 'own')] },
+    async (req, reply) => {
+      const competencyIds = await getPlannedCompetencyIds(req.query.courseAssignmentId, req.query.academicPeriodId)
+      if (competencyIds.length === 0) return reply.send([])
+      const competencies = await prisma.competency.findMany({
+        where: { id: { in: competencyIds } },
+        orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+      })
+      return reply.send(competencies)
     },
   )
 

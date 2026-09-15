@@ -78,3 +78,11 @@ export interface UpdateAiConfigDto {
   model?: string
   monthlyTokenCap?: number
 }
+
+// ---- Modelo de planificación curricular (configurable por institución) ----
+
+export type PlanningModel = 'destrezas' | 'competencias'
+
+export interface UpdatePlanningModelDto {
+  planningModel: PlanningModel
+}

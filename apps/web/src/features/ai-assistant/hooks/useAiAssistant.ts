@@ -20,6 +20,13 @@ export function useDraftWeek() {
   })
 }
 
+export function useDraftCompetencyWeek() {
+  return useMutation({
+    mutationFn: aiAssistantApi.draftCompetencyWeek,
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
 export function useDraftProject() {
   return useMutation({
     mutationFn: aiAssistantApi.draftProject,

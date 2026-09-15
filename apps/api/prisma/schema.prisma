@@ -57,6 +57,7 @@ model Institution {
   insumos                   Insumo[]
   tasks                     Task[]
   curriculumAreas           CurriculumArea[]
+  competencyAreas           CompetencyArea[]
   planningTemplates         PlanningTemplate[]
   curriculumPlans           CurriculumPlan[]
   learningSituations        LearningSituation[]
@@ -375,10 +376,14 @@ model Subject {
   // Si es null, la materia no tiene banco curricular asociado (ej. materias propias
   // de la institución sin equivalente oficial).
   curriculumAreaId String?  @map("curriculum_area_id")
+  // Vínculo equivalente al banco por COMPETENCIAS — se usa cuando el
+  // planningModel de la institución es "competencias" en vez de "destrezas".
+  competencyAreaId String?  @map("competency_area_id")
   createdAt        DateTime @default(now()) @map("created_at")
 
   institution       Institution        @relation(fields: [institutionId], references: [id])
   curriculumArea    CurriculumArea?    @relation(fields: [curriculumAreaId], references: [id])
+  competencyArea    CompetencyArea?    @relation(fields: [competencyAreaId], references: [id])
   courseAssignments CourseAssignment[]
 
   @@unique([institutionId, code])
@@ -471,6 +476,185 @@ model CurriculumSaber {
 
   @@unique([skillId, code])
   @@map("curriculum_sabers")
+}
+
+// ============================================================
+// BANCO CURRICULAR POR COMPETENCIAS (modelo alternativo, configurable)
+// ============================================================
+// Jerarquía: Área -> Competencia específica -> Indicadores + Saberes (mismo
+// patrón declarativo/procedimental/actitudinal que en destrezas). A diferencia
+// del banco por destrezas, aquí NO hay un nivel "criterio" intermedio — la
+// competencia específica lo reemplaza directamente, siguiendo la fuente real
+// del Currículo Nacional por Competencias (CNC) del MINEDUC.
+// Institution.settings.planningModel decide cuál de los dos bancos usa cada
+// institución (ver extractPlanningModel en institution.repository).
+
+model CompetencyArea {
+  id            String   @id @default(uuid())
+  institutionId String   @map("institution_id")
+  code          String   @db.VarChar(20)
+  name          String   @db.VarChar(150)
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  institution  Institution  @relation(fields: [institutionId], references: [id])
+  competencies Competency[]
+  subjects     Subject[]
+
+  @@unique([institutionId, code])
+  @@map("competency_areas")
+}
+
+model Competency {
+  id                 String   @id @default(uuid())
+  areaId             String   @map("area_id")
+  // Subnivel MINEDUC: inicial | preparatoria | elemental | media | superior | bgu
+  subnivel           String   @db.VarChar(20)
+  code               String   @db.VarChar(30) // ej: "CE.M.5.1"
+  text               String
+  // Códigos de KeyCompetency (catálogo fijo global) que esta competencia desarrolla
+  keyCompetencyCodes String[] @map("key_competency_codes")
+  isCustom           Boolean  @default(false) @map("is_custom")
+  isActive           Boolean  @default(true) @map("is_active")
+  sortOrder          Int      @default(0) @map("sort_order")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  area                    CompetencyArea           @relation(fields: [areaId], references: [id])
+  indicators              CompetencyIndicator[]
+  sabers                  CompetencySaber[]
+  reinforcementPlanSkills ReinforcementPlanSkill[]
+  activities              Activity[]
+
+  @@unique([areaId, subnivel, code])
+  @@map("competencies")
+}
+
+model CompetencyIndicator {
+  id           String   @id @default(uuid())
+  competencyId String   @map("competency_id")
+  code         String   @db.VarChar(30) // ej: "I.M.5.1.1"
+  text         String
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  competency Competency @relation(fields: [competencyId], references: [id])
+
+  @@unique([competencyId, code])
+  @@map("competency_indicators")
+}
+
+model CompetencySaber {
+  id           String   @id @default(uuid())
+  competencyId String   @map("competency_id")
+  type         String   @db.VarChar(20) // declarativo | procedimental | actitudinal
+  code         String   @db.VarChar(30) // ej: "M.5.1.d.1"
+  description  String
+  isActive     Boolean  @default(true) @map("is_active")
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  competency Competency @relation(fields: [competencyId], references: [id])
+
+  @@unique([competencyId, code])
+  @@map("competency_sabers")
+}
+
+// Catálogo fijo y global (no por institución) de las 7 competencias clave
+// transversales del CNC-MINEDUC — se etiquetan en cada Competency.
+model KeyCompetency {
+  id          String  @id @default(uuid())
+  code        String  @unique @db.VarChar(10) // CC | CMCT | CCICC | CD | CSE | CECA | CIT
+  name        String  @db.VarChar(100)
+  shortName   String  @map("short_name") @db.VarChar(50)
+  description String
+  color       String? @db.VarChar(10)
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  @@map("key_competencies")
+}
+
+// ============================================================
+// CATÁLOGOS OPERATIVOS (DUA y evaluación) — compartidos por ambos modelos de
+// planificación, globales (no por institución). El docente SELECCIONA de aquí
+// en vez de redactar desde cero; la IA los usa para no poder "inventar" DUA/
+// técnicas fuera de lo permitido.
+// ============================================================
+
+model DuaCheckpoint {
+  id               String @id @default(uuid())
+  operationalCode  String @unique @map("operational_code") @db.VarChar(20) // ej: "I.1.1"
+  principleName    String @map("principle_name") @db.VarChar(50) // Representación | Acción y Expresión | Motivación
+  guidelineNumber  Int    @map("guideline_number")
+  guidelineName    String @map("guideline_name") @db.VarChar(150)
+  checkpointNumber String @map("checkpoint_number") @db.VarChar(10)
+  checkpointText   String
+  sortOrder        Int    @default(0) @map("sort_order")
+
+  strategies DuaStrategy[]
+
+  @@map("dua_checkpoints")
+}
+
+model DuaStrategy {
+  id                 String   @id @default(uuid())
+  checkpointId       String   @map("checkpoint_id")
+  text               String
+  // ANTICIPATION | CONSTRUCTION | CONSOLIDATION — para filtrar por momento pedagógico
+  compatiblePhases   String[] @map("compatible_phases")
+  compatiblePurposes String[] @map("compatible_purposes")
+  sourcePage         Int?     @map("source_page")
+
+  checkpoint DuaCheckpoint @relation(fields: [checkpointId], references: [id])
+
+  @@map("dua_strategies")
+}
+
+model AssessmentTechnique {
+  id                        String   @id @default(uuid())
+  code                      String   @unique @db.VarChar(30)
+  label                     String   @db.VarChar(150)
+  compatibleInstrumentCodes String[] @map("compatible_instrument_codes")
+  sortOrder                 Int      @default(0) @map("sort_order")
+
+  @@map("assessment_techniques")
+}
+
+model AssessmentInstrument {
+  id        String @id @default(uuid())
+  code      String @unique @db.VarChar(30)
+  label     String @db.VarChar(150)
+  sortOrder Int    @default(0) @map("sort_order")
+
+  @@map("assessment_instruments")
+}
+
+// ============================================================
+// EJES DE INSERCIÓN CURRICULAR (bancos de referencia transversal) — el docente
+// los consulta al redactar, no bloquean nada; son candidatos textuales ya
+// extraídos de los documentos oficiales de cada eje, no una jerarquía nueva.
+// ============================================================
+
+model CurricularInsertionBank {
+  id    String @id @default(uuid())
+  key   String @unique @db.VarChar(50) // SOCIOEMOTIONAL_EDUCATION | SUSTAINABLE_DEVELOPMENT | ...
+  title String @db.VarChar(150)
+
+  candidates CurricularInsertionCandidate[]
+
+  @@map("curricular_insertion_banks")
+}
+
+model CurricularInsertionCandidate {
+  id         String @id @default(uuid())
+  bankId     String @map("bank_id")
+  sourceCode String @map("source_code") @db.VarChar(30) // código de destreza/competencia asociado en el documento fuente
+  text       String
+  page       Int?
+
+  bank CurricularInsertionBank @relation(fields: [bankId], references: [id])
+
+  @@index([bankId, sourceCode])
+  @@map("curricular_insertion_candidates")
 }
 
 model CourseAssignment {
@@ -604,10 +788,15 @@ model PlanningWeek {
   endDate                 DateTime? @map("end_date") @db.Date
   competenciasEspecificas String?   @map("competencias_especificas")
   indicadoresEvaluacion   String?   @map("indicadores_evaluacion")
-  // Destrezas del banco curricular en las que se basa la semana
+  // Destrezas del banco curricular en las que se basa la semana (modelo "destrezas")
   skillIds                String[]  @map("skill_ids")
   // Saberes (CurriculumSaber) seleccionados, cualquier tipo — se agrupan por type al mostrar/exportar
   saberIds                String[]  @map("saber_ids")
+  // Competencias específicas y sus indicadores en las que se basa la semana (modelo "competencias")
+  competencyIds           String[]  @map("competency_ids")
+  competencyIndicatorIds  String[]  @map("competency_indicator_ids")
+  // Saberes (CompetencySaber) del modelo por competencias
+  competencySaberIds      String[]  @map("competency_saber_ids")
   // { anticipacion: {estrategiasDua, recursos, tecnica, instrumento}, construccionConocimiento: {...}, consolidacion: {...} }
   momentos                Json      @default("{}")
   createdAt               DateTime  @default(now()) @map("created_at")
@@ -767,15 +956,19 @@ model ReinforcementPlan {
 model ReinforcementPlanSkill {
   id                 String   @id @default(uuid())
   planId             String   @map("plan_id")
-  curriculumSkillId  String   @map("curriculum_skill_id")
+  // Exactamente uno de los dos según el planningModel de la institución (validado en la app)
+  curriculumSkillId  String?  @map("curriculum_skill_id")
+  competencyId       String?  @map("competency_id")
   averageAtDetection Decimal? @map("average_at_detection") @db.Decimal(5, 2)
   notes              String?
   createdAt          DateTime @default(now()) @map("created_at")
 
   plan            ReinforcementPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  curriculumSkill CurriculumSkill   @relation(fields: [curriculumSkillId], references: [id])
+  curriculumSkill CurriculumSkill?  @relation(fields: [curriculumSkillId], references: [id])
+  competency      Competency?       @relation(fields: [competencyId], references: [id])
 
   @@unique([planId, curriculumSkillId])
+  @@unique([planId, competencyId])
   @@map("reinforcement_plan_skills")
 }
 
@@ -824,10 +1017,13 @@ model InterdisciplinaryContribution {
   courseAssignmentId String   @map("course_assignment_id")
   contribucion       String?
   responsabilidad    String?
-  // Destrezas del banco curricular elegidas por este docente (su área+subnivel)
+  // Destrezas del banco curricular elegidas por este docente (su área+subnivel) — modelo "destrezas"
   skillIds           String[] @map("skill_ids")
   // Saberes (CurriculumSaber) elegidos/generados, mismo banco reusado del PUD
   saberIds           String[] @map("saber_ids")
+  // Competencias específicas elegidas — modelo "competencias"
+  competencyIds      String[] @map("competency_ids")
+  competencySaberIds String[] @map("competency_saber_ids")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
@@ -994,6 +1190,8 @@ model Activity {
   // genérico — es lo que permite detectar automáticamente quién necesita refuerzo
   // por destreza (ver PedagogicRecovery.curriculumSkillId).
   curriculumSkillId  String?   @map("curriculum_skill_id")
+  // Equivalente a curriculumSkillId para el modelo por COMPETENCIAS
+  competencyId       String?   @map("competency_id")
   name               String    @db.VarChar(200)
   description        String?
   maxScore           Decimal   @default(10) @map("max_score") @db.Decimal(5, 2)
@@ -1011,12 +1209,14 @@ model Activity {
   insumo           Insumo?          @relation(fields: [insumoId], references: [id])
   task             Task?            @relation(fields: [taskId], references: [id])
   curriculumSkill  CurriculumSkill? @relation(fields: [curriculumSkillId], references: [id])
+  competency       Competency?      @relation(fields: [competencyId], references: [id])
   creator          User             @relation("ActivityCreator", fields: [createdBy], references: [id])
   grades           Grade[]
 
   @@index([courseAssignmentId, academicPeriodId])
   @@index([insumoId])
   @@index([curriculumSkillId])
+  @@index([competencyId])
   @@map("activities")
 }
 

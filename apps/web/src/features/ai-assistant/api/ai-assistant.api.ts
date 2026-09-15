@@ -25,11 +25,25 @@ export interface DraftWeekResult {
   }
 }
 
+export interface DraftCompetencyWeekResult {
+  indicadoresEvaluacion: string
+  newSabers: DraftedSaber[]
+  reusedSaberIds: string[]
+  momentos: {
+    anticipacion: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
+    construccionConocimiento: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
+    consolidacion: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
+  }
+  generationMode: 'AI_ENHANCED' | 'AI_FALLBACK'
+  validationErrors: string[]
+}
+
 export interface DraftedProjectContribution {
   contributionId: string
   contribucion: string
   responsabilidad: string
   skillIds: string[]
+  competencyIds: string[]
   newSabers: DraftedSaber[]
   reusedSaberIds: string[]
   weeks: {
@@ -56,6 +70,10 @@ export const aiAssistantApi = {
 
   draftWeek: (data: { situationId: string; skillIds: string[]; weekName?: string }) =>
     apiPost<DraftWeekResult>('ai-assistant/draft-week', data),
+
+  /** Igual que draftWeek pero para el modelo por competencias (motor en dos capas: IA validada + fallback determinista). */
+  draftCompetencyWeek: (data: { situationId: string; competencyIds: string[]; weekName?: string }) =>
+    apiPost<DraftCompetencyWeekResult>('ai-assistant/draft-competency-week', data),
 
   /** Genera y guarda TODO el proyecto interdisciplinario a partir de un prompt/idea breve. */
   draftProject: (data: { projectId: string; prompt?: string }) =>
