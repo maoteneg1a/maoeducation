@@ -27,10 +27,21 @@ import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { type Level } from '../api/academic.api'
 import { useLevels, useCreateLevel, useUpdateLevel, useToggleLevel } from '../hooks/useAcademic'
 
+const NONE = '__none__'
+const SUBNIVEL_LABEL: Record<string, string> = {
+  inicial: 'Inicial',
+  preparatoria: 'Preparatoria',
+  elemental: 'Elemental',
+  media: 'Media',
+  superior: 'Superior',
+  bgu: 'Bachillerato (BGU)',
+}
+
 const levelSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   code: z.string().min(1, 'El código es requerido').toUpperCase(),
   sortOrder: z.coerce.number().int().min(0, 'Debe ser un número positivo'),
+  subnivel: z.string().default(NONE),
 })
 type LevelForm = z.infer<typeof levelSchema>
 
@@ -45,29 +56,30 @@ export function LevelsPage() {
 
   const form = useForm<LevelForm>({
     resolver: zodResolver(levelSchema),
-    defaultValues: { name: '', code: '', sortOrder: 0 },
+    defaultValues: { name: '', code: '', sortOrder: 0, subnivel: NONE },
   })
 
   function openCreate() {
     setEditing(null)
-    form.reset({ name: '', code: '', sortOrder: 0 })
+    form.reset({ name: '', code: '', sortOrder: 0, subnivel: NONE })
     setOpen(true)
   }
 
   function openEdit(level: Level) {
     setEditing(level)
-    form.reset({ name: level.name, code: level.code, sortOrder: level.sortOrder })
+    form.reset({ name: level.name, code: level.code, sortOrder: level.sortOrder, subnivel: level.subnivel ?? NONE })
     setOpen(true)
   }
 
   function onSubmit(values: LevelForm) {
+    const data = { ...values, subnivel: values.subnivel === NONE ? null : values.subnivel }
     if (editing) {
       updateLevel.mutate(
-        { id: editing.id, data: values },
+        { id: editing.id, data },
         { onSuccess: () => setOpen(false) },
       )
     } else {
-      createLevel.mutate(values, { onSuccess: () => setOpen(false) })
+      createLevel.mutate(data, { onSuccess: () => setOpen(false) })
     }
   }
 
@@ -89,6 +101,16 @@ export function LevelsPage() {
       accessorKey: 'sortOrder',
       header: 'Orden',
       cell: ({ row }) => <span className="text-muted-foreground">{row.original.sortOrder}</span>,
+    },
+    {
+      id: 'subnivel',
+      header: 'Subnivel MINEDUC',
+      cell: ({ row }) =>
+        row.original.subnivel ? (
+          <Badge variant="secondary">{SUBNIVEL_LABEL[row.original.subnivel] ?? row.original.subnivel}</Badge>
+        ) : (
+          <span className="text-xs text-destructive">Sin configurar</span>
+        ),
     },
     {
       id: 'attendanceMode',
@@ -209,6 +231,26 @@ export function LevelsPage() {
               {form.formState.errors.sortOrder && (
                 <p className="text-xs text-destructive">{form.formState.errors.sortOrder.message}</p>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label>Subnivel MINEDUC</Label>
+              <Select value={form.watch('subnivel')} onValueChange={(v) => form.setValue('subnivel', v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin configurar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>Sin configurar</SelectItem>
+                  {Object.entries(SUBNIVEL_LABEL).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Determina qué banco curricular (destrezas o competencias) se ofrece a los docentes de este nivel.
+                Sin configurar, el selector de planificación queda vacío.
+              </p>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
