@@ -1,6 +1,8 @@
 import * as React from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import { ArrowLeft, Plus, Send, CheckCircle2, ClipboardCheck, NotebookPen, Download, Pencil } from 'lucide-react'
+import { getErrorMessage } from '@/shared/lib/utils'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { Card } from '@/shared/components/ui/card'
@@ -92,7 +94,13 @@ export function PlanningSituationPage() {
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={STATUS_LABEL[situation.status].variant}>{STATUS_LABEL[situation.status].label}</Badge>
-          <Button variant="outline" size="sm" onClick={() => planningApi.openSituationPdf(situation.id)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              planningApi.openSituationPdf(situation.id).catch((err) => toast.error(getErrorMessage(err)))
+            }}
+          >
             <Download className="h-4 w-4" />
             PDF
           </Button>

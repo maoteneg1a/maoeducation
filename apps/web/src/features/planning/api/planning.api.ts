@@ -214,11 +214,22 @@ export const planningApi = {
   listPlannedCompetencies: (courseAssignmentId: string, academicPeriodId: string) =>
     apiGet<Competency[]>('planning/planned-competencies', { courseAssignmentId, academicPeriodId }),
 
-  /** Descarga el PDF autenticado y lo abre en una pestaña nueva (no un link directo — necesita el JWT en el header). */
+  /**
+   * Descarga el PDF autenticado y lo abre en una pestaña nueva (no un link directo — necesita
+   * el JWT en el header). La pestaña se abre de forma SÍNCRONA (dentro del mismo evento de
+   * click) porque los navegadores bloquean silenciosamente window.open() si ocurre después de
+   * un await — el usuario no ve ningún error, el botón simplemente "no hace nada".
+   */
   async openSituationPdf(situationId: string) {
-    const blob = await apiClient.get(`planning/situations/${situationId}/pdf`).blob()
-    const url = URL.createObjectURL(blob)
-    window.open(url, '_blank')
-    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    const tab = window.open('', '_blank')
+    try {
+      const blob = await apiClient.get(`planning/situations/${situationId}/pdf`).blob()
+      const url = URL.createObjectURL(blob)
+      if (tab) tab.location.href = url
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (err) {
+      tab?.close()
+      throw err
+    }
   },
 }
