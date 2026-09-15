@@ -130,7 +130,7 @@ export function InterdisciplinaryProjectDetailPage() {
       <Card className="space-y-4 p-4 sm:p-6">
         <div className="space-y-1.5">
           <Label>Título</Label>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} disabled={!isEditable} />
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} disabled={!isEditable} />
         </div>
         <div className="space-y-1.5">
           <Label>Situación / reto</Label>
