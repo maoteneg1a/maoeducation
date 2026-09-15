@@ -10,6 +10,7 @@ import {
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
+import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { usePlans, useCreatePlan } from '../hooks/usePlanning'
 import type { ApprovalStatus } from '../api/planning.api'
 
@@ -23,6 +24,11 @@ export function PlanningListPage() {
   const navigate = useNavigate()
   const { assignments, defaultAssignmentId } = useTeacherDefaults()
   const assignmentIds = React.useMemo(() => assignments.map((a) => a.id), [assignments])
+  const { data: planningModel } = usePlanningModel()
+  // "PCA" es terminología del modelo por destrezas (Currículo Priorizado MINEDUC).
+  // El modelo por competencias (CNC) no usa ese nombre — TIGA lo llama directamente
+  // "Planificación por Competencias".
+  const planLabel = planningModel === 'competencias' ? 'Planificación por Competencias' : 'PCA'
 
   const { data: plans = [], isLoading } = usePlans(assignmentIds)
   const createPlan = useCreatePlan()
@@ -50,7 +56,9 @@ export function PlanningListPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Planificaciones</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            PCA (Planificación Curricular Anual) por asignación de curso, con sus unidades PUD
+            {planningModel === 'competencias'
+              ? 'Planificación por Competencias (CNC) por asignación de curso, con sus situaciones de aprendizaje'
+              : 'PCA (Planificación Curricular Anual) por asignación de curso, con sus unidades PUD'}
           </p>
         </div>
       </div>
@@ -58,7 +66,7 @@ export function PlanningListPage() {
       {assignmentsWithoutPlan.length > 0 && (
         <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
           <div className="flex-1 sm:max-w-xs">
-            <label className="mb-1 block text-xs font-medium">Crear PCA para</label>
+            <label className="mb-1 block text-xs font-medium">Crear {planLabel} para</label>
             <Select value={selectedAssignmentId} onValueChange={setSelectedAssignmentId}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecciona una asignación" />
@@ -74,7 +82,7 @@ export function PlanningListPage() {
           </div>
           <Button onClick={handleCreate} disabled={!selectedAssignmentId} loading={createPlan.isPending}>
             <Plus className="h-4 w-4" />
-            Crear PCA
+            Crear {planLabel}
           </Button>
         </Card>
       )}
@@ -85,7 +93,7 @@ export function PlanningListPage() {
         <EmptyState
           icon={NotebookPen}
           title="Sin planificaciones"
-          description="Crea el PCA de una de tus asignaciones para empezar."
+          description={`Crea el ${planLabel} de una de tus asignaciones para empezar.`}
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

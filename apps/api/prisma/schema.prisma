@@ -751,6 +751,10 @@ model LearningSituation {
   academicPeriodId         String    @map("academic_period_id")
   title                    String    @db.VarChar(200)
   description              String?
+  // Fechas del bloque — equivalente a "Fecha inicio"/"Fecha fin" de TIGA, usadas
+  // por ambos modelos de planificación (opcional para destrezas, que no las pedía).
+  startDate                DateTime? @map("start_date") @db.Date
+  endDate                  DateTime? @map("end_date") @db.Date
   // IDs de CurriculumArea con las que hay conexión interdisciplinar
   interdisciplinaryAreaIds String[]  @map("interdisciplinary_area_ids")
   // "borrador" | "enviado" | "revisado" | "aprobado"

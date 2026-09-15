@@ -9,6 +9,7 @@ import { Label } from '@/shared/components/ui/label'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { usePermissions } from '@/shared/hooks/usePermissions'
+import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { WeekCard } from '../components/WeekCard'
 import { GenerateBlockPanel } from '../components/GenerateBlockPanel'
 import {
@@ -33,6 +34,8 @@ export function PlanningSituationPage() {
   const { id } = useParams<{ id: string }>()
   const { hasPermission } = usePermissions()
   const canApprove = hasPermission('planning:manage')
+  const { data: planningModel } = usePlanningModel()
+  const isCompetencyModel = planningModel === 'competencias'
 
   const { data: situation, isLoading } = useSituation(id)
   const planId = situation?.planId
@@ -46,12 +49,16 @@ export function PlanningSituationPage() {
 
   const [title, setTitle] = React.useState('')
   const [description, setDescription] = React.useState('')
+  const [startDate, setStartDate] = React.useState('')
+  const [endDate, setEndDate] = React.useState('')
   const [expandedWeek, setExpandedWeek] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (situation) {
       setTitle(situation.title)
       setDescription(situation.description ?? '')
+      setStartDate(situation.startDate?.slice(0, 10) ?? '')
+      setEndDate(situation.endDate?.slice(0, 10) ?? '')
     }
   }, [situation?.id])
 
@@ -70,7 +77,7 @@ export function PlanningSituationPage() {
           {planId && (
             <Link to={`/planning/${planId}`} className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
               <ArrowLeft className="h-3.5 w-3.5" />
-              Volver al PCA
+              Volver a {isCompetencyModel ? 'Planificación por Competencias' : 'PCA'}
             </Link>
           )}
           <h1 className="text-2xl font-bold tracking-tight">{situation.title}</h1>
@@ -103,9 +110,33 @@ export function PlanningSituationPage() {
           />
         </div>
 
+        {isCompetencyModel && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Fecha inicio</Label>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} disabled={!isEditable} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Fecha fin</Label>
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} disabled={!isEditable} />
+            </div>
+          </div>
+        )}
+
         {isEditable && (
           <div className="flex justify-end gap-2 border-t pt-4">
-            <Button variant="outline" onClick={() => updateSituation.mutate({ title, description })} loading={updateSituation.isPending}>
+            <Button
+              variant="outline"
+              onClick={() =>
+                updateSituation.mutate({
+                  title,
+                  description,
+                  startDate: startDate || null,
+                  endDate: endDate || null,
+                })
+              }
+              loading={updateSituation.isPending}
+            >
               Guardar borrador
             </Button>
             <Button onClick={() => submitSituation.mutate()} loading={submitSituation.isPending} disabled={weeks.length === 0}>

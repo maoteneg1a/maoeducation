@@ -50,12 +50,16 @@ export interface CreateSituationDto {
   academicPeriodId: string
   title: string
   description?: string
+  startDate?: string
+  endDate?: string
   interdisciplinaryAreaIds?: string[]
 }
 
 export interface UpdateSituationDto {
   title?: string
   description?: string
+  startDate?: string | null
+  endDate?: string | null
   interdisciplinaryAreaIds?: string[]
 }
 
