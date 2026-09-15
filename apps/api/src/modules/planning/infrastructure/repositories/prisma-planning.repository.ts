@@ -193,6 +193,8 @@ export class PrismaPlanningRepository {
         academicPeriodId: dto.academicPeriodId,
         title: dto.title,
         description: dto.description,
+        startDate: dto.startDate ? new Date(dto.startDate) : null,
+        endDate: dto.endDate ? new Date(dto.endDate) : null,
         interdisciplinaryAreaIds: dto.interdisciplinaryAreaIds ?? [],
         createdBy: actorId,
       },
@@ -209,6 +211,8 @@ export class PrismaPlanningRepository {
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
         ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.startDate !== undefined && { startDate: dto.startDate ? new Date(dto.startDate) : null }),
+        ...(dto.endDate !== undefined && { endDate: dto.endDate ? new Date(dto.endDate) : null }),
         ...(dto.interdisciplinaryAreaIds !== undefined && { interdisciplinaryAreaIds: dto.interdisciplinaryAreaIds }),
       },
     })

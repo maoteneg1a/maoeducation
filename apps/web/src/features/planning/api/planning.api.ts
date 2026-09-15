@@ -58,6 +58,8 @@ export interface LearningSituation {
   academicPeriodId: string
   title: string
   description: string | null
+  startDate: string | null
+  endDate: string | null
   interdisciplinaryAreaIds: string[]
   status: SituationStatus
   createdAt: string
@@ -134,12 +136,20 @@ export const planningApi = {
     academicPeriodId: string
     title: string
     description?: string
+    startDate?: string
+    endDate?: string
     interdisciplinaryAreaIds?: string[]
   }) => apiPost<LearningSituation>('planning/situations', data),
 
   updateSituation: (
     id: string,
-    data: Partial<{ title: string; description: string; interdisciplinaryAreaIds: string[] }>,
+    data: Partial<{
+      title: string
+      description: string
+      startDate: string | null
+      endDate: string | null
+      interdisciplinaryAreaIds: string[]
+    }>,
   ) => apiPut<LearningSituation>(`planning/situations/${id}`, data),
 
   submitSituation: (id: string) => apiPost<LearningSituation>(`planning/situations/${id}/submit`),

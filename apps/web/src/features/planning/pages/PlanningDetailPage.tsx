@@ -12,6 +12,7 @@ import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { DynamicForm } from '@/shared/components/form/DynamicForm'
 import { usePermissions } from '@/shared/hooks/usePermissions'
+import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { usePeriods } from '@/features/academic/hooks/useAcademic'
 import { SkillReinforcementPanel } from '@/features/pedagogic-recovery/components/SkillReinforcementPanel'
 import { ReinforcementPlansList } from '@/features/pedagogic-recovery/components/ReinforcementPlansList'
@@ -43,6 +44,13 @@ export function PlanningDetailPage() {
   const navigate = useNavigate()
   const { hasPermission } = usePermissions()
   const canApprove = hasPermission('planning:manage')
+  const { data: planningModel } = usePlanningModel()
+  const isCompetencyModel = planningModel === 'competencias'
+  // TIGA no tiene un nivel de "plan anual" para el modelo por competencias — todo
+  // cuelga directamente de la Situación de Aprendizaje (fechas, contexto, competencia).
+  // El "PCA" con objetivos/metodología/bibliografía es terminología exclusiva del
+  // modelo por destrezas, calcada del formato oficial del Currículo Priorizado.
+  const planLabel = isCompetencyModel ? 'Planificación por Competencias' : 'PCA'
 
   const { data: plan, isLoading } = usePlan(id)
   const updatePlan = useUpdatePlan(id!)
@@ -64,7 +72,7 @@ export function PlanningDetailPage() {
   const [newPeriodId, setNewPeriodId] = React.useState('')
 
   if (isLoading) return <PageLoader />
-  if (!plan) return <EmptyState icon={NotebookPen} title="PCA no encontrado" />
+  if (!plan) return <EmptyState icon={NotebookPen} title="Planificación no encontrada" />
 
   const isEditable = plan.status === 'borrador'
 
@@ -90,7 +98,7 @@ export function PlanningDetailPage() {
             Planificaciones
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">
-            PCA — {plan.courseAssignment?.subject.name}
+            {planLabel} — {plan.courseAssignment?.subject.name}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             {plan.courseAssignment?.parallel.level.name} {plan.courseAssignment?.parallel.name}
@@ -111,25 +119,43 @@ export function PlanningDetailPage() {
       )}
 
       <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
-        Este es el plan anual general (PCA) — se llena una sola vez con lo básico. Lo que usarás cada semana
-        (destrezas, saberes, actividades con IA) está más abajo, en <strong>"Situaciones de aprendizaje"</strong>.
+        {isCompetencyModel ? (
+          <>
+            La Planificación por Competencias (CNC) no tiene un plan anual de texto libre — cada bloque de
+            trabajo se define directamente en <strong>"Situaciones de aprendizaje"</strong> más abajo, con su
+            competencia, fechas y semanas.
+          </>
+        ) : (
+          <>
+            Este es el plan anual general (PCA) — se llena una sola vez con lo básico. Lo que usarás cada semana
+            (destrezas, saberes, actividades con IA) está más abajo, en <strong>"Situaciones de aprendizaje"</strong>.
+          </>
+        )}
       </div>
 
       <Card className="p-4 sm:p-6">
-        {plan.template?.schema ? (
+        {!isCompetencyModel && plan.template?.schema && (
           <DynamicForm
             schema={plan.template.schema}
             values={formData}
             onChange={(key, value) => setFormData((prev) => ({ ...prev, [key]: value }))}
             disabled={!isEditable}
           />
-        ) : null}
+        )}
+        {isCompetencyModel && (
+          <p className="text-sm text-muted-foreground">
+            Nada que llenar aquí — usa el botón de abajo para enviar este bloque a aprobación cuando tengas listas
+            sus situaciones de aprendizaje.
+          </p>
+        )}
 
         {isEditable && (
-          <div className="mt-4 flex justify-end gap-2 border-t pt-4">
-            <Button variant="outline" onClick={() => updatePlan.mutate({ data: formData })} loading={updatePlan.isPending}>
-              Guardar borrador
-            </Button>
+          <div className={isCompetencyModel ? 'mt-4 flex justify-end gap-2' : 'mt-4 flex justify-end gap-2 border-t pt-4'}>
+            {!isCompetencyModel && (
+              <Button variant="outline" onClick={() => updatePlan.mutate({ data: formData })} loading={updatePlan.isPending}>
+                Guardar borrador
+              </Button>
+            )}
             <Button onClick={() => submitPlan.mutate()} loading={submitPlan.isPending}>
               <Send className="h-4 w-4" />
               Enviar para aprobación
@@ -140,7 +166,7 @@ export function PlanningDetailPage() {
           <div className="mt-4 flex justify-end border-t pt-4">
             <Button onClick={() => approvePlan.mutate()} loading={approvePlan.isPending}>
               <CheckCircle2 className="h-4 w-4" />
-              Aprobar PCA
+              Aprobar {planLabel}
             </Button>
           </div>
         )}
