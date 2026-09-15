@@ -8,7 +8,7 @@ export function useAiEnabled() {
   const { data } = useQuery({
     queryKey: ['ai-config'],
     queryFn: aiAssistantApi.getAiConfig,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
   })
   return data?.enabled ?? false
 }
