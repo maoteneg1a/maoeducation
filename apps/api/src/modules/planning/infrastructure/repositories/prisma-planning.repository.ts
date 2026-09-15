@@ -252,6 +252,20 @@ export class PrismaPlanningRepository {
     return prisma.learningSituation.update({ where: { id }, data: { status: 'enviado' } })
   }
 
+  async deleteSituation(id: string, institutionId: string) {
+    const situation = await prisma.learningSituation.findFirst({ where: { id, institutionId } })
+    if (!situation) throw new NotFoundError('Situación de aprendizaje no encontrada')
+    if (situation.status !== 'borrador') {
+      throw new ConflictError('Solo una situación en borrador puede eliminarse')
+    }
+    // PlanningWeek no tiene onDelete: Cascade — se borran explícitamente primero.
+    await prisma.$transaction([
+      prisma.planningWeek.deleteMany({ where: { situationId: id } }),
+      prisma.learningSituation.delete({ where: { id } }),
+    ])
+    return { ok: true }
+  }
+
   async reviewSituation(id: string, institutionId: string, reviewerId: string) {
     const situation = await prisma.learningSituation.findFirst({ where: { id, institutionId } })
     if (!situation) throw new NotFoundError('Situación de aprendizaje no encontrada')

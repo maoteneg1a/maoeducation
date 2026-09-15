@@ -118,6 +118,12 @@ export default async function planningRoutes(app: FastifyInstance) {
     async (req, reply) => reply.send(await repo.submitSituation(req.params.id, req.user.institutionId)),
   )
 
+  app.delete<{ Params: { id: string } }>(
+    '/planning/situations/:id',
+    { preHandler: [requirePermission('planning', 'write', 'own')] },
+    async (req, reply) => reply.send(await repo.deleteSituation(req.params.id, req.user.institutionId)),
+  )
+
   app.post<{ Params: { id: string } }>(
     '/planning/situations/:id/review',
     { preHandler: [requirePermission('planning', 'manage', 'all')] },
