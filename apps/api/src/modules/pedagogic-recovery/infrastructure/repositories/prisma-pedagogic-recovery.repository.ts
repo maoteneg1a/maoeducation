@@ -1,5 +1,6 @@
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, BadRequestError } from '../../../../shared/domain/errors/app.errors'
+import { assertSkillsArePlanned } from '../../../../shared/infrastructure/services/planned-curriculum.service'
 import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
 import {
   computePeriodSummary,
@@ -316,6 +317,10 @@ export class PrismaPedagogicRecoveryRepository {
     })
     if (existing) throw new BadRequestError('Ya existe un plan de refuerzo para este estudiante en este periodo')
 
+    if (dto.skills?.length) {
+      await assertSkillsArePlanned(dto.courseAssignmentId, dto.academicPeriodId, dto.skills.map((s) => s.curriculumSkillId))
+    }
+
     return prisma.reinforcementPlan.create({
       data: {
         institutionId,
@@ -346,6 +351,10 @@ export class PrismaPedagogicRecoveryRepository {
   async updateReinforcementPlan(id: string, institutionId: string, dto: UpdateReinforcementPlanDto) {
     const plan = await prisma.reinforcementPlan.findFirst({ where: { id, institutionId } })
     if (!plan) throw new NotFoundError('Plan de refuerzo no encontrado')
+
+    if (dto.skills?.length) {
+      await assertSkillsArePlanned(plan.courseAssignmentId, plan.academicPeriodId, dto.skills.map((s) => s.curriculumSkillId))
+    }
 
     if (dto.skills) {
       await prisma.reinforcementPlanSkill.deleteMany({ where: { planId: id } })

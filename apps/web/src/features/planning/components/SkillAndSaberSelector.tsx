@@ -5,6 +5,7 @@ import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { cn } from '@/shared/lib/utils'
 import { useCurriculumSkillsForSubject, useSaberesForSkill, useCreateSaber } from '@/features/curriculum/hooks/useCurriculum'
+import { usePlannedSkills } from '../hooks/usePlanning'
 import type { SaberType } from '@/features/curriculum/api/curriculum.api'
 
 const SABER_TYPE_LABEL: Record<SaberType, string> = {
@@ -21,6 +22,15 @@ interface SkillAndSaberSelectorProps {
   onSkillIdsChange: (ids: string[]) => void
   onSaberIdsChange: (ids: string[]) => void
   isEditable: boolean
+  /**
+   * Si se dan ambos, el selector se restringe a las destrezas YA PLANIFICADAS
+   * para ese curso+periodo (motor central) en vez de ofrecer todo el banco —
+   * usado por refuerzo y proyectos interdisciplinarios. El editor de la
+   * planificación misma (WeekCard) no los pasa: ahí sí se elige del banco
+   * completo, porque es la fuente de la que todo lo demás se deriva.
+   */
+  courseAssignmentId?: string
+  academicPeriodId?: string
 }
 
 /**
@@ -37,8 +47,16 @@ export function SkillAndSaberSelector({
   onSkillIdsChange,
   onSaberIdsChange,
   isEditable,
+  courseAssignmentId,
+  academicPeriodId,
 }: SkillAndSaberSelectorProps) {
-  const { data: availableSkills = [] } = useCurriculumSkillsForSubject(subjectId, subnivel)
+  const restrictToPlanned = !!courseAssignmentId && !!academicPeriodId
+  const { data: fullBank = [] } = useCurriculumSkillsForSubject(
+    restrictToPlanned ? undefined : subjectId,
+    restrictToPlanned ? undefined : subnivel,
+  )
+  const { data: plannedSkills = [] } = usePlannedSkills(courseAssignmentId, academicPeriodId)
+  const availableSkills = restrictToPlanned ? plannedSkills : fullBank
   const [skillSearch, setSkillSearch] = React.useState('')
 
   const normalize = (s: string) =>
@@ -68,10 +86,16 @@ export function SkillAndSaberSelector({
   return (
     <>
       <div className="space-y-2">
-        <Label>Destrezas del banco curricular ({skillIds.length} seleccionada{skillIds.length === 1 ? '' : 's'})</Label>
+        <Label>
+          {restrictToPlanned ? 'Destrezas planificadas' : 'Destrezas del banco curricular'} ({skillIds.length} seleccionada{skillIds.length === 1 ? '' : 's'})
+        </Label>
         {!subjectId || !subnivel ? (
           <p className="text-sm text-muted-foreground">
             Esta materia no tiene área curricular vinculada o el paralelo no tiene subnivel configurado.
+          </p>
+        ) : restrictToPlanned && availableSkills.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Aún no hay destrezas planificadas para este curso y periodo — ve a Planificación y agrega semanas primero.
           </p>
         ) : (
           <>

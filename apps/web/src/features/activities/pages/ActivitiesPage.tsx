@@ -40,7 +40,7 @@ import { activitiesApi, type Activity, type ActivityType, type Insumo } from '..
 import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
 import { useAuthStore } from '@/store/auth.store'
 import { usePermissions } from '@/shared/hooks/usePermissions'
-import { useCurriculumSkillsForSubject } from '@/features/curriculum/hooks/useCurriculum'
+import { usePlannedSkills } from '@/features/planning/hooks/usePlanning'
 import { useGradingConfig } from '@/features/settings/hooks/useSettings'
 
 // ---- Query keys ----
@@ -451,10 +451,7 @@ export function ActivitiesPage() {
   const { data: types = [] } = useActivityTypes()
   const { data: insumos = [] } = useInsumos(selectedAssignmentId, selectedPeriodId)
   const selectedAssignment = assignments.find((a) => a.id === selectedAssignmentId)
-  const { data: availableSkills = [] } = useCurriculumSkillsForSubject(
-    selectedAssignment?.subject?.id ?? selectedAssignment?.subjectId,
-    selectedAssignment?.parallel?.level?.subnivel ?? undefined,
-  )
+  const { data: availableSkills = [] } = usePlannedSkills(selectedAssignmentId, selectedPeriodId)
   const { data: activities = [], isLoading: activitiesLoading } = useActivities(
     selectedAssignmentId,
     selectedPeriodId,
@@ -772,7 +769,7 @@ export function ActivitiesPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Destreza del currículo (opcional)</Label>
+              <Label>Destreza planificada (opcional)</Label>
               <Select
                 value={form.watch('curriculumSkillId') ?? ''}
                 onValueChange={(v) => form.setValue('curriculumSkillId', v === 'none' ? '' : v)}
@@ -791,7 +788,9 @@ export function ActivitiesPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Vincula esta actividad a una destreza para habilitar la detección automática de refuerzo.
+                {availableSkills.length === 0
+                  ? 'Aún no hay destrezas planificadas para este curso y periodo — ve a Planificación y agrega semanas primero.'
+                  : 'Vincula esta actividad a una destreza planificada para habilitar la detección automática de refuerzo.'}
               </p>
             </div>
             <div className="space-y-2">

@@ -3,6 +3,8 @@ import { PrismaPlanningRepository } from '../infrastructure/repositories/prisma-
 import { buildMicrocurricularPdf } from '../application/services/microcurricular-pdf.service'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
+import { getPlannedSkillIds } from '../../../shared/infrastructure/services/planned-curriculum.service'
+import { prisma } from '../../../shared/infrastructure/database/prisma'
 import type {
   CreatePlanDto,
   CreateSituationDto,
@@ -159,6 +161,22 @@ export default async function planningRoutes(app: FastifyInstance) {
     '/planning/weeks/:id',
     { preHandler: [requirePermission('planning', 'write', 'own')] },
     async (req, reply) => reply.send(await repo.deleteWeek(req.params.id, req.user.institutionId)),
+  )
+
+  // ─── Destrezas planificadas (motor central: lo único disponible para el
+  // resto del sistema — actividades, refuerzo, proyectos interdisciplinarios) ──
+  app.get<{ Querystring: { courseAssignmentId: string; academicPeriodId: string } }>(
+    '/planning/planned-skills',
+    { preHandler: [requirePermission('planning', 'read', 'own')] },
+    async (req, reply) => {
+      const skillIds = await getPlannedSkillIds(req.query.courseAssignmentId, req.query.academicPeriodId)
+      if (skillIds.length === 0) return reply.send([])
+      const skills = await prisma.curriculumSkill.findMany({
+        where: { id: { in: skillIds } },
+        orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+      })
+      return reply.send(skills)
+    },
   )
 
   // ─── PDF (Planificación Microcurricular) ────────────────────────────────

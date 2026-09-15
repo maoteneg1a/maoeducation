@@ -1,5 +1,6 @@
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { BadRequestError, ConflictError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
+import { assertSkillsArePlanned } from '../../../../shared/infrastructure/services/planned-curriculum.service'
 import type {
   CreateInterdisciplinaryProjectDto,
   JoinProjectDto,
@@ -130,6 +131,10 @@ export class PrismaInterdisciplinaryProjectRepository {
     if (!contribution) throw new NotFoundError('Aporte no encontrado')
     if (contribution.project.status === 'aprobado') {
       throw new ConflictError('El proyecto ya fue aprobado y no se puede editar')
+    }
+
+    if (dto.skillIds !== undefined) {
+      await assertSkillsArePlanned(contribution.courseAssignmentId, contribution.project.academicPeriodId, dto.skillIds)
     }
 
     return prisma.interdisciplinaryContribution.update({

@@ -246,6 +246,7 @@ export function InterdisciplinaryProjectDetailPage() {
                 key={contribution.id}
                 contribution={contribution}
                 projectId={project.id}
+                academicPeriodId={project.academicPeriodId}
                 subnivel={project.parallel?.level.subnivel ?? undefined}
                 weeksCount={project.weeksCount}
                 isEditable={isEditable}

@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, ConflictError } from '../../../../shared/domain/errors/app.errors'
+import { assertSkillsArePlanned } from '../../../../shared/infrastructure/services/planned-curriculum.service'
 import type {
   CreateActivityTypeDto,
   UpdateActivityTypeDto,
@@ -196,6 +197,10 @@ export class PrismaActivityRepository {
       if (linked) throw new ConflictError('Esta tarea ya tiene una actividad calificable')
     }
 
+    if (dto.curriculumSkillId) {
+      await assertSkillsArePlanned(dto.courseAssignmentId, dto.academicPeriodId, [dto.curriculumSkillId])
+    }
+
     return prisma.activity.create({
       data: {
         institutionId,
@@ -244,6 +249,10 @@ export class PrismaActivityRepository {
   async update(id: string, institutionId: string, dto: UpdateActivityDto) {
     const activity = await prisma.activity.findFirst({ where: { id, institutionId } })
     if (!activity) throw new NotFoundError('Actividad no encontrada')
+
+    if (dto.curriculumSkillId) {
+      await assertSkillsArePlanned(activity.courseAssignmentId, activity.academicPeriodId, [dto.curriculumSkillId])
+    }
 
     return prisma.activity.update({
       where: { id },

@@ -10,6 +10,7 @@ import type { Contribution, WeekEntry } from '../api/interdisciplinary-project.a
 interface ContributionCardProps {
   contribution: Contribution
   projectId: string
+  academicPeriodId: string
   subnivel: string | undefined
   weeksCount: number
   isEditable: boolean
@@ -17,7 +18,7 @@ interface ContributionCardProps {
   onToggle: () => void
 }
 
-export function ContributionCard({ contribution, projectId, subnivel, weeksCount, isEditable, expanded, onToggle }: ContributionCardProps) {
+export function ContributionCard({ contribution, projectId, academicPeriodId, subnivel, weeksCount, isEditable, expanded, onToggle }: ContributionCardProps) {
   const updateContribution = useUpdateContribution(contribution.id, projectId)
   const removeContribution = useRemoveContribution(projectId)
 
@@ -69,6 +70,8 @@ export function ContributionCard({ contribution, projectId, subnivel, weeksCount
             onSkillIdsChange={setSkillIds}
             onSaberIdsChange={setSaberIds}
             isEditable={isEditable}
+            courseAssignmentId={contribution.courseAssignmentId}
+            academicPeriodId={academicPeriodId}
           />
 
           {isEditable && (

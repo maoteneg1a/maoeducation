@@ -1,4 +1,5 @@
 import { apiClient, apiDelete, apiGet, apiPost, apiPut } from '@/shared/lib/api-client'
+import type { CurriculumSkill } from '@/features/curriculum/api/curriculum.api'
 
 export type PlanningTemplateType = 'pca'
 export type ApprovalStatus = 'borrador' | 'enviado' | 'aprobado'
@@ -176,6 +177,10 @@ export const planningApi = {
   ) => apiPut<PlanningWeek>(`planning/weeks/${id}`, data),
 
   deleteWeek: (id: string) => apiDelete(`planning/weeks/${id}`),
+
+  /** Destrezas que ya están planificadas para este curso+periodo — lo único disponible para el resto del sistema. */
+  listPlannedSkills: (courseAssignmentId: string, academicPeriodId: string) =>
+    apiGet<CurriculumSkill[]>('planning/planned-skills', { courseAssignmentId, academicPeriodId }),
 
   /** Descarga el PDF autenticado y lo abre en una pestaña nueva (no un link directo — necesita el JWT en el header). */
   async openSituationPdf(situationId: string) {
