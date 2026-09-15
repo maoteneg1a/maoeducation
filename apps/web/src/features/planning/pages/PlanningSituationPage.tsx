@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Send, CheckCircle2, ClipboardCheck, NotebookPen, Download } from 'lucide-react'
+import { ArrowLeft, Plus, Send, CheckCircle2, ClipboardCheck, NotebookPen, Download, Pencil } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { Card } from '@/shared/components/ui/card'
@@ -30,6 +30,10 @@ const STATUS_LABEL: Record<SituationStatus, { label: string; variant: 'success' 
   aprobado: { label: 'Aprobado', variant: 'success' },
 }
 
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-EC', { day: 'numeric', month: 'long' })
+}
+
 export function PlanningSituationPage() {
   const { id } = useParams<{ id: string }>()
   const { hasPermission } = usePermissions()
@@ -52,6 +56,7 @@ export function PlanningSituationPage() {
   const [startDate, setStartDate] = React.useState('')
   const [endDate, setEndDate] = React.useState('')
   const [expandedWeek, setExpandedWeek] = React.useState<string | null>(null)
+  const [detailsOpen, setDetailsOpen] = React.useState(false)
 
   React.useEffect(() => {
     if (situation) {
@@ -95,50 +100,89 @@ export function PlanningSituationPage() {
       </div>
 
       <Card className="space-y-4 p-4 sm:p-6">
-        <div className="space-y-1.5">
-          <Label>Título</Label>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} disabled={!isEditable} />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Descripción de la situación de aprendizaje</Label>
-          <textarea
-            rows={3}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            disabled={!isEditable}
-            className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
-          />
-        </div>
-
-        {isCompetencyModel && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>Fecha inicio</Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} disabled={!isEditable} />
+        {/*
+          En el modelo por competencias el título y las fechas los deriva el
+          backend al crear (de la competencia y del periodo), así que aquí no hay
+          nada obligatorio que llenar. Los campos quedan detrás de "Ajustar
+          detalles" para quien quiera afinarlos, en vez de presentarse como
+          formulario pendiente. En destrezas se siguen mostrando directos.
+        */}
+        {isCompetencyModel && !detailsOpen && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0 space-y-1 text-sm">
+              <p className="text-muted-foreground">
+                {situation.startDate && situation.endDate ? (
+                  <>
+                    Del {formatDate(situation.startDate)} al {formatDate(situation.endDate)}
+                  </>
+                ) : (
+                  'Sin fechas definidas'
+                )}
+              </p>
+              {situation.description && <p className="text-foreground">{situation.description}</p>}
             </div>
-            <div className="space-y-1.5">
-              <Label>Fecha fin</Label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} disabled={!isEditable} />
-            </div>
+            {isEditable && (
+              <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(true)}>
+                <Pencil className="h-3.5 w-3.5" />
+                Ajustar detalles
+              </Button>
+            )}
           </div>
+        )}
+
+        {(!isCompetencyModel || detailsOpen) && (
+          <>
+            <div className="space-y-1.5">
+              <Label>Título</Label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} disabled={!isEditable} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Descripción de la situación de aprendizaje</Label>
+              <textarea
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                disabled={!isEditable}
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
+              />
+            </div>
+
+            {isCompetencyModel && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Fecha inicio</Label>
+                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} disabled={!isEditable} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Fecha fin</Label>
+                  <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} disabled={!isEditable} />
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {isEditable && (
           <div className="flex justify-end gap-2 border-t pt-4">
-            <Button
-              variant="outline"
-              onClick={() =>
-                updateSituation.mutate({
-                  title,
-                  description,
-                  startDate: startDate || null,
-                  endDate: endDate || null,
-                })
-              }
-              loading={updateSituation.isPending}
-            >
-              Guardar borrador
-            </Button>
+            {(!isCompetencyModel || detailsOpen) && (
+              <Button
+                variant="outline"
+                onClick={() =>
+                  updateSituation.mutate(
+                    {
+                      title,
+                      description,
+                      startDate: startDate || null,
+                      endDate: endDate || null,
+                    },
+                    { onSuccess: () => setDetailsOpen(false) },
+                  )
+                }
+                loading={updateSituation.isPending}
+              >
+                Guardar borrador
+              </Button>
+            )}
             <Button onClick={() => submitSituation.mutate()} loading={submitSituation.isPending} disabled={weeks.length === 0}>
               <Send className="h-4 w-4" />
               Enviar para revisión
@@ -187,7 +231,12 @@ export function PlanningSituationPage() {
         </div>
 
         {isEditable && (
-          <GenerateBlockPanel situationId={id!} subjectId={subjectId} subnivel={subnivel} />
+          <GenerateBlockPanel
+            situationId={id!}
+            subjectId={subjectId}
+            subnivel={subnivel}
+            situationCompetencyIds={situation.competencyIds}
+          />
         )}
 
         {weeks.length === 0 ? (

@@ -14,6 +14,7 @@ import { DynamicForm } from '@/shared/components/form/DynamicForm'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { usePeriods } from '@/features/academic/hooks/useAcademic'
+import { useCompetenciesForSubject } from '@/features/competency-curriculum/hooks/useCompetencyCurriculum'
 import { SkillReinforcementPanel } from '@/features/pedagogic-recovery/components/SkillReinforcementPanel'
 import { ReinforcementPlansList } from '@/features/pedagogic-recovery/components/ReinforcementPlansList'
 import {
@@ -70,19 +71,43 @@ export function PlanningDetailPage() {
 
   const [newTitle, setNewTitle] = React.useState('')
   const [newPeriodId, setNewPeriodId] = React.useState('')
+  const [newCompetencyId, setNewCompetencyId] = React.useState('')
+
+  // Competencias de la materia del plan — en el modelo CNC el docente solo elige
+  // periodo y competencia, y el título/fechas los deriva el backend.
+  const subjectId = plan?.courseAssignment?.subject.id
+  const subnivel = plan?.courseAssignment?.parallel.level.subnivel ?? undefined
+  const { data: competencies = [] } = useCompetenciesForSubject(
+    isCompetencyModel ? subjectId : undefined,
+    isCompetencyModel ? subnivel : undefined,
+  )
 
   if (isLoading) return <PageLoader />
   if (!plan) return <EmptyState icon={NotebookPen} title="Planificación no encontrada" />
 
   const isEditable = plan.status === 'borrador'
 
+  // En competencias basta periodo + competencia; en destrezas sigue pidiendo título.
+  const canCreateSituation = isCompetencyModel
+    ? !!newPeriodId && !!newCompetencyId
+    : !!newTitle.trim() && !!newPeriodId
+
   const handleCreateSituation = () => {
-    if (!newTitle.trim() || !newPeriodId) return
+    if (!canCreateSituation) return
     createSituation.mutate(
-      { planId: plan.id, academicPeriodId: newPeriodId, title: newTitle.trim() },
+      {
+        planId: plan.id,
+        academicPeriodId: newPeriodId,
+        // Sin título: el backend lo deriva de la competencia. Mandar '' lo
+        // dejaría vacío en vez de disparar la derivación.
+        ...(isCompetencyModel
+          ? { competencyIds: [newCompetencyId] }
+          : { title: newTitle.trim() }),
+      },
       {
         onSuccess: (situation) => {
           setNewTitle('')
+          setNewCompetencyId('')
           navigate(`/planning/situations/${situation.id}`)
         },
       },
@@ -179,10 +204,33 @@ export function PlanningDetailPage() {
 
         {isEditable && (
           <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium">Título de la situación de aprendizaje</label>
-              <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Ej: Voces del mundo digital" />
-            </div>
+            {isCompetencyModel ? (
+              <div className="min-w-0 flex-1">
+                <label className="mb-1 block text-xs font-medium">Competencia específica</label>
+                <Select value={newCompetencyId} onValueChange={setNewCompetencyId}>
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        competencies.length ? 'Elige la competencia' : 'No hay competencias para este grado'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {competencies.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        <span className="font-mono text-xs text-muted-foreground">{c.code}</span>{' '}
+                        <span className="line-clamp-1">{c.text}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-medium">Título de la situación de aprendizaje</label>
+                <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Ej: Voces del mundo digital" />
+              </div>
+            )}
             <div className="sm:w-48">
               <label className="mb-1 block text-xs font-medium">Trimestre / periodo</label>
               <Select value={newPeriodId} onValueChange={setNewPeriodId}>
@@ -196,7 +244,7 @@ export function PlanningDetailPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleCreateSituation} disabled={!newTitle.trim() || !newPeriodId} loading={createSituation.isPending}>
+            <Button onClick={handleCreateSituation} disabled={!canCreateSituation} loading={createSituation.isPending}>
               <Plus className="h-4 w-4" />
               Crear
             </Button>

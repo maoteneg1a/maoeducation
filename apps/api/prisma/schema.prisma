@@ -789,6 +789,10 @@ model LearningSituation {
   endDate                  DateTime? @map("end_date") @db.Date
   // IDs de CurriculumArea con las que hay conexión interdisciplinar
   interdisciplinaryAreaIds String[]  @map("interdisciplinary_area_ids")
+  // Competencias del bloque (modelo CNC). Se eligen UNA vez al crear la situación
+  // y de aquí las toma el generador de semanas — antes el docente tenía que
+  // volver a elegirlas en el panel de IA aunque ya las hubiera indicado.
+  competencyIds            String[]  @map("competency_ids")
   // "borrador" | "enviado" | "revisado" | "aprobado"
   status                   String    @default("borrador") @db.VarChar(20)
   createdBy                String    @map("created_by")

@@ -58,6 +58,8 @@ export interface LearningSituation {
   academicPeriodId: string
   title: string
   description: string | null
+  /** Competencias del bloque, elegidas al crear la situación. */
+  competencyIds: string[]
   startDate: string | null
   endDate: string | null
   interdisciplinaryAreaIds: string[]
@@ -134,11 +136,14 @@ export const planningApi = {
   createSituation: (data: {
     planId: string
     academicPeriodId: string
-    title: string
+    /** Si se omite, el backend lo deriva de la competencia (o del periodo). */
+    title?: string
     description?: string
+    /** Si se omiten, el backend toma las del periodo académico. */
     startDate?: string
     endDate?: string
     interdisciplinaryAreaIds?: string[]
+    competencyIds?: string[]
   }) => apiPost<LearningSituation>('planning/situations', data),
 
   updateSituation: (
@@ -149,6 +154,7 @@ export const planningApi = {
       startDate: string | null
       endDate: string | null
       interdisciplinaryAreaIds: string[]
+      competencyIds: string[]
     }>,
   ) => apiPut<LearningSituation>(`planning/situations/${id}`, data),
 

@@ -48,16 +48,25 @@ export interface UpdatePlanDto {
 export interface CreateSituationDto {
   planId: string
   academicPeriodId: string
-  title: string
+  /**
+   * Opcional: si no viene, se deriva de la competencia elegida (o del periodo).
+   * En el modelo por competencias el docente no escribe nada — solo selecciona
+   * periodo y competencia.
+   */
+  title?: string
   description?: string
+  /** Opcional: si no vienen, se toman del periodo académico. */
   startDate?: string
   endDate?: string
   interdisciplinaryAreaIds?: string[]
+  /** Competencias del bloque, elegidas una sola vez al crear. */
+  competencyIds?: string[]
 }
 
 export interface UpdateSituationDto {
   title?: string
   description?: string
+  competencyIds?: string[]
   startDate?: string | null
   endDate?: string | null
   interdisciplinaryAreaIds?: string[]
