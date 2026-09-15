@@ -4,6 +4,19 @@ import fs from 'fs'
 import path from 'path'
 
 /**
+ * Ruta a un JSON de seed en prisma/seeds/curriculum/. Deliberadamente NO usa
+ * __dirname: tsup empaqueta todo src/ en un único dist/server.js, así que en
+ * producción __dirname apunta a dist/ y "../../../../../prisma/..." termina
+ * subiendo más allá de la raíz del filesystem (bug real que rompía la creación
+ * de instituciones en Railway: ENOENT en '/prisma/seeds/...'). process.cwd()
+ * es estable en dev (`cd apps/api && pnpm dev`) y en Railway (nixpacks corre
+ * cada servicio con cwd = apps/api), porque prisma/ vive en la raíz de ese paquete.
+ */
+function curriculumFilePath(fileName: string): string {
+  return path.join(process.cwd(), 'prisma/seeds/curriculum', fileName)
+}
+
+/**
  * Banco curricular MINEDUC (Currículo Priorizado con Énfasis en Competencias,
  * edición 2025 con Inserciones Curriculares 2024) cargado desde JSON pre-parseado
  * de los documentos oficiales. Estructura: Área -> subnivel -> Criterio de
@@ -32,7 +45,7 @@ let cachedDefaultCurriculum: DefaultCurriculumArea[] | null = null
 
 export function loadDefaultCurriculum(): DefaultCurriculumArea[] {
   if (cachedDefaultCurriculum) return cachedDefaultCurriculum
-  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/default-curriculum.json')
+  const filePath = curriculumFilePath('default-curriculum.json')
   cachedDefaultCurriculum = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultCurriculumArea[]
   return cachedDefaultCurriculum
 }
@@ -70,7 +83,7 @@ let cachedDefaultCompetencies: DefaultCompetencyArea[] | null = null
 
 export function loadDefaultCompetencies(): DefaultCompetencyArea[] {
   if (cachedDefaultCompetencies) return cachedDefaultCompetencies
-  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/default-competencies.json')
+  const filePath = curriculumFilePath('default-competencies.json')
   cachedDefaultCompetencies = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultCompetencyArea[]
   return cachedDefaultCompetencies
 }
@@ -89,7 +102,7 @@ let cachedKeyCompetencies: DefaultKeyCompetency[] | null = null
 
 export function loadKeyCompetencies(): DefaultKeyCompetency[] {
   if (cachedKeyCompetencies) return cachedKeyCompetencies
-  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/key-competencies.json')
+  const filePath = curriculumFilePath('key-competencies.json')
   cachedKeyCompetencies = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultKeyCompetency[]
   return cachedKeyCompetencies
 }
@@ -120,7 +133,7 @@ let cachedDuaCatalog: DefaultDuaCheckpoint[] | null = null
 
 export function loadDuaCatalog(): DefaultDuaCheckpoint[] {
   if (cachedDuaCatalog) return cachedDuaCatalog
-  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/dua-catalog.json')
+  const filePath = curriculumFilePath('dua-catalog.json')
   cachedDuaCatalog = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultDuaCheckpoint[]
   return cachedDuaCatalog
 }
@@ -135,7 +148,7 @@ let cachedAssessmentCatalog: DefaultAssessmentCatalog | null = null
 
 export function loadAssessmentCatalog(): DefaultAssessmentCatalog {
   if (cachedAssessmentCatalog) return cachedAssessmentCatalog
-  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/assessment-catalog.json')
+  const filePath = curriculumFilePath('assessment-catalog.json')
   cachedAssessmentCatalog = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultAssessmentCatalog
   return cachedAssessmentCatalog
 }
@@ -160,7 +173,7 @@ let cachedInsertionBanks: DefaultInsertionBank[] | null = null
 
 export function loadInsertionBanks(): DefaultInsertionBank[] {
   if (cachedInsertionBanks) return cachedInsertionBanks
-  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/insertion-banks.json')
+  const filePath = curriculumFilePath('insertion-banks.json')
   cachedInsertionBanks = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultInsertionBank[]
   return cachedInsertionBanks
 }
@@ -187,7 +200,7 @@ let cachedCurricularWorkload: DefaultCurricularWorkload[] | null = null
 
 export function loadCurricularWorkload(): DefaultCurricularWorkload[] {
   if (cachedCurricularWorkload) return cachedCurricularWorkload
-  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/curricular-workload.json')
+  const filePath = curriculumFilePath('curricular-workload.json')
   cachedCurricularWorkload = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultCurricularWorkload[]
   return cachedCurricularWorkload
 }
