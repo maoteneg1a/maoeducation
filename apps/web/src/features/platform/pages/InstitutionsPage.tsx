@@ -31,7 +31,7 @@ import {
   useSeedTestData,
 } from '../hooks/usePlatform'
 import type { Institution } from '../api/platform.api'
-import { ALL_MODULES, MODULE_LABELS, PERSONAL_DEFAULT_MODULES, type ModuleKey } from '@/shared/lib/modules'
+import { ALL_MODULES, MODULE_GROUPS, MODULE_LABELS, PERSONAL_DEFAULT_MODULES, type ModuleKey } from '@/shared/lib/modules'
 
 const schema = z.object({
   name: z.string().min(2, 'Mínimo 2 caracteres'),
@@ -77,6 +77,16 @@ export function InstitutionsPage() {
     setSelectedModules((prev) =>
       prev.includes(key) ? prev.filter((m) => m !== key) : [...prev, key],
     )
+  }
+
+  /** Activa todo el grupo, o lo apaga completo si ya estaba todo activo. */
+  const toggleGroup = (modules: readonly ModuleKey[]) => {
+    setSelectedModules((prev) => {
+      const allActive = modules.every((m) => prev.includes(m))
+      return allActive
+        ? prev.filter((m) => !modules.includes(m as ModuleKey))
+        : [...prev.filter((m) => !modules.includes(m as ModuleKey)), ...modules]
+    })
   }
 
   const saveModules = () => {
@@ -313,7 +323,7 @@ export function InstitutionsPage() {
           <div className="py-2 space-y-3">
             <div className="flex gap-2 text-xs">
               <button
-                className="text-brand-blue hover:underline"
+                className="text-blue-600 hover:underline"
                 onClick={() => setSelectedModules([...ALL_MODULES])}
               >
                 Activar todos
@@ -334,29 +344,55 @@ export function InstitutionsPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
-              {ALL_MODULES.map((key) => {
-                const active = selectedModules.includes(key)
-                const isPersonalDefault = PERSONAL_DEFAULT_MODULES.includes(key as ModuleKey)
+            <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
+              {MODULE_GROUPS.map((group) => {
+                const activeInGroup = group.modules.filter((m) => selectedModules.includes(m)).length
                 return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => toggleModule(key)}
-                    className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
-                      active
-                        ? 'border-blue-200 bg-blue-50 text-blue-800'
-                        : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className={`h-3.5 w-3.5 rounded-sm border flex items-center justify-center shrink-0 ${active ? 'border-brand-blue bg-brand-blue' : 'border-slate-300'}`}>
-                      {active && <span className="text-white text-[9px] leading-none">✓</span>}
-                    </span>
-                    <span className="truncate">{MODULE_LABELS[key as ModuleKey]}</span>
-                    {isPersonalDefault && (
-                      <span className="ml-auto shrink-0 text-[10px] text-slate-400">personal</span>
-                    )}
-                  </button>
+                  <div key={group.id}>
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600 shrink-0">
+                        {group.label}
+                      </span>
+                      <span className="text-[10px] text-slate-400 shrink-0">
+                        {activeInGroup}/{group.modules.length}
+                      </span>
+                      <span className="flex-1 h-px bg-slate-200" />
+                      <button
+                        type="button"
+                        className="text-[10px] text-slate-400 hover:text-slate-700 hover:underline shrink-0"
+                        onClick={() => toggleGroup(group.modules)}
+                      >
+                        {activeInGroup === group.modules.length ? 'quitar todos' : 'activar todos'}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mb-2">{group.description}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {group.modules.map((key) => {
+                        const active = selectedModules.includes(key)
+                        const isPersonalDefault = PERSONAL_DEFAULT_MODULES.includes(key)
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => toggleModule(key)}
+                            className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                              active
+                                ? 'border-blue-200 bg-blue-50 text-blue-800'
+                                : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className={`h-3.5 w-3.5 rounded-sm border flex items-center justify-center shrink-0 ${active ? 'border-blue-600 bg-blue-600' : 'border-slate-300'}`}>
+                              {active && <span className="text-white text-[9px] leading-none">✓</span>}
+                            </span>
+                            <span className="truncate">{MODULE_LABELS[key]}</span>
+                            {isPersonalDefault && (
+                              <span className="ml-auto shrink-0 text-[10px] text-slate-400">personal</span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
                 )
               })}
             </div>
