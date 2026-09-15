@@ -41,6 +41,7 @@ import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults
 import { useAuthStore } from '@/store/auth.store'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useCurriculumSkillsForSubject } from '@/features/curriculum/hooks/useCurriculum'
+import { useGradingConfig } from '@/features/settings/hooks/useSettings'
 
 // ---- Query keys ----
 const activityKeys = {
@@ -458,6 +459,8 @@ export function ActivitiesPage() {
     selectedAssignmentId,
     selectedPeriodId,
   )
+  const { data: gradingConfig } = useGradingConfig()
+  const gradingScaleMax = gradingConfig?.gradingScaleMax ?? 10
 
   const createActivity = useCreateActivity(selectedAssignmentId, selectedPeriodId)
   const updateActivity = useUpdateActivity(selectedAssignmentId, selectedPeriodId)
@@ -474,7 +477,7 @@ export function ActivitiesPage() {
       activityTypeId: '',
       insumoId: '',
       curriculumSkillId: '',
-      maxScore: 10,
+      maxScore: gradingScaleMax,
       activityDate: new Date().toISOString().split('T')[0],
       description: '',
     },
@@ -487,7 +490,7 @@ export function ActivitiesPage() {
       activityTypeId: '',
       insumoId: '',
       curriculumSkillId: '',
-      maxScore: 10,
+      maxScore: gradingScaleMax,
       activityDate: new Date().toISOString().split('T')[0],
       description: '',
     })

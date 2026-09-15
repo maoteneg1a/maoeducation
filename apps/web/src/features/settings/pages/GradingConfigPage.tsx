@@ -24,6 +24,27 @@ export function GradingConfigPage() {
     setCfg({ ...cfg, qualitativeScale: cfg.qualitativeScale.map((l, idx) => (idx === i ? { ...l, ...patch } : l)) })
   const setBehavior = (i: number, patch: Partial<BehaviorLevel>) =>
     setCfg({ ...cfg, behaviorScale: cfg.behaviorScale.map((l, idx) => (idx === i ? { ...l, ...patch } : l)) })
+  const setGradingScaleMax = (nextMax: number) => {
+    if (!Number.isFinite(nextMax) || nextMax <= 0 || cfg.gradingScaleMax <= 0) return
+    const ratio = nextMax / cfg.gradingScaleMax
+    const scaled = (value: number) => Math.round(value * ratio * 100) / 100
+    setCfg({
+      ...cfg,
+      gradingScaleMax: nextMax,
+      qualitativeScale: cfg.qualitativeScale.map((level) => ({
+        ...level,
+        min: scaled(level.min),
+        max: scaled(level.max),
+      })),
+      promotion: {
+        ...cfg.promotion,
+        minToPass: scaled(cfg.promotion.minToPass),
+        supletorioMin: scaled(cfg.promotion.supletorioMin),
+        supletorioMax: scaled(cfg.promotion.supletorioMax),
+        passWithExam: scaled(cfg.promotion.passWithExam),
+      },
+    })
+  }
 
   return (
     <div className="space-y-6 p-6">
@@ -61,6 +82,23 @@ export function GradingConfigPage() {
           <Button variant="outline" size="sm" onClick={() => setCfg({ ...cfg, qualitativeScale: [...cfg.qualitativeScale, { min: 0, max: 0, code: '', label: '' }] })}>
             <Plus className="mr-1.5 h-4 w-4" /> Agregar nivel
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Escala numérica general</CardTitle>
+          <CardDescription>
+            Escala en la que se muestran y calculan los promedios de toda la institución.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="max-w-sm">
+          <Field label="Nota máxima" value={cfg.gradingScaleMax}
+            onChange={setGradingScaleMax} />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Por ejemplo, usa 5 para conservar promedios sobre 5. Al cambiarla también se ajustan
+            proporcionalmente los rangos cualitativos y las notas de promoción.
+          </p>
         </CardContent>
       </Card>
 

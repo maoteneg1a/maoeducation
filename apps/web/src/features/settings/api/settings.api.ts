@@ -31,6 +31,7 @@ export interface PedagogicRecoveryConfig {
 }
 
 export interface GradingConfig {
+  gradingScaleMax: number
   qualitativeScale: QualitativeLevel[]
   behaviorScale: BehaviorLevel[]
   promotion: PromotionConfig
