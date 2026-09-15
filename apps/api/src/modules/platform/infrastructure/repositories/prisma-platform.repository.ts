@@ -61,8 +61,14 @@ export class PrismaPlatformRepository implements IPlatformRepository {
   }
 
   async createInstitution(dto: CreateInstitutionDto): Promise<{ institutionId: string; adminUserId: string }> {
-    return prisma.$transaction((tx) =>
-      bootstrapInstitution(tx, { name: dto.name, code: dto.code }, dto.admin, dto.regime),
+    // bootstrapInstitution siembra centenares de filas (banco curricular, banco de
+    // competencias, catálogos DUA/evaluación/inserción por institución) con creates
+    // secuenciales — el timeout default de Prisma para transacciones interactivas
+    // (5s) se queda corto contra la latencia real de red en producción y la
+    // transacción se cierra a medias (P2028 "Transaction not found").
+    return prisma.$transaction(
+      (tx) => bootstrapInstitution(tx, { name: dto.name, code: dto.code }, dto.admin, dto.regime),
+      { timeout: 60_000 },
     )
   }
 
