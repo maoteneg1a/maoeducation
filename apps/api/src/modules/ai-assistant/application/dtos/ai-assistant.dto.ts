@@ -4,6 +4,8 @@ export interface DraftWeekDto {
   skillIds: string[]
   /** Nombre de la semana si el docente ya lo puso, para darle contexto a la IA. */
   weekName?: string
+  /** Número de semana dentro del bloque — rota la estrategia/técnica del fallback determinista para que semanas consecutivas no salgan idénticas. */
+  rotationSeed?: number
 }
 
 export interface DraftedSaber {
@@ -71,6 +73,8 @@ export interface DraftCompetencyWeekDto {
   /** Competencias ya elegidas por el docente en el selector. */
   competencyIds: string[]
   weekName?: string
+  /** Número de semana dentro del bloque — rota la estrategia/técnica del fallback determinista para que semanas consecutivas no salgan idénticas. */
+  rotationSeed?: number
 }
 
 export interface DraftCompetencyWeekResult {

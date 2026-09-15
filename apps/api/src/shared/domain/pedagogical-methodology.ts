@@ -47,16 +47,23 @@ const GENERIC_RESOURCES = ['pizarra', 'cuaderno', 'material del aula']
  * cada fase y una técnica/instrumento de evaluación válido. Nunca falla: si
  * no hay estrategia compatible con una fase específica, usa la primera
  * disponible del catálogo completo.
+ *
+ * `rotationSeed` (típicamente el número de semana o índice del intento) hace
+ * que semanas consecutivas del mismo bloque roten de estrategia/técnica en
+ * vez de repetir siempre la primera del catálogo — sin este parámetro, cada
+ * semana que cae al fallback (por timeout o error de la IA) se veía idéntica.
  */
 export function buildDeterministicMethodology(
   duaStrategies: DuaStrategyInput[],
   assessmentCatalog: AssessmentCatalogInput,
+  rotationSeed = 0,
 ): DeterministicMethodologyResult {
   const momentos = {} as DeterministicMethodologyResult['momentos']
 
   for (const phase of PHASES) {
     const compatible = duaStrategies.filter((s) => s.compatiblePhases.includes(phase))
-    const pick = compatible[0] ?? duaStrategies[0]
+    const pool = compatible.length ? compatible : duaStrategies
+    const pick = pool.length ? pool[rotationSeed % pool.length] : undefined
     const key = PHASE_KEY[phase]
     momentos[key] = {
       estrategiasDua: pick
@@ -68,8 +75,10 @@ export function buildDeterministicMethodology(
     }
   }
 
-  const technique = assessmentCatalog.techniques[0]
-  const instrumentCode = technique?.compatibleInstrumentCodes[0]
+  const technique = assessmentCatalog.techniques.length
+    ? assessmentCatalog.techniques[rotationSeed % assessmentCatalog.techniques.length]
+    : undefined
+  const instrumentCode = technique?.compatibleInstrumentCodes[rotationSeed % Math.max(technique?.compatibleInstrumentCodes.length ?? 1, 1)]
   const instrument = assessmentCatalog.instruments.find((i) => i.code === instrumentCode) ?? assessmentCatalog.instruments[0]
 
   // La técnica/instrumento de evaluación se refleja también en el momento de Consolidación
