@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Send, CheckCircle2, NotebookPen } from 'lucide-react'
+import { ArrowLeft, Plus, Send, CheckCircle2, NotebookPen, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { Card } from '@/shared/components/ui/card'
@@ -17,6 +17,7 @@ import { usePeriods } from '@/features/academic/hooks/useAcademic'
 import { useCompetenciesForSubject } from '@/features/competency-curriculum/hooks/useCompetencyCurriculum'
 import { SkillReinforcementPanel } from '@/features/pedagogic-recovery/components/SkillReinforcementPanel'
 import { ReinforcementPlansList } from '@/features/pedagogic-recovery/components/ReinforcementPlansList'
+import { cn } from '@/shared/lib/utils'
 import {
   usePlan,
   useUpdatePlan,
@@ -24,8 +25,110 @@ import {
   useApprovePlan,
   useSituations,
   useCreateSituation,
+  useDeleteSituation,
 } from '../hooks/usePlanning'
 import type { ApprovalStatus, SituationStatus } from '../api/planning.api'
+
+function normalizeSearch(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+}
+
+interface Competency {
+  id: string
+  code: string
+  text: string
+}
+
+/** Selección única con buscador — evita desplazarse por listas largas del banco CNC (puede tener 30+ competencias por grado/materia). */
+function SearchableCompetencyPicker({
+  competencies,
+  value,
+  onChange,
+}: {
+  competencies: Competency[]
+  value: string
+  onChange: (id: string) => void
+}) {
+  const [search, setSearch] = React.useState('')
+  const [open, setOpen] = React.useState(false)
+  const containerRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const selected = competencies.find((c) => c.id === value)
+  const filtered = React.useMemo(() => {
+    const query = normalizeSearch(search.trim())
+    if (!query) return competencies
+    return competencies.filter((c) => normalizeSearch(c.code).includes(query) || normalizeSearch(c.text).includes(query))
+  }, [competencies, search])
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-left text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
+      >
+        {selected ? (
+          <span className="truncate">
+            <span className="font-mono text-xs text-muted-foreground">{selected.code}</span> {selected.text}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">
+            {competencies.length ? 'Elige la competencia' : 'No hay competencias para este grado'}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full min-w-[320px] rounded-md border bg-popover p-2 shadow-md">
+          <div className="relative mb-1.5">
+            <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por código o texto..."
+              className="h-8 pl-7 text-sm"
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {filtered.length === 0 && (
+              <p className="px-1 py-2 text-xs text-muted-foreground">Ninguna competencia coincide con la búsqueda.</p>
+            )}
+            {filtered.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  onChange(c.id)
+                  setOpen(false)
+                  setSearch('')
+                }}
+                className={cn(
+                  'flex w-full items-start gap-2 rounded px-2 py-1.5 text-left text-sm transition',
+                  c.id === value ? 'bg-primary/10' : 'hover:bg-muted/50',
+                )}
+              >
+                <span>
+                  <span className="font-mono text-xs text-muted-foreground">{c.code}</span> {c.text}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const PCA_STATUS_LABEL: Record<ApprovalStatus, { label: string; variant: 'success' | 'warning' | 'secondary' }> = {
   borrador: { label: 'Borrador', variant: 'secondary' },
@@ -60,6 +163,7 @@ export function PlanningDetailPage() {
 
   const { data: situations = [] } = useSituations(id)
   const createSituation = useCreateSituation(id!)
+  const deleteSituation = useDeleteSituation(id!)
 
   const [formData, setFormData] = React.useState<Record<string, unknown>>({})
   React.useEffect(() => {
@@ -207,23 +311,11 @@ export function PlanningDetailPage() {
             {isCompetencyModel ? (
               <div className="min-w-0 flex-1">
                 <label className="mb-1 block text-xs font-medium">Competencia específica</label>
-                <Select value={newCompetencyId} onValueChange={setNewCompetencyId}>
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={
-                        competencies.length ? 'Elige la competencia' : 'No hay competencias para este grado'
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {competencies.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        <span className="font-mono text-xs text-muted-foreground">{c.code}</span>{' '}
-                        <span className="line-clamp-1">{c.text}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableCompetencyPicker
+                  competencies={competencies}
+                  value={newCompetencyId}
+                  onChange={setNewCompetencyId}
+                />
               </div>
             ) : (
               <div className="flex-1">
@@ -267,9 +359,27 @@ export function PlanningDetailPage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-medium">{situation.title}</p>
-                  <Badge variant={SITUATION_STATUS_LABEL[situation.status].variant}>
-                    {SITUATION_STATUS_LABEL[situation.status].label}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    <Badge variant={SITUATION_STATUS_LABEL[situation.status].variant}>
+                      {SITUATION_STATUS_LABEL[situation.status].label}
+                    </Badge>
+                    {situation.status === 'borrador' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        loading={deleteSituation.isPending && deleteSituation.variables === situation.id}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (confirm(`¿Eliminar la situación de aprendizaje "${situation.title}"? Esto borra también sus semanas.`)) {
+                            deleteSituation.mutate(situation.id)
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
                   {situation.academicPeriod?.name} · {situation._count?.weeks ?? 0} semana(s)

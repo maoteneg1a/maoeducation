@@ -158,6 +158,19 @@ export function useApproveSituation(id: string, planId?: string) {
   })
 }
 
+/** A diferencia de useSubmitSituation/useApproveSituation, el id se pasa a mutate() en vez de fijo al montar — se usa desde la lista (PlanningDetailPage), donde cada tarjeta comparte el mismo hook. */
+export function useDeleteSituation(planId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (situationId: string) => planningApi.deleteSituation(situationId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['planning-situations', planId] })
+      toast.success('Situación de aprendizaje eliminada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
 // ─── Semanas ─────────────────────────────────────────────────────────────
 
 export function useWeeks(situationId: string | undefined) {

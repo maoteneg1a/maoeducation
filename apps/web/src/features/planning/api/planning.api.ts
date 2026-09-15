@@ -164,6 +164,8 @@ export const planningApi = {
 
   approveSituation: (id: string) => apiPost<LearningSituation>(`planning/situations/${id}/approve`),
 
+  deleteSituation: (id: string) => apiDelete(`planning/situations/${id}`),
+
   // Semanas
   listWeeks: (situationId: string) => apiGet<PlanningWeek[]>(`planning/situations/${situationId}/weeks`),
 
