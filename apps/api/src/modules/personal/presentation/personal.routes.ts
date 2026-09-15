@@ -114,33 +114,39 @@ export default async function personalRoutes(app: FastifyInstance) {
       const name = workspaceName?.trim() || `Aula de ${firstName} ${lastName}`
       const code = `PERSONAL_${Date.now()}`
 
-      const { institutionId, adminUserId } = await prisma.$transaction(async (tx) => {
-        const result = await bootstrapInstitution(
-          tx,
-          { name, code },
-          { email, firstName, lastName, password },
-        )
-        // Marcar la institución como personal y pendiente de setup
-        await tx.institution.update({
-          where: { id: result.institutionId },
-          data: {
-            settings: {
-              accountType: 'personal',
-              setupComplete: false,
-              modules: ['academic', 'enrollment', 'activities', 'grades', 'attendance', 'reports', 'branding'],
-            } as unknown as Parameters<typeof tx.institution.update>[0]['data']['settings'],
-          },
-        })
-        // Asignar también rol teacher al usuario admin personal
-        const teacherRole = await tx.role.findFirst({
-          where: { institutionId: result.institutionId, name: 'teacher' },
-          select: { id: true },
-        })
-        if (teacherRole) {
-          await tx.userRole.create({ data: { userId: result.adminUserId, roleId: teacherRole.id } })
-        }
-        return result
-      })
+      const { institutionId, adminUserId } = await prisma.$transaction(
+        async (tx) => {
+          const result = await bootstrapInstitution(
+            tx,
+            { name, code },
+            { email, firstName, lastName, password },
+          )
+          // Marcar la institución como personal y pendiente de setup
+          await tx.institution.update({
+            where: { id: result.institutionId },
+            data: {
+              settings: {
+                accountType: 'personal',
+                setupComplete: false,
+                modules: ['academic', 'enrollment', 'activities', 'grades', 'attendance', 'reports', 'branding'],
+              } as unknown as Parameters<typeof tx.institution.update>[0]['data']['settings'],
+            },
+          })
+          // Asignar también rol teacher al usuario admin personal
+          const teacherRole = await tx.role.findFirst({
+            where: { institutionId: result.institutionId, name: 'teacher' },
+            select: { id: true },
+          })
+          if (teacherRole) {
+            await tx.userRole.create({ data: { userId: result.adminUserId, roleId: teacherRole.id } })
+          }
+          return result
+        },
+        // bootstrapInstitution siembra centenares de filas con creates secuenciales —
+        // el timeout default de 5s se queda corto contra la latencia real de red en
+        // producción y la transacción se cierra a medias (P2028).
+        { timeout: 60_000 },
+      )
 
       const token = await createVerificationToken(adminUserId)
       await sendVerificationEmail(email, firstName, token)

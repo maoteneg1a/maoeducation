@@ -41,18 +41,20 @@ async function main() {
   let adminUserId: string
 
   if (!institution) {
-    const result = await prisma.$transaction((tx) =>
-      bootstrapInstitution(
-        tx,
-        { name: INSTITUTION_NAME, code: INSTITUTION_CODE },
-        {
-          email: 'admin@panama.edu.ec',
-          password: DEFAULT_PASSWORD,
-          firstName: 'Administración',
-          lastName: 'Panamá',
-        },
-        'COSTA_GALAPAGOS',
-      ),
+    const result = await prisma.$transaction(
+      (tx) =>
+        bootstrapInstitution(
+          tx,
+          { name: INSTITUTION_NAME, code: INSTITUTION_CODE },
+          {
+            email: 'admin@panama.edu.ec',
+            password: DEFAULT_PASSWORD,
+            firstName: 'Administración',
+            lastName: 'Panamá',
+          },
+          'COSTA_GALAPAGOS',
+        ),
+      { timeout: 60_000 },
     )
     institution = await prisma.institution.findUniqueOrThrow({ where: { id: result.institutionId } })
     adminUserId = result.adminUserId
