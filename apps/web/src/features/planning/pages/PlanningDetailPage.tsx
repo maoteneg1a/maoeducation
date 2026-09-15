@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Plus, Send, CheckCircle2, NotebookPen, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
@@ -42,7 +43,13 @@ interface Competency {
   text: string
 }
 
-/** Selección única con buscador — evita desplazarse por listas largas del banco CNC (puede tener 30+ competencias por grado/materia). */
+/**
+ * Selección única con buscador — evita desplazarse por listas largas del banco CNC
+ * (puede tener 30+ competencias por grado/materia). El panel se renderiza en un portal
+ * sobre document.body, posicionado por coordenadas — evita que quede "sobremontado"
+ * por tarjetas hermanas que crean su propio stacking context (no basta con z-index
+ * cuando el dropdown es position:absolute dentro de un contenedor normal).
+ */
 function SearchableCompetencyPicker({
   competencies,
   value,
@@ -54,15 +61,25 @@ function SearchableCompetencyPicker({
 }) {
   const [search, setSearch] = React.useState('')
   const [open, setOpen] = React.useState(false)
-  const containerRef = React.useRef<HTMLDivElement>(null)
+  const [rect, setRect] = React.useState<{ top: number; left: number; width: number } | null>(null)
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
+  const panelRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  const openPanel = () => {
+    const r = triggerRef.current?.getBoundingClientRect()
+    if (r) setRect({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX, width: r.width })
+    setOpen(true)
+  }
 
   const selected = competencies.find((c) => c.id === value)
   const filtered = React.useMemo(() => {
@@ -72,10 +89,11 @@ function SearchableCompetencyPicker({
   }, [competencies, search])
 
   return (
-    <div ref={containerRef} className="relative">
+    <>
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => (open ? setOpen(false) : openPanel())}
         className="flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-left text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
       >
         {selected ? (
@@ -88,45 +106,52 @@ function SearchableCompetencyPicker({
           </span>
         )}
       </button>
-      {open && (
-        <div className="absolute z-50 mt-1 w-full min-w-[320px] rounded-md border bg-popover p-2 shadow-md">
-          <div className="relative mb-1.5">
-            <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              autoFocus
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por código o texto..."
-              className="h-8 pl-7 text-sm"
-            />
-          </div>
-          <div className="max-h-64 overflow-y-auto">
-            {filtered.length === 0 && (
-              <p className="px-1 py-2 text-xs text-muted-foreground">Ninguna competencia coincide con la búsqueda.</p>
-            )}
-            {filtered.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => {
-                  onChange(c.id)
-                  setOpen(false)
-                  setSearch('')
-                }}
-                className={cn(
-                  'flex w-full items-start gap-2 rounded px-2 py-1.5 text-left text-sm transition',
-                  c.id === value ? 'bg-primary/10' : 'hover:bg-muted/50',
-                )}
-              >
-                <span>
-                  <span className="font-mono text-xs text-muted-foreground">{c.code}</span> {c.text}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+      {open &&
+        rect &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{ position: 'absolute', top: rect.top, left: rect.left, width: Math.max(rect.width, 320) }}
+            className="z-[100] rounded-md border bg-popover p-2 shadow-lg"
+          >
+            <div className="relative mb-1.5">
+              <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por código o texto..."
+                className="h-8 pl-7 text-sm"
+              />
+            </div>
+            <div className="max-h-64 overflow-y-auto">
+              {filtered.length === 0 && (
+                <p className="px-1 py-2 text-xs text-muted-foreground">Ninguna competencia coincide con la búsqueda.</p>
+              )}
+              {filtered.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(c.id)
+                    setOpen(false)
+                    setSearch('')
+                  }}
+                  className={cn(
+                    'flex w-full items-start gap-2 rounded px-2 py-1.5 text-left text-sm transition',
+                    c.id === value ? 'bg-primary/10' : 'hover:bg-muted/50',
+                  )}
+                >
+                  <span>
+                    <span className="font-mono text-xs text-muted-foreground">{c.code}</span> {c.text}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
   )
 }
 
