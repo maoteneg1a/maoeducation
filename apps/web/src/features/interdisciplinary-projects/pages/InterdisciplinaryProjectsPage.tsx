@@ -129,7 +129,7 @@ export function InterdisciplinaryProjectsPage() {
           <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
             <div className="flex-1 space-y-1.5">
               <Label>Título del proyecto</Label>
-              <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Ej: Conexiones para transformar" />
+              <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} maxLength={200} placeholder="Ej: Conexiones para transformar" />
             </div>
             <div className="w-full sm:w-40 space-y-1.5">
               <Label>N.º de semanas</Label>

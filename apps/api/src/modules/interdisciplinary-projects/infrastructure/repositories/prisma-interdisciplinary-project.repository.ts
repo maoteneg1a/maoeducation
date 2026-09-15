@@ -1,5 +1,5 @@
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
-import { ConflictError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
+import { BadRequestError, ConflictError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import type {
   CreateInterdisciplinaryProjectDto,
   JoinProjectDto,
@@ -43,6 +43,10 @@ export class PrismaInterdisciplinaryProjectRepository {
   }
 
   async createProject(institutionId: string, actorId: string, dto: CreateInterdisciplinaryProjectDto) {
+    if (dto.title.trim().length > 200) {
+      throw new BadRequestError('El título no puede superar los 200 caracteres')
+    }
+
     const parallel = await prisma.parallel.findFirst({ where: { id: dto.parallelId, institutionId } })
     if (!parallel) throw new NotFoundError('Paralelo no encontrado')
 
@@ -69,6 +73,10 @@ export class PrismaInterdisciplinaryProjectRepository {
   }
 
   async updateProject(id: string, institutionId: string, dto: UpdateInterdisciplinaryProjectDto) {
+    if (dto.title !== undefined && dto.title.trim().length > 200) {
+      throw new BadRequestError('El título no puede superar los 200 caracteres')
+    }
+
     const project = await prisma.interdisciplinaryProject.findFirst({ where: { id, institutionId } })
     if (!project) throw new NotFoundError('Proyecto interdisciplinario no encontrado')
     if (project.status === 'aprobado') throw new ConflictError('El proyecto ya fue aprobado y no se puede editar')
