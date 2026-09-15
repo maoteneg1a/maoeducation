@@ -57,6 +57,7 @@ const parallelSchema = z.object({
   academicYearId: z.string().min(1, 'El año académico es requerido'),
   capacity: z.coerce.number().int().min(1).optional(),
   tutorId: z.string().optional(),
+  educationOffer: z.string().optional(),
 })
 type ParallelForm = z.infer<typeof parallelSchema>
 
@@ -75,8 +76,11 @@ export function ParallelsPage() {
 
   const form = useForm<ParallelForm>({
     resolver: zodResolver(parallelSchema),
-    defaultValues: { name: '', levelId: '', academicYearId: '', capacity: undefined, tutorId: undefined },
+    defaultValues: { name: '', levelId: '', academicYearId: '', capacity: undefined, tutorId: undefined, educationOffer: undefined },
   })
+
+  const selectedLevel = levels.find((l) => l.id === form.watch('levelId'))
+  const isBgu = selectedLevel?.subnivel === 'bgu'
 
   // Default to active year
   React.useEffect(() => {
@@ -94,6 +98,7 @@ export function ParallelsPage() {
       academicYearId: selectedYearId,
       capacity: undefined,
       tutorId: undefined,
+      educationOffer: undefined,
     })
     setOpen(true)
   }
@@ -106,6 +111,7 @@ export function ParallelsPage() {
       academicYearId: parallel.academicYearId,
       capacity: parallel.capacity,
       tutorId: parallel.tutorId ?? undefined,
+      educationOffer: parallel.educationOffer ?? undefined,
     })
     setOpen(true)
   }
@@ -117,6 +123,7 @@ export function ParallelsPage() {
       academicYearId: values.academicYearId,
       capacity: values.capacity,
       tutorId: values.tutorId || null,
+      educationOffer: values.educationOffer || null,
     }
     if (editing) {
       updateParallel.mutate(
@@ -296,6 +303,27 @@ export function ParallelsPage() {
                 <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
               )}
             </div>
+            {isBgu && (
+              <div className="space-y-2">
+                <Label>Oferta de Bachillerato</Label>
+                <Select
+                  value={form.watch('educationOffer') || '__none__'}
+                  onValueChange={(v) => form.setValue('educationOffer', v === '__none__' ? undefined : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar oferta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sin definir</SelectItem>
+                    <SelectItem value="BACHILLERATO_CIENCIAS">Bachillerato en Ciencias</SelectItem>
+                    <SelectItem value="BACHILLERATO_TECNICO">Bachillerato Técnico</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Determina qué tabla de carga horaria oficial aplica a este paralelo.
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Tutor / Director de grupo</Label>
               <Select

@@ -1,5 +1,6 @@
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, ConflictError, BadRequestError } from '../../../../shared/domain/errors/app.errors'
+import { resolveWorkload } from '../../../../shared/domain/workload-resolution'
 import type {
   CreateLevelDto,
   UpdateLevelDto,
@@ -104,6 +105,7 @@ export class PrismaAcademicRepository {
         isQualitative: dto.isQualitative ?? false,
         curriculumAreaId: dto.curriculumAreaId,
         competencyAreaId: dto.competencyAreaId,
+        workloadCode: dto.workloadCode,
       },
     })
   }
@@ -135,6 +137,7 @@ export class PrismaAcademicRepository {
         ...(dto.isQualitative !== undefined && { isQualitative: dto.isQualitative }),
         ...(dto.curriculumAreaId !== undefined && { curriculumAreaId: dto.curriculumAreaId }),
         ...(dto.competencyAreaId !== undefined && { competencyAreaId: dto.competencyAreaId }),
+        ...(dto.workloadCode !== undefined && { workloadCode: dto.workloadCode }),
       },
     })
   }
@@ -351,6 +354,7 @@ export class PrismaAcademicRepository {
         academicYearId: dto.academicYearId,
         capacity: dto.capacity,
         ...(dto.tutorId && { tutorId: dto.tutorId }),
+        ...(dto.educationOffer !== undefined && { educationOffer: dto.educationOffer }),
       },
       include: this.parallelInclude,
     })
@@ -372,6 +376,7 @@ export class PrismaAcademicRepository {
         ...(dto.levelId !== undefined && { levelId: dto.levelId }),
         ...(dto.capacity !== undefined && { capacity: dto.capacity }),
         ...('tutorId' in dto && { tutorId: dto.tutorId ?? null }),
+        ...(dto.educationOffer !== undefined && { educationOffer: dto.educationOffer }),
       },
       include: this.parallelInclude,
     })
@@ -456,6 +461,34 @@ export class PrismaAcademicRepository {
     const assignment = await prisma.courseAssignment.findFirst({ where: { id, institutionId } })
     if (!assignment) throw new NotFoundError('Asignación no encontrada')
     await prisma.courseAssignment.delete({ where: { id } })
+  }
+
+  async updateAssignmentWeeklyPeriodsOverride(id: string, institutionId: string, weeklyPeriodsOverride: number | null) {
+    const assignment = await prisma.courseAssignment.findFirst({ where: { id, institutionId } })
+    if (!assignment) throw new NotFoundError('Asignación no encontrada')
+    return prisma.courseAssignment.update({
+      where: { id },
+      data: { weeklyPeriodsOverride },
+      select: { id: true, weeklyPeriodsOverride: true },
+    })
+  }
+
+  /** Carga horaria oficial resuelta para una asignación — ver shared/domain/workload-resolution.ts. */
+  async getAssignmentWorkload(id: string, institutionId: string) {
+    const assignment = await prisma.courseAssignment.findFirst({
+      where: { id, institutionId },
+      include: { subject: true, parallel: { include: { level: true } } },
+    })
+    if (!assignment) throw new NotFoundError('Asignación no encontrada')
+
+    const entries = await prisma.curricularWorkload.findMany()
+    return resolveWorkload(
+      entries,
+      assignment.parallel.level.code,
+      assignment.subject.workloadCode,
+      assignment.parallel.educationOffer,
+      assignment.weeklyPeriodsOverride,
+    )
   }
 
   // ─── Period Schemes ────────────────────────────────────────────────────────

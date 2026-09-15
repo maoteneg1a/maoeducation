@@ -166,6 +166,33 @@ export function loadInsertionBanks(): DefaultInsertionBank[] {
 }
 
 /**
+ * Carga horaria oficial (períodos semanales por grado+materia), fuente: Acuerdo
+ * MINEDUC-2023-00008-A, art. 7. Global (no por institución) — igual a los demás
+ * catálogos operativos. Ver prisma/seeds/curriculum/curricular-workload.json.
+ */
+export interface DefaultCurricularWorkload {
+  sublevel: string
+  levelCodes: string[]
+  educationOffer: string
+  subjectCodes: string[]
+  weeklyPeriods: number | null
+  groupWeeklyPeriods: number | null
+  periodMinutes: number
+  sourceType: string
+  sourceDocument: string
+  notes: string | null
+}
+
+let cachedCurricularWorkload: DefaultCurricularWorkload[] | null = null
+
+export function loadCurricularWorkload(): DefaultCurricularWorkload[] {
+  if (cachedCurricularWorkload) return cachedCurricularWorkload
+  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/curricular-workload.json')
+  cachedCurricularWorkload = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultCurricularWorkload[]
+  return cachedCurricularWorkload
+}
+
+/**
  * Configuración por defecto de una institución nueva.
  * Estas constantes son la ÚNICA fuente de verdad de la matriz RBAC y los
  * catálogos base: las usan tanto el seed (`prisma/seeds/index.ts`) como el

@@ -254,6 +254,27 @@ export function useDeleteAssignment() {
   })
 }
 
+export function useAssignmentWorkload(assignmentId: string | undefined) {
+  return useQuery({
+    queryKey: ['course-assignment-workload', assignmentId],
+    queryFn: () => academicApi.getAssignmentWorkload(assignmentId!),
+    enabled: !!assignmentId,
+  })
+}
+
+export function useUpdateWeeklyPeriodsOverride() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, weeklyPeriodsOverride }: { id: string; weeklyPeriodsOverride: number | null }) =>
+      academicApi.updateWeeklyPeriodsOverride(id, weeklyPeriodsOverride),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ['course-assignment-workload', id] })
+      toast.success('Carga horaria institucional actualizada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
 // ---- Period Schemes ----
 
 export function usePeriodSchemes() {

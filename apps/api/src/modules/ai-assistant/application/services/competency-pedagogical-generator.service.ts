@@ -1,3 +1,4 @@
+import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { ForbiddenError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import { getAnthropicClient, isAnthropicConfigured } from '../../infrastructure/services/anthropic-client'
@@ -8,6 +9,7 @@ import {
   type GeneratedPedagogyPayload,
   type PedagogicalValidationContext,
 } from '../../../../shared/domain/pedagogical-validation'
+import { resolveWorkload, weeklyPhaseCounts } from '../../../../shared/domain/workload-resolution'
 import type { DraftCompetencyWeekDto, DraftCompetencyWeekResult, DraftedSaber } from '../dtos/ai-assistant.dto'
 
 const institutionRepo = new PrismaInstitutionRepository()
@@ -183,6 +185,7 @@ export async function draftCompetencyWeek(
   const deterministic = buildDeterministicMethodology(
     duaStrategies,
     { techniques: assessmentTechniques, instruments: assessmentInstruments },
+    dto.rotationSeed ?? 0,
   )
   const fallbackResult = (validationErrors: string[]): DraftCompetencyWeekResult => ({
     indicadoresEvaluacion: primaryIndicator?.text ?? '',
@@ -221,11 +224,28 @@ export async function draftCompetencyWeek(
     .map((t) => `  ${t.code} (${t.label}) -> instrumentos válidos: ${t.compatibleInstrumentCodes.join(', ')}`)
     .join('\n')
 
+  // Carga horaria oficial (períodos semanales) determina la densidad de la semana —
+  // calcado de _weekly_phase_counts() en TIGA: más períodos, más actividades por fase.
+  const assignment = situation.plan.courseAssignment
+  const workloadEntries = await prisma.curricularWorkload.findMany()
+  const workload = resolveWorkload(
+    workloadEntries,
+    assignment.parallel.level.code,
+    assignment.subject.workloadCode,
+    assignment.parallel.educationOffer,
+    assignment.weeklyPeriodsOverride,
+  )
+  const phaseCounts = weeklyPhaseCounts(workload.weeklyPeriods)
+  const densityLine = workload.weeklyPeriods
+    ? `Carga horaria: ${workload.weeklyPeriods} períodos/semana. Densidad esperada de actividades por fase: Anticipación ${phaseCounts.anticipation}, Construcción ${phaseCounts.construction}, Consolidación ${phaseCounts.consolidation}. Ajusta la profundidad de la actividad de cada fase a esta densidad (no la ignores).`
+    : 'Carga horaria no configurada para este grado+materia — usa una densidad estándar (una actividad concreta por fase).'
+
   const systemPrompt = `Eres un asistente pedagógico que ayuda a docentes ecuatorianos a redactar la planificación microcurricular semanal (PUD) por COMPETENCIAS, siguiendo el Currículo Nacional por Competencias (CNC) del MINEDUC.
 
 Asignatura: ${situation.plan.courseAssignment.subject.name}
 Grado/Curso: ${situation.plan.courseAssignment.parallel.level.name}
 Trimestre: ${situation.academicPeriod.name}
+${densityLine}
 
 Competencias seleccionadas por el docente:
 
@@ -242,7 +262,7 @@ ${techniquesText}
 Genera:
 1. indicadoresEvaluacion: indicador(es) de evaluación (usa los oficiales listados arriba).
 2. Saberes: si la competencia YA tiene saberes, pon sus ids en reusedSaberIds; si no, propone 1-2 nuevos de cada tipo en newSabers con code "<código_competencia>.d.1"/".p.1"/".a.1".
-3. methodology: para ANTICIPATION, CONSTRUCTION y CONSOLIDATION — cada fase necesita: activity (una actividad CONCRETA y ESPECÍFICA de al menos 8 palabras, nunca genérica tipo "trabajar en grupos"), duaCodes (1-2 códigos del catálogo dado, coherentes con esa fase), resources (recursos que DEBEN mencionarse literalmente dentro del texto de activity), evidence (evidencia observable, distinta del texto de la actividad).
+3. methodology: para ANTICIPATION, CONSTRUCTION y CONSOLIDATION — cada fase necesita: activity (una actividad CONCRETA y ESPECÍFICA de al menos 8 palabras, nunca genérica tipo "trabajar en grupos"), duaCodes (1-2 códigos del catálogo dado, coherentes con esa fase), resources (cada recurso debe ser una palabra o frase CORTA de 1-3 palabras — SIN paréntesis, comas ni descripciones adicionales — copiada EXACTAMENTE igual, carácter por carácter, dentro del texto de activity; ejemplo correcto: resources=["bloques multibase","ábaco"] si activity dice "...usando bloques multibase y un ábaco para..."; ejemplo INCORRECTO: resources=["bloques multibase para representar decenas y unidades"] porque esa frase larga no aparece igual en activity), evidence (evidencia observable, distinta del texto de la actividad).
 4. assessment: activity, technique (código del catálogo), instrument (compatible con esa técnica), evidence (observable, distinta de activity), criteria (lista de 2-3 criterios que retomen literalmente palabras clave del indicador de evaluación).
 
 Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o instrumento fuera de los dados.`
@@ -252,14 +272,25 @@ Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o in
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const correction = attempt > 1 ? `\n\nCorrige ÚNICAMENTE estos errores de tu respuesta anterior: ${lastErrors.join(', ')}.` : ''
-    const response = await client.messages.create({
-      model: aiConfig.model,
-      max_tokens: 2200,
-      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
-      messages: [{ role: 'user', content: `Genera el borrador de esta semana.${correction}` }],
-      tools: [{ name: 'submit_competency_week_draft', description: 'Envía el borrador estructurado', input_schema: RESPONSE_SCHEMA }],
-      tool_choice: { type: 'tool', name: 'submit_competency_week_draft' },
-    })
+    let response
+    try {
+      response = await client.messages.create({
+        model: aiConfig.model,
+        max_tokens: 2200,
+        system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+        messages: [{ role: 'user', content: `Genera el borrador de esta semana.${correction}` }],
+        tools: [{ name: 'submit_competency_week_draft', description: 'Envía el borrador estructurado', input_schema: RESPONSE_SCHEMA }],
+        tool_choice: { type: 'tool', name: 'submit_competency_week_draft' },
+      })
+    } catch (error) {
+      // Un fallo de la API (timeout, 401, rate-limit, 5xx) nunca debe tumbar la generación
+      // completa — cae al motor determinista igual que un error de validación de contenido.
+      const status = error instanceof Anthropic.APIError ? error.status : undefined
+      const nonRetryable = status === 401 || status === 403 || status === 429
+      lastErrors = [`API_ERROR_${status ?? 'UNKNOWN'}`]
+      if (nonRetryable) break
+      continue
+    }
 
     await prisma.auditLog.create({
       data: {
@@ -309,6 +340,7 @@ Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o in
     lastErrors = validation.errors
   }
 
+  console.warn(`[draftCompetencyWeek] fallback determinista tras ${MAX_ATTEMPTS} intentos — errores: ${lastErrors.join(', ')}`)
   return fallbackResult(lastErrors)
 }
 

@@ -1,0 +1,667 @@
+[
+  {
+    "sublevel": "preparatoria",
+    "levelCodes": [
+      "1B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "CI"
+    ],
+    "weeklyPeriods": null,
+    "groupWeeklyPeriods": 25,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_GROUPED",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 8",
+    "notes": "Bloque por ámbitos; requiere distribución institucional."
+  },
+  {
+    "sublevel": "preparatoria",
+    "levelCodes": [
+      "1B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "ECA",
+      "EF"
+    ],
+    "weeklyPeriods": null,
+    "groupWeeklyPeriods": 5,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_GROUPED",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 8",
+    "notes": "Bloque ECA-EF; no hay reparto individual oficial."
+  },
+  {
+    "sublevel": "elemental",
+    "levelCodes": [
+      "2B",
+      "3B",
+      "4B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "CN",
+      "CS",
+      "LL",
+      "M"
+    ],
+    "weeklyPeriods": null,
+    "groupWeeklyPeriods": 20,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_GROUPED",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 8",
+    "notes": "Bloque común; requiere distribución institucional."
+  },
+  {
+    "sublevel": "media",
+    "levelCodes": [
+      "5B",
+      "6B",
+      "7B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "CN",
+      "CS",
+      "LL",
+      "M"
+    ],
+    "weeklyPeriods": null,
+    "groupWeeklyPeriods": 20,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_GROUPED",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 8",
+    "notes": "Bloque común; requiere distribución institucional."
+  },
+  {
+    "sublevel": "elemental",
+    "levelCodes": [
+      "2B",
+      "3B",
+      "4B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "ECA"
+    ],
+    "weeklyPeriods": 3,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 8",
+    "notes": "El total tabular ECA-EF de 5 se interpreta por asignatura: ECA 3 y EF 2; no es una bolsa institucional."
+  },
+  {
+    "sublevel": "elemental",
+    "levelCodes": [
+      "2B",
+      "3B",
+      "4B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "EF"
+    ],
+    "weeklyPeriods": 2,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 8",
+    "notes": "Carga nacional individual; no requiere distribución institucional."
+  },
+  {
+    "sublevel": "media",
+    "levelCodes": [
+      "5B",
+      "6B",
+      "7B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "ECA"
+    ],
+    "weeklyPeriods": 3,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 8",
+    "notes": "El total tabular ECA-EF de 5 se interpreta por asignatura: ECA 3 y EF 2; no es una bolsa institucional."
+  },
+  {
+    "sublevel": "media",
+    "levelCodes": [
+      "5B",
+      "6B",
+      "7B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "EF"
+    ],
+    "weeklyPeriods": 2,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 8",
+    "notes": "Carga nacional individual; no requiere distribución institucional."
+  },
+  {
+    "sublevel": "elemental",
+    "levelCodes": [
+      "2B",
+      "3B",
+      "4B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "EFL"
+    ],
+    "weeklyPeriods": 3,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 8",
+    "notes": "Valor individual explícito."
+  },
+  {
+    "sublevel": "media",
+    "levelCodes": [
+      "5B",
+      "6B",
+      "7B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "EFL"
+    ],
+    "weeklyPeriods": 3,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 8",
+    "notes": "Valor individual explícito."
+  },
+  {
+    "sublevel": "elemental",
+    "levelCodes": [
+      "2B",
+      "3B",
+      "4B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "ACOMP",
+      "LECTURA"
+    ],
+    "weeklyPeriods": 1,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 8",
+    "notes": "Cada asignación tiene individualmente 1 período."
+  },
+  {
+    "sublevel": "media",
+    "levelCodes": [
+      "5B",
+      "6B",
+      "7B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "ACOMP",
+      "LECTURA"
+    ],
+    "weeklyPeriods": 1,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 8",
+    "notes": "Cada asignación tiene individualmente 1 período."
+  },
+  {
+    "sublevel": "superior",
+    "levelCodes": [
+      "8B",
+      "9B",
+      "10B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "LL"
+    ],
+    "weeklyPeriods": 6,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 9",
+    "notes": "Valor individual explícito."
+  },
+  {
+    "sublevel": "superior",
+    "levelCodes": [
+      "8B",
+      "9B",
+      "10B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "M"
+    ],
+    "weeklyPeriods": 6,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 9",
+    "notes": "Valor individual explícito."
+  },
+  {
+    "sublevel": "superior",
+    "levelCodes": [
+      "8B",
+      "9B",
+      "10B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "CS"
+    ],
+    "weeklyPeriods": 4,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 9",
+    "notes": "Valor individual explícito."
+  },
+  {
+    "sublevel": "superior",
+    "levelCodes": [
+      "8B",
+      "9B",
+      "10B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "CN"
+    ],
+    "weeklyPeriods": 4,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 9",
+    "notes": "Valor individual explícito."
+  },
+  {
+    "sublevel": "superior",
+    "levelCodes": [
+      "8B",
+      "9B",
+      "10B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "ECA",
+      "EF"
+    ],
+    "weeklyPeriods": 2,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 9",
+    "notes": "Cada asignatura tiene individualmente 2 períodos."
+  },
+  {
+    "sublevel": "superior",
+    "levelCodes": [
+      "8B",
+      "9B",
+      "10B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "EFL"
+    ],
+    "weeklyPeriods": 3,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 9",
+    "notes": "Valor individual explícito."
+  },
+  {
+    "sublevel": "superior",
+    "levelCodes": [
+      "8B",
+      "9B",
+      "10B"
+    ],
+    "educationOffer": "EGB",
+    "subjectCodes": [
+      "ACOMP",
+      "LECTURA",
+      "OVP"
+    ],
+    "weeklyPeriods": 1,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 7, p. 9",
+    "notes": "Cada asignación tiene individualmente 1 período."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "1BGU",
+      "2BGU"
+    ],
+    "educationOffer": "BACHILLERATO_CIENCIAS",
+    "subjectCodes": [
+      "M"
+    ],
+    "weeklyPeriods": 5,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 10",
+    "notes": "Ciencias; valor individual explícito."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "1BGU",
+      "2BGU"
+    ],
+    "educationOffer": "BACHILLERATO_CIENCIAS",
+    "subjectCodes": [
+      "LL"
+    ],
+    "weeklyPeriods": 5,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 10",
+    "notes": "Ciencias; valor individual explícito."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "1BGU",
+      "2BGU"
+    ],
+    "educationOffer": "BACHILLERATO_CIENCIAS",
+    "subjectCodes": [
+      "BIOLOGY",
+      "CHEMISTRY",
+      "EFL",
+      "PHYSICS"
+    ],
+    "weeklyPeriods": 3,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 10",
+    "notes": "Ciencias; cada asignatura tiene individualmente 3 períodos."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "1BGU",
+      "2BGU"
+    ],
+    "educationOffer": "BACHILLERATO_CIENCIAS",
+    "subjectCodes": [
+      "ECA",
+      "EDUCC",
+      "EF",
+      "EG",
+      "HISTORY",
+      "PHILOSOPHY"
+    ],
+    "weeklyPeriods": 2,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 10",
+    "notes": "Ciencias; cada asignatura tiene individualmente 2 períodos."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "1BGU",
+      "2BGU"
+    ],
+    "educationOffer": "BACHILLERATO_CIENCIAS",
+    "subjectCodes": [
+      "ACOMP"
+    ],
+    "weeklyPeriods": 1,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 10",
+    "notes": "Ciencias; valor individual explícito."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "3BGU"
+    ],
+    "educationOffer": "BACHILLERATO_CIENCIAS",
+    "subjectCodes": [
+      "LL",
+      "M"
+    ],
+    "weeklyPeriods": 4,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 11",
+    "notes": "Ciencias; cada asignatura tiene individualmente 4 períodos."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "3BGU"
+    ],
+    "educationOffer": "BACHILLERATO_CIENCIAS",
+    "subjectCodes": [
+      "BIOLOGY",
+      "CHEMISTRY",
+      "EF",
+      "EG",
+      "PHYSICS"
+    ],
+    "weeklyPeriods": 2,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 11",
+    "notes": "Ciencias; cada asignatura tiene individualmente 2 períodos."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "3BGU"
+    ],
+    "educationOffer": "BACHILLERATO_CIENCIAS",
+    "subjectCodes": [
+      "EFL",
+      "HISTORY"
+    ],
+    "weeklyPeriods": 3,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 11",
+    "notes": "Ciencias; cada asignatura tiene individualmente 3 períodos."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "3BGU"
+    ],
+    "educationOffer": "BACHILLERATO_CIENCIAS",
+    "subjectCodes": [
+      "OPTATIVAS"
+    ],
+    "weeklyPeriods": null,
+    "groupWeeklyPeriods": 10,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_GROUPED",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 11",
+    "notes": "Bloque de optativas; requiere distribución institucional."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "3BGU"
+    ],
+    "educationOffer": "BACHILLERATO_CIENCIAS",
+    "subjectCodes": [
+      "ACOMP"
+    ],
+    "weeklyPeriods": 1,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 45,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 11",
+    "notes": "Ciencias; valor individual explícito."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "1BGU",
+      "2BGU"
+    ],
+    "educationOffer": "BACHILLERATO_TECNICO",
+    "subjectCodes": [
+      "EFL",
+      "LL",
+      "M"
+    ],
+    "weeklyPeriods": 3,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 40,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 12",
+    "notes": "BT; cada asignatura tiene individualmente 3 períodos."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "1BGU",
+      "2BGU"
+    ],
+    "educationOffer": "BACHILLERATO_TECNICO",
+    "subjectCodes": [
+      "BIOLOGY",
+      "CHEMISTRY",
+      "ECA",
+      "EDUCC",
+      "EF",
+      "EG",
+      "HISTORY",
+      "PHILOSOPHY",
+      "PHYSICS"
+    ],
+    "weeklyPeriods": 2,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 40,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 12",
+    "notes": "BT; cada asignatura tiene individualmente 2 períodos."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "1BGU",
+      "2BGU"
+    ],
+    "educationOffer": "BACHILLERATO_TECNICO",
+    "subjectCodes": [
+      "ACOMP"
+    ],
+    "weeklyPeriods": 1,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 40,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 12",
+    "notes": "BT; valor individual explícito."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "1BGU",
+      "2BGU"
+    ],
+    "educationOffer": "BACHILLERATO_TECNICO",
+    "subjectCodes": [
+      "BT_ADICIONALES",
+      "FIGURA_PROFESIONAL"
+    ],
+    "weeklyPeriods": null,
+    "groupWeeklyPeriods": 12,
+    "periodMinutes": 40,
+    "sourceType": "OFFICIAL_GROUPED",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 12",
+    "notes": "Bloque adicional BT; no hay reparto oficial por módulo."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "3BGU"
+    ],
+    "educationOffer": "BACHILLERATO_TECNICO",
+    "subjectCodes": [
+      "BIOLOGY",
+      "CHEMISTRY",
+      "EF",
+      "EFL",
+      "EG",
+      "HISTORY",
+      "LL",
+      "M",
+      "PHYSICS"
+    ],
+    "weeklyPeriods": 2,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 40,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 12",
+    "notes": "BT; cada asignatura tiene individualmente 2 períodos."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "3BGU"
+    ],
+    "educationOffer": "BACHILLERATO_TECNICO",
+    "subjectCodes": [
+      "ACOMP"
+    ],
+    "weeklyPeriods": 1,
+    "groupWeeklyPeriods": null,
+    "periodMinutes": 40,
+    "sourceType": "OFFICIAL_INDIVIDUAL",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 12",
+    "notes": "BT; valor individual explícito."
+  },
+  {
+    "sublevel": "bachillerato",
+    "levelCodes": [
+      "3BGU"
+    ],
+    "educationOffer": "BACHILLERATO_TECNICO",
+    "subjectCodes": [
+      "BT_ADICIONALES",
+      "FIGURA_PROFESIONAL"
+    ],
+    "weeklyPeriods": null,
+    "groupWeeklyPeriods": 21,
+    "periodMinutes": 40,
+    "sourceType": "OFFICIAL_GROUPED",
+    "sourceDocument": "MINEDUC-MINEDUC-2023-00008-A, art. 8, p. 12",
+    "notes": "Bloque adicional BT; no hay reparto oficial por módulo."
+  }
+]

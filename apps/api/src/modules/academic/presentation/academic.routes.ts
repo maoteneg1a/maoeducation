@@ -306,6 +306,24 @@ export default async function academicRoutes(app: FastifyInstance) {
     },
   )
 
+  app.get<{ Params: { id: string } }>(
+    '/academic/course-assignments/:id/workload',
+    { preHandler: [requirePermission('planning', 'read', 'own')] },
+    async (req, reply) => reply.send(await repo.getAssignmentWorkload(req.params.id, req.user.institutionId)),
+  )
+
+  app.patch<{ Params: { id: string }; Body: { weeklyPeriodsOverride: number | null } }>(
+    '/academic/course-assignments/:id/weekly-periods-override',
+    { preHandler: [requirePermission('academic_config', 'manage')] },
+    async (req, reply) => {
+      const { weeklyPeriodsOverride } = req.body
+      if (weeklyPeriodsOverride !== null && (typeof weeklyPeriodsOverride !== 'number' || weeklyPeriodsOverride < 1 || weeklyPeriodsOverride > 40)) {
+        return reply.status(400).send({ message: 'weeklyPeriodsOverride debe ser un número entre 1 y 40, o null' })
+      }
+      return reply.send(await repo.updateAssignmentWeeklyPeriodsOverride(req.params.id, req.user.institutionId, weeklyPeriodsOverride))
+    },
+  )
+
   // ─── Period Schemes ────────────────────────────────────────────────────────
 
   app.get(
