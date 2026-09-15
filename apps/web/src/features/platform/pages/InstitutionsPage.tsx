@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Users, LayoutGrid } from 'lucide-react'
+import { Plus, Users, LayoutGrid, Sparkles } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
@@ -18,7 +18,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/components/ui/dialog'
-import { useCreateInstitution, useInstitutions, useToggleInstitution, useUpdateInstitutionModules } from '../hooks/usePlatform'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/shared/components/ui/select'
+import { toast } from 'sonner'
+import {
+  useCreateInstitution,
+  useInstitutions,
+  useToggleInstitution,
+  useUpdateInstitutionModules,
+  useSetTestFlag,
+  useSeedTestData,
+} from '../hooks/usePlatform'
 import type { Institution } from '../api/platform.api'
 import { ALL_MODULES, MODULE_LABELS, PERSONAL_DEFAULT_MODULES, type ModuleKey } from '@/shared/lib/modules'
 
@@ -29,6 +40,7 @@ const schema = z.object({
   adminLastName: z.string().min(1, 'Requerido'),
   adminEmail: z.string().email('Email inválido'),
   adminPassword: z.string().min(8, 'Mínimo 8 caracteres'),
+  regime: z.enum(['SIERRA_AMAZONIA', 'COSTA_GALAPAGOS']),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -39,17 +51,19 @@ export function InstitutionsPage() {
   const createInstitution = useCreateInstitution()
   const toggleInstitution = useToggleInstitution()
   const updateModules = useUpdateInstitutionModules()
+  const setTestFlag = useSetTestFlag()
+  const seedTestData = useSeedTestData()
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [modulesInstitution, setModulesInstitution] = useState<Institution | null>(null)
   const [selectedModules, setSelectedModules] = useState<string[]>([])
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
   })
 
   const openCreate = () => {
-    reset({ name: '', code: '', adminFirstName: '', adminLastName: '', adminEmail: '', adminPassword: '' })
+    reset({ name: '', code: '', adminFirstName: '', adminLastName: '', adminEmail: '', adminPassword: '', regime: 'SIERRA_AMAZONIA' })
     setDialogOpen(true)
   }
 
@@ -84,6 +98,7 @@ export function InstitutionsPage() {
           email: values.adminEmail,
           password: values.adminPassword,
         },
+        regime: values.regime,
       },
       { onSuccess: () => setDialogOpen(false) },
     )
@@ -123,10 +138,46 @@ export function InstitutionsPage() {
       ),
     },
     {
+      id: 'isTest',
+      header: 'Prueba',
+      cell: ({ row }) => (
+        <button
+          type="button"
+          className="text-left"
+          title={row.original.isTestInstitution ? 'Marcar como escuela real (oculta el botón de sembrar datos de prueba)' : 'Marcar como institución de prueba'}
+          onClick={() => setTestFlag.mutate({ id: row.original.id, isTestInstitution: !row.original.isTestInstitution })}
+        >
+          <Badge variant={row.original.isTestInstitution ? 'outline' : 'secondary'}>
+            {row.original.isTestInstitution ? 'De prueba' : 'Real'}
+          </Badge>
+        </button>
+      ),
+    },
+    {
       id: 'actions',
       header: '',
       cell: ({ row }) => (
         <div className="flex justify-end gap-2">
+          {row.original.isTestInstitution && (
+            <Button
+              variant="outline"
+              size="sm"
+              loading={seedTestData.isPending && seedTestData.variables === row.original.id}
+              onClick={() =>
+                seedTestData.mutate(row.original.id, {
+                  onSuccess: (result) => {
+                    toast.success(
+                      `Datos de prueba listos: ${result.parallelName}, ${result.teacherEmails.length} docentes, ${result.studentEmails.length} alumnos (contraseña: ${result.password})`,
+                      { duration: 15000 },
+                    )
+                  },
+                })
+              }
+            >
+              <Sparkles className="mr-1.5 h-4 w-4" />
+              Sembrar prueba
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -199,6 +250,21 @@ export function InstitutionsPage() {
                 <Label htmlFor="code">Código</Label>
                 <Input id="code" placeholder="MI_ESCUELA" {...register('code')} />
                 {errors.code && <p className="text-xs text-red-500">{errors.code.message}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Régimen académico</Label>
+                <Select value={watch('regime')} onValueChange={(v) => setValue('regime', v as FormValues['regime'])}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar régimen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SIERRA_AMAZONIA">Sierra / Amazonía (septiembre—julio)</SelectItem>
+                    <SelectItem value="COSTA_GALAPAGOS">Costa / Galápagos (abril—febrero)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Se crea automáticamente el año lectivo 2026-2027 activo con sus 3 trimestres — editable después.
+                </p>
               </div>
               <div className="border-t pt-4">
                 <p className="mb-3 text-sm font-medium text-slate-700">Administrador inicial</p>

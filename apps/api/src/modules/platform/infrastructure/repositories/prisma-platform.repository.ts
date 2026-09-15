@@ -62,7 +62,7 @@ export class PrismaPlatformRepository implements IPlatformRepository {
 
   async createInstitution(dto: CreateInstitutionDto): Promise<{ institutionId: string; adminUserId: string }> {
     return prisma.$transaction((tx) =>
-      bootstrapInstitution(tx, { name: dto.name, code: dto.code }, dto.admin),
+      bootstrapInstitution(tx, { name: dto.name, code: dto.code }, dto.admin, dto.regime),
     )
   }
 
@@ -79,15 +79,19 @@ export class PrismaPlatformRepository implements IPlatformRepository {
         _count: { select: { users: true } },
       },
     })
-    return institutions.map((i) => ({
-      id: i.id,
-      name: i.name,
-      code: i.code,
-      isActive: i.isActive,
-      settings: i.settings,
-      userCount: i._count.users,
-      createdAt: i.createdAt,
-    }))
+    return institutions.map((i) => {
+      const settings = (i.settings ?? {}) as { isTestInstitution?: boolean }
+      return {
+        id: i.id,
+        name: i.name,
+        code: i.code,
+        isActive: i.isActive,
+        settings: i.settings,
+        userCount: i._count.users,
+        createdAt: i.createdAt,
+        isTestInstitution: settings.isTestInstitution ?? false,
+      }
+    })
   }
 
   async findInstitutionById(id: string): Promise<{ id: string; isActive: boolean } | null> {
@@ -103,10 +107,12 @@ export class PrismaPlatformRepository implements IPlatformRepository {
         name: true,
         code: true,
         isActive: true,
+        settings: true,
         createdAt: true,
         _count: { select: { users: true } },
       },
     })
+    const settings = (i.settings ?? {}) as { isTestInstitution?: boolean }
     return {
       id: i.id,
       name: i.name,
@@ -114,6 +120,7 @@ export class PrismaPlatformRepository implements IPlatformRepository {
       isActive: i.isActive,
       userCount: i._count.users,
       createdAt: i.createdAt,
+      isTestInstitution: settings.isTestInstitution ?? false,
     }
   }
 

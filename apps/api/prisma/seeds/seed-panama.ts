@@ -51,6 +51,7 @@ async function main() {
           firstName: 'Administración',
           lastName: 'Panamá',
         },
+        'COSTA_GALAPAGOS',
       ),
     )
     institution = await prisma.institution.findUniqueOrThrow({ where: { id: result.institutionId } })
@@ -104,6 +105,10 @@ async function main() {
           isActive: p.isActive,
         },
       })
+    } else if (period.isActive !== p.isActive) {
+      // bootstrapInstitution ya crea el año+períodos (marcando activo el 1ro por
+      // defecto) — si este seed pide un período distinto como activo, se corrige.
+      period = await prisma.academicPeriod.update({ where: { id: period.id }, data: { isActive: p.isActive } })
     }
     periods[p.periodNumber] = period.id
   }

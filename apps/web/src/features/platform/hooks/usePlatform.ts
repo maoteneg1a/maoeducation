@@ -62,6 +62,26 @@ export function useToggleInstitution() {
   })
 }
 
+export function useSetTestFlag() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, isTestInstitution }: { id: string; isTestInstitution: boolean }) =>
+      platformApi.setTestFlag(id, isTestInstitution),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: platformKeys.institutions })
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useSeedTestData() {
+  return useMutation({
+    mutationFn: (id: string) => platformApi.seedTestData(id),
+    onSuccess: () => toast.success('Datos de prueba sembrados correctamente'),
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
 export function useInstitutionAdmins(institutionId: string) {
   return useQuery({
     queryKey: platformKeys.admins(institutionId),

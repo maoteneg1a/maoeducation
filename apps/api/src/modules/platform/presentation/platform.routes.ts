@@ -18,6 +18,7 @@ import {
   PlatformLoginBody,
   UpdateInstitutionAdminBody,
 } from './validators/platform.schema'
+import { seedTestData } from '../application/services/seed-test-data.service'
 
 const repo = new PrismaPlatformRepository()
 const loginUseCase = new PlatformLoginUseCase(repo, tokenService)
@@ -103,6 +104,7 @@ export default async function platformRoutes(app: FastifyInstance) {
             name: { type: 'string', minLength: 2 },
             code: { type: 'string', minLength: 2 },
             admin: adminUserBody,
+            regime: { type: 'string', enum: ['SIERRA_AMAZONIA', 'COSTA_GALAPAGOS'] },
           },
         },
       },
@@ -146,6 +148,46 @@ export default async function platformRoutes(app: FastifyInstance) {
         select: { id: true, settings: true },
       })
       return reply.send({ id: updated.id, modules: (updated.settings as Record<string, unknown>).modules })
+    },
+  )
+
+  app.patch<{ Params: { id: string }; Body: { isTestInstitution: boolean } }>(
+    '/platform/institutions/:id/test-flag',
+    {
+      ...protectedOpts,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['isTestInstitution'],
+          properties: { isTestInstitution: { type: 'boolean' } },
+        },
+      },
+    },
+    async (req, reply) => {
+      const institution = await prisma.institution.findUnique({
+        where: { id: req.params.id },
+        select: { settings: true },
+      })
+      if (!institution) return reply.status(404).send({ message: 'Institución no encontrada' })
+      const current = (institution.settings ?? {}) as Record<string, unknown>
+      const updated = await prisma.institution.update({
+        where: { id: req.params.id },
+        data: {
+          settings: { ...current, isTestInstitution: req.body.isTestInstitution } as unknown as Parameters<
+            typeof prisma.institution.update
+          >[0]['data']['settings'],
+        },
+        select: { id: true, settings: true },
+      })
+      return reply.send({ id: updated.id, isTestInstitution: (updated.settings as Record<string, unknown>).isTestInstitution })
+    },
+  )
+
+  app.post<{ Params: { id: string } }>(
+    '/platform/institutions/:id/seed-test-data',
+    protectedOpts,
+    async (req, reply) => {
+      return reply.send(await seedTestData(req.params.id))
     },
   )
 

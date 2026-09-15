@@ -4,6 +4,19 @@ import fs from 'fs'
 import path from 'path'
 
 /**
+ * Ruta a un JSON de seed en prisma/seeds/curriculum/. Deliberadamente NO usa
+ * __dirname: tsup empaqueta todo src/ en un único dist/server.js, así que en
+ * producción __dirname apunta a dist/ y "../../../../../prisma/..." termina
+ * subiendo más allá de la raíz del filesystem (bug real que rompía la creación
+ * de instituciones en Railway: ENOENT en '/prisma/seeds/...'). process.cwd()
+ * es estable en dev (`cd apps/api && pnpm dev`) y en Railway (nixpacks corre
+ * cada servicio con cwd = apps/api), porque prisma/ vive en la raíz de ese paquete.
+ */
+function curriculumFilePath(fileName: string): string {
+  return path.join(process.cwd(), 'prisma/seeds/curriculum', fileName)
+}
+
+/**
  * Banco curricular MINEDUC (Currículo Priorizado con Énfasis en Competencias,
  * edición 2025 con Inserciones Curriculares 2024) cargado desde JSON pre-parseado
  * de los documentos oficiales. Estructura: Área -> subnivel -> Criterio de
@@ -32,7 +45,7 @@ let cachedDefaultCurriculum: DefaultCurriculumArea[] | null = null
 
 export function loadDefaultCurriculum(): DefaultCurriculumArea[] {
   if (cachedDefaultCurriculum) return cachedDefaultCurriculum
-  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/default-curriculum.json')
+  const filePath = curriculumFilePath('default-curriculum.json')
   cachedDefaultCurriculum = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultCurriculumArea[]
   return cachedDefaultCurriculum
 }
@@ -70,7 +83,7 @@ let cachedDefaultCompetencies: DefaultCompetencyArea[] | null = null
 
 export function loadDefaultCompetencies(): DefaultCompetencyArea[] {
   if (cachedDefaultCompetencies) return cachedDefaultCompetencies
-  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/default-competencies.json')
+  const filePath = curriculumFilePath('default-competencies.json')
   cachedDefaultCompetencies = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultCompetencyArea[]
   return cachedDefaultCompetencies
 }
@@ -89,7 +102,7 @@ let cachedKeyCompetencies: DefaultKeyCompetency[] | null = null
 
 export function loadKeyCompetencies(): DefaultKeyCompetency[] {
   if (cachedKeyCompetencies) return cachedKeyCompetencies
-  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/key-competencies.json')
+  const filePath = curriculumFilePath('key-competencies.json')
   cachedKeyCompetencies = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultKeyCompetency[]
   return cachedKeyCompetencies
 }
@@ -120,7 +133,7 @@ let cachedDuaCatalog: DefaultDuaCheckpoint[] | null = null
 
 export function loadDuaCatalog(): DefaultDuaCheckpoint[] {
   if (cachedDuaCatalog) return cachedDuaCatalog
-  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/dua-catalog.json')
+  const filePath = curriculumFilePath('dua-catalog.json')
   cachedDuaCatalog = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultDuaCheckpoint[]
   return cachedDuaCatalog
 }
@@ -135,7 +148,7 @@ let cachedAssessmentCatalog: DefaultAssessmentCatalog | null = null
 
 export function loadAssessmentCatalog(): DefaultAssessmentCatalog {
   if (cachedAssessmentCatalog) return cachedAssessmentCatalog
-  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/assessment-catalog.json')
+  const filePath = curriculumFilePath('assessment-catalog.json')
   cachedAssessmentCatalog = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultAssessmentCatalog
   return cachedAssessmentCatalog
 }
@@ -160,7 +173,7 @@ let cachedInsertionBanks: DefaultInsertionBank[] | null = null
 
 export function loadInsertionBanks(): DefaultInsertionBank[] {
   if (cachedInsertionBanks) return cachedInsertionBanks
-  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/insertion-banks.json')
+  const filePath = curriculumFilePath('insertion-banks.json')
   cachedInsertionBanks = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultInsertionBank[]
   return cachedInsertionBanks
 }
@@ -187,7 +200,7 @@ let cachedCurricularWorkload: DefaultCurricularWorkload[] | null = null
 
 export function loadCurricularWorkload(): DefaultCurricularWorkload[] {
   if (cachedCurricularWorkload) return cachedCurricularWorkload
-  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/curricular-workload.json')
+  const filePath = curriculumFilePath('curricular-workload.json')
   cachedCurricularWorkload = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultCurricularWorkload[]
   return cachedCurricularWorkload
 }
@@ -587,6 +600,7 @@ export interface BootstrapAdminInput {
 export interface BootstrapInstitutionResult {
   institutionId: string
   adminUserId: string
+  academicYearId: string
 }
 
 /**
@@ -597,17 +611,58 @@ export interface BootstrapInstitutionResult {
  * Debe ejecutarse dentro de una transacción (`tx`) y asume que ni el código de
  * institución ni el email del admin existen aún (validar antes en el use-case).
  */
+// Calendario oficial MINEDUC por régimen — mismos rangos que ya usa el seed real
+// de "Escuela Panamá" (régimen Costa). Sierra/Amazonía va de septiembre a julio;
+// Costa/Galápagos de abril a febrero. El admin puede editar las fechas después
+// desde Configuración → Años Académicos si su calendario particular difiere.
+export type AcademicRegime = 'SIERRA_AMAZONIA' | 'COSTA_GALAPAGOS'
+
+interface RegimeCalendar {
+  yearName: string
+  startDate: string
+  endDate: string
+  periods: { periodNumber: number; name: string; startDate: string; endDate: string }[]
+}
+
+function regimeCalendar(regime: AcademicRegime): RegimeCalendar {
+  if (regime === 'SIERRA_AMAZONIA') {
+    return {
+      yearName: '2026-2027',
+      startDate: '2026-09-01',
+      endDate: '2027-07-09',
+      periods: [
+        { periodNumber: 1, name: 'Primer Trimestre', startDate: '2026-09-01', endDate: '2026-12-11' },
+        { periodNumber: 2, name: 'Segundo Trimestre', startDate: '2026-12-14', endDate: '2027-03-26' },
+        { periodNumber: 3, name: 'Tercer Trimestre', startDate: '2027-03-29', endDate: '2027-07-09' },
+      ],
+    }
+  }
+  return {
+    yearName: '2026-2027',
+    startDate: '2026-05-04',
+    endDate: '2027-02-24',
+    periods: [
+      { periodNumber: 1, name: 'Primer Trimestre', startDate: '2026-05-04', endDate: '2026-08-14' },
+      { periodNumber: 2, name: 'Segundo Trimestre', startDate: '2026-08-17', endDate: '2026-11-13' },
+      { periodNumber: 3, name: 'Tercer Trimestre', startDate: '2026-11-16', endDate: '2027-02-24' },
+    ],
+  }
+}
+
 export async function bootstrapInstitution(
   tx: Prisma.TransactionClient,
   institution: { name: string; code: string },
   admin: BootstrapAdminInput,
+  regime: AcademicRegime = 'SIERRA_AMAZONIA',
 ): Promise<BootstrapInstitutionResult> {
   // 1. Institución (con configuración de calificación por defecto)
   const inst = await tx.institution.create({
     data: {
       name: institution.name,
       code: institution.code,
-      settings: { gradingConfig: DEFAULT_GRADING_CONFIG } as unknown as Prisma.InputJsonValue,
+      // isTestInstitution habilita el botón "Sembrar datos de prueba" en el panel de
+      // superadmin — el admin lo apaga cuando la institución ya es una escuela real.
+      settings: { gradingConfig: DEFAULT_GRADING_CONFIG, isTestInstitution: true } as unknown as Prisma.InputJsonValue,
     },
   })
 
@@ -640,7 +695,7 @@ export async function bootstrapInstitution(
   }
 
   // 5. Esquema de periodos trimestral (por defecto)
-  await tx.academicPeriodScheme.create({
+  const periodScheme = await tx.academicPeriodScheme.create({
     data: {
       institutionId: inst.id,
       name: 'Trimestral',
@@ -648,6 +703,31 @@ export async function bootstrapInstitution(
       periodsCount: 3,
       isDefault: true,
     },
+  })
+
+  // 5b. Año lectivo activo + sus 3 trimestres — sin esto, todo selector de período
+  // de la app (Actividades, Asistencia, Planificación...) sale vacío hasta que el
+  // admin entra manualmente a crearlos. Fechas por régimen (ver regimeCalendar).
+  const calendar = regimeCalendar(regime)
+  const academicYear = await tx.academicYear.create({
+    data: {
+      institutionId: inst.id,
+      name: calendar.yearName,
+      startDate: new Date(calendar.startDate),
+      endDate: new Date(calendar.endDate),
+      isActive: true,
+    },
+  })
+  await tx.academicPeriod.createMany({
+    data: calendar.periods.map((p) => ({
+      academicYearId: academicYear.id,
+      schemeId: periodScheme.id,
+      periodNumber: p.periodNumber,
+      name: p.name,
+      startDate: new Date(p.startDate),
+      endDate: new Date(p.endDate),
+      isActive: p.periodNumber === 1,
+    })),
   })
 
   // 6. Niveles educativos
@@ -782,5 +862,5 @@ export async function bootstrapInstitution(
   })
   await tx.userRole.create({ data: { userId: adminUser.id, roleId: roleMap['admin'] } })
 
-  return { institutionId: inst.id, adminUserId: adminUser.id }
+  return { institutionId: inst.id, adminUserId: adminUser.id, academicYearId: academicYear.id }
 }

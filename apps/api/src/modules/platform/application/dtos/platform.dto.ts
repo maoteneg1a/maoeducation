@@ -20,6 +20,8 @@ export interface CreateInstitutionDto {
   name: string
   code: string
   admin: CreateInstitutionAdminInput
+  /** Régimen académico ecuatoriano — determina las fechas del año lectivo y sus 3 trimestres creados automáticamente. */
+  regime?: 'SIERRA_AMAZONIA' | 'COSTA_GALAPAGOS'
 }
 
 export interface InstitutionListItemDto {
@@ -29,6 +31,8 @@ export interface InstitutionListItemDto {
   isActive: boolean
   userCount: number
   createdAt: Date
+  /** Habilita el botón "Sembrar datos de prueba" en la UI — true por defecto al crear, el admin lo apaga cuando ya es una escuela real. */
+  isTestInstitution: boolean
 }
 
 export interface InstitutionAdminDto {
