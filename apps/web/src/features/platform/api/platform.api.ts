@@ -20,6 +20,15 @@ export interface Institution {
   userCount: number
   createdAt: string
   settings?: Record<string, unknown>
+  /** Habilita el botón "Sembrar datos de prueba" — true por defecto al crear, editable en el toggle. */
+  isTestInstitution: boolean
+}
+
+export interface SeedTestDataResult {
+  parallelName: string
+  teacherEmails: string[]
+  studentEmails: string[]
+  password: string
 }
 
 export interface CreateInstitutionPayload {
@@ -31,6 +40,8 @@ export interface CreateInstitutionPayload {
     lastName: string
     password: string
   }
+  /** Determina las fechas del año lectivo y sus 3 trimestres, creados automáticamente. */
+  regime: 'SIERRA_AMAZONIA' | 'COSTA_GALAPAGOS'
 }
 
 export interface InstitutionAdmin {
@@ -106,6 +117,9 @@ export const platformApi = {
   createInstitution: (data: CreateInstitutionPayload) =>
     platformPost<Institution>('platform/institutions', data),
   toggleInstitution: (id: string) => platformPatch<Institution>(`platform/institutions/${id}/toggle`),
+  setTestFlag: (id: string, isTestInstitution: boolean) =>
+    platformPatch<{ id: string; isTestInstitution: boolean }>(`platform/institutions/${id}/test-flag`, { isTestInstitution }),
+  seedTestData: (id: string) => platformPost<SeedTestDataResult>(`platform/institutions/${id}/seed-test-data`),
 
   getInstitutionAdmins: (institutionId: string) =>
     platformGet<InstitutionAdmin[]>(`platform/institutions/${institutionId}/admins`),
