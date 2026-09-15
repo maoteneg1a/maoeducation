@@ -33,6 +33,7 @@ const RESPONSE_SCHEMA = {
           contribucion: { type: 'string' },
           responsabilidad: { type: 'string' },
           skillIds: { type: 'array', items: { type: 'string' } },
+          competencyIds: { type: 'array', items: { type: 'string' } },
           newSabers: { type: 'array', items: SABER_SCHEMA },
           reusedSaberIds: { type: 'array', items: { type: 'string' } },
           weeks: {
@@ -53,7 +54,7 @@ const RESPONSE_SCHEMA = {
             },
           },
         },
-        required: ['contributionId', 'contribucion', 'responsabilidad', 'skillIds', 'newSabers', 'reusedSaberIds', 'weeks'],
+        required: ['contributionId', 'contribucion', 'responsabilidad', 'skillIds', 'competencyIds', 'newSabers', 'reusedSaberIds', 'weeks'],
         additionalProperties: false,
       },
     },
@@ -118,10 +119,49 @@ export async function draftProject(institutionId: string, actorId: string, dto: 
   const subnivel = project.parallel.level.subnivel
   if (!subnivel) throw new ForbiddenError('El paralelo no tiene subnivel configurado')
 
-  // Para cada contribución: si ya tiene destrezas elegidas, se las pasamos a la IA con sus saberes.
-  // Si no tiene ninguna, le damos un catálogo de destrezas disponibles de esa área para que elija.
+  const planningModel = await institutionRepo.getPlanningModel(institutionId)
+  const isCompetencyModel = planningModel === 'competencias'
+
+  // Para cada contribución: si ya tiene destrezas/competencias elegidas, se las pasamos a la
+  // IA con sus saberes. Si no tiene ninguna, le damos un catálogo disponible de esa área para
+  // que elija. El campo relevante (skillIds o competencyIds) depende del modelo activo.
   const contributionBlocks: string[] = []
   for (const c of project.contributions) {
+    if (isCompetencyModel) {
+      const areaId = c.courseAssignment.subject.competencyAreaId
+      if (c.competencyIds.length > 0) {
+        const competencies = await prisma.competency.findMany({
+          where: { id: { in: c.competencyIds } },
+          include: { sabers: { where: { isActive: true } } },
+        })
+        const competenciesText = competencies
+          .map((comp) => {
+            const sabers = comp.sabers.length
+              ? comp.sabers.map((sb) => `      - [${sb.id}] (${sb.type}) ${sb.code}: ${sb.description}`).join('\n')
+              : '      (sin saberes — propone nuevos)'
+            return `    - ${comp.code}: ${comp.text}\n${sabers}`
+          })
+          .join('\n')
+        contributionBlocks.push(
+          `- contributionId "${c.id}" — ${c.courseAssignment.subject.name}\n  Competencias ya elegidas (usa estos ids en competencyIds, no elijas otras; deja skillIds vacío):\n${competenciesText}`,
+        )
+      } else if (areaId) {
+        const availableCompetencies = await prisma.competency.findMany({
+          where: { areaId, subnivel, isActive: true },
+          take: 40,
+        })
+        const catalog = availableCompetencies.map((comp) => `      [${comp.id}] ${comp.code}: ${comp.text}`).join('\n')
+        contributionBlocks.push(
+          `- contributionId "${c.id}" — ${c.courseAssignment.subject.name} (SIN competencias elegidas — elige 1-2 relevantes al reto del catálogo, usa sus ids reales en competencyIds, deja skillIds vacío):\n${catalog}`,
+        )
+      } else {
+        contributionBlocks.push(
+          `- contributionId "${c.id}" — ${c.courseAssignment.subject.name} (sin área de competencias vinculada — deja competencyIds vacío, skillIds vacío, newSabers vacío, reusedSaberIds vacío, pero SÍ genera contribucion/responsabilidad/weeks)`,
+        )
+      }
+      continue
+    }
+
     const areaId = c.courseAssignment.subject.curriculumAreaId
     if (c.skillIds.length > 0) {
       const skills = await prisma.curriculumSkill.findMany({
@@ -137,7 +177,7 @@ export async function draftProject(institutionId: string, actorId: string, dto: 
         })
         .join('\n')
       contributionBlocks.push(
-        `- contributionId "${c.id}" — ${c.courseAssignment.subject.name}\n  Destrezas ya elegidas (usa estos ids en skillIds, no elijas otras):\n${skillsText}`,
+        `- contributionId "${c.id}" — ${c.courseAssignment.subject.name}\n  Destrezas ya elegidas (usa estos ids en skillIds, no elijas otras; deja competencyIds vacío):\n${skillsText}`,
       )
     } else if (areaId) {
       const availableSkills = await prisma.curriculumSkill.findMany({
@@ -146,11 +186,11 @@ export async function draftProject(institutionId: string, actorId: string, dto: 
       })
       const catalog = availableSkills.map((s) => `      [${s.id}] ${s.code}: ${s.description}`).join('\n')
       contributionBlocks.push(
-        `- contributionId "${c.id}" — ${c.courseAssignment.subject.name} (SIN destrezas elegidas — elige 1-2 relevantes al reto del catálogo, usa sus ids reales en skillIds):\n${catalog}`,
+        `- contributionId "${c.id}" — ${c.courseAssignment.subject.name} (SIN destrezas elegidas — elige 1-2 relevantes al reto del catálogo, usa sus ids reales en skillIds, deja competencyIds vacío):\n${catalog}`,
       )
     } else {
       contributionBlocks.push(
-        `- contributionId "${c.id}" — ${c.courseAssignment.subject.name} (sin área curricular vinculada — deja skillIds vacío, newSabers vacío, reusedSaberIds vacío, pero SÍ genera contribucion/responsabilidad/weeks)`,
+        `- contributionId "${c.id}" — ${c.courseAssignment.subject.name} (sin área curricular vinculada — deja skillIds vacío, competencyIds vacío, newSabers vacío, reusedSaberIds vacío, pero SÍ genera contribucion/responsabilidad/weeks)`,
       )
     }
   }
@@ -176,7 +216,7 @@ Genera el proyecto completo:
 5. Para CADA contributionId listado arriba:
    - contribucion: cómo esa asignatura específica aporta al reto compartido.
    - responsabilidad: qué debe documentar/evidenciar ese docente.
-   - skillIds: si ya tenía destrezas elegidas, cópialas tal cual; si no tenía, elige 1-2 del catálogo dado (usa los ids reales entre corchetes, nunca inventes ids).
+   - ${isCompetencyModel ? 'competencyIds' : 'skillIds'}: si ya tenía ${isCompetencyModel ? 'competencias' : 'destrezas'} elegidas, cópialas tal cual; si no tenía, elige 1-2 del catálogo dado (usa los ids reales entre corchetes, nunca inventes ids). Deja el otro campo (${isCompetencyModel ? 'skillIds' : 'competencyIds'}) vacío.
    - Saberes: para cada destreza SIN saberes ya cargados, propone 1-2 nuevos de cada tipo (declarativo/procedimental/actitudinal) en newSabers con code "<código_destreza>.d.1"/".p.1"/".a.1"; para destrezas que YA tenían saberes, pon sus ids en reusedSaberIds.
    - weeks: genera las ${project.weeksCount} semanas (weekNumber 1 a ${project.weeksCount}), cada una con weekProposito (el mismo texto para todas las asignaturas en la misma semana — deben coincidir), faseInicio/faseDesarrollo/faseCierre (actividad concreta de esa fase para esa asignatura), propositoPedagogico, y evidencias.
 
@@ -237,38 +277,68 @@ Sé concreto y breve en cada campo (2-3 líneas máximo por campo). No inventes 
     if (!contribution) continue
 
     const validSkillIds = c.skillIds.filter((id) => id) // la IA solo debe usar ids reales pasados en el prompt
-    const contributionSkills = validSkillIds.length
-      ? await prisma.curriculumSkill.findMany({ where: { id: { in: validSkillIds } } })
-      : []
+    const validCompetencyIds = (c.competencyIds ?? []).filter((id) => id)
 
     const createdSabers: DraftedProjectContribution['newSabers'] = []
     const extraReusedIds: string[] = []
-    for (const saber of c.newSabers) {
-      const owning = contributionSkills.find((s) => saber.code.startsWith(s.code))
-      if (!owning) continue
-      const existing = await prisma.curriculumSaber.findUnique({
-        where: { skillId_code: { skillId: owning.id, code: saber.code } },
-      })
-      if (existing) {
-        extraReusedIds.push(existing.id)
-        continue
+
+    if (isCompetencyModel) {
+      const contributionCompetencies = validCompetencyIds.length
+        ? await prisma.competency.findMany({ where: { id: { in: validCompetencyIds } } })
+        : []
+      for (const saber of c.newSabers) {
+        const owning = contributionCompetencies.find((comp) => saber.code.startsWith(comp.code.replace('CE.', '')))
+        if (!owning) continue
+        const existing = await prisma.competencySaber.findUnique({
+          where: { competencyId_code: { competencyId: owning.id, code: saber.code } },
+        })
+        if (existing) {
+          extraReusedIds.push(existing.id)
+          continue
+        }
+        const created = await prisma.competencySaber.create({
+          data: { competencyId: owning.id, type: saber.type, code: saber.code, description: saber.description },
+        })
+        createdSabers.push({ id: created.id, type: saber.type, code: saber.code, description: saber.description })
       }
-      const created = await prisma.curriculumSaber.create({
-        data: { skillId: owning.id, type: saber.type, code: saber.code, description: saber.description },
-      })
-      createdSabers.push({ id: created.id, type: saber.type, code: saber.code, description: saber.description })
+    } else {
+      const contributionSkills = validSkillIds.length
+        ? await prisma.curriculumSkill.findMany({ where: { id: { in: validSkillIds } } })
+        : []
+      for (const saber of c.newSabers) {
+        const owning = contributionSkills.find((s) => saber.code.startsWith(s.code))
+        if (!owning) continue
+        const existing = await prisma.curriculumSaber.findUnique({
+          where: { skillId_code: { skillId: owning.id, code: saber.code } },
+        })
+        if (existing) {
+          extraReusedIds.push(existing.id)
+          continue
+        }
+        const created = await prisma.curriculumSaber.create({
+          data: { skillId: owning.id, type: saber.type, code: saber.code, description: saber.description },
+        })
+        createdSabers.push({ id: created.id, type: saber.type, code: saber.code, description: saber.description })
+      }
     }
 
     const allSaberIds = [...c.reusedSaberIds, ...extraReusedIds, ...createdSabers.map((s) => s.id)]
 
     await prisma.interdisciplinaryContribution.update({
       where: { id: contribution.id },
-      data: {
-        contribucion: c.contribucion,
-        responsabilidad: c.responsabilidad,
-        skillIds: validSkillIds,
-        saberIds: allSaberIds,
-      },
+      data: isCompetencyModel
+        ? {
+            contribucion: c.contribucion,
+            responsabilidad: c.responsabilidad,
+            competencyIds: validCompetencyIds,
+            competencySaberIds: allSaberIds,
+          }
+        : {
+            contribucion: c.contribucion,
+            responsabilidad: c.responsabilidad,
+            skillIds: validSkillIds,
+            saberIds: allSaberIds,
+          },
     })
 
     for (const week of c.weeks) {
@@ -300,6 +370,7 @@ Sé concreto y breve en cada campo (2-3 líneas máximo por campo). No inventes 
       contribucion: c.contribucion,
       responsabilidad: c.responsabilidad,
       skillIds: validSkillIds,
+      competencyIds: validCompetencyIds,
       newSabers: createdSabers,
       reusedSaberIds: [...c.reusedSaberIds, ...extraReusedIds],
       weeks: c.weeks,

@@ -46,7 +46,8 @@ export interface SkillReinforcementStudent {
 }
 
 export interface SkillReinforcementCandidate {
-  curriculumSkillId: string
+  curriculumSkillId?: string
+  competencyId?: string
   skillCode: string
   skillDescription: string
   passingGrade: number
@@ -66,7 +67,8 @@ export type ReinforcementPlanType = 'academico' | 'nee'
 export type ReinforcementPlanStatus = 'borrador' | 'activo' | 'cerrado'
 
 export interface ReinforcementPlanSkillItem {
-  curriculumSkill: { id: string; code: string; description: string }
+  curriculumSkill: { id: string; code: string; description: string } | null
+  competency: { id: string; code: string; text: string } | null
   averageAtDetection: number | null
   notes: string | null
 }
@@ -98,7 +100,7 @@ export function createReinforcementPlan(data: {
   courseAssignmentId: string
   academicPeriodId: string
   planType: ReinforcementPlanType
-  skills?: { curriculumSkillId: string; averageAtDetection?: number | null; notes?: string }[]
+  skills?: { curriculumSkillId?: string; competencyId?: string; averageAtDetection?: number | null; notes?: string }[]
   objetivoGeneral?: string
   estrategias?: string
   responsables?: string
@@ -116,6 +118,7 @@ export function updateReinforcementPlan(
     fechaInicio: string | null
     fechaSeguimiento: string | null
     observacionesFinales: string
+    skills: { curriculumSkillId?: string; competencyId?: string; averageAtDetection?: number | null; notes?: string }[]
   }>,
 ) {
   return apiPut<ReinforcementPlan>(`pedagogic-recovery/reinforcement-plans/${id}`, data)

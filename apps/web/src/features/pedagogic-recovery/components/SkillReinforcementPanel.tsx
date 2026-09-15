@@ -59,7 +59,7 @@ export function SkillReinforcementPanel({ courseAssignmentId, academicPeriodId }
       </div>
       <div className="space-y-2">
         {candidates.map((c) => (
-          <div key={c.curriculumSkillId} className="rounded border border-amber-200 bg-white p-3">
+          <div key={c.curriculumSkillId ?? c.competencyId} className="rounded border border-amber-200 bg-white p-3">
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm">
                 <span className="font-mono text-xs text-muted-foreground">{c.skillCode}</span>{' '}
@@ -94,7 +94,13 @@ export function SkillReinforcementPanel({ courseAssignmentId, academicPeriodId }
                             courseAssignmentId,
                             academicPeriodId,
                             planType: 'academico',
-                            skills: [{ curriculumSkillId: c.curriculumSkillId, averageAtDetection: s.average }],
+                            skills: [
+                              {
+                                curriculumSkillId: c.curriculumSkillId,
+                                competencyId: c.competencyId,
+                                averageAtDetection: s.average,
+                              },
+                            ],
                           })
                         }
                       >

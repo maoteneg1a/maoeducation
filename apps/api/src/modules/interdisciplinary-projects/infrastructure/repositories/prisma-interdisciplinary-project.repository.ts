@@ -1,5 +1,6 @@
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { BadRequestError, ConflictError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
+import { assertSkillsArePlanned, assertCompetenciesArePlanned } from '../../../../shared/infrastructure/services/planned-curriculum.service'
 import type {
   CreateInterdisciplinaryProjectDto,
   JoinProjectDto,
@@ -132,6 +133,13 @@ export class PrismaInterdisciplinaryProjectRepository {
       throw new ConflictError('El proyecto ya fue aprobado y no se puede editar')
     }
 
+    if (dto.skillIds !== undefined) {
+      await assertSkillsArePlanned(contribution.courseAssignmentId, contribution.project.academicPeriodId, dto.skillIds)
+    }
+    if (dto.competencyIds !== undefined) {
+      await assertCompetenciesArePlanned(contribution.courseAssignmentId, contribution.project.academicPeriodId, dto.competencyIds)
+    }
+
     return prisma.interdisciplinaryContribution.update({
       where: { id: contributionId },
       data: {
@@ -139,6 +147,8 @@ export class PrismaInterdisciplinaryProjectRepository {
         ...(dto.responsabilidad !== undefined && { responsabilidad: dto.responsabilidad }),
         ...(dto.skillIds !== undefined && { skillIds: dto.skillIds }),
         ...(dto.saberIds !== undefined && { saberIds: dto.saberIds }),
+        ...(dto.competencyIds !== undefined && { competencyIds: dto.competencyIds }),
+        ...(dto.competencySaberIds !== undefined && { competencySaberIds: dto.competencySaberIds }),
       },
       include: {
         courseAssignment: { include: { subject: true, teacher: { include: { profile: true } } } },
@@ -228,6 +238,20 @@ export class PrismaInterdisciplinaryProjectRepository {
     const skillById = new Map(skills.map((s) => [s.id, s]))
     const saberById = new Map(sabers.map((s) => [s.id, s]))
 
+    // Modelo por competencias: mismo shape del PDF, resuelto desde el banco de competencias.
+    const allCompetencyIds = Array.from(new Set(project.contributions.flatMap((c) => c.competencyIds)))
+    const allCompetencySaberIds = Array.from(new Set(project.contributions.flatMap((c) => c.competencySaberIds)))
+    const [competencies, competencySabers] = await Promise.all([
+      allCompetencyIds.length
+        ? prisma.competency.findMany({ where: { id: { in: allCompetencyIds } }, include: { indicators: true } })
+        : [],
+      allCompetencySaberIds.length
+        ? prisma.competencySaber.findMany({ where: { id: { in: allCompetencySaberIds } } })
+        : [],
+    ])
+    const competencyById = new Map(competencies.map((c) => [c.id, c]))
+    const competencySaberById = new Map(competencySabers.map((s) => [s.id, s]))
+
     return {
       institutionName: institution?.name ?? '',
       logoUrl: settings.branding?.logoUrl ?? null,
@@ -243,6 +267,14 @@ export class PrismaInterdisciplinaryProjectRepository {
       status: project.status,
       contributions: project.contributions.map((c) => {
         const contribSkills = c.skillIds.map((sid) => skillById.get(sid)).filter((s): s is NonNullable<typeof s> => !!s)
+        const contribCompetencies = c.competencyIds
+          .map((cid) => competencyById.get(cid))
+          .filter((comp): comp is NonNullable<typeof comp> => !!comp)
+        const usesCompetencyModel = contribCompetencies.length > 0
+        const contribCompetencySaberes = c.competencySaberIds
+          .map((sid) => competencySaberById.get(sid))
+          .filter((s): s is NonNullable<typeof s> => !!s)
+          .map((s) => ({ type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description }))
         return {
           subjectName: c.courseAssignment.subject.name,
           teacherName: c.courseAssignment.teacher.profile
@@ -250,12 +282,18 @@ export class PrismaInterdisciplinaryProjectRepository {
             : '',
           contribucion: c.contribucion,
           responsabilidad: c.responsabilidad,
-          competencias: contribSkills.map((s) => ({ code: s.criterion.code, description: s.criterion.description })),
-          indicadores: contribSkills.map((s) => ({ code: s.code, text: s.indicatorText ?? s.description })),
-          saberes: c.saberIds
-            .map((sid) => saberById.get(sid))
-            .filter((s): s is NonNullable<typeof s> => !!s)
-            .map((s) => ({ type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description })),
+          competencias: usesCompetencyModel
+            ? contribCompetencies.map((comp) => ({ code: comp.code, description: comp.text }))
+            : contribSkills.map((s) => ({ code: s.criterion.code, description: s.criterion.description })),
+          indicadores: usesCompetencyModel
+            ? contribCompetencies.flatMap((comp) => comp.indicators.map((i) => ({ code: i.code, text: i.text })))
+            : contribSkills.map((s) => ({ code: s.code, text: s.indicatorText ?? s.description })),
+          saberes: usesCompetencyModel
+            ? contribCompetencySaberes
+            : c.saberIds
+                .map((sid) => saberById.get(sid))
+                .filter((s): s is NonNullable<typeof s> => !!s)
+                .map((s) => ({ type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description })),
           weekEntries: c.weekEntries.map((w) => ({
             weekNumber: w.weekNumber,
             weekProposito: w.weekProposito,

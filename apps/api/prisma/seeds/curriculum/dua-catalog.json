@@ -1,0 +1,1412 @@
+[
+  {
+    "operationalCode": "I.1.1",
+    "principleName": "Representación",
+    "guidelineNumber": 1,
+    "guidelineName": "Proporcione opciones para la Percepción",
+    "checkpointNumber": "1.1",
+    "checkpointText": "Ofrezca formas para personalizar la visualización de la información",
+    "sortOrder": 0,
+    "strategies": [
+      {
+        "text": "Proporciona la misma información a través de diferentes modalidades (por ejemplo, visual, auditiva, táctil o audiovisual).",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION"
+        ],
+        "sourcePage": 1
+      },
+      {
+        "text": "Presentar lecturas de pictogramas.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION"
+        ],
+        "sourcePage": 1
+      },
+      {
+        "text": "Presentar carteles",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION"
+        ],
+        "sourcePage": 1
+      }
+    ]
+  },
+  {
+    "operationalCode": "I.1.2",
+    "principleName": "Representación",
+    "guidelineNumber": 1,
+    "guidelineName": "Proporcione opciones para la Percepción",
+    "checkpointNumber": "1.2",
+    "checkpointText": "Ofrezca alternativas para la información auditiva",
+    "sortOrder": 1,
+    "strategies": [
+      {
+        "text": "Usar diagramas, gráficos…",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      },
+      {
+        "text": "Facilitar transcripciones escritas de documentos sonoros (letras de canciones, de las intervenciones de los personajes…).",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      },
+      {
+        "text": "Utilizar programas informáticos que hagan posible la conversión de texto a voz.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      }
+    ]
+  },
+  {
+    "operationalCode": "I.1.3",
+    "principleName": "Representación",
+    "guidelineNumber": 1,
+    "guidelineName": "Proporcione opciones para la Percepción",
+    "checkpointNumber": "1.3",
+    "checkpointText": "Ofrezca alternativas para la información visual",
+    "sortOrder": 2,
+    "strategies": [
+      {
+        "text": "Usar descripciones texto-voz en imágenes, gráficos y videos.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION"
+        ],
+        "sourcePage": 1
+      },
+      {
+        "text": "Utilizar objetos físicos y modelos espaciales.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      },
+      {
+        "text": "Uso del texto del MinEduc como un recurso más.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      },
+      {
+        "text": "Uso de videos del docente u otro.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION"
+        ],
+        "sourcePage": 1
+      }
+    ]
+  },
+  {
+    "operationalCode": "I.2.1",
+    "principleName": "Representación",
+    "guidelineNumber": 2,
+    "guidelineName": "Proporcione opciones para el Lenguaje y los Símbolos",
+    "checkpointNumber": "2.1",
+    "checkpointText": "Aclare vocabulario y símbolos",
+    "sortOrder": 3,
+    "strategies": [
+      {
+        "text": "Enseñar previamente o clarificar el vocabulario y los símbolos.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      },
+      {
+        "text": "Utilizar descripciones de texto de los símbolos gráficos.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      },
+      {
+        "text": "Uso del diccionario.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      },
+      {
+        "text": "Uso de inferencias.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      }
+    ]
+  },
+  {
+    "operationalCode": "I.2.2",
+    "principleName": "Representación",
+    "guidelineNumber": 2,
+    "guidelineName": "Proporcione opciones para el Lenguaje y los Símbolos",
+    "checkpointNumber": "2.2",
+    "checkpointText": "Aclare sintaxis y estructura",
+    "sortOrder": 4,
+    "strategies": [
+      {
+        "text": "Explicar las relaciones entre los elementos (por ejemplo, a través de mapas conceptuales).",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      },
+      {
+        "text": "Enlazar ideas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      },
+      {
+        "text": "Producción de textos.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRODUCE_RESPONSE"
+        ],
+        "sourcePage": 1
+      }
+    ]
+  },
+  {
+    "operationalCode": "I.2.3",
+    "principleName": "Representación",
+    "guidelineNumber": 2,
+    "guidelineName": "Proporcione opciones para el Lenguaje y los Símbolos",
+    "checkpointNumber": "2.3",
+    "checkpointText": "Apoye la decodificación de textos, notaciones matemáticas y símbolos",
+    "sortOrder": 5,
+    "strategies": [
+      {
+        "text": "Utilizar listas de términos o palabras clave.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      },
+      {
+        "text": "Acompañar el texto digital con una voz humana pregrabada.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      }
+    ]
+  },
+  {
+    "operationalCode": "I.2.4",
+    "principleName": "Representación",
+    "guidelineNumber": 2,
+    "guidelineName": "Proporcione opciones para el Lenguaje y los Símbolos",
+    "checkpointNumber": "2.4",
+    "checkpointText": "Promueva la comprensión entre diferentes lenguas",
+    "sortOrder": 6,
+    "strategies": [
+      {
+        "text": "Enlazar palabras clave con sus definiciones y pronunciaciones en varias lenguas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      },
+      {
+        "text": "Proporcionar herramientas electrónicas de traducción o enlaces a glosarios multilingües.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      },
+      {
+        "text": "Usar apoyos visuales no lingüísticos al vocabulario.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      }
+    ]
+  },
+  {
+    "operationalCode": "I.2.5",
+    "principleName": "Representación",
+    "guidelineNumber": 2,
+    "guidelineName": "Proporcione opciones para el Lenguaje y los Símbolos",
+    "checkpointNumber": "2.5",
+    "checkpointText": "Ilustre a través de múltiples medios",
+    "sortOrder": 7,
+    "strategies": [
+      {
+        "text": "Presentar los conceptos clave en formas alternativas al texto (imágenes, movimiento, tabla, video, fotografía, material físico y/o manipulable, etc.).",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION"
+        ],
+        "sourcePage": 1
+      },
+      {
+        "text": "Uso de carteles.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 1
+      },
+      {
+        "text": "Uso de organizadores gráficos.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "SUPPORT_COMPREHENSION"
+        ],
+        "sourcePage": 1
+      }
+    ]
+  },
+  {
+    "operationalCode": "I.3.1",
+    "principleName": "Representación",
+    "guidelineNumber": 3,
+    "guidelineName": "Proporcione opciones para la Comprensión",
+    "checkpointNumber": "3.1",
+    "checkpointText": "Active o proporcione conocimientos previos",
+    "sortOrder": 8,
+    "strategies": [
+      {
+        "text": "Presentaciones digitales",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION"
+        ],
+        "sourcePage": 2
+      },
+      {
+        "text": "Fijar conceptos previos ya asimilados.",
+        "compatiblePhases": [
+          "ANTICIPATION"
+        ],
+        "compatiblePurposes": [
+          "ACTIVATE_PRIOR_KNOWLEDGE"
+        ],
+        "sourcePage": 2
+      },
+      {
+        "text": "Uso de documentales relacionados con el tema.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      },
+      {
+        "text": "Aplicaciones lúdicas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      },
+      {
+        "text": "Investigaciones previas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      },
+      {
+        "text": "Enseñar los conceptos previos que son esenciales para el nuevo aprendizaje.",
+        "compatiblePhases": [
+          "ANTICIPATION"
+        ],
+        "compatiblePurposes": [
+          "ACTIVATE_PRIOR_KNOWLEDGE"
+        ],
+        "sourcePage": 2
+      },
+      {
+        "text": "Vincular conceptos (mediante analogías, metáforas…).",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      },
+      {
+        "text": "Hacer conexiones curriculares explícitas, como enseñar estrategias lectoras en otras materias",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      }
+    ]
+  },
+  {
+    "operationalCode": "I.3.2",
+    "principleName": "Representación",
+    "guidelineNumber": 3,
+    "guidelineName": "Proporcione opciones para la Comprensión",
+    "checkpointNumber": "3.2",
+    "checkpointText": "Destaque patrones, características fundamentales, ideas principales y relaciones entre ellas",
+    "sortOrder": 9,
+    "strategies": [
+      {
+        "text": "Utilizar esquemas, organizadores gráficos, para destacar las ideas fundamentales y las relaciones entre conceptos o elementos.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "SUPPORT_COMPREHENSION"
+        ],
+        "sourcePage": 2
+      },
+      {
+        "text": "Poner ejemplos y contraejemplos",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      },
+      {
+        "text": "Identificar habilidades previas que se pueden utilizar para resolver nuevos problemas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      },
+      {
+        "text": "Uso de la técnica del subrayado.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      }
+    ]
+  },
+  {
+    "operationalCode": "I.3.3",
+    "principleName": "Representación",
+    "guidelineNumber": 3,
+    "guidelineName": "Proporcione opciones para la Comprensión",
+    "checkpointNumber": "3.3",
+    "checkpointText": "Guíe el procesamiento, visualización y manipulación de la información",
+    "sortOrder": 10,
+    "strategies": [
+      {
+        "text": "Indicaciones explícitas de cada uno de los pasos que componen un proceso secuencial.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      },
+      {
+        "text": "Métodos y estrategias de organización (por ejemplo, tablas).",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      },
+      {
+        "text": "Apoyos graduales para ir usando las estrategias de procesamiento de la información.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION"
+        ],
+        "sourcePage": 2
+      },
+      {
+        "text": "Ejemplos o estrategias variadas para estudiar una lección (textos, teatro, arte, películas, etc.).",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      },
+      {
+        "text": "Uso de material concreto.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      },
+      {
+        "text": "Elaboración de trabajos manuales",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRODUCE_RESPONSE"
+        ],
+        "sourcePage": 2
+      }
+    ]
+  },
+  {
+    "operationalCode": "I.3.4",
+    "principleName": "Representación",
+    "guidelineNumber": 3,
+    "guidelineName": "Proporcione opciones para la Comprensión",
+    "checkpointNumber": "3.4",
+    "checkpointText": "Maximice la transferencia y la generalización de la información",
+    "sortOrder": 11,
+    "strategies": [
+      {
+        "text": "Utilizar listas de comprobación, organizadores, notas, recordatorios, etc.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "SUPPORT_COMPREHENSION"
+        ],
+        "sourcePage": 2
+      },
+      {
+        "text": "Usar estrategias mnemotécnicas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      },
+      {
+        "text": "Incorporar acciones de revisión de lo aprendido.",
+        "compatiblePhases": [
+          "CONSOLIDATION"
+        ],
+        "compatiblePurposes": [
+          "METACOGNITION"
+        ],
+        "sourcePage": 2
+      },
+      {
+        "text": "Proporcionar plantillas y organizadores que faciliten tomar apuntes.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "SUPPORT_COMPREHENSION"
+        ],
+        "sourcePage": 2
+      },
+      {
+        "text": "Planteamiento y resolución de casos y problemas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      }
+    ]
+  },
+  {
+    "operationalCode": "II.4.1",
+    "principleName": "Acción y Expresión",
+    "guidelineNumber": 4,
+    "guidelineName": "Proporcione opciones para la Acción Física",
+    "checkpointNumber": "4.1",
+    "checkpointText": "Varíe los métodos de respuesta, navegación e interacción",
+    "sortOrder": 12,
+    "strategies": [
+      {
+        "text": "Proporcionar alternativas en el ritmo, en los plazos y en la acción que hay que realizar para responder a las preguntas o hacer las tareas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      },
+      {
+        "text": "Uso de herramientas tecnológicas de evaluación.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      },
+      {
+        "text": "Permitir que se puedan dar respuestas físicas o por selección, como alternativas al uso del lápiz, al control del ratón, etc",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRODUCE_RESPONSE"
+        ],
+        "sourcePage": 2
+      }
+    ]
+  },
+  {
+    "operationalCode": "II.4.2",
+    "principleName": "Acción y Expresión",
+    "guidelineNumber": 4,
+    "guidelineName": "Proporcione opciones para la Acción Física",
+    "checkpointNumber": "4.2",
+    "checkpointText": "Optimice el acceso a herramientas y tecnologías de asistencia",
+    "sortOrder": 13,
+    "strategies": [
+      {
+        "text": "Interacción con materiales didácticos del aula.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      },
+      {
+        "text": "Trabajos de investigación.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 2
+      }
+    ]
+  },
+  {
+    "operationalCode": "II.5.1",
+    "principleName": "Acción y Expresión",
+    "guidelineNumber": 5,
+    "guidelineName": "Proporcione opciones para la Expresión y la Comunicación",
+    "checkpointNumber": "5.1",
+    "checkpointText": "Use múltiples medios para la comunicación",
+    "sortOrder": 14,
+    "strategies": [
+      {
+        "text": "Ofrecer alternativas distintas para interaccionar con los materiales digitales (manos, voz, joysticks, teclados, etc.).",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Uso de objetos físicos manipulables (bloques, modelos 3D, regletas, ábacos, taptana, etc.).",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Proporcionar aplicaciones de comunicación y herramientas",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "webs interactivas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Utilizar diferentes estrategias para la resolución de problemas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Componer o redactar manejando múltiples medios (texto, voz, dibujos, cine, música, movimiento, arte visual, etc.).",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRODUCE_RESPONSE"
+        ],
+        "sourcePage": 3
+      },
+      {
+        "text": "Elaboración de productos finales interdisciplinarios",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRODUCE_RESPONSE"
+        ],
+        "sourcePage": 3
+      }
+    ]
+  },
+  {
+    "operationalCode": "II.5.2",
+    "principleName": "Acción y Expresión",
+    "guidelineNumber": 5,
+    "guidelineName": "Proporcione opciones para la Expresión y la Comunicación",
+    "checkpointNumber": "5.2",
+    "checkpointText": "Use múltiples herramientas para la construcción y composición",
+    "sortOrder": 15,
+    "strategies": [
+      {
+        "text": "Usar correctores ortográficos y gramaticales.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Incorporar software de predicción de palabras.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Utilizar software de reconocimiento / conversor texto-voz.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Proporcionar comienzos o fragmentos de frases.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Facilitar herramientas gráficas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Usar calculadoras.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Incorporar diseños geométricos, papel pautado, etc.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Utilizar materiales virtuales.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Proporcionar materiales que se puedan manipular.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      }
+    ]
+  },
+  {
+    "operationalCode": "II.5.3",
+    "principleName": "Acción y Expresión",
+    "guidelineNumber": 5,
+    "guidelineName": "Proporcione opciones para la Expresión y la Comunicación",
+    "checkpointNumber": "5.3",
+    "checkpointText": "Desarrolle fluidez con niveles de apoyo graduados para la práctica y el desempeño",
+    "sortOrder": 16,
+    "strategies": [
+      {
+        "text": "Utilizar modelos de simulación, que demuestren los mismos resultados a través de diferentes enfoques o estrategias.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Usar variedad de mentores: profesor, tutor de apoyo (que usen distintas estrategias didácticas) y compañeros.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "COLLABORATIVE_WORK"
+        ],
+        "sourcePage": 3
+      },
+      {
+        "text": "Permitir apoyos que se pueden retirar gradualmente, según aumenta la autonomía (pautas, diccionario...).",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Facilitar un feedback o retroalimentación formativa.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "FEEDBACK"
+        ],
+        "sourcePage": 3
+      },
+      {
+        "text": "Proporcionar ejemplos de soluciones novedosas a problemas reales.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      }
+    ]
+  },
+  {
+    "operationalCode": "II.6.1",
+    "principleName": "Acción y Expresión",
+    "guidelineNumber": 6,
+    "guidelineName": "Proporcione opciones para la Función Ejecutiva",
+    "checkpointNumber": "6.1",
+    "checkpointText": "Guíe el establecimiento de metas apropiadas",
+    "sortOrder": 17,
+    "strategies": [
+      {
+        "text": "Incorporar apoyos para hacer una estimación previa del esfuerzo, los recursos que se van a utilizar y el grado de dificultad.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Usar modelos o ejemplos del proceso y resultados de la definición de metas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Proporcionar pautas y listas de comprobación para definir objetivos.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Hacer visibles los objetivos.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      }
+    ]
+  },
+  {
+    "operationalCode": "II.6.2",
+    "principleName": "Acción y Expresión",
+    "guidelineNumber": 6,
+    "guidelineName": "Proporcione opciones para la Función Ejecutiva",
+    "checkpointNumber": "6.2",
+    "checkpointText": "Apoye la planificación y el desarrollo de estrategias",
+    "sortOrder": 18,
+    "strategies": [
+      {
+        "text": "Realizar avisos del tipo «para y piensa».",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Planificar tiempos para «mostrar y explicar su trabajo».",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      },
+      {
+        "text": "Utilizar listas de comprobación y plantillas de planificación de proyectos.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 3
+      }
+    ]
+  },
+  {
+    "operationalCode": "II.6.3",
+    "principleName": "Acción y Expresión",
+    "guidelineNumber": 6,
+    "guidelineName": "Proporcione opciones para la Función Ejecutiva",
+    "checkpointNumber": "6.3",
+    "checkpointText": "Facilite la gestión de información y recursos",
+    "sortOrder": 19,
+    "strategies": [
+      {
+        "text": "Proporcionar mentores que modelen el proceso de pensar en voz alta.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Facilitar pautas para dividir metas a largo plazo en objetivos a corto plazo alcanzables.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Utilizar organizadores gráficos.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "SUPPORT_COMPREHENSION"
+        ],
+        "sourcePage": 4
+      },
+      {
+        "text": "Aportar plantillas para recoger y organizar la información.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION"
+        ],
+        "sourcePage": 4
+      },
+      {
+        "text": "Facilitar avisos o pautas para categorizar y sistematizar la información o los procesos.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION"
+        ],
+        "sourcePage": 4
+      },
+      {
+        "text": "Usar listas de comprobación.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Posibilitar pautas para tomar notas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      }
+    ]
+  },
+  {
+    "operationalCode": "II.6.4",
+    "principleName": "Acción y Expresión",
+    "guidelineNumber": 6,
+    "guidelineName": "Proporcione opciones para la Función Ejecutiva",
+    "checkpointNumber": "6.4",
+    "checkpointText": "Mejore la capacidad para monitorear el progreso",
+    "sortOrder": 20,
+    "strategies": [
+      {
+        "text": "Realizar preguntas o plantillas para reflexionar sobre el trabajo desarrollado.",
+        "compatiblePhases": [
+          "CONSOLIDATION"
+        ],
+        "compatiblePurposes": [
+          "METACOGNITION"
+        ],
+        "sourcePage": 4
+      },
+      {
+        "text": "Usar representaciones de los avances (antes y después con gráficas, esquemas, tablas en los que se muestren).",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION",
+          "SUPPORT_COMPREHENSION"
+        ],
+        "sourcePage": 4
+      },
+      {
+        "text": "Instar a los estudiantes a identificar qué tipo de feedback esperan o necesitan.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "FEEDBACK"
+        ],
+        "sourcePage": 4
+      },
+      {
+        "text": "Emplear variedad de estrategias de autoevaluación (role playing entre iguales, revisión en video).",
+        "compatiblePhases": [
+          "CONSTRUCTION",
+          "CONSOLIDATION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION",
+          "COLLABORATIVE_WORK",
+          "SELF_ASSESSMENT"
+        ],
+        "sourcePage": 4
+      },
+      {
+        "text": "Utilizar listas o matrices de evaluación.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Proporcionar ejemplos de prácticas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Facilitar trabajos de estudiantes evaluados que incluyan comentarios.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      }
+    ]
+  },
+  {
+    "operationalCode": "III.7.1",
+    "principleName": "Motivación y Compromiso",
+    "guidelineNumber": 7,
+    "guidelineName": "Proporcione opciones para Captar el Interés",
+    "checkpointNumber": "7.1",
+    "checkpointText": "Optimice las elecciones individuales y autonomía",
+    "sortOrder": 21,
+    "strategies": [
+      {
+        "text": "Nivel de desafío percibido.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Incentivos.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Contenidos utilizados en las prácticas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Herramientas para recoger y producir información.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION",
+          "PRODUCE_RESPONSE"
+        ],
+        "sourcePage": 4
+      },
+      {
+        "text": "Color, diseño, gráficos, disposición, etc.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Secuencia y tiempos para completar tareas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Permitir la participación de alumnos en el diseño de actividades y tareas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Involucrarlos en el establecimiento de objetivos.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      }
+    ]
+  },
+  {
+    "operationalCode": "III.7.2",
+    "principleName": "Motivación y Compromiso",
+    "guidelineNumber": 7,
+    "guidelineName": "Proporcione opciones para Captar el Interés",
+    "checkpointNumber": "7.2",
+    "checkpointText": "Optimice la relevancia, el valor y la autenticidad",
+    "sortOrder": 22,
+    "strategies": [
+      {
+        "text": "Personalizarlas y contextualizarlas en la vida real.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Personalizarlas y contextualizarlas respecto a sus intereses.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Culturalmente significativas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Adecuadas a la edad y la capacidad.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Adecuadas a diferentes razas, culturas, etnias y sexos.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      },
+      {
+        "text": "Diseñar actividades viables, reales y comunicables.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 4
+      }
+    ]
+  },
+  {
+    "operationalCode": "III.7.3",
+    "principleName": "Motivación y Compromiso",
+    "guidelineNumber": 7,
+    "guidelineName": "Proporcione opciones para Captar el Interés",
+    "checkpointNumber": "7.3",
+    "checkpointText": "Minimice las amenazas y distracciones",
+    "sortOrder": 23,
+    "strategies": [
+      {
+        "text": "Promover la elaboración de respuestas personales.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRODUCE_RESPONSE"
+        ],
+        "sourcePage": 5
+      },
+      {
+        "text": "Fomentar la evaluación y la autorreflexión de contenidos y actividades.",
+        "compatiblePhases": [
+          "CONSOLIDATION"
+        ],
+        "compatiblePurposes": [
+          "METACOGNITION"
+        ],
+        "sourcePage": 5
+      },
+      {
+        "text": "Diseñar actividades que fomenten la resolución de problemas y la creatividad.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      },
+      {
+        "text": "Crear rutinas de clase.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      },
+      {
+        "text": "Utilizar calendarios y recordatorios de actividades cotidianas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      },
+      {
+        "text": "Proporcionar avisos o alertas que permitan anticipar las tareas o actividades que se van a realizar.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      },
+      {
+        "text": "Determinar roles y actividades de liderazgo.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      }
+    ]
+  },
+  {
+    "operationalCode": "III.8.1",
+    "principleName": "Motivación y Compromiso",
+    "guidelineNumber": 8,
+    "guidelineName": "Proporcione opciones para Mantener el Esfuerzo y la Persistencia",
+    "checkpointNumber": "8.1",
+    "checkpointText": "Resalte la relevancia de metas y objetivos",
+    "sortOrder": 24,
+    "strategies": [
+      {
+        "text": "Fomentar que los estudiantes formulen el objetivo de manera explícita o que lo replanteen personalizándolo.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      },
+      {
+        "text": "Presentar el objetivo de diferentes maneras.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION"
+        ],
+        "sourcePage": 5
+      },
+      {
+        "text": "Dividir metas a largo plazo en objetivos a corto plazo.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      },
+      {
+        "text": "Usar herramientas de gestión del tiempo.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      },
+      {
+        "text": "Utilizar indicaciones y apoyos para visualizar el resultado previsto.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      },
+      {
+        "text": "Involucrar a los estudiantes en debates de evaluación y generar ejemplos relevantes que sirvan como modelos.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      }
+    ]
+  },
+  {
+    "operationalCode": "III.8.2",
+    "principleName": "Motivación y Compromiso",
+    "guidelineNumber": 8,
+    "guidelineName": "Proporcione opciones para Mantener el Esfuerzo y la Persistencia",
+    "checkpointNumber": "8.2",
+    "checkpointText": "Varíe las demandas y los recursos para optimizar los desafíos",
+    "sortOrder": 25,
+    "strategies": [
+      {
+        "text": "Diferenciar grados de dificultad para completar las tareas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      },
+      {
+        "text": "Variar los niveles de exigencia para considerar que un resultado es aceptable.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      },
+      {
+        "text": "Enfatizar el proceso, el esfuerzo y la mejora en el logro frente a la evaluación externa y la competición.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      }
+    ]
+  },
+  {
+    "operationalCode": "III.8.3",
+    "principleName": "Motivación y Compromiso",
+    "guidelineNumber": 8,
+    "guidelineName": "Proporcione opciones para Mantener el Esfuerzo y la Persistencia",
+    "checkpointNumber": "8.3",
+    "checkpointText": "Promueva la colaboración y la comunicación",
+    "sortOrder": 26,
+    "strategies": [
+      {
+        "text": "Crear grupos de colaboración con responsabilidades, objetivos y roles claros.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "COLLABORATIVE_WORK"
+        ],
+        "sourcePage": 5
+      },
+      {
+        "text": "Realizar programas de apoyo a buenas conductas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      },
+      {
+        "text": "Proporcionar indicaciones que orienten a los estudiantes sobre cuándo y cómo han de pedir ayuda a otros compañeros o profesores.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "COLLABORATIVE_WORK"
+        ],
+        "sourcePage": 5
+      },
+      {
+        "text": "Fomentar la interacción entre iguales (por ejemplo, mediante la tutorización entre compañeros).",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "COLLABORATIVE_WORK"
+        ],
+        "sourcePage": 5
+      },
+      {
+        "text": "Organizar comunidades o grupos de aprendizaje centrados en intereses o actividades comunes.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "COLLABORATIVE_WORK"
+        ],
+        "sourcePage": 5
+      },
+      {
+        "text": "Crear expectativas para el trabajo en grupo (rúbricas, normas, etc.).",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "COLLABORATIVE_WORK"
+        ],
+        "sourcePage": 5
+      }
+    ]
+  },
+  {
+    "operationalCode": "III.8.4",
+    "principleName": "Motivación y Compromiso",
+    "guidelineNumber": 8,
+    "guidelineName": "Proporcione opciones para Mantener el Esfuerzo y la Persistencia",
+    "checkpointNumber": "8.4",
+    "checkpointText": "Aumente la retroalimentación orientada a la maestría",
+    "sortOrder": 27,
+    "strategies": [
+      {
+        "text": "En la evaluación, identificando patrones de errores y respuestas incorrectas.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRODUCE_RESPONSE"
+        ],
+        "sourcePage": 5
+      },
+      {
+        "text": "Uso de estímulos.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      },
+      {
+        "text": "Uso de frases motivadoras.",
+        "compatiblePhases": [
+          "ANTICIPATION"
+        ],
+        "compatiblePurposes": [
+          "ACTIVATE_PRIOR_KNOWLEDGE"
+        ],
+        "sourcePage": 5
+      },
+      {
+        "text": "Utilizando un feedback que sea sustantivo e informativo y que fomente:",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "FEEDBACK"
+        ],
+        "sourcePage": 5
+      },
+      {
+        "text": "La perseverancia.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      },
+      {
+        "text": "El uso de estrategias y apoyos para afrontar un desafío.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      },
+      {
+        "text": "El énfasis del esfuerzo, la mejora y el logro.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 5
+      }
+    ]
+  },
+  {
+    "operationalCode": "III.9.1",
+    "principleName": "Motivación y Compromiso",
+    "guidelineNumber": 9,
+    "guidelineName": "Proporcione opciones para la Autorregulación",
+    "checkpointNumber": "9.1",
+    "checkpointText": "Promueva expectativas y creencias que optimicen la motivación",
+    "sortOrder": 28,
+    "strategies": [
+      {
+        "text": "Utilizar pautas, listas y rúbricas de objetivos de autorregulación.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 6
+      },
+      {
+        "text": "Incrementar el tiempo de concentración en la tarea.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 6
+      },
+      {
+        "text": "Proporcionar mentores y apoyo para modelar el proceso de establecimiento de metas personales adecuadas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 6
+      },
+      {
+        "text": "Emplear actividades de autorreflexión e identificación de objetivos personales.",
+        "compatiblePhases": [
+          "CONSOLIDATION"
+        ],
+        "compatiblePurposes": [
+          "METACOGNITION"
+        ],
+        "sourcePage": 6
+      }
+    ]
+  },
+  {
+    "operationalCode": "III.9.2",
+    "principleName": "Motivación y Compromiso",
+    "guidelineNumber": 9,
+    "guidelineName": "Proporcione opciones para la Autorregulación",
+    "checkpointNumber": "9.2",
+    "checkpointText": "Facilite habilidades y estrategias para enfrentar desafíos",
+    "sortOrder": 29,
+    "strategies": [
+      {
+        "text": "Gestionar la frustración.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 6
+      },
+      {
+        "text": "Buscar apoyo emocional externo.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 6
+      },
+      {
+        "text": "Ejercitar habilidades para hacer frente a situaciones conflictivas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 6
+      },
+      {
+        "text": "Usar modelos y situaciones reales sobre habilidades para afrontar problemas.",
+        "compatiblePhases": [],
+        "compatiblePurposes": [],
+        "sourcePage": 6
+      }
+    ]
+  },
+  {
+    "operationalCode": "III.9.3",
+    "principleName": "Motivación y Compromiso",
+    "guidelineNumber": 9,
+    "guidelineName": "Proporcione opciones para la Autorregulación",
+    "checkpointNumber": "9.3",
+    "checkpointText": "Desarrolle la autoevaluación y la reflexión",
+    "sortOrder": 30,
+    "strategies": [
+      {
+        "text": "Proporcionar modelos y herramientas para recabar información sobre las propias conductas.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "PRESENT_INFORMATION"
+        ],
+        "sourcePage": 6
+      },
+      {
+        "text": "Favorecer el reconocimiento de los propios progresos de una manera comprensible.",
+        "compatiblePhases": [
+          "CONSTRUCTION"
+        ],
+        "compatiblePurposes": [
+          "SUPPORT_COMPREHENSION"
+        ],
+        "sourcePage": 6
+      }
+    ]
+  }
+]

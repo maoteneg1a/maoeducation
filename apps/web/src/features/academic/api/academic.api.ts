@@ -21,6 +21,7 @@ export interface Subject {
   isActive: boolean
   isQualitative?: boolean
   curriculumAreaId?: string | null
+  competencyAreaId?: string | null
 }
 
 export interface AcademicYear {

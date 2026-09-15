@@ -52,7 +52,8 @@ export interface SkillReinforcementStudent {
 }
 
 export interface SkillReinforcementCandidate {
-  curriculumSkillId: string
+  curriculumSkillId?: string
+  competencyId?: string
   skillCode: string
   skillDescription: string
   passingGrade: number
@@ -71,7 +72,7 @@ export interface CreateReinforcementPlanDto {
   courseAssignmentId: string
   academicPeriodId: string
   planType: ReinforcementPlanType
-  skills?: { curriculumSkillId: string; averageAtDetection?: number | null; notes?: string }[]
+  skills?: { curriculumSkillId?: string; competencyId?: string; averageAtDetection?: number | null; notes?: string }[]
   objetivoGeneral?: string
   estrategias?: string
   responsables?: string
@@ -87,7 +88,7 @@ export interface UpdateReinforcementPlanDto {
   fechaInicio?: string | null
   fechaSeguimiento?: string | null
   observacionesFinales?: string
-  skills?: { curriculumSkillId: string; averageAtDetection?: number | null; notes?: string }[]
+  skills?: { curriculumSkillId?: string; competencyId?: string; averageAtDetection?: number | null; notes?: string }[]
 }
 
 export interface ListReinforcementPlansQuery {

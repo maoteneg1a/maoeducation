@@ -41,6 +41,8 @@ export interface DraftedProjectContribution {
   responsabilidad: string
   /** Destrezas que la IA seleccionó del banco de ESA asignatura (ids reales) — solo si la contribución no tenía ninguna ya elegida. */
   skillIds: string[]
+  /** Equivalente a skillIds para el modelo por competencias. */
+  competencyIds: string[]
   newSabers: DraftedSaber[]
   reusedSaberIds: string[]
   weeks: {
@@ -60,4 +62,27 @@ export interface DraftProjectResult {
   propositoComun: string
   productoFinal: string
   contributions: DraftedProjectContribution[]
+}
+
+// ─── Semana por COMPETENCIAS: motor en dos capas (IA validada + fallback determinista) ──
+
+export interface DraftCompetencyWeekDto {
+  situationId: string
+  /** Competencias ya elegidas por el docente en el selector. */
+  competencyIds: string[]
+  weekName?: string
+}
+
+export interface DraftCompetencyWeekResult {
+  indicadoresEvaluacion: string
+  newSabers: DraftedSaber[]
+  reusedSaberIds: string[]
+  momentos: {
+    anticipacion: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
+    construccionConocimiento: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
+    consolidacion: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
+  }
+  /** Transparencia con el docente: si vino de la IA validada o del motor de reglas de respaldo. */
+  generationMode: 'AI_ENHANCED' | 'AI_FALLBACK'
+  validationErrors: string[]
 }

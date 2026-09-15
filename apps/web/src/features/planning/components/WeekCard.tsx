@@ -2,13 +2,17 @@ import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight, Save, Sparkles, Trash2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
+import { Badge } from '@/shared/components/ui/badge'
 import { Card } from '@/shared/components/ui/card'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
-import { useAiEnabled, useDraftWeek } from '@/features/ai-assistant/hooks/useAiAssistant'
+import { useAiEnabled, useDraftWeek, useDraftCompetencyWeek } from '@/features/ai-assistant/hooks/useAiAssistant'
+import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { useUpdateWeek, useDeleteWeek } from '../hooks/usePlanning'
 import type { PlanningMomentos, PlanningWeek } from '../api/planning.api'
 import { SkillAndSaberSelector } from './SkillAndSaberSelector'
+import { CompetencyAndSaberSelector } from './CompetencyAndSaberSelector'
+import { CurricularInsertionSuggestions } from '@/features/curricular-insertions/components/CurricularInsertionSuggestions'
 
 const MOMENT_KEYS = [
   { key: 'anticipacion' as const, label: 'Anticipación' },
@@ -31,16 +35,41 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
   const updateWeek = useUpdateWeek(week.id, situationId)
   const deleteWeek = useDeleteWeek(situationId)
   const draftWeek = useDraftWeek()
+  const draftCompetencyWeek = useDraftCompetencyWeek()
   const aiEnabled = useAiEnabled()
+  const { data: planningModel } = usePlanningModel()
+  const isCompetencyModel = planningModel === 'competencias'
 
   const [name, setName] = React.useState(week.name ?? '')
   const [competencias, setCompetencias] = React.useState(week.competenciasEspecificas ?? '')
   const [indicadores, setIndicadores] = React.useState(week.indicadoresEvaluacion ?? '')
   const [skillIds, setSkillIds] = React.useState<string[]>(week.skillIds)
   const [saberIds, setSaberIds] = React.useState<string[]>(week.saberIds)
+  const [competencyIds, setCompetencyIds] = React.useState<string[]>(week.competencyIds)
+  const [competencySaberIds, setCompetencySaberIds] = React.useState<string[]>(week.competencySaberIds)
   const [momentos, setMomentos] = React.useState<PlanningMomentos>(week.momentos ?? {})
+  const [lastGenerationMode, setLastGenerationMode] = React.useState<'AI_ENHANCED' | 'AI_FALLBACK' | null>(null)
 
   const handleGenerateWithAi = () => {
+    if (isCompetencyModel) {
+      draftCompetencyWeek.mutate(
+        { situationId, competencyIds, weekName: name || undefined },
+        {
+          onSuccess: (result) => {
+            setIndicadores(result.indicadoresEvaluacion)
+            setMomentos(result.momentos)
+            setLastGenerationMode(result.generationMode)
+            setCompetencySaberIds((prev) => [
+              ...new Set([...prev, ...result.reusedSaberIds, ...result.newSabers.map((s) => s.id)]),
+            ])
+            for (const competencyId of competencyIds) {
+              qc.invalidateQueries({ queryKey: ['competency-saberes', competencyId] })
+            }
+          },
+        },
+      )
+      return
+    }
     draftWeek.mutate(
       { situationId, skillIds, weekName: name || undefined },
       {
@@ -71,6 +100,8 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
       indicadoresEvaluacion: indicadores,
       skillIds,
       saberIds,
+      competencyIds,
+      competencySaberIds,
       momentos,
     })
   }
@@ -87,7 +118,9 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
           Semana {week.weekNumber}
           {week.name ? ` — ${week.name}` : ''}
         </span>
-        <span className="text-xs text-muted-foreground">{week.skillIds.length} destreza(s)</span>
+        <span className="text-xs text-muted-foreground">
+          {isCompetencyModel ? `${week.competencyIds.length} competencia(s)` : `${week.skillIds.length} destreza(s)`}
+        </span>
       </button>
 
       {expanded && (
@@ -97,16 +130,18 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
             <Input value={name} onChange={(e) => setName(e.target.value)} disabled={!isEditable} placeholder="Ej: Textos orales informativos" />
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Competencias específicas</Label>
-            <textarea
-              rows={2}
-              value={competencias}
-              onChange={(e) => setCompetencias(e.target.value)}
-              disabled={!isEditable}
-              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
-            />
-          </div>
+          {!isCompetencyModel && (
+            <div className="space-y-1.5">
+              <Label>Competencias específicas</Label>
+              <textarea
+                rows={2}
+                value={competencias}
+                onChange={(e) => setCompetencias(e.target.value)}
+                disabled={!isEditable}
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
+              />
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label>Indicadores de evaluación</Label>
@@ -119,27 +154,55 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
             />
           </div>
 
-          <SkillAndSaberSelector
+          {isCompetencyModel ? (
+            <CompetencyAndSaberSelector
+              subjectId={subjectId}
+              subnivel={subnivel}
+              competencyIds={competencyIds}
+              saberIds={competencySaberIds}
+              onCompetencyIdsChange={setCompetencyIds}
+              onSaberIdsChange={setCompetencySaberIds}
+              isEditable={isEditable}
+            />
+          ) : (
+            <SkillAndSaberSelector
+              subjectId={subjectId}
+              subnivel={subnivel}
+              skillIds={skillIds}
+              saberIds={saberIds}
+              onSkillIdsChange={setSkillIds}
+              onSaberIdsChange={setSaberIds}
+              isEditable={isEditable}
+            />
+          )}
+
+          <CurricularInsertionSuggestions
             subjectId={subjectId}
             subnivel={subnivel}
-            skillIds={skillIds}
-            saberIds={saberIds}
-            onSkillIdsChange={setSkillIds}
-            onSaberIdsChange={setSaberIds}
-            isEditable={isEditable}
+            itemIds={isCompetencyModel ? competencyIds : skillIds}
+            kind={isCompetencyModel ? 'competency' : 'skill'}
           />
 
           {isEditable && aiEnabled && (
             <div className="flex items-center justify-between rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
-              <p className="text-xs text-muted-foreground">
-                Genera competencias, indicadores, saberes y los 3 momentos DUA a partir de las destrezas seleccionadas.
-              </p>
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  {isCompetencyModel
+                    ? 'Genera indicadores, saberes y los 3 momentos DUA a partir de las competencias seleccionadas.'
+                    : 'Genera competencias, indicadores, saberes y los 3 momentos DUA a partir de las destrezas seleccionadas.'}
+                </p>
+                {lastGenerationMode === 'AI_FALLBACK' && (
+                  <Badge variant="warning" className="mt-1">
+                    Generado por reglas (la IA no validó) — revisa y ajusta
+                  </Badge>
+                )}
+              </div>
               <Button
                 type="button"
                 size="sm"
                 onClick={handleGenerateWithAi}
-                disabled={skillIds.length === 0}
-                loading={draftWeek.isPending}
+                disabled={isCompetencyModel ? competencyIds.length === 0 : skillIds.length === 0}
+                loading={isCompetencyModel ? draftCompetencyWeek.isPending : draftWeek.isPending}
               >
                 <Sparkles className="h-4 w-4" />
                 Generar borrador con IA

@@ -40,7 +40,8 @@ import { activitiesApi, type Activity, type ActivityType, type Insumo } from '..
 import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
 import { useAuthStore } from '@/store/auth.store'
 import { usePermissions } from '@/shared/hooks/usePermissions'
-import { useCurriculumSkillsForSubject } from '@/features/curriculum/hooks/useCurriculum'
+import { usePlannedSkills, usePlannedCompetencies } from '@/features/planning/hooks/usePlanning'
+import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { useGradingConfig } from '@/features/settings/hooks/useSettings'
 
 // ---- Query keys ----
@@ -168,6 +169,7 @@ const activitySchema = z.object({
   activityTypeId: z.string().min(1, 'El tipo es requerido'),
   insumoId: z.string().optional(),
   curriculumSkillId: z.string().optional(),
+  competencyId: z.string().optional(),
   maxScore: z.coerce.number().min(0, 'Debe ser un número positivo'),
   activityDate: z.string().min(1, 'La fecha es requerida'),
   description: z.string().optional(),
@@ -451,10 +453,10 @@ export function ActivitiesPage() {
   const { data: types = [] } = useActivityTypes()
   const { data: insumos = [] } = useInsumos(selectedAssignmentId, selectedPeriodId)
   const selectedAssignment = assignments.find((a) => a.id === selectedAssignmentId)
-  const { data: availableSkills = [] } = useCurriculumSkillsForSubject(
-    selectedAssignment?.subject?.id ?? selectedAssignment?.subjectId,
-    selectedAssignment?.parallel?.level?.subnivel ?? undefined,
-  )
+  const { data: planningModel } = usePlanningModel()
+  const isCompetencyModel = planningModel === 'competencias'
+  const { data: plannedSkills = [] } = usePlannedSkills(selectedAssignmentId, selectedPeriodId)
+  const { data: plannedCompetencies = [] } = usePlannedCompetencies(selectedAssignmentId, selectedPeriodId)
   const { data: activities = [], isLoading: activitiesLoading } = useActivities(
     selectedAssignmentId,
     selectedPeriodId,
@@ -477,6 +479,7 @@ export function ActivitiesPage() {
       activityTypeId: '',
       insumoId: '',
       curriculumSkillId: '',
+      competencyId: '',
       maxScore: gradingScaleMax,
       activityDate: new Date().toISOString().split('T')[0],
       description: '',
@@ -490,6 +493,7 @@ export function ActivitiesPage() {
       activityTypeId: '',
       insumoId: '',
       curriculumSkillId: '',
+      competencyId: '',
       maxScore: gradingScaleMax,
       activityDate: new Date().toISOString().split('T')[0],
       description: '',
@@ -504,6 +508,7 @@ export function ActivitiesPage() {
       activityTypeId: activity.activityTypeId,
       insumoId: activity.insumoId ?? '',
       curriculumSkillId: activity.curriculumSkillId ?? '',
+      competencyId: activity.competencyId ?? '',
       maxScore: activity.maxScore,
       activityDate: activity.activityDate,
       description: activity.description ?? '',
@@ -516,6 +521,7 @@ export function ActivitiesPage() {
       ...values,
       insumoId: values.insumoId || undefined,
       curriculumSkillId: values.curriculumSkillId || undefined,
+      competencyId: values.competencyId || undefined,
       courseAssignmentId: selectedAssignmentId,
       academicPeriodId: selectedPeriodId,
     }
@@ -771,29 +777,59 @@ export function ActivitiesPage() {
                 </Select>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Destreza del currículo (opcional)</Label>
-              <Select
-                value={form.watch('curriculumSkillId') ?? ''}
-                onValueChange={(v) => form.setValue('curriculumSkillId', v === 'none' ? '' : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Ninguna" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Ninguna</SelectItem>
-                  {availableSkills.map((skill) => (
-                    <SelectItem key={skill.id} value={skill.id}>
-                      {skill.code} — {skill.description.slice(0, 60)}
-                      {skill.description.length > 60 ? '…' : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Vincula esta actividad a una destreza para habilitar la detección automática de refuerzo.
-              </p>
-            </div>
+            {isCompetencyModel ? (
+              <div className="space-y-2">
+                <Label>Competencia planificada (opcional)</Label>
+                <Select
+                  value={form.watch('competencyId') ?? ''}
+                  onValueChange={(v) => form.setValue('competencyId', v === 'none' ? '' : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Ninguna" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Ninguna</SelectItem>
+                    {plannedCompetencies.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.code} — {c.text.slice(0, 60)}
+                        {c.text.length > 60 ? '…' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {plannedCompetencies.length === 0
+                    ? 'Aún no hay competencias planificadas para este curso y periodo — ve a Planificación y agrega semanas primero.'
+                    : 'Vincula esta actividad a una competencia planificada para habilitar la detección automática de refuerzo.'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Destreza planificada (opcional)</Label>
+                <Select
+                  value={form.watch('curriculumSkillId') ?? ''}
+                  onValueChange={(v) => form.setValue('curriculumSkillId', v === 'none' ? '' : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Ninguna" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Ninguna</SelectItem>
+                    {plannedSkills.map((skill) => (
+                      <SelectItem key={skill.id} value={skill.id}>
+                        {skill.code} — {skill.description.slice(0, 60)}
+                        {skill.description.length > 60 ? '…' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {plannedSkills.length === 0
+                    ? 'Aún no hay destrezas planificadas para este curso y periodo — ve a Planificación y agrega semanas primero.'
+                    : 'Vincula esta actividad a una destreza planificada para habilitar la detección automática de refuerzo.'}
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Descripción (opcional)</Label>
               <Input {...form.register('description')} placeholder="Descripción de la actividad" />

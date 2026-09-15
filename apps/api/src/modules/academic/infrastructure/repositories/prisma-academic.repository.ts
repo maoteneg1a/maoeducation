@@ -100,6 +100,8 @@ export class PrismaAcademicRepository {
         code: dto.code,
         description: dto.description,
         isQualitative: dto.isQualitative ?? false,
+        curriculumAreaId: dto.curriculumAreaId,
+        competencyAreaId: dto.competencyAreaId,
       },
     })
   }
@@ -129,6 +131,8 @@ export class PrismaAcademicRepository {
         ...(dto.code !== undefined && { code: dto.code }),
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.isQualitative !== undefined && { isQualitative: dto.isQualitative }),
+        ...(dto.curriculumAreaId !== undefined && { curriculumAreaId: dto.curriculumAreaId }),
+        ...(dto.competencyAreaId !== undefined && { competencyAreaId: dto.competencyAreaId }),
       },
     })
   }

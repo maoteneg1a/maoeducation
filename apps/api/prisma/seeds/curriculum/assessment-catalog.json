@@ -1,0 +1,22 @@
+{
+  "techniques": [
+    { "code": "OBSERVATION", "label": "Observación del desempeño", "compatibleInstrumentCodes": ["OBSERVATION_GUIDE", "RATING_SCALE"], "sortOrder": 0 },
+    { "code": "PERFORMANCE_ASSESSMENT", "label": "Valoración del desempeño", "compatibleInstrumentCodes": ["ANALYTIC_RUBRIC", "CHECKLIST"], "sortOrder": 1 },
+    { "code": "PRODUCT_ANALYSIS", "label": "Análisis de producto", "compatibleInstrumentCodes": ["ANALYTIC_RUBRIC", "CHECKLIST"], "sortOrder": 2 },
+    { "code": "ORAL_QUESTIONING", "label": "Interrogación oral", "compatibleInstrumentCodes": ["OBSERVATION_GUIDE", "QUESTIONNAIRE"], "sortOrder": 3 },
+    { "code": "WRITTEN_ASSESSMENT", "label": "Evaluación escrita", "compatibleInstrumentCodes": ["WRITTEN_TEST", "QUESTIONNAIRE", "STRUCTURED_TEST"], "sortOrder": 4 },
+    { "code": "SELF_ASSESSMENT", "label": "Autoevaluación", "compatibleInstrumentCodes": ["SELF_ASSESSMENT_FORM"], "sortOrder": 5 },
+    { "code": "PEER_ASSESSMENT", "label": "Coevaluación", "compatibleInstrumentCodes": ["PEER_ASSESSMENT_FORM"], "sortOrder": 6 }
+  ],
+  "instruments": [
+    { "code": "STRUCTURED_TEST", "label": "Prueba de base estructurada", "sortOrder": 0 },
+    { "code": "ANALYTIC_RUBRIC", "label": "Rúbrica analítica", "sortOrder": 1 },
+    { "code": "CHECKLIST", "label": "Lista de cotejo", "sortOrder": 2 },
+    { "code": "RATING_SCALE", "label": "Escala de valoración", "sortOrder": 3 },
+    { "code": "OBSERVATION_GUIDE", "label": "Guía de observación", "sortOrder": 4 },
+    { "code": "QUESTIONNAIRE", "label": "Cuestionario", "sortOrder": 5 },
+    { "code": "WRITTEN_TEST", "label": "Prueba escrita", "sortOrder": 6 },
+    { "code": "SELF_ASSESSMENT_FORM", "label": "Ficha de autoevaluación", "sortOrder": 7 },
+    { "code": "PEER_ASSESSMENT_FORM", "label": "Ficha de coevaluación", "sortOrder": 8 }
+  ]
+}

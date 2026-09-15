@@ -35,6 +35,9 @@ export interface Activity {
   /** Destreza del banco curricular vinculada a esta actividad — habilita el refuerzo automático por destreza. */
   curriculumSkillId?: string | null
   curriculumSkill?: { id: string; code: string; description: string } | null
+  /** Equivalente a curriculumSkillId para el modelo por competencias. */
+  competencyId?: string | null
+  competency?: { id: string; code: string; text: string } | null
 }
 
 export type GradeStatus = 'entregado' | 'no_realizado' | 'atrasado' | 'excusado'

@@ -309,6 +309,9 @@ export class PrismaPlanningRepository {
         indicadoresEvaluacion: dto.indicadoresEvaluacion,
         skillIds: dto.skillIds ?? [],
         saberIds: dto.saberIds ?? [],
+        competencyIds: dto.competencyIds ?? [],
+        competencyIndicatorIds: dto.competencyIndicatorIds ?? [],
+        competencySaberIds: dto.competencySaberIds ?? [],
         momentos: (dto.momentos ?? {}) as unknown as Prisma.InputJsonValue,
       },
     })
@@ -329,6 +332,9 @@ export class PrismaPlanningRepository {
         ...(dto.indicadoresEvaluacion !== undefined && { indicadoresEvaluacion: dto.indicadoresEvaluacion }),
         ...(dto.skillIds !== undefined && { skillIds: dto.skillIds }),
         ...(dto.saberIds !== undefined && { saberIds: dto.saberIds }),
+        ...(dto.competencyIds !== undefined && { competencyIds: dto.competencyIds }),
+        ...(dto.competencyIndicatorIds !== undefined && { competencyIndicatorIds: dto.competencyIndicatorIds }),
+        ...(dto.competencySaberIds !== undefined && { competencySaberIds: dto.competencySaberIds }),
         ...(dto.momentos !== undefined && { momentos: dto.momentos as unknown as Prisma.InputJsonValue }),
       },
     })
@@ -378,6 +384,20 @@ export class PrismaPlanningRepository {
       : []
     const saberById = new Map(sabers.map((s) => [s.id, s]))
 
+    // Modelo por competencias: cada semana que use competencyIds trae su propio banco de
+    // saberes/competencias, en vez del de destrezas — se resuelven aparte y se combinan
+    // en el mismo shape que el PDF ya sabe renderizar.
+    const allCompetencyIds = Array.from(new Set(situation.weeks.flatMap((w) => w.competencyIds)))
+    const allCompetencySaberIds = Array.from(new Set(situation.weeks.flatMap((w) => w.competencySaberIds)))
+    const [competencies, competencySabers] = await Promise.all([
+      allCompetencyIds.length ? prisma.competency.findMany({ where: { id: { in: allCompetencyIds } } }) : [],
+      allCompetencySaberIds.length
+        ? prisma.competencySaber.findMany({ where: { id: { in: allCompetencySaberIds } } })
+        : [],
+    ])
+    const competencyById = new Map(competencies.map((c) => [c.id, c]))
+    const competencySaberById = new Map(competencySabers.map((s) => [s.id, s]))
+
     const teacherProfile = situation.plan.courseAssignment.teacher.profile
 
     return {
@@ -392,19 +412,35 @@ export class PrismaPlanningRepository {
       situationTitle: situation.title,
       situationDescription: situation.description,
       interdisciplinaryAreaNames: interdisciplinaryAreas.map((a) => a.name),
-      weeks: situation.weeks.map((week) => ({
-        weekNumber: week.weekNumber,
-        name: week.name,
-        startDate: week.startDate,
-        endDate: week.endDate,
-        competenciasEspecificas: week.competenciasEspecificas,
-        indicadoresEvaluacion: week.indicadoresEvaluacion,
-        saberes: week.saberIds
-          .map((sid) => saberById.get(sid))
+      weeks: situation.weeks.map((week) => {
+        // Si la semana usó el modelo por competencias, el texto de "competencias
+        // específicas" se deriva de las competencias elegidas (no hay campo de texto
+        // libre en ese modelo — es lo que ya seleccionó el docente).
+        const competencyTexts = week.competencyIds
+          .map((cid) => competencyById.get(cid))
+          .filter((c): c is NonNullable<typeof c> => !!c)
+          .map((c) => `[${c.code}] ${c.text}`)
+        const competencySaberes = week.competencySaberIds
+          .map((sid) => competencySaberById.get(sid))
           .filter((s): s is NonNullable<typeof s> => !!s)
-          .map((s) => ({ type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description })),
-        momentos: (week.momentos ?? {}) as Record<string, { estrategiasDua?: string; recursos?: string; tecnica?: string; instrumento?: string }>,
-      })),
+          .map((s) => ({ type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description }))
+
+        return {
+          weekNumber: week.weekNumber,
+          name: week.name,
+          startDate: week.startDate,
+          endDate: week.endDate,
+          competenciasEspecificas: competencyTexts.length ? competencyTexts.join('\n') : week.competenciasEspecificas,
+          indicadoresEvaluacion: week.indicadoresEvaluacion,
+          saberes: competencySaberes.length
+            ? competencySaberes
+            : week.saberIds
+                .map((sid) => saberById.get(sid))
+                .filter((s): s is NonNullable<typeof s> => !!s)
+                .map((s) => ({ type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description })),
+          momentos: (week.momentos ?? {}) as Record<string, { estrategiasDua?: string; recursos?: string; tecnica?: string; instrumento?: string }>,
+        }
+      }),
       signatories: [
         { role: 'Elaborado por: Docente(s)', name: teacherProfile ? `${teacherProfile.firstName} ${teacherProfile.lastName}` : null, date: null },
         { role: 'Revisado por: Director de área/subnivel', name: null, date: situation.reviewedAt },

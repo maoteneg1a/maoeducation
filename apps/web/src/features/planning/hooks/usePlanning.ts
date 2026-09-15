@@ -213,3 +213,21 @@ export function useDeleteWeek(situationId: string) {
     onError: (err) => toast.error(getErrorMessage(err)),
   })
 }
+
+/** Destrezas ya planificadas para este curso+periodo — reemplaza al banco completo en selectores de otros módulos. */
+export function usePlannedSkills(courseAssignmentId: string | undefined, academicPeriodId: string | undefined) {
+  return useQuery({
+    queryKey: ['planned-skills', courseAssignmentId, academicPeriodId],
+    queryFn: () => planningApi.listPlannedSkills(courseAssignmentId!, academicPeriodId!),
+    enabled: !!courseAssignmentId && !!academicPeriodId,
+  })
+}
+
+/** Igual que usePlannedSkills pero para el modelo por competencias. */
+export function usePlannedCompetencies(courseAssignmentId: string | undefined, academicPeriodId: string | undefined) {
+  return useQuery({
+    queryKey: ['planned-competencies', courseAssignmentId, academicPeriodId],
+    queryFn: () => planningApi.listPlannedCompetencies(courseAssignmentId!, academicPeriodId!),
+    enabled: !!courseAssignmentId && !!academicPeriodId,
+  })
+}

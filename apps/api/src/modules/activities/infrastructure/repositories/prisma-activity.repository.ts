@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, ConflictError } from '../../../../shared/domain/errors/app.errors'
+import { assertSkillsArePlanned, assertCompetenciesArePlanned } from '../../../../shared/infrastructure/services/planned-curriculum.service'
 import type {
   CreateActivityTypeDto,
   UpdateActivityTypeDto,
@@ -196,6 +197,13 @@ export class PrismaActivityRepository {
       if (linked) throw new ConflictError('Esta tarea ya tiene una actividad calificable')
     }
 
+    if (dto.curriculumSkillId) {
+      await assertSkillsArePlanned(dto.courseAssignmentId, dto.academicPeriodId, [dto.curriculumSkillId])
+    }
+    if (dto.competencyId) {
+      await assertCompetenciesArePlanned(dto.courseAssignmentId, dto.academicPeriodId, [dto.competencyId])
+    }
+
     return prisma.activity.create({
       data: {
         institutionId,
@@ -205,6 +213,7 @@ export class PrismaActivityRepository {
         insumoId: dto.insumoId,
         taskId: dto.taskId,
         curriculumSkillId: dto.curriculumSkillId,
+        competencyId: dto.competencyId,
         name: dto.name,
         description: dto.description,
         maxScore: dto.maxScore,
@@ -217,6 +226,7 @@ export class PrismaActivityRepository {
         activityType: true,
         insumo: { select: { id: true, name: true } },
         curriculumSkill: { select: { id: true, code: true, description: true } },
+        competency: { select: { id: true, code: true, text: true } },
       },
     })
   }
@@ -245,6 +255,13 @@ export class PrismaActivityRepository {
     const activity = await prisma.activity.findFirst({ where: { id, institutionId } })
     if (!activity) throw new NotFoundError('Actividad no encontrada')
 
+    if (dto.curriculumSkillId) {
+      await assertSkillsArePlanned(activity.courseAssignmentId, activity.academicPeriodId, [dto.curriculumSkillId])
+    }
+    if (dto.competencyId) {
+      await assertCompetenciesArePlanned(activity.courseAssignmentId, activity.academicPeriodId, [dto.competencyId])
+    }
+
     return prisma.activity.update({
       where: { id },
       data: {
@@ -257,11 +274,13 @@ export class PrismaActivityRepository {
         ...(dto.metadata !== undefined && { metadata: dto.metadata as Prisma.InputJsonValue }),
         ...('insumoId' in dto && { insumoId: dto.insumoId ?? null }),
         ...('curriculumSkillId' in dto && { curriculumSkillId: dto.curriculumSkillId ?? null }),
+        ...('competencyId' in dto && { competencyId: dto.competencyId ?? null }),
       },
       include: {
         activityType: true,
         insumo: { select: { id: true, name: true } },
         curriculumSkill: { select: { id: true, code: true, description: true } },
+        competency: { select: { id: true, code: true, text: true } },
       },
     })
   }

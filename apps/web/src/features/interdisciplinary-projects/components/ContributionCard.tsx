@@ -4,12 +4,15 @@ import { Button } from '@/shared/components/ui/button'
 import { Card } from '@/shared/components/ui/card'
 import { Label } from '@/shared/components/ui/label'
 import { SkillAndSaberSelector } from '@/features/planning/components/SkillAndSaberSelector'
+import { CompetencyAndSaberSelector } from '@/features/planning/components/CompetencyAndSaberSelector'
+import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { useUpdateContribution, useRemoveContribution, useUpsertWeekEntry } from '../hooks/useInterdisciplinaryProjects'
 import type { Contribution, WeekEntry } from '../api/interdisciplinary-project.api'
 
 interface ContributionCardProps {
   contribution: Contribution
   projectId: string
+  academicPeriodId: string
   subnivel: string | undefined
   weeksCount: number
   isEditable: boolean
@@ -17,14 +20,18 @@ interface ContributionCardProps {
   onToggle: () => void
 }
 
-export function ContributionCard({ contribution, projectId, subnivel, weeksCount, isEditable, expanded, onToggle }: ContributionCardProps) {
+export function ContributionCard({ contribution, projectId, academicPeriodId, subnivel, weeksCount, isEditable, expanded, onToggle }: ContributionCardProps) {
   const updateContribution = useUpdateContribution(contribution.id, projectId)
   const removeContribution = useRemoveContribution(projectId)
+  const { data: planningModel } = usePlanningModel()
+  const isCompetencyModel = planningModel === 'competencias'
 
   const [contribucion, setContribucion] = React.useState(contribution.contribucion ?? '')
   const [responsabilidad, setResponsabilidad] = React.useState(contribution.responsabilidad ?? '')
   const [skillIds, setSkillIds] = React.useState<string[]>(contribution.skillIds)
   const [saberIds, setSaberIds] = React.useState<string[]>(contribution.saberIds)
+  const [competencyIds, setCompetencyIds] = React.useState<string[]>(contribution.competencyIds)
+  const [competencySaberIds, setCompetencySaberIds] = React.useState<string[]>(contribution.competencySaberIds)
 
   const teacherName = contribution.courseAssignment?.teacher.profile
     ? `${contribution.courseAssignment.teacher.profile.firstName} ${contribution.courseAssignment.teacher.profile.lastName}`
@@ -61,15 +68,31 @@ export function ContributionCard({ contribution, projectId, subnivel, weeksCount
             />
           </div>
 
-          <SkillAndSaberSelector
-            subjectId={contribution.courseAssignment?.subject.id}
-            subnivel={subnivel}
-            skillIds={skillIds}
-            saberIds={saberIds}
-            onSkillIdsChange={setSkillIds}
-            onSaberIdsChange={setSaberIds}
-            isEditable={isEditable}
-          />
+          {isCompetencyModel ? (
+            <CompetencyAndSaberSelector
+              subjectId={contribution.courseAssignment?.subject.id}
+              subnivel={subnivel}
+              competencyIds={competencyIds}
+              saberIds={competencySaberIds}
+              onCompetencyIdsChange={setCompetencyIds}
+              onSaberIdsChange={setCompetencySaberIds}
+              isEditable={isEditable}
+              courseAssignmentId={contribution.courseAssignmentId}
+              academicPeriodId={academicPeriodId}
+            />
+          ) : (
+            <SkillAndSaberSelector
+              subjectId={contribution.courseAssignment?.subject.id}
+              subnivel={subnivel}
+              skillIds={skillIds}
+              saberIds={saberIds}
+              onSkillIdsChange={setSkillIds}
+              onSaberIdsChange={setSaberIds}
+              isEditable={isEditable}
+              courseAssignmentId={contribution.courseAssignmentId}
+              academicPeriodId={academicPeriodId}
+            />
+          )}
 
           {isEditable && (
             <div className="flex justify-between border-t pt-3">
@@ -84,7 +107,13 @@ export function ContributionCard({ contribution, projectId, subnivel, weeksCount
                 Salir del proyecto
               </Button>
               <Button
-                onClick={() => updateContribution.mutate({ contribucion, responsabilidad, skillIds, saberIds })}
+                onClick={() =>
+                  updateContribution.mutate(
+                    isCompetencyModel
+                      ? { contribucion, responsabilidad, competencyIds, competencySaberIds }
+                      : { contribucion, responsabilidad, skillIds, saberIds },
+                  )
+                }
                 loading={updateContribution.isPending}
               >
                 <Save className="h-4 w-4" />

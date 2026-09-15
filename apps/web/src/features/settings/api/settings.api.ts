@@ -45,6 +45,8 @@ export interface AiConfig {
   monthlyTokenCap: number
 }
 
+export type PlanningModel = 'destrezas' | 'competencias'
+
 export const settingsApi = {
   getSettings: () => apiGet<InstitutionSettings>('institution/settings'),
 
@@ -63,4 +65,8 @@ export const settingsApi = {
 
   getAiConfig: () => apiGet<AiConfig>('institution/ai-config'),
   updateAiConfig: (data: Partial<AiConfig>) => apiPut<AiConfig>('institution/ai-config', data),
+
+  getPlanningModel: () => apiGet<{ planningModel: PlanningModel }>('institution/planning-model'),
+  updatePlanningModel: (planningModel: PlanningModel) =>
+    apiPut<{ planningModel: PlanningModel }>('institution/planning-model', { planningModel }),
 }

@@ -38,6 +38,134 @@ export function loadDefaultCurriculum(): DefaultCurriculumArea[] {
 }
 
 /**
+ * Banco curricular por COMPETENCIAS (Currículo Nacional por Competencias, CNC-
+ * MINEDUC) — modelo alternativo y configurable al de destrezas. Estructura:
+ * Área -> subnivel -> Competencia específica -> Indicadores + Saberes (sin
+ * nivel "criterio" intermedio: la competencia específica lo reemplaza).
+ * Ver prisma/seeds/curriculum/default-competencies.json.
+ */
+interface DefaultCompetencyIndicator {
+  code: string
+  text: string
+}
+interface DefaultCompetencySaber {
+  type: string
+  code: string
+  description: string
+}
+interface DefaultCompetency {
+  code: string
+  text: string
+  keyCompetencyCodes: string[]
+  indicators: DefaultCompetencyIndicator[]
+  sabers: DefaultCompetencySaber[]
+}
+interface DefaultCompetencyArea {
+  code: string
+  name: string
+  subniveles: Record<string, DefaultCompetency[]>
+}
+
+let cachedDefaultCompetencies: DefaultCompetencyArea[] | null = null
+
+export function loadDefaultCompetencies(): DefaultCompetencyArea[] {
+  if (cachedDefaultCompetencies) return cachedDefaultCompetencies
+  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/default-competencies.json')
+  cachedDefaultCompetencies = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultCompetencyArea[]
+  return cachedDefaultCompetencies
+}
+
+/** Catálogo fijo global de las 7 competencias clave transversales (CNC-MINEDUC). */
+export interface DefaultKeyCompetency {
+  code: string
+  name: string
+  shortName: string
+  description: string
+  color: string | null
+  sortOrder: number
+}
+
+let cachedKeyCompetencies: DefaultKeyCompetency[] | null = null
+
+export function loadKeyCompetencies(): DefaultKeyCompetency[] {
+  if (cachedKeyCompetencies) return cachedKeyCompetencies
+  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/key-competencies.json')
+  cachedKeyCompetencies = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultKeyCompetency[]
+  return cachedKeyCompetencies
+}
+
+/**
+ * Catálogo operativo DUA (CAST 2.2) — checkpoints con estrategias prácticas ya
+ * redactadas, filtrables por fase pedagógica (ANTICIPATION/CONSTRUCTION/
+ * CONSOLIDATION). Global, compartido por ambos modelos de planificación.
+ */
+export interface DefaultDuaStrategy {
+  text: string
+  compatiblePhases: string[]
+  compatiblePurposes: string[]
+  sourcePage: number | null
+}
+export interface DefaultDuaCheckpoint {
+  operationalCode: string
+  principleName: string
+  guidelineNumber: number
+  guidelineName: string
+  checkpointNumber: string
+  checkpointText: string
+  sortOrder: number
+  strategies: DefaultDuaStrategy[]
+}
+
+let cachedDuaCatalog: DefaultDuaCheckpoint[] | null = null
+
+export function loadDuaCatalog(): DefaultDuaCheckpoint[] {
+  if (cachedDuaCatalog) return cachedDuaCatalog
+  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/dua-catalog.json')
+  cachedDuaCatalog = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultDuaCheckpoint[]
+  return cachedDuaCatalog
+}
+
+/** Catálogo fijo de técnicas e instrumentos de evaluación (compatibilidad técnica<->instrumento). */
+export interface DefaultAssessmentCatalog {
+  techniques: { code: string; label: string; compatibleInstrumentCodes: string[]; sortOrder: number }[]
+  instruments: { code: string; label: string; sortOrder: number }[]
+}
+
+let cachedAssessmentCatalog: DefaultAssessmentCatalog | null = null
+
+export function loadAssessmentCatalog(): DefaultAssessmentCatalog {
+  if (cachedAssessmentCatalog) return cachedAssessmentCatalog
+  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/assessment-catalog.json')
+  cachedAssessmentCatalog = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultAssessmentCatalog
+  return cachedAssessmentCatalog
+}
+
+/**
+ * Bancos de ejes de inserción curricular transversal (socioemocional,
+ * desarrollo sostenible, cívica, vial, financiera) — candidatos textuales de
+ * referencia que el docente consulta al redactar, no bloquean nada.
+ */
+export interface DefaultInsertionCandidate {
+  sourceCode: string
+  text: string
+  page: number | null
+}
+export interface DefaultInsertionBank {
+  key: string
+  title: string
+  candidates: DefaultInsertionCandidate[]
+}
+
+let cachedInsertionBanks: DefaultInsertionBank[] | null = null
+
+export function loadInsertionBanks(): DefaultInsertionBank[] {
+  if (cachedInsertionBanks) return cachedInsertionBanks
+  const filePath = path.join(__dirname, '../../../../../prisma/seeds/curriculum/insertion-banks.json')
+  cachedInsertionBanks = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as DefaultInsertionBank[]
+  return cachedInsertionBanks
+}
+
+/**
  * Configuración por defecto de una institución nueva.
  * Estas constantes son la ÚNICA fuente de verdad de la matriz RBAC y los
  * catálogos base: las usan tanto el seed (`prisma/seeds/index.ts`) como el
@@ -557,6 +685,48 @@ export async function bootstrapInstitution(
               profileRefs: skill.profileRefs,
               competencyTags: [] as string[],
               insercionTags: [] as string[],
+            })),
+          })
+        }
+      }
+    }
+  }
+
+  // 7c-quater. Banco curricular por COMPETENCIAS (CNC-MINEDUC) — modelo
+  // alternativo al de destrezas, se siembra siempre; solo se usa si la
+  // institución activa planningModel = "competencias" desde Configuración.
+  const defaultCompetencies = loadDefaultCompetencies()
+  for (const area of defaultCompetencies) {
+    const createdArea = await tx.competencyArea.create({
+      data: { institutionId: inst.id, code: area.code, name: area.name },
+    })
+    for (const [subnivel, competencies] of Object.entries(area.subniveles)) {
+      for (const competency of competencies) {
+        const createdCompetency = await tx.competency.create({
+          data: {
+            areaId: createdArea.id,
+            subnivel,
+            code: competency.code,
+            text: competency.text,
+            keyCompetencyCodes: competency.keyCompetencyCodes,
+          },
+        })
+        if (competency.indicators.length) {
+          await tx.competencyIndicator.createMany({
+            data: competency.indicators.map((ind) => ({
+              competencyId: createdCompetency.id,
+              code: ind.code,
+              text: ind.text,
+            })),
+          })
+        }
+        if (competency.sabers.length) {
+          await tx.competencySaber.createMany({
+            data: competency.sabers.map((saber) => ({
+              competencyId: createdCompetency.id,
+              type: saber.type,
+              code: saber.code,
+              description: saber.description,
             })),
           })
         }

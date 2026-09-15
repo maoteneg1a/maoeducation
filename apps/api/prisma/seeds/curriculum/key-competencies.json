@@ -1,0 +1,58 @@
+[
+  {
+    "code": "CC",
+    "name": "Competencia Comunicativa",
+    "shortName": "Comunicativa",
+    "description": "Capacidad para comprender, producir, interactuar y mediar de manera adecuada, eficaz y ética en distintos contextos comunicativos, utilizando de forma integrada lenguajes orales, escritos, signados y multimodales. Supone movilizar conocimientos, habilidades y actitudes para acceder críticamente a diversos tipos de textos, construir significados, expresar el propio pensamiento y participar en prácticas discursivas que favorezcan el diálogo, la resolución de conflictos y la convivencia democrática. Supone desarrollar repertorios plurilingües que articulan lenguas familiares, nacionales y adicionales como recursos equivalentes para el entendimiento mutuo y la mediación intercultural en sociedades diversas y multiculturales.",
+    "color": "#ED7D31",
+    "sortOrder": 0
+  },
+  {
+    "code": "CMCT",
+    "name": "Competencia Matemática y en Ciencia y Tecnología",
+    "shortName": "Matemática, ciencia y tecnología",
+    "description": "Capacidad para comprender, explicar y transformar el mundo natural y construido mediante el uso integrado del pensamiento matemático, los métodos de indagación científica y la aplicación responsable de la tecnología. Requiere movilizar conocimientos, habilidades y actitudes para formular preguntas, modelizar y analizar situaciones, resolver problemas y tomar decisiones fundamentadas en evidencias en contextos diversos de la vida personal, social y productiva. Supone utilizar el razonamiento lógico-matemático, la observación y la experimentación para interpretar fenómenos y procesos tecnológicos, incorporar de manera crítica saberes científicos actuales y conocimientos tradicionales pertinentes, y generar soluciones innovadoras, inclusivas y sostenibles orientadas al bienestar colectivo y al equilibrio ambiental.",
+    "color": "#A5A5A5",
+    "sortOrder": 1
+  },
+  {
+    "code": "CCICC",
+    "name": "Competencia Ciudadana, Identidad y Conciencia Cultural",
+    "shortName": "Ciudadana, identidad y conciencia cultural",
+    "description": "Capacidad para comprender la complejidad social y cultural del mundo contemporáneo, participar activamente en la vida democrática y contribuir a la construcción de sociedades más justas, inclusivas y sostenibles. Esta competencia integra el pensamiento histórico crítico, la participación ciudadana responsable, el respeto por la diversidad cultural y el compromiso con los derechos humanos. Abarca desde el reconocimiento básico de la diversidad en el entorno familiar hasta la capacidad de analizar críticamente fenómenos sociales complejos y participar en procesos democráticos, valorando tanto los saberes académicos como los conocimientos ancestrales y tradicionales.",
+    "color": "#FFC000",
+    "sortOrder": 2
+  },
+  {
+    "code": "CD",
+    "name": "Competencia Digital",
+    "shortName": "Digital",
+    "description": "Capacidad para movilizar de manera integrada conocimientos, habilidades y actitudes que posibilitan el uso de las tecnologías digitales de forma efectiva, segura, crítica, ética y creativa en distintos contextos de aprendizaje, comunicación y participación social. Esta competencia se desarrolla progresivamente, desde la exploración básica y supervisada de dispositivos hasta el dominio autónomo de herramientas digitales complejas, incorporando la comprensión crítica del funcionamiento de algoritmos e inteligencia artificial y manteniendo siempre una perspectiva ética sobre el impacto de la tecnología en la vida personal y social.",
+    "color": "#5B9BD5",
+    "sortOrder": 3
+  },
+  {
+    "code": "CSE",
+    "name": "Competencia Socioemocional",
+    "shortName": "Socioemocional",
+    "description": "Capacidad para reconocer y comprender las propias emociones y las de otras personas, regularlas de manera adecuada, establecer y mantener relaciones interpersonales respetuosas y empáticas, tomar decisiones responsables y contribuir activamente al bienestar personal y colectivo en diversos contextos. Implica movilizar conocimientos, habilidades y actitudes para gestionar el estrés y los conflictos, mostrar empatía y solidaridad, y actuar de acuerdo con principios éticos orientados a la convivencia pacífica y la justicia social. Evoluciona desde el reconocimiento básico de emociones y necesidades propias hasta la capacidad de ejercer liderazgo empático y colaborativo, promoviendo entornos inclusivos y sostenibles que armonicen el desarrollo personal con el bienestar común.",
+    "color": "#70AD47",
+    "sortOrder": 4
+  },
+  {
+    "code": "CECA",
+    "name": "Competencia de Expresiones Culturales y Artísticas",
+    "shortName": "Expresiones culturales y artísticas",
+    "description": "Capacidad para explorar, crear, apreciar y participar activamente en manifestaciones culturales y artísticas, utilizando diversos lenguajes expresivos como medios de comunicación, construcción de identidad y participación cultural. Esta competencia abarca desde la exploración sensorial libre hasta la creación de obras con intención comunicativa y social, integrando técnicas tradicionales y contemporáneas. Evoluciona promoviendo la sensibilidad estética, el pensamiento crítico sobre las artes y la participación en la vida cultural de la comunidad, valorando tanto el patrimonio artístico local como las expresiones globales.",
+    "color": "#ED7D31",
+    "sortOrder": 5
+  },
+  {
+    "code": "CIT",
+    "name": "Competencia en Innovación y Transformación",
+    "shortName": "Innovación y transformación",
+    "description": "Capacidad para identificar oportunidades de mejora, generar ideas innovadoras, desarrollar proyectos viables y liderar procesos de cambio positivo en diversos contextos. Esta competencia integra creatividad, pensamiento estratégico, habilidades de emprendimiento y liderazgo colaborativo para contribuir al desarrollo sostenible y al bienestar colectivo. Evoluciona desde la curiosidad natural y la exploración lúdica hasta la capacidad de diseñar e implementar proyectos de innovación social y emprendimiento, manteniendo siempre un enfoque ético y considerando el impacto en las personas y el ambiente.",
+    "color": "#A5A5A5",
+    "sortOrder": 6
+  }
+]
