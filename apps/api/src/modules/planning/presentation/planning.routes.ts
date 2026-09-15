@@ -207,7 +207,16 @@ export default async function planningRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const data = await repo.getSituationPdfData(req.params.id, req.user.institutionId)
       const pdf = await buildMicrocurricularPdf(data)
-      const slug = data.situationTitle.replace(/\s+/g, '_').toLowerCase()
+      // Content-Disposition debe ser ASCII puro — un título con tildes/ñ (normal en
+      // español: "Situación", "Ecología"...) rompía el header con ERR_INVALID_CHAR
+      // y tumbaba la descarga con 500, sin relación con el contenido del PDF.
+      const slug = data.situationTitle
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .toLowerCase() || 'situacion'
       return reply
         .header('Content-Type', 'application/pdf')
         .header('Content-Disposition', `inline; filename="planificacion-${slug}.pdf"`)
