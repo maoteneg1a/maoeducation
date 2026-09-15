@@ -12,6 +12,29 @@ import { sendVerificationEmail } from '../../../shared/infrastructure/services/e
 
 const userRepo = new PrismaAuthUserRepository()
 
+/**
+ * Módulos que recibe una cuenta personal de docente al registrarse.
+ *
+ * Los tres primeros son el grupo de planificación — la razón por la que un
+ * docente abre una cuenta personal. Antes faltaban aquí, así que el producto
+ * quedaba oculto justo para ese público.
+ *
+ * Mantener en sync con PERSONAL_DEFAULT_MODULES en
+ * apps/web/src/shared/lib/modules.ts (no hay paquete compartido todavía).
+ */
+const PERSONAL_DEFAULT_MODULES = [
+  'planning',
+  'interdisciplinary_projects',
+  'reinforcement_plans',
+  'academic',
+  'enrollment',
+  'activities',
+  'grades',
+  'attendance',
+  'reports',
+  'branding',
+]
+
 async function createVerificationToken(userId: string): Promise<string> {
   const token = randomBytes(32).toString('hex')
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24h
@@ -128,7 +151,7 @@ export default async function personalRoutes(app: FastifyInstance) {
               settings: {
                 accountType: 'personal',
                 setupComplete: false,
-                modules: ['academic', 'enrollment', 'activities', 'grades', 'attendance', 'reports', 'branding'],
+                modules: PERSONAL_DEFAULT_MODULES,
               } as unknown as Parameters<typeof tx.institution.update>[0]['data']['settings'],
             },
           })

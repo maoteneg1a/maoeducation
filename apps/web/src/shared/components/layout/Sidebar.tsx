@@ -4,6 +4,7 @@ import {
   ClipboardList, AlertTriangle, MessageSquare, Calendar,
   FileText, ChevronDown, X, UserPlus, ShieldCheck,
   ClipboardCheck, CalendarDays, Palette, Smile, Award, HeartHandshake, FolderOpen, NotebookPen, Puzzle,
+  Sparkles, School,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { usePermissions } from '@/shared/hooks/usePermissions'
@@ -20,185 +21,222 @@ interface NavItem {
   children?: Array<{ label: string; path: string }>
 }
 
-const NAV_ITEMS: NavItem[] = [
+interface NavSection {
+  id: string
+  /** Sin label = sin encabezado ni separador (el bloque de Inicio). */
+  label?: string
+  icon?: React.ElementType
+  /** Destaca el encabezado con el color de marca. */
+  accent?: boolean
+  items: NavItem[]
+}
+
+/**
+ * Navegación agrupada en dos productos, igual que MODULE_GROUPS en
+ * shared/lib/modules.ts: planificación (lo que el docente prepara) y gestión
+ * institucional (la administración de la escuela). Si agregas un ítem con
+ * `module`, esa llave tiene que existir en ALL_MODULES o el diálogo de módulos
+ * del panel de superadmin no podrá activarla.
+ */
+const NAV_SECTIONS: NavSection[] = [
   {
-    label: 'Inicio',
-    icon: Home,
-    path: '/dashboard',
-  },
-  {
-    label: 'Usuarios',
-    icon: Users,
-    path: '/users',
-    permission: 'users:read',
-    module: 'users',
-  },
-  {
-    label: 'Roles y Permisos',
-    icon: ShieldCheck,
-    path: '/roles',
-    permission: 'users:manage',
-    module: 'roles',
-  },
-  {
-    label: 'Configuración',
-    icon: Settings,
-    path: '/academic',
-    permission: 'academic_config:manage',
-    module: 'academic',
-    children: [
-      { label: 'Niveles',    path: '/academic/levels' },
-      { label: 'Materias',   path: '/academic/subjects' },
-      { label: 'Años lectivos', path: '/academic/years' },
-      { label: 'Paralelos',  path: '/academic/parallels' },
-      { label: 'Asignaciones', path: '/academic/assignments' },
-      { label: 'Insumos por paralelo', path: '/academic/insumo-setup' },
-      { label: 'Calificación y Asistente IA', path: '/settings/calificacion' },
+    id: 'inicio',
+    items: [
+      {
+        label: 'Inicio',
+        icon: Home,
+        path: '/dashboard',
+      },
     ],
   },
   {
-    label: 'Matrículas',
-    icon: UserPlus,
-    path: '/enrollment',
-    permission: 'enrollment:read',
-    module: 'enrollment',
-  },
-  {
-    label: 'Ficha de anamnesis',
-    icon: ClipboardCheck,
-    path: '/settings/anamnesis',
-    permission: 'anamnesis:manage',
-    module: 'anamnesis',
-  },
-  {
-    label: 'Planificaciones',
-    icon: NotebookPen,
-    path: '/planning',
-    permission: 'planning:read',
-    module: 'planning',
-  },
-  {
-    label: 'Actividades',
-    icon: BookOpen,
-    path: '/activities',
-    permission: 'activities:read',
-    module: 'activities',
-  },
-  {
-    label: 'Calificaciones',
-    icon: GraduationCap,
-    path: '/grades',
-    permission: 'grades:read',
-    module: 'grades',
-  },
-  {
-    label: 'Comportamiento',
-    icon: Smile,
-    path: '/behavior',
-    permission: 'grades:write',
-    module: 'behavior',
-  },
-  {
-    label: 'Recuperación',
-    icon: BookOpen,
-    path: '/pedagogic-recovery',
-    permission: 'grades:write',
-    module: 'pedagogic_recovery',
-  },
-  {
-    label: 'Refuerzo y Adaptaciones',
-    icon: HeartHandshake,
-    path: '/reinforcement-plans',
-    permission: 'grades:write',
-    module: 'reinforcement_plans',
-  },
-  {
-    label: 'Proyectos Interdisciplinarios',
-    icon: Puzzle,
-    path: '/interdisciplinary-projects',
-    permission: 'planning:read',
-    module: 'interdisciplinary_projects',
-  },
-  {
-    label: 'Promoción',
-    icon: Award,
-    path: '/promotion',
-    permission: 'grades:read',
-    module: 'promotion',
-  },
-  {
-    label: 'Asistencia',
-    icon: ClipboardList,
-    path: '/attendance',
-    permission: 'attendance:write',
-    module: 'attendance',
-    children: [
-      { label: 'Registro', path: '/attendance' },
-      { label: 'Justificaciones', path: '/attendance/justifications' },
+    id: 'docencia',
+    label: 'Planificación docente',
+    icon: Sparkles,
+    accent: true,
+    items: [
+      {
+        label: 'Planificaciones',
+        icon: NotebookPen,
+        path: '/planning',
+        permission: 'planning:read',
+        module: 'planning',
+      },
+      {
+        label: 'Proyectos Interdisciplinarios',
+        icon: Puzzle,
+        path: '/interdisciplinary-projects',
+        permission: 'planning:read',
+        module: 'interdisciplinary_projects',
+      },
+      {
+        label: 'Refuerzo y Adaptaciones',
+        icon: HeartHandshake,
+        path: '/reinforcement-plans',
+        permission: 'grades:write',
+        module: 'reinforcement_plans',
+      },
     ],
   },
   {
-    label: 'Incidentes',
-    icon: AlertTriangle,
-    path: '/incidents',
-    permission: 'incidents:read',
-    module: 'incidents',
-    children: [
-      { label: 'Casos', path: '/incidents' },
-      { label: 'Tipos de falta', path: '/incidents/types' },
+    id: 'institucional',
+    label: 'Gestión institucional',
+    icon: School,
+    items: [
+      {
+        label: 'Usuarios',
+        icon: Users,
+        path: '/users',
+        permission: 'users:read',
+        module: 'users',
+      },
+      {
+        label: 'Roles y Permisos',
+        icon: ShieldCheck,
+        path: '/roles',
+        permission: 'users:manage',
+        module: 'roles',
+      },
+      {
+        label: 'Configuración',
+        icon: Settings,
+        path: '/academic',
+        permission: 'academic_config:manage',
+        module: 'academic',
+        children: [
+          { label: 'Niveles',    path: '/academic/levels' },
+          { label: 'Materias',   path: '/academic/subjects' },
+          { label: 'Años lectivos', path: '/academic/years' },
+          { label: 'Paralelos',  path: '/academic/parallels' },
+          { label: 'Asignaciones', path: '/academic/assignments' },
+          { label: 'Insumos por paralelo', path: '/academic/insumo-setup' },
+          { label: 'Calificación y Asistente IA', path: '/settings/calificacion' },
+        ],
+      },
+      {
+        label: 'Matrículas',
+        icon: UserPlus,
+        path: '/enrollment',
+        permission: 'enrollment:read',
+        module: 'enrollment',
+      },
+      {
+        label: 'Ficha de anamnesis',
+        icon: ClipboardCheck,
+        path: '/settings/anamnesis',
+        permission: 'anamnesis:manage',
+        module: 'anamnesis',
+      },
+      {
+        label: 'Actividades',
+        icon: BookOpen,
+        path: '/activities',
+        permission: 'activities:read',
+        module: 'activities',
+      },
+      {
+        label: 'Calificaciones',
+        icon: GraduationCap,
+        path: '/grades',
+        permission: 'grades:read',
+        module: 'grades',
+      },
+      {
+        label: 'Comportamiento',
+        icon: Smile,
+        path: '/behavior',
+        permission: 'grades:write',
+        module: 'behavior',
+      },
+      {
+        label: 'Recuperación',
+        icon: BookOpen,
+        path: '/pedagogic-recovery',
+        permission: 'grades:write',
+        module: 'pedagogic_recovery',
+      },
+      {
+        label: 'Promoción',
+        icon: Award,
+        path: '/promotion',
+        permission: 'grades:read',
+        module: 'promotion',
+      },
+      {
+        label: 'Asistencia',
+        icon: ClipboardList,
+        path: '/attendance',
+        permission: 'attendance:write',
+        module: 'attendance',
+        children: [
+          { label: 'Registro', path: '/attendance' },
+          { label: 'Justificaciones', path: '/attendance/justifications' },
+        ],
+      },
+      {
+        label: 'Incidentes',
+        icon: AlertTriangle,
+        path: '/incidents',
+        permission: 'incidents:read',
+        module: 'incidents',
+        children: [
+          { label: 'Casos', path: '/incidents' },
+          { label: 'Tipos de falta', path: '/incidents/types' },
+        ],
+      },
+      {
+        label: 'Atención a Padres',
+        icon: HeartHandshake,
+        path: '/parent-meetings',
+        permission: 'parent_meetings:read',
+        module: 'parent_meetings',
+      },
+      {
+        label: 'Carpeta del Estudiante',
+        icon: FolderOpen,
+        path: '/student-folder',
+        permission: 'student_folder:read',
+        module: 'student_folder',
+      },
+      {
+        label: 'Mensajes',
+        icon: MessageSquare,
+        path: '/messages',
+        module: 'messages',
+      },
+      {
+        label: 'Tareas',
+        icon: ClipboardCheck,
+        path: '/tasks',
+        module: 'tasks',
+      },
+      {
+        label: 'Calendario',
+        icon: CalendarDays,
+        path: '/calendar',
+        module: 'calendar',
+      },
+      {
+        label: 'Horario',
+        icon: Calendar,
+        path: '/schedules',
+        module: 'schedules',
+      },
+      {
+        label: 'Reportes',
+        icon: FileText,
+        path: '/reports',
+        permission: 'reports:read',
+        module: 'reports',
+      },
+      {
+        label: 'Personalización',
+        icon: Palette,
+        path: '/settings/branding',
+        permission: 'institution_config:manage',
+        module: 'branding',
+      },
     ],
-  },
-  {
-    label: 'Atención a Padres',
-    icon: HeartHandshake,
-    path: '/parent-meetings',
-    permission: 'parent_meetings:read',
-    module: 'parent_meetings',
-  },
-  {
-    label: 'Carpeta del Estudiante',
-    icon: FolderOpen,
-    path: '/student-folder',
-    permission: 'student_folder:read',
-    module: 'student_folder',
-  },
-  {
-    label: 'Mensajes',
-    icon: MessageSquare,
-    path: '/messages',
-    module: 'messages',
-  },
-  {
-    label: 'Tareas',
-    icon: ClipboardCheck,
-    path: '/tasks',
-    module: 'tasks',
-  },
-  {
-    label: 'Calendario',
-    icon: CalendarDays,
-    path: '/calendar',
-    module: 'calendar',
-  },
-  {
-    label: 'Horario',
-    icon: Calendar,
-    path: '/schedules',
-    module: 'schedules',
-  },
-  {
-    label: 'Reportes',
-    icon: FileText,
-    path: '/reports',
-    permission: 'reports:read',
-    module: 'reports',
-  },
-  {
-    label: 'Personalización',
-    icon: Palette,
-    path: '/settings/branding',
-    permission: 'institution_config:manage',
-    module: 'branding',
   },
 ]
 
@@ -216,11 +254,84 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
   const enabledModules = institution?.modules ?? null
 
-  const visible = NAV_ITEMS.filter(
-    (item) =>
-      (!item.permission || hasPermission(item.permission)) &&
-      (!item.module || !enabledModules || enabledModules.includes(item.module)),
-  )
+  const isVisible = (item: NavItem) =>
+    (!item.permission || hasPermission(item.permission)) &&
+    (!item.module || !enabledModules || enabledModules.includes(item.module))
+
+  // Una sección sin ítems visibles desaparece con su encabezado — así una cuenta
+  // personal sin módulos institucionales no muestra un título vacío.
+  const visibleSections = NAV_SECTIONS
+    .map((section) => ({ ...section, items: section.items.filter(isVisible) }))
+    .filter((section) => section.items.length > 0)
+
+  const renderItem = (item: NavItem) => {
+    const isActive = location.pathname.startsWith(item.path)
+    const isExpanded = expanded === item.path
+
+    if (item.children && !collapsed) {
+      return (
+        <div key={item.path}>
+          <button
+            onClick={() => setExpanded(isExpanded ? null : item.path)}
+            className={cn(
+              'w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+              isActive
+                ? 'bg-sidebar-accent text-sidebar-foreground font-medium'
+                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
+            )}
+          >
+            <item.icon className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-left">{item.label}</span>
+            <ChevronDown
+              className={cn('h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-180')}
+            />
+          </button>
+          {isExpanded && (
+            <div className="mt-0.5 ml-4 pl-3 border-l border-sidebar-border space-y-0.5">
+              {item.children.map((child) => (
+                <NavLink
+                  key={child.path}
+                  to={child.path}
+                  onClick={onMobileClose}
+                  className={({ isActive }) =>
+                    cn(
+                      'block rounded-md px-3 py-1.5 text-xs transition-colors',
+                      isActive
+                        ? 'bg-sidebar-accent text-sidebar-foreground font-medium'
+                        : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
+                    )
+                  }
+                >
+                  {child.label}
+                </NavLink>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    return (
+      <NavLink
+        key={item.path}
+        to={item.path}
+        onClick={onMobileClose}
+        title={collapsed ? item.label : undefined}
+        className={({ isActive }) =>
+          cn(
+            'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+            collapsed && 'justify-center px-0',
+            isActive
+              ? 'bg-sidebar-accent text-sidebar-foreground font-medium'
+              : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
+          )
+        }
+      >
+        <item.icon className="h-4 w-4 shrink-0" />
+        {!collapsed && <span>{item.label}</span>}
+      </NavLink>
+    )
+  }
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
@@ -244,76 +355,40 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         )}
       </div>
 
-      {/* Nav items */}
-      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-        {visible.map((item) => {
-          const isActive = location.pathname.startsWith(item.path)
-          const isExpanded = expanded === item.path
-
-          if (item.children && !collapsed) {
-            return (
-              <div key={item.path}>
-                <button
-                  onClick={() => setExpanded(isExpanded ? null : item.path)}
+      {/* Nav items, agrupados por sección */}
+      <nav className="flex-1 px-2 py-3 overflow-y-auto">
+        {visibleSections.map((section, index) => (
+          <div key={section.id}>
+            {/* Encabezado: etiqueta + regla horizontal. Colapsado no cabe texto,
+                así que la separación es solo un guion centrado. */}
+            {section.label && !collapsed && (
+              <div className={cn('flex items-center gap-2 px-3 pb-1.5', index > 0 ? 'pt-4' : 'pt-1')}>
+                {section.icon && (
+                  <section.icon
+                    className={cn(
+                      'h-3.5 w-3.5 shrink-0',
+                      section.accent ? 'text-primary' : 'text-sidebar-foreground/40',
+                    )}
+                  />
+                )}
+                <span
                   className={cn(
-                    'w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-                    isActive
-                      ? 'bg-sidebar-accent text-sidebar-foreground font-medium'
-                      : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
+                    'text-[10px] font-semibold uppercase tracking-wider leading-none',
+                    section.accent ? 'text-primary' : 'text-sidebar-foreground/45',
                   )}
                 >
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1 text-left">{item.label}</span>
-                  <ChevronDown
-                    className={cn('h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-180')}
-                  />
-                </button>
-                {isExpanded && (
-                  <div className="mt-0.5 ml-4 pl-3 border-l border-sidebar-border space-y-0.5">
-                    {item.children.map((child) => (
-                      <NavLink
-                        key={child.path}
-                        to={child.path}
-                        onClick={onMobileClose}
-                        className={({ isActive }) =>
-                          cn(
-                            'block rounded-md px-3 py-1.5 text-xs transition-colors',
-                            isActive
-                              ? 'bg-sidebar-accent text-sidebar-foreground font-medium'
-                              : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
-                          )
-                        }
-                      >
-                        {child.label}
-                      </NavLink>
-                    ))}
-                  </div>
-                )}
+                  {section.label}
+                </span>
+                <span className="flex-1 h-px bg-sidebar-border" />
               </div>
-            )
-          }
+            )}
+            {section.label && collapsed && index > 0 && (
+              <div className="my-2 mx-auto h-px w-6 bg-sidebar-border" />
+            )}
 
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={onMobileClose}
-              title={collapsed ? item.label : undefined}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-                  collapsed && 'justify-center px-0',
-                  isActive
-                    ? 'bg-sidebar-accent text-sidebar-foreground font-medium'
-                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
-                )
-              }
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </NavLink>
-          )
-        })}
+            <div className="space-y-0.5">{section.items.map(renderItem)}</div>
+          </div>
+        ))}
       </nav>
     </div>
   )
