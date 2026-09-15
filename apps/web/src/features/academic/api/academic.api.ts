@@ -22,6 +22,8 @@ export interface Subject {
   isQualitative?: boolean
   curriculumAreaId?: string | null
   competencyAreaId?: string | null
+  /** Código de la tabla oficial de carga horaria (CurricularWorkload.subjectCodes), ej. "M", "ECA". */
+  workloadCode?: string | null
 }
 
 export interface AcademicYear {
@@ -54,6 +56,8 @@ export interface Parallel {
   level?: { id: string; name: string; sortOrder: number }
   tutor?: { id: string; profile: { firstName: string; lastName: string } } | null
   _count?: { enrollments: number; courseAssignments: number }
+  /** Solo BGU (1BGU-3BGU): BACHILLERATO_CIENCIAS | BACHILLERATO_TECNICO — bifurca la carga horaria oficial. */
+  educationOffer?: string | null
 }
 
 export interface CourseAssignment {
@@ -70,6 +74,18 @@ export interface CourseAssignment {
   parallel?: { id: string; name: string; level: { name: string; subnivel?: string | null } }
   teacher?: { id: string; profile: { firstName: string; lastName: string } }
   academicYear?: { id: string; name: string; isActive: boolean }
+  weeklyPeriodsOverride?: number | null
+}
+
+export interface ResolvedWorkload {
+  weeklyPeriods: number | null
+  periodMinutes: number | null
+  sourceType: string | null
+  sourceDocument: string | null
+  effectiveSource: 'OFFICIAL' | 'INSTITUTIONAL' | 'MISSING'
+  groupWeeklyPeriods: number | null
+  status: 'VERIFIED' | 'INSTITUTIONAL_CONFIGURATION_REQUIRED' | 'MISSING' | 'NOT_APPLICABLE'
+  notes: string | null
 }
 
 export interface AcademicPeriodScheme {
@@ -131,6 +147,13 @@ export const academicApi = {
   deleteAssignment: (id: string) => apiDelete(`academic/course-assignments/${id}`),
   updateExamWeight: (id: string, examWeight: number) =>
     apiPatch<{ id: string; examWeight: number }>(`academic/course-assignments/${id}/exam-weight`, { examWeight }),
+  getAssignmentWorkload: (id: string) =>
+    apiGet<ResolvedWorkload>(`academic/course-assignments/${id}/workload`),
+  updateWeeklyPeriodsOverride: (id: string, weeklyPeriodsOverride: number | null) =>
+    apiPatch<{ id: string; weeklyPeriodsOverride: number | null }>(
+      `academic/course-assignments/${id}/weekly-periods-override`,
+      { weeklyPeriodsOverride },
+    ),
   getMyAssignments: (params?: Record<string, string>) =>
     apiGet<{ assignments: CourseAssignment[]; periods: AcademicPeriod[] }>('academic/my-course-assignments', params),
 

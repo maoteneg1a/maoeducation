@@ -26,12 +26,39 @@ import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 
 const NONE = '__none__'
 
+// Códigos de la tabla oficial de carga horaria (Acuerdo MINEDUC-2023-00008-A, art. 7)
+// — determina cuántos períodos semanales le corresponden a esta materia por grado.
+const WORKLOAD_CODES = [
+  { code: 'M', label: 'Matemática' },
+  { code: 'LL', label: 'Lengua y Literatura' },
+  { code: 'CS', label: 'Ciencias Sociales / Estudios Sociales' },
+  { code: 'CN', label: 'Ciencias Naturales' },
+  { code: 'ECA', label: 'Educación Cultural y Artística' },
+  { code: 'EF', label: 'Educación Física' },
+  { code: 'EFL', label: 'Inglés (Lengua Extranjera)' },
+  { code: 'CI', label: 'Currículo Integrador (Preparatoria)' },
+  { code: 'ACOMP', label: 'Acompañamiento estudiantil' },
+  { code: 'LECTURA', label: 'Proyectos escolares / Lectura' },
+  { code: 'OVP', label: 'Orientación Vocacional y Profesional' },
+  { code: 'PHYSICS', label: 'Física (BGU)' },
+  { code: 'CHEMISTRY', label: 'Química (BGU)' },
+  { code: 'BIOLOGY', label: 'Biología (BGU)' },
+  { code: 'HISTORY', label: 'Historia (BGU)' },
+  { code: 'EDUCC', label: 'Educación para la Ciudadanía (BGU)' },
+  { code: 'PHILOSOPHY', label: 'Filosofía (BGU)' },
+  { code: 'EG', label: 'Emprendimiento y Gestión (BGU)' },
+  { code: 'OPTATIVAS', label: 'Optativas (3BGU)' },
+  { code: 'BT_ADICIONALES', label: 'Asignaturas adicionales BT (Técnico)' },
+  { code: 'FIGURA_PROFESIONAL', label: 'Figura profesional (Técnico)' },
+]
+
 const subjectSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   code: z.string().min(1, 'El código es requerido'),
   isQualitative: z.boolean().default(false),
   curriculumAreaId: z.string().default(NONE),
   competencyAreaId: z.string().default(NONE),
+  workloadCode: z.string().default(NONE),
 })
 type SubjectForm = z.infer<typeof subjectSchema>
 
@@ -49,12 +76,12 @@ export function SubjectsPage() {
 
   const form = useForm<SubjectForm>({
     resolver: zodResolver(subjectSchema),
-    defaultValues: { name: '', code: '', isQualitative: false, curriculumAreaId: NONE, competencyAreaId: NONE },
+    defaultValues: { name: '', code: '', isQualitative: false, curriculumAreaId: NONE, competencyAreaId: NONE, workloadCode: NONE },
   })
 
   function openCreate() {
     setEditing(null)
-    form.reset({ name: '', code: '', isQualitative: false, curriculumAreaId: NONE, competencyAreaId: NONE })
+    form.reset({ name: '', code: '', isQualitative: false, curriculumAreaId: NONE, competencyAreaId: NONE, workloadCode: NONE })
     setOpen(true)
   }
 
@@ -66,6 +93,7 @@ export function SubjectsPage() {
       isQualitative: subject.isQualitative ?? false,
       curriculumAreaId: subject.curriculumAreaId ?? NONE,
       competencyAreaId: subject.competencyAreaId ?? NONE,
+      workloadCode: subject.workloadCode ?? NONE,
     })
     setOpen(true)
   }
@@ -75,6 +103,7 @@ export function SubjectsPage() {
       ...values,
       curriculumAreaId: values.curriculumAreaId === NONE ? null : values.curriculumAreaId,
       competencyAreaId: values.competencyAreaId === NONE ? null : values.competencyAreaId,
+      workloadCode: values.workloadCode === NONE ? null : values.workloadCode,
     }
     if (editing) {
       updateSubject.mutate(
@@ -207,6 +236,26 @@ export function SubjectsPage() {
               <p className="text-xs text-muted-foreground">
                 Vincula esta materia al banco {isCompetencyModel ? 'de competencias' : 'de destrezas'} para habilitar
                 su selector en la planificación semanal.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Carga horaria oficial</Label>
+              <Select value={form.watch('workloadCode')} onValueChange={(v) => form.setValue('workloadCode', v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Ninguna" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>Ninguna</SelectItem>
+                  {WORKLOAD_CODES.map((w) => (
+                    <SelectItem key={w.code} value={w.code}>
+                      {w.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Determina cuántos períodos semanales le corresponden a esta materia por grado, según el Acuerdo
+                MINEDUC-2023-00008-A.
               </p>
             </div>
             <label className="flex items-start gap-2 rounded-md border border-input p-3 cursor-pointer">

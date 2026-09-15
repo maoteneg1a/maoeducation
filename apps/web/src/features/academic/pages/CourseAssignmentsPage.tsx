@@ -6,6 +6,7 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Trash2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/shared/components/ui/button'
+import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { DataTable } from '@/shared/components/ui/data-table'
 import {
@@ -23,6 +24,7 @@ import {
   DialogTitle,
 } from '@/shared/components/ui/dialog'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
+import { Badge } from '@/shared/components/ui/badge'
 import { apiGet } from '@/shared/lib/api-client'
 import { type CourseAssignment } from '../api/academic.api'
 import {
@@ -32,7 +34,73 @@ import {
   useSubjects,
   useParallels,
   useAcademicYears,
+  useAssignmentWorkload,
+  useUpdateWeeklyPeriodsOverride,
 } from '../hooks/useAcademic'
+
+function WorkloadCell({ assignmentId }: { assignmentId: string }) {
+  const { data: workload, isLoading } = useAssignmentWorkload(assignmentId)
+  const updateOverride = useUpdateWeeklyPeriodsOverride()
+  const [editing, setEditing] = React.useState(false)
+  const [value, setValue] = React.useState('')
+
+  if (isLoading || !workload) return <span className="text-xs text-muted-foreground">—</span>
+
+  if (workload.status === 'NOT_APPLICABLE') {
+    return <span className="text-xs text-muted-foreground">Sin carga oficial vinculada</span>
+  }
+
+  if (workload.status === 'MISSING') {
+    return <span className="text-xs text-muted-foreground">No hay tabla oficial para este grado</span>
+  }
+
+  if (workload.status === 'INSTITUTIONAL_CONFIGURATION_REQUIRED') {
+    if (editing) {
+      return (
+        <div className="flex items-center gap-1">
+          <Input
+            type="number"
+            min={1}
+            max={workload.groupWeeklyPeriods ?? 40}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="h-7 w-16"
+            autoFocus
+          />
+          <Button
+            size="sm"
+            className="h-7"
+            loading={updateOverride.isPending}
+            onClick={() =>
+              updateOverride.mutate(
+                { id: assignmentId, weeklyPeriodsOverride: Number(value) || null },
+                { onSuccess: () => setEditing(false) },
+              )
+            }
+          >
+            OK
+          </Button>
+        </div>
+      )
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="text-xs text-amber-700 underline decoration-dotted hover:text-amber-900"
+        title={`Bloque agrupado oficial: ${workload.groupWeeklyPeriods} períodos/semana — reparte cuántos le tocan a esta materia`}
+      >
+        Definir reparto ({workload.groupWeeklyPeriods} periodos del bloque)
+      </button>
+    )
+  }
+
+  return (
+    <Badge variant={workload.effectiveSource === 'INSTITUTIONAL' ? 'secondary' : 'success'}>
+      {workload.weeklyPeriods} periodos/sem
+    </Badge>
+  )
+}
 
 interface Teacher {
   id: string
@@ -139,6 +207,11 @@ export function CourseAssignmentsPage() {
         if (a.teacher?.profile) return `${a.teacher.profile.firstName} ${a.teacher.profile.lastName}`
         return row.original.teacherId
       },
+    },
+    {
+      id: 'workload',
+      header: 'Carga horaria',
+      cell: ({ row }) => <WorkloadCell assignmentId={row.original.id} />,
     },
     {
       id: 'actions',

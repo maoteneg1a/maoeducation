@@ -8,6 +8,7 @@ import {
   type GeneratedPedagogyPayload,
   type PedagogicalValidationContext,
 } from '../../../../shared/domain/pedagogical-validation'
+import { resolveWorkload, weeklyPhaseCounts } from '../../../../shared/domain/workload-resolution'
 import type { DraftCompetencyWeekDto, DraftCompetencyWeekResult, DraftedSaber } from '../dtos/ai-assistant.dto'
 
 const institutionRepo = new PrismaInstitutionRepository()
@@ -221,11 +222,28 @@ export async function draftCompetencyWeek(
     .map((t) => `  ${t.code} (${t.label}) -> instrumentos válidos: ${t.compatibleInstrumentCodes.join(', ')}`)
     .join('\n')
 
+  // Carga horaria oficial (períodos semanales) determina la densidad de la semana —
+  // calcado de _weekly_phase_counts() en TIGA: más períodos, más actividades por fase.
+  const assignment = situation.plan.courseAssignment
+  const workloadEntries = await prisma.curricularWorkload.findMany()
+  const workload = resolveWorkload(
+    workloadEntries,
+    assignment.parallel.level.code,
+    assignment.subject.workloadCode,
+    assignment.parallel.educationOffer,
+    assignment.weeklyPeriodsOverride,
+  )
+  const phaseCounts = weeklyPhaseCounts(workload.weeklyPeriods)
+  const densityLine = workload.weeklyPeriods
+    ? `Carga horaria: ${workload.weeklyPeriods} períodos/semana. Densidad esperada de actividades por fase: Anticipación ${phaseCounts.anticipation}, Construcción ${phaseCounts.construction}, Consolidación ${phaseCounts.consolidation}. Ajusta la profundidad de la actividad de cada fase a esta densidad (no la ignores).`
+    : 'Carga horaria no configurada para este grado+materia — usa una densidad estándar (una actividad concreta por fase).'
+
   const systemPrompt = `Eres un asistente pedagógico que ayuda a docentes ecuatorianos a redactar la planificación microcurricular semanal (PUD) por COMPETENCIAS, siguiendo el Currículo Nacional por Competencias (CNC) del MINEDUC.
 
 Asignatura: ${situation.plan.courseAssignment.subject.name}
 Grado/Curso: ${situation.plan.courseAssignment.parallel.level.name}
 Trimestre: ${situation.academicPeriod.name}
+${densityLine}
 
 Competencias seleccionadas por el docente:
 

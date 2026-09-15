@@ -348,6 +348,9 @@ model Parallel {
   name           String  @db.VarChar(10)
   capacity       Int?    @db.SmallInt
   isActive       Boolean @default(true) @map("is_active")
+  // Solo aplica a paralelos de BGU (1BGU-3BGU): BACHILLERATO_CIENCIAS | BACHILLERATO_TECNICO.
+  // La carga horaria oficial (CurricularWorkload) se bifurca por esta oferta a partir de BGU.
+  educationOffer String? @map("education_offer") @db.VarChar(30)
 
   institution               Institution                @relation(fields: [institutionId], references: [id])
   level                     Level                      @relation(fields: [levelId], references: [id])
@@ -379,6 +382,9 @@ model Subject {
   // Vínculo equivalente al banco por COMPETENCIAS — se usa cuando el
   // planningModel de la institución es "competencias" en vez de "destrezas".
   competencyAreaId String?  @map("competency_area_id")
+  // Código de materia según la tabla oficial de carga horaria (CurricularWorkload.subjectCodes),
+  // ej. "M", "LL", "ECA" — null si esta materia no tiene carga horaria oficial (propia de la institución).
+  workloadCode     String?  @map("workload_code") @db.VarChar(30)
   createdAt        DateTime @default(now()) @map("created_at")
 
   institution       Institution        @relation(fields: [institutionId], references: [id])
@@ -559,6 +565,28 @@ model CompetencySaber {
   @@map("competency_sabers")
 }
 
+// Carga horaria oficial (períodos semanales por grado+materia), fuente: Acuerdo
+// MINEDUC-2023-00008-A, art. 7. Global (no por institución) — sin redistribuciones
+// inventadas, calcado de TIGA. Un mismo grado+materia puede matchear una entrada
+// "OFFICIAL_INDIVIDUAL" (weeklyPeriods ya resuelto) o "OFFICIAL_GROUPED" (requiere
+// que la institución reparta groupWeeklyPeriods entre sus materias vía
+// CourseAssignment.weeklyPeriodsOverride).
+model CurricularWorkload {
+  id                 String   @id @default(uuid())
+  sublevel           String   @db.VarChar(20) // preparatoria | elemental | media | superior | bachillerato
+  levelCodes         String[] @map("level_codes") // ej: ["2B","3B","4B"] — códigos de Level.code que matchean
+  educationOffer     String   @map("education_offer") @db.VarChar(30) // EGB | BACHILLERATO_CIENCIAS | BACHILLERATO_TECNICO
+  subjectCodes       String[] @map("subject_codes") // ej: ["ECA","EF"] — matchea contra Subject.workloadCode
+  weeklyPeriods      Int?     @map("weekly_periods") // solo si sourceType = OFFICIAL_INDIVIDUAL
+  groupWeeklyPeriods Int?     @map("group_weekly_periods") // solo si sourceType = OFFICIAL_GROUPED
+  periodMinutes      Int      @map("period_minutes") @db.SmallInt
+  sourceType         String   @map("source_type") @db.VarChar(30) // OFFICIAL_INDIVIDUAL | OFFICIAL_GROUPED
+  sourceDocument     String   @map("source_document")
+  notes              String?
+
+  @@map("curricular_workloads")
+}
+
 // Catálogo fijo y global (no por institución) de las 7 competencias clave
 // transversales del CNC-MINEDUC — se etiquetan en cada Competency.
 model KeyCompetency {
@@ -658,15 +686,19 @@ model CurricularInsertionCandidate {
 }
 
 model CourseAssignment {
-  id             String   @id @default(uuid())
-  institutionId  String   @map("institution_id")
-  teacherId      String   @map("teacher_id")
-  subjectId      String   @map("subject_id")
-  parallelId     String   @map("parallel_id")
-  academicYearId String   @map("academic_year_id")
-  isActive       Boolean  @default(true) @map("is_active")
-  examWeight     Int      @default(30) @map("exam_weight")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id                    String   @id @default(uuid())
+  institutionId         String   @map("institution_id")
+  teacherId             String   @map("teacher_id")
+  subjectId             String   @map("subject_id")
+  parallelId            String   @map("parallel_id")
+  academicYearId        String   @map("academic_year_id")
+  isActive              Boolean  @default(true) @map("is_active")
+  examWeight            Int      @default(30) @map("exam_weight")
+  // Períodos semanales institucionales — SOLO se usa cuando la carga oficial (CurricularWorkload)
+  // es un bloque agrupado (ej. "ECA+EF"=5, "Currículo Integrador"=25) y la institución debe repartirlo
+  // entre sus materias. Si la carga oficial ya es individual, este campo se ignora.
+  weeklyPeriodsOverride Int?     @map("weekly_periods_override") @db.SmallInt
+  createdAt             DateTime @default(now()) @map("created_at")
 
   institution                    Institution                     @relation(fields: [institutionId], references: [id])
   teacher                        User                            @relation("TeacherAssignments", fields: [teacherId], references: [id])

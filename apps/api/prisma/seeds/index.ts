@@ -16,6 +16,7 @@ import {
   loadDuaCatalog,
   loadAssessmentCatalog,
   loadInsertionBanks,
+  loadCurricularWorkload,
 } from '../../src/modules/platform/application/services/institution-bootstrap'
 
 const prisma = new PrismaClient()
@@ -240,6 +241,15 @@ async function main() {
     console.log(`✓ Ejes de inserción curricular: ${insertionBanks.length} bancos, ${candidatesCount} candidatos`)
   } else {
     console.log('✓ Ejes de inserción curricular: ya existían, se omite')
+  }
+
+  const existingWorkload = await prisma.curricularWorkload.count()
+  if (existingWorkload === 0) {
+    const workload = loadCurricularWorkload()
+    await prisma.curricularWorkload.createMany({ data: workload })
+    console.log(`✓ Carga horaria oficial: ${workload.length} entradas (MINEDUC-2023-00008-A)`)
+  } else {
+    console.log('✓ Carga horaria oficial: ya existía, se omite')
   }
 
   // 4b. Tipos de falta (debido proceso)

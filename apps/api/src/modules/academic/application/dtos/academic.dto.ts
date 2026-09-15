@@ -21,6 +21,7 @@ export interface CreateSubjectDto {
   isQualitative?: boolean
   curriculumAreaId?: string | null
   competencyAreaId?: string | null
+  workloadCode?: string | null
 }
 
 export interface UpdateSubjectDto {
@@ -31,6 +32,7 @@ export interface UpdateSubjectDto {
   isQualitative?: boolean
   curriculumAreaId?: string | null
   competencyAreaId?: string | null
+  workloadCode?: string | null
 }
 
 export interface CreateAcademicYearDto {
@@ -60,6 +62,7 @@ export interface CreateParallelDto {
   academicYearId: string
   capacity?: number
   tutorId?: string
+  educationOffer?: string | null
 }
 
 export interface UpdateParallelDto {
@@ -67,6 +70,7 @@ export interface UpdateParallelDto {
   levelId?: string
   capacity?: number
   tutorId?: string | null
+  educationOffer?: string | null
 }
 
 export interface CreateCourseAssignmentDto {
