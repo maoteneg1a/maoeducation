@@ -9,6 +9,8 @@ import {
   DEFAULT_INCIDENT_TYPES,
   DEFAULT_ANAMNESIS_SCHEMA,
   DEFAULT_QUALITATIVE_SUBJECTS,
+  DEFAULT_PCA_SCHEMA,
+  loadDefaultCurriculum,
 } from '../../src/modules/platform/application/services/institution-bootstrap'
 
 const prisma = new PrismaClient()
@@ -67,6 +69,47 @@ async function main() {
   }
   console.log(`✓ Activity types: ${activityTypes.length} tipos creados`)
 
+  // 4b. Banco curricular MINEDUC (Currículo Priorizado con Énfasis en Competencias)
+  const existingAreas = await prisma.curriculumArea.count({ where: { institutionId: institution.id } })
+  if (existingAreas === 0) {
+    const defaultCurriculum = loadDefaultCurriculum()
+    let criteriaCount = 0
+    let skillsCount = 0
+    for (const area of defaultCurriculum) {
+      const createdArea = await prisma.curriculumArea.create({
+        data: { institutionId: institution.id, code: area.code, name: area.name },
+      })
+      for (const [subnivel, criteria] of Object.entries(area.subniveles)) {
+        for (const criterion of criteria) {
+          criteriaCount++
+          const createdCriterion = await prisma.curriculumCriterion.create({
+            data: {
+              areaId: createdArea.id,
+              subnivel,
+              code: criterion.code,
+              description: criterion.description,
+            },
+          })
+          if (criterion.skills.length) {
+            skillsCount += criterion.skills.length
+            await prisma.curriculumSkill.createMany({
+              data: criterion.skills.map((skill) => ({
+                criterionId: createdCriterion.id,
+                code: skill.code,
+                description: skill.description,
+                indicatorText: skill.indicatorText,
+                profileRefs: skill.profileRefs,
+              })),
+            })
+          }
+        }
+      }
+    }
+    console.log(`✓ Banco curricular: ${defaultCurriculum.length} áreas, ${criteriaCount} criterios, ${skillsCount} destrezas`)
+  } else {
+    console.log('✓ Banco curricular: ya existía, se omite')
+  }
+
   // 4b. Tipos de falta (debido proceso)
   for (const t of DEFAULT_INCIDENT_TYPES) {
     await prisma.incidentType.upsert({
@@ -92,6 +135,22 @@ async function main() {
     })
   }
   console.log('✓ Anamnesis template: plantilla por defecto creada')
+
+  const existingPca = await prisma.planningTemplate.findFirst({
+    where: { institutionId: institution.id, type: 'pca' },
+  })
+  if (!existingPca) {
+    await prisma.planningTemplate.create({
+      data: {
+        institutionId: institution.id,
+        type: 'pca',
+        name: 'PCA — Planificación Curricular Anual',
+        isDefault: true,
+        schema: DEFAULT_PCA_SCHEMA as object,
+      },
+    })
+  }
+  console.log('✓ Planning template: PCA por defecto creada')
 
   // 4d. Materias cualitativas por defecto (libreta)
   for (const name of DEFAULT_QUALITATIVE_SUBJECTS) {

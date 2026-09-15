@@ -32,6 +32,9 @@ export interface Activity {
   taskId?: string
   courseAssignmentId: string
   academicPeriodId: string
+  /** Destreza del banco curricular vinculada a esta actividad — habilita el refuerzo automático por destreza. */
+  curriculumSkillId?: string | null
+  curriculumSkill?: { id: string; code: string; description: string } | null
 }
 
 export type GradeStatus = 'entregado' | 'no_realizado' | 'atrasado' | 'excusado'

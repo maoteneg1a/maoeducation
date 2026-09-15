@@ -198,6 +198,41 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      // ---- Reinforcement Plans (refuerzo y adaptaciones NEE) ----
+      {
+        path: 'reinforcement-plans',
+        element: <PermissionGuard permission="grades:write" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/pedagogic-recovery/pages/ReinforcementPlansPage').then((m) => ({
+                Component: m.ReinforcementPlansPage,
+              })),
+          },
+        ],
+      },
+      // ---- Interdisciplinary Projects ----
+      {
+        path: 'interdisciplinary-projects',
+        element: <PermissionGuard permission="planning:read" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/interdisciplinary-projects/pages/InterdisciplinaryProjectsPage').then((m) => ({
+                Component: m.InterdisciplinaryProjectsPage,
+              })),
+          },
+          {
+            path: ':id',
+            lazy: () =>
+              import('@/features/interdisciplinary-projects/pages/InterdisciplinaryProjectDetailPage').then((m) => ({
+                Component: m.InterdisciplinaryProjectDetailPage,
+              })),
+          },
+        ],
+      },
       // ---- Promotion (promoción y recuperaciones) ----
       {
         path: 'promotion',
@@ -208,6 +243,34 @@ export const router = createBrowserRouter([
             lazy: () =>
               import('@/features/promotion/pages/PromotionPage').then((m) => ({
                 Component: m.PromotionPage,
+              })),
+          },
+        ],
+      },
+      // ---- Planning (PCA / Planificación Microcurricular) ----
+      {
+        path: 'planning',
+        element: <PermissionGuard permission="planning:read" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/planning/pages/PlanningListPage').then((m) => ({
+                Component: m.PlanningListPage,
+              })),
+          },
+          {
+            path: 'situations/:id',
+            lazy: () =>
+              import('@/features/planning/pages/PlanningSituationPage').then((m) => ({
+                Component: m.PlanningSituationPage,
+              })),
+          },
+          {
+            path: ':id',
+            lazy: () =>
+              import('@/features/planning/pages/PlanningDetailPage').then((m) => ({
+                Component: m.PlanningDetailPage,
               })),
           },
         ],

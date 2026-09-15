@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   // En producción con PgBouncer: DATABASE_URL apunta al pooler (puerto del
   // pooler, con ?pgbouncer=true) y DIRECT_URL a la conexión directa de Postgres
   // (la usan migrate/introspect, que no pueden ir por el pooler).
@@ -25,69 +25,76 @@ model Institution {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  users                 User[]
-  roles                 Role[]
-  levels                Level[]
-  subjects              Subject[]
-  academicYears         AcademicYear[]
-  parallels             Parallel[]
-  activityTypes         ActivityType[]
-  courseAssignments     CourseAssignment[]
-  studentEnrollments    StudentEnrollment[]
-  activities            Activity[]
-  grades                Grade[]
-  attendanceRecords     AttendanceRecord[]
-  absenceJustifications AbsenceJustification[]
-  disciplinaryIncidents DisciplinaryIncident[]
-  incidentTypes         IncidentType[]
-  incidentEvents        IncidentEvent[]
-  incidentCommitments   IncidentCommitment[]
-  incidentAttachments   IncidentAttachment[]
-  parentMeetings        ParentMeeting[]
-  anamnesisTemplates    AnamnesisTemplate[]
-  anamnesisRecords      AnamnesisRecord[]
-  behaviorGrades        BehaviorGrade[]
-  subjectRecoveries     SubjectRecovery[]
-  pedagogicRecoveries   PedagogicRecovery[]
-  promotionDecisions    PromotionDecision[]
-  messageThreads        MessageThread[]
-  scheduleEntries       ScheduleEntry[]
-  reportTemplates       ReportTemplate[]
-  auditLogs             AuditLog[]
-  insumos               Insumo[]
-  tasks                 Task[]
+  users                     User[]
+  roles                     Role[]
+  levels                    Level[]
+  subjects                  Subject[]
+  academicYears             AcademicYear[]
+  parallels                 Parallel[]
+  activityTypes             ActivityType[]
+  courseAssignments         CourseAssignment[]
+  studentEnrollments        StudentEnrollment[]
+  activities                Activity[]
+  grades                    Grade[]
+  attendanceRecords         AttendanceRecord[]
+  absenceJustifications     AbsenceJustification[]
+  disciplinaryIncidents     DisciplinaryIncident[]
+  incidentTypes             IncidentType[]
+  incidentEvents            IncidentEvent[]
+  incidentCommitments       IncidentCommitment[]
+  incidentAttachments       IncidentAttachment[]
+  parentMeetings            ParentMeeting[]
+  anamnesisTemplates        AnamnesisTemplate[]
+  anamnesisRecords          AnamnesisRecord[]
+  behaviorGrades            BehaviorGrade[]
+  subjectRecoveries         SubjectRecovery[]
+  pedagogicRecoveries       PedagogicRecovery[]
+  promotionDecisions        PromotionDecision[]
+  messageThreads            MessageThread[]
+  scheduleEntries           ScheduleEntry[]
+  reportTemplates           ReportTemplate[]
+  auditLogs                 AuditLog[]
+  insumos                   Insumo[]
+  tasks                     Task[]
+  curriculumAreas           CurriculumArea[]
+  planningTemplates         PlanningTemplate[]
+  curriculumPlans           CurriculumPlan[]
+  learningSituations        LearningSituation[]
+  planningWeeks             PlanningWeek[]
+  reinforcementPlans        ReinforcementPlan[]
+  interdisciplinaryProjects InterdisciplinaryProject[]
 
   @@map("institutions")
 }
 
 model User {
-  id            String    @id @default(uuid())
-  institutionId String    @map("institution_id")
-  email         String    @db.VarChar(255)
-  passwordHash  String    @map("password_hash") @db.VarChar(255)
-  isActive          Boolean   @default(true) @map("is_active")
-  emailVerifiedAt   DateTime? @map("email_verified_at")
-  lastLoginAt       DateTime? @map("last_login_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id              String    @id @default(uuid())
+  institutionId   String    @map("institution_id")
+  email           String    @db.VarChar(255)
+  passwordHash    String    @map("password_hash") @db.VarChar(255)
+  isActive        Boolean   @default(true) @map("is_active")
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  lastLoginAt     DateTime? @map("last_login_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   institution Institution @relation(fields: [institutionId], references: [id])
   profile     Profile?
   userRoles   UserRole[]
 
   // Relaciones como actor
-  teacherAssignments     CourseAssignment[]     @relation("TeacherAssignments")
-  createdActivities      Activity[]             @relation("ActivityCreator")
-  recordedGrades         Grade[]                @relation("GradeRecorder")
-  recordedAttendance     AttendanceRecord[]     @relation("AttendanceRecorder")
-  reportedIncidents      DisciplinaryIncident[] @relation("IncidentReporter")
-  createdJustifications  AbsenceJustification[] @relation("JustificationCreator")
-  sentMessages           Message[]              @relation("MessageSender")
-  messageRecipients      MessageRecipient[]
-  createdThreads         MessageThread[]        @relation("ThreadCreator")
-  createdInsumos         Insumo[]               @relation("InsumoCreator")
-  createdTasks           Task[]                 @relation("TaskCreator")
-  uploadedAttachments    TaskAttachment[]       @relation("AttachmentUploader")
+  teacherAssignments    CourseAssignment[]     @relation("TeacherAssignments")
+  createdActivities     Activity[]             @relation("ActivityCreator")
+  recordedGrades        Grade[]                @relation("GradeRecorder")
+  recordedAttendance    AttendanceRecord[]     @relation("AttendanceRecorder")
+  reportedIncidents     DisciplinaryIncident[] @relation("IncidentReporter")
+  createdJustifications AbsenceJustification[] @relation("JustificationCreator")
+  sentMessages          Message[]              @relation("MessageSender")
+  messageRecipients     MessageRecipient[]
+  createdThreads        MessageThread[]        @relation("ThreadCreator")
+  createdInsumos        Insumo[]               @relation("InsumoCreator")
+  createdTasks          Task[]                 @relation("TaskCreator")
+  uploadedAttachments   TaskAttachment[]       @relation("AttachmentUploader")
 
   // Relaciones como alumno
   studentEnrollments    StudentEnrollment[]    @relation("StudentEnrollments")
@@ -107,42 +114,52 @@ model User {
   parentMeetingsRecorded  ParentMeeting[] @relation("ParentMeetingRecorder")
 
   // Anamnesis
-  studentAnamnesis  AnamnesisRecord[] @relation("StudentAnamnesis")
-  createdAnamnesis  AnamnesisRecord[] @relation("AnamnesisCreator")
+  studentAnamnesis AnamnesisRecord[] @relation("StudentAnamnesis")
+  createdAnamnesis AnamnesisRecord[] @relation("AnamnesisCreator")
 
   // Comportamiento
-  studentBehavior   BehaviorGrade[]   @relation("StudentBehavior")
-  recordedBehavior  BehaviorGrade[]   @relation("BehaviorRecorder")
+  studentBehavior  BehaviorGrade[] @relation("StudentBehavior")
+  recordedBehavior BehaviorGrade[] @relation("BehaviorRecorder")
 
   // Promoción y recuperaciones
-  pushSubscriptions          PushSubscription[]
-  studentRecoveries          SubjectRecovery[]    @relation("StudentRecovery")
-  recordedRecoveries         SubjectRecovery[]    @relation("RecoveryRecorder")
-  studentPedagogicRecoveries PedagogicRecovery[]  @relation("StudentPedagogicRecovery")
-  recordedPedagogicRecoveries PedagogicRecovery[] @relation("PedagogicRecoveryRecorder")
-  studentPromotions   PromotionDecision[] @relation("StudentPromotion")
-  decidedPromotions   PromotionDecision[] @relation("PromotionDecider")
+  pushSubscriptions                PushSubscription[]
+  studentRecoveries                SubjectRecovery[]          @relation("StudentRecovery")
+  recordedRecoveries               SubjectRecovery[]          @relation("RecoveryRecorder")
+  studentPedagogicRecoveries       PedagogicRecovery[]        @relation("StudentPedagogicRecovery")
+  recordedPedagogicRecoveries      PedagogicRecovery[]        @relation("PedagogicRecoveryRecorder")
+  studentReinforcementPlans        ReinforcementPlan[]        @relation("StudentReinforcementPlan")
+  createdReinforcementPlans        ReinforcementPlan[]        @relation("ReinforcementPlanCreator")
+  createdInterdisciplinaryProjects InterdisciplinaryProject[] @relation("InterdisciplinaryProjectCreator")
+  studentPromotions                PromotionDecision[]        @relation("StudentPromotion")
+  decidedPromotions                PromotionDecision[]        @relation("PromotionDecider")
+
+  // Planificación curricular (PCA/PUD)
+  createdCurriculumPlans     CurriculumPlan[]    @relation("CurriculumPlanCreator")
+  approvedCurriculumPlans    CurriculumPlan[]    @relation("CurriculumPlanApprover")
+  createdLearningSituations  LearningSituation[] @relation("LearningSituationCreator")
+  reviewedLearningSituations LearningSituation[] @relation("LearningSituationReviewer")
+  approvedLearningSituations LearningSituation[] @relation("LearningSituationApprover")
 
   // Relaciones de tutor/padre
   guardianOf       GuardianStudent[] @relation("GuardianRelation")
   studentGuardians GuardianStudent[] @relation("StudentRelation")
   tutoredParallels Parallel[]        @relation("ParallelTutor")
 
-  assignedRoles   UserRole[]  @relation("RoleAssigner")
+  assignedRoles UserRole[] @relation("RoleAssigner")
 
   @@unique([institutionId, email])
   @@map("users")
 }
 
 model Profile {
-  id        String   @id @default(uuid())
-  userId    String   @unique @map("user_id")
-  firstName String   @map("first_name") @db.VarChar(100)
-  lastName  String   @map("last_name") @db.VarChar(100)
-  dni       String?  @db.VarChar(20)
-  phone     String?  @db.VarChar(30)
-  birthDate DateTime? @map("birth_date") @db.Date
-  avatarUrl String?  @map("avatar_url") @db.VarChar(500)
+  id                    String    @id @default(uuid())
+  userId                String    @unique @map("user_id")
+  firstName             String    @map("first_name") @db.VarChar(100)
+  lastName              String    @map("last_name") @db.VarChar(100)
+  dni                   String?   @db.VarChar(20)
+  phone                 String?   @db.VarChar(30)
+  birthDate             DateTime? @map("birth_date") @db.Date
+  avatarUrl             String?   @map("avatar_url") @db.VarChar(500)
   // Datos ampliados (matrícula / representante)
   phoneAlt              String?   @map("phone_alt") @db.VarChar(30)
   address               String?   @db.VarChar(300)
@@ -153,8 +170,8 @@ model Profile {
   gender                String?   @db.VarChar(20)
   emergencyContactName  String?   @map("emergency_contact_name") @db.VarChar(150)
   emergencyContactPhone String?   @map("emergency_contact_phone") @db.VarChar(30)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -162,12 +179,12 @@ model Profile {
 }
 
 model GuardianStudent {
-  guardianId        String  @map("guardian_id")
-  studentId         String  @map("student_id")
-  relationship      String  @default("guardian") @db.VarChar(50) // padre | madre | tutor_legal | otro
-  isPrimary         Boolean @default(false) @map("is_primary")
-  isLegalRep        Boolean @default(false) @map("is_legal_rep")
-  livesWithStudent  Boolean @default(false) @map("lives_with_student")
+  guardianId         String  @map("guardian_id")
+  studentId          String  @map("student_id")
+  relationship       String  @default("guardian") @db.VarChar(50) // padre | madre | tutor_legal | otro
+  isPrimary          Boolean @default(false) @map("is_primary")
+  isLegalRep         Boolean @default(false) @map("is_legal_rep")
+  livesWithStudent   Boolean @default(false) @map("lives_with_student")
   isEmergencyContact Boolean @default(false) @map("is_emergency_contact")
 
   guardian User @relation("GuardianRelation", fields: [guardianId], references: [id], onDelete: Cascade)
@@ -248,11 +265,11 @@ model AcademicYear {
   isActive      Boolean  @default(false) @map("is_active")
   createdAt     DateTime @default(now()) @map("created_at")
 
-  institution     Institution      @relation(fields: [institutionId], references: [id])
-  academicPeriods AcademicPeriod[]
-  parallels       Parallel[]
-  enrollments     StudentEnrollment[]
-  courseAssignments CourseAssignment[]
+  institution        Institution         @relation(fields: [institutionId], references: [id])
+  academicPeriods    AcademicPeriod[]
+  parallels          Parallel[]
+  enrollments        StudentEnrollment[]
+  courseAssignments  CourseAssignment[]
   subjectRecoveries  SubjectRecovery[]
   promotionDecisions PromotionDecision[]
 
@@ -286,12 +303,15 @@ model AcademicPeriod {
   isActive       Boolean  @default(false) @map("is_active")
   isClosed       Boolean  @default(false) @map("is_closed")
 
-  academicYear   AcademicYear         @relation(fields: [academicYearId], references: [id])
-  scheme         AcademicPeriodScheme @relation(fields: [schemeId], references: [id])
-  activities          Activity[]
-  insumos             Insumo[]
-  behaviorGrades      BehaviorGrade[]
-  pedagogicRecoveries PedagogicRecovery[]
+  academicYear              AcademicYear               @relation(fields: [academicYearId], references: [id])
+  scheme                    AcademicPeriodScheme       @relation(fields: [schemeId], references: [id])
+  activities                Activity[]
+  insumos                   Insumo[]
+  behaviorGrades            BehaviorGrade[]
+  pedagogicRecoveries       PedagogicRecovery[]
+  learningSituations        LearningSituation[]
+  reinforcementPlans        ReinforcementPlan[]
+  interdisciplinaryProjects InterdisciplinaryProject[]
 
   @@unique([academicYearId, periodNumber])
   @@map("academic_periods")
@@ -306,6 +326,9 @@ model Level {
   isActive       Boolean  @default(true) @map("is_active")
   // Modo de asistencia del nivel: "per_subject" (por materia) | "daily" (diaria por paralelo)
   attendanceMode String   @default("per_subject") @map("attendance_mode") @db.VarChar(20)
+  // Subnivel del currículo MINEDUC al que pertenece este grado: inicial | elemental | media | superior | bgu
+  // Determina qué banco curricular (CurriculumSkill) se le ofrece al docente.
+  subnivel       String?  @db.VarChar(20)
   createdAt      DateTime @default(now()) @map("created_at")
 
   institution Institution @relation(fields: [institutionId], references: [id])
@@ -316,44 +339,138 @@ model Level {
 }
 
 model Parallel {
-  id             String   @id @default(uuid())
-  institutionId  String   @map("institution_id")
-  levelId        String   @map("level_id")
-  academicYearId String   @map("academic_year_id")
-  tutorId        String?  @map("tutor_id")
-  name           String   @db.VarChar(10)
-  capacity       Int?     @db.SmallInt
-  isActive       Boolean  @default(true) @map("is_active")
+  id             String  @id @default(uuid())
+  institutionId  String  @map("institution_id")
+  levelId        String  @map("level_id")
+  academicYearId String  @map("academic_year_id")
+  tutorId        String? @map("tutor_id")
+  name           String  @db.VarChar(10)
+  capacity       Int?    @db.SmallInt
+  isActive       Boolean @default(true) @map("is_active")
 
-  institution      Institution        @relation(fields: [institutionId], references: [id])
-  level            Level              @relation(fields: [levelId], references: [id])
-  academicYear     AcademicYear       @relation(fields: [academicYearId], references: [id])
-  tutor            User?              @relation("ParallelTutor", fields: [tutorId], references: [id])
-  enrollments      StudentEnrollment[]
-  courseAssignments CourseAssignment[]
-  attendanceRecords AttendanceRecord[]
+  institution               Institution                @relation(fields: [institutionId], references: [id])
+  level                     Level                      @relation(fields: [levelId], references: [id])
+  academicYear              AcademicYear               @relation(fields: [academicYearId], references: [id])
+  tutor                     User?                      @relation("ParallelTutor", fields: [tutorId], references: [id])
+  enrollments               StudentEnrollment[]
+  courseAssignments         CourseAssignment[]
+  attendanceRecords         AttendanceRecord[]
+  interdisciplinaryProjects InterdisciplinaryProject[]
 
   @@unique([levelId, academicYearId, name])
   @@map("parallels")
 }
 
 model Subject {
-  id            String   @id @default(uuid())
-  institutionId String   @map("institution_id")
-  name          String   @db.VarChar(150)
-  code          String?  @db.VarChar(20)
-  description   String?
-  isActive      Boolean  @default(true) @map("is_active")
+  id               String   @id @default(uuid())
+  institutionId    String   @map("institution_id")
+  name             String   @db.VarChar(150)
+  code             String?  @db.VarChar(20)
+  description      String?
+  isActive         Boolean  @default(true) @map("is_active")
   // Materia cualitativa: se califica con notas pero en la libreta se muestra como
   // letra (A+…F−) y NO entra en el promedio general.
-  isQualitative Boolean  @default(false) @map("is_qualitative")
-  createdAt     DateTime @default(now()) @map("created_at")
+  isQualitative    Boolean  @default(false) @map("is_qualitative")
+  // Vínculo opcional al área del currículo oficial (banco de destrezas MINEDUC).
+  // Si es null, la materia no tiene banco curricular asociado (ej. materias propias
+  // de la institución sin equivalente oficial).
+  curriculumAreaId String?  @map("curriculum_area_id")
+  createdAt        DateTime @default(now()) @map("created_at")
 
   institution       Institution        @relation(fields: [institutionId], references: [id])
+  curriculumArea    CurriculumArea?    @relation(fields: [curriculumAreaId], references: [id])
   courseAssignments CourseAssignment[]
 
   @@unique([institutionId, code])
   @@map("subjects")
+}
+
+// ============================================================
+// BANCO CURRICULAR MINEDUC (Currículo Priorizado con Énfasis en Competencias)
+// ============================================================
+// Jerarquía: Área -> Criterio de evaluación -> Destreza con criterio de
+// desempeño (la desagregación oficial que ya hace el Ministerio). El docente
+// SELECCIONA de este banco al armar su PUD; no lo escribe desde cero.
+// Seedeado por institución desde DEFAULT_CURRICULUM (institution-bootstrap.ts),
+// editable/ampliable por institución (isCustom = true para lo que agreguen).
+
+model CurriculumArea {
+  id            String   @id @default(uuid())
+  institutionId String   @map("institution_id")
+  code          String   @db.VarChar(20) // ej: "LL", "MAT", "CCNN"
+  name          String   @db.VarChar(150) // ej: "Lengua y Literatura"
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  institution Institution           @relation(fields: [institutionId], references: [id])
+  criteria    CurriculumCriterion[]
+  subjects    Subject[]
+
+  @@unique([institutionId, code])
+  @@map("curriculum_areas")
+}
+
+model CurriculumCriterion {
+  id          String   @id @default(uuid())
+  areaId      String   @map("area_id")
+  // Subnivel MINEDUC: inicial | elemental | media | superior | bgu
+  subnivel    String   @db.VarChar(20)
+  code        String   @db.VarChar(30) // ej: "CE.LL.5.1"; en Inicial = objetivo de aprendizaje
+  description String
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  area   CurriculumArea    @relation(fields: [areaId], references: [id])
+  skills CurriculumSkill[]
+
+  @@unique([areaId, subnivel, code])
+  @@map("curriculum_criteria")
+}
+
+model CurriculumSkill {
+  id             String   @id @default(uuid())
+  criterionId    String   @map("criterion_id")
+  code           String   @db.VarChar(30) // ej: "LL.5.1.1"; en Inicial = destreza por tramo de edad
+  description    String
+  indicatorText  String?  @map("indicator_text") // Indicador de evaluación oficial (I.LL.5.1.1...)
+  // Tags de la iconografía oficial: tipo de competencia e inserción curricular.
+  competencyTags String[] @map("competency_tags") // comunicacional | matematica | digital | socioemocional
+  insercionTags  String[] @map("insercion_tags") // civica | socioemocional | vial | sostenible | financiera
+  profileRefs    String[] @map("profile_refs") // refs al Perfil de Salida: J.1, I.2, S.4...
+  // true = agregada por la institución (no viene del banco oficial seedeado)
+  isCustom       Boolean  @default(false) @map("is_custom")
+  isActive       Boolean  @default(true) @map("is_active")
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  criterion               CurriculumCriterion      @relation(fields: [criterionId], references: [id])
+  activities              Activity[]
+  PedagogicRecovery       PedagogicRecovery[]
+  sabers                  CurriculumSaber[]
+  reinforcementPlanSkills ReinforcementPlanSkill[]
+
+  @@unique([criterionId, code])
+  @@map("curriculum_skills")
+}
+
+// Desagregación de una destreza en los 3 tipos de "saberes" que usa el formato
+// institucional de Planificación Microcurricular (declarativo/procedimental/
+// actitudinal). No viene en los PDFs oficiales del MINEDUC — banco propio de la
+// institución, se llena la primera vez que se usa y se reutiliza después.
+model CurriculumSaber {
+  id          String   @id @default(uuid())
+  skillId     String   @map("skill_id")
+  type        String   @db.VarChar(20) // declarativo | procedimental | actitudinal
+  code        String   @db.VarChar(30) // ej: "LL.4.1.d.1"
+  description String
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  skill CurriculumSkill @relation(fields: [skillId], references: [id])
+
+  @@unique([skillId, code])
+  @@map("curriculum_sabers")
 }
 
 model CourseAssignment {
@@ -367,21 +484,140 @@ model CourseAssignment {
   examWeight     Int      @default(30) @map("exam_weight")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  institution  Institution        @relation(fields: [institutionId], references: [id])
-  teacher      User               @relation("TeacherAssignments", fields: [teacherId], references: [id])
-  subject      Subject            @relation(fields: [subjectId], references: [id])
-  parallel     Parallel           @relation(fields: [parallelId], references: [id])
-  academicYear AcademicYear       @relation(fields: [academicYearId], references: [id])
-  activities   Activity[]
-  insumos      Insumo[]
-  attendance   AttendanceRecord[]
-  schedule     ScheduleEntry[]
-  tasks        Task[]
-  recoveries          SubjectRecovery[]
-  pedagogicRecoveries PedagogicRecovery[]
+  institution                    Institution                     @relation(fields: [institutionId], references: [id])
+  teacher                        User                            @relation("TeacherAssignments", fields: [teacherId], references: [id])
+  subject                        Subject                         @relation(fields: [subjectId], references: [id])
+  parallel                       Parallel                        @relation(fields: [parallelId], references: [id])
+  academicYear                   AcademicYear                    @relation(fields: [academicYearId], references: [id])
+  activities                     Activity[]
+  insumos                        Insumo[]
+  attendance                     AttendanceRecord[]
+  schedule                       ScheduleEntry[]
+  tasks                          Task[]
+  recoveries                     SubjectRecovery[]
+  pedagogicRecoveries            PedagogicRecovery[]
+  curriculumPlans                CurriculumPlan[]
+  reinforcementPlans             ReinforcementPlan[]
+  interdisciplinaryContributions InterdisciplinaryContribution[]
 
   @@unique([subjectId, parallelId, academicYearId])
   @@map("course_assignments")
+}
+
+// ============================================================
+// PLANIFICACIÓN CURRICULAR (PCA / PUD)
+// ============================================================
+// PlanningTemplate: secciones/campos configurables por institución (patrón
+// AnamnesisTemplate). CurriculumPlan = PCA (uno por CourseAssignment+año).
+// PlanningUnit = PUD (una por unidad/bloque dentro del PCA).
+
+// Solo para PCA — la microplanificación (situación de aprendizaje + semanas) tiene
+// estructura FIJA porque debe reproducir el formato oficial "Planificación
+// Microcurricular" de la institución, no una plantilla configurable.
+model PlanningTemplate {
+  id            String   @id @default(uuid())
+  institutionId String   @map("institution_id")
+  type          String   @db.VarChar(10) // "pca"
+  name          String   @db.VarChar(150)
+  isDefault     Boolean  @default(false) @map("is_default")
+  isActive      Boolean  @default(true) @map("is_active")
+  schema        Json     @default("{}") // { sections: [{ title, fields: [{ key, label, type, required, options }] }] }
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  institution Institution      @relation(fields: [institutionId], references: [id])
+  plans       CurriculumPlan[]
+
+  @@map("planning_templates")
+}
+
+model CurriculumPlan {
+  id                 String    @id @default(uuid())
+  institutionId      String    @map("institution_id")
+  courseAssignmentId String    @map("course_assignment_id")
+  templateId         String    @map("template_id")
+  // "borrador" | "enviado" | "aprobado"
+  status             String    @default("borrador") @db.VarChar(20)
+  data               Json      @default("{}") // objetivos, ejes transversales, campos configurables del template
+  createdBy          String    @map("created_by")
+  approvedBy         String?   @map("approved_by")
+  approvedAt         DateTime? @map("approved_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  institution      Institution         @relation(fields: [institutionId], references: [id])
+  courseAssignment CourseAssignment    @relation(fields: [courseAssignmentId], references: [id])
+  template         PlanningTemplate    @relation(fields: [templateId], references: [id])
+  creator          User                @relation("CurriculumPlanCreator", fields: [createdBy], references: [id])
+  approver         User?               @relation("CurriculumPlanApprover", fields: [approvedBy], references: [id])
+  situations       LearningSituation[]
+
+  @@unique([courseAssignmentId])
+  @@map("curriculum_plans")
+}
+
+// "Situación de aprendizaje" — el documento de Planificación Microcurricular real,
+// uno por trimestre/periodo dentro del PCA. Contiene N semanas (PlanningWeek).
+// Flujo de aprobación en 2 pasos, replicando el pie de firmas del formato oficial:
+// Elaborado (docente) -> Revisado (director de área/subnivel) -> Aprobado (subdirección).
+model LearningSituation {
+  id                       String    @id @default(uuid())
+  institutionId            String    @map("institution_id")
+  planId                   String    @map("plan_id")
+  academicPeriodId         String    @map("academic_period_id")
+  title                    String    @db.VarChar(200)
+  description              String?
+  // IDs de CurriculumArea con las que hay conexión interdisciplinar
+  interdisciplinaryAreaIds String[]  @map("interdisciplinary_area_ids")
+  // "borrador" | "enviado" | "revisado" | "aprobado"
+  status                   String    @default("borrador") @db.VarChar(20)
+  createdBy                String    @map("created_by")
+  reviewedBy               String?   @map("reviewed_by")
+  reviewedAt               DateTime? @map("reviewed_at")
+  approvedBy               String?   @map("approved_by")
+  approvedAt               DateTime? @map("approved_at")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  institution    Institution    @relation(fields: [institutionId], references: [id])
+  plan           CurriculumPlan @relation(fields: [planId], references: [id])
+  academicPeriod AcademicPeriod @relation(fields: [academicPeriodId], references: [id])
+  creator        User           @relation("LearningSituationCreator", fields: [createdBy], references: [id])
+  reviewer       User?          @relation("LearningSituationReviewer", fields: [reviewedBy], references: [id])
+  approver       User?          @relation("LearningSituationApprover", fields: [approvedBy], references: [id])
+  weeks          PlanningWeek[]
+
+  @@index([planId, academicPeriodId])
+  @@map("learning_situations")
+}
+
+// Una semana dentro de la situación de aprendizaje — estructura fija que replica
+// la tabla del formato oficial: competencias/indicadores, saberes por tipo
+// (declarativo/procedimental/actitudinal) y los 3 momentos metodológicos.
+model PlanningWeek {
+  id                      String    @id @default(uuid())
+  institutionId           String    @map("institution_id")
+  situationId             String    @map("situation_id")
+  weekNumber              Int       @map("week_number")
+  name                    String?   @db.VarChar(150)
+  startDate               DateTime? @map("start_date") @db.Date
+  endDate                 DateTime? @map("end_date") @db.Date
+  competenciasEspecificas String?   @map("competencias_especificas")
+  indicadoresEvaluacion   String?   @map("indicadores_evaluacion")
+  // Destrezas del banco curricular en las que se basa la semana
+  skillIds                String[]  @map("skill_ids")
+  // Saberes (CurriculumSaber) seleccionados, cualquier tipo — se agrupan por type al mostrar/exportar
+  saberIds                String[]  @map("saber_ids")
+  // { anticipacion: {estrategiasDua, recursos, tecnica, instrumento}, construccionConocimiento: {...}, consolidacion: {...} }
+  momentos                Json      @default("{}")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  institution Institution       @relation(fields: [institutionId], references: [id])
+  situation   LearningSituation @relation(fields: [situationId], references: [id])
+
+  @@unique([situationId, weekNumber])
+  @@map("planning_weeks")
 }
 
 // ============================================================
@@ -389,13 +625,19 @@ model CourseAssignment {
 // ============================================================
 
 model StudentEnrollment {
-  id             String   @id @default(uuid())
-  institutionId  String   @map("institution_id")
-  studentId      String   @map("student_id")
-  parallelId     String   @map("parallel_id")
-  academicYearId String   @map("academic_year_id")
-  enrolledAt     DateTime @default(now()) @map("enrolled_at")
-  status         String   @default("active") @db.VarChar(20)
+  id              String   @id @default(uuid())
+  institutionId   String   @map("institution_id")
+  studentId       String   @map("student_id")
+  parallelId      String   @map("parallel_id")
+  academicYearId  String   @map("academic_year_id")
+  enrolledAt      DateTime @default(now()) @map("enrolled_at")
+  status          String   @default("active") @db.VarChar(20)
+  // Adaptación curricular NEE: si tiene, el PUD la muestra automáticamente
+  // para este estudiante en la sección DUA de cada unidad, sin que el
+  // docente tenga que acordarse de agregarla manualmente.
+  hasAdaptation   Boolean  @default(false) @map("has_adaptation")
+  adaptationType  String?  @map("adaptation_type") @db.VarChar(20) // temporal | permanente
+  adaptationNotes String?  @map("adaptation_notes")
 
   institution  Institution  @relation(fields: [institutionId], references: [id])
   student      User         @relation("StudentEnrollments", fields: [studentId], references: [id])
@@ -463,6 +705,11 @@ model PedagogicRecovery {
   score              Decimal? @db.Decimal(5, 2) // null = pendiente, número = nota registrada
   notes              String?
   recordedBy         String   @map("recorded_by")
+  // Destreza que originó el candidato de refuerzo (detectado automáticamente por
+  // notas bajas en Activity.curriculumSkillId). Null si se creó a mano sin ese origen.
+  curriculumSkillId  String?  @map("curriculum_skill_id")
+  // Origen del registro: "manual" (docente lo creó a mano) | "auto_detected" (sugerido por el sistema)
+  source             String   @default("manual") @db.VarChar(20)
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
@@ -470,11 +717,150 @@ model PedagogicRecovery {
   student          User             @relation("StudentPedagogicRecovery", fields: [studentId], references: [id])
   courseAssignment CourseAssignment @relation(fields: [courseAssignmentId], references: [id])
   academicPeriod   AcademicPeriod   @relation(fields: [academicPeriodId], references: [id])
+  curriculumSkill  CurriculumSkill? @relation(fields: [curriculumSkillId], references: [id])
   recorder         User             @relation("PedagogicRecoveryRecorder", fields: [recordedBy], references: [id])
 
   @@unique([studentId, courseAssignmentId, academicPeriodId])
   @@index([institutionId, academicPeriodId])
+  @@index([curriculumSkillId])
   @@map("pedagogic_recoveries")
+}
+
+// Plan de Refuerzo Académico Individualizado — documento formal por estudiante que
+// agrupa las destrezas donde necesita refuerzo (detectadas automáticamente por notas
+// bajas vía getSkillReinforcementCandidates, o por adaptación curricular NEE marcada
+// en StudentEnrollment). Se imprime/archiva como PDF con firmas.
+model ReinforcementPlan {
+  id                   String    @id @default(uuid())
+  institutionId        String    @map("institution_id")
+  studentId            String    @map("student_id")
+  courseAssignmentId   String    @map("course_assignment_id")
+  academicPeriodId     String    @map("academic_period_id")
+  // "academico" (detectado por notas bajas en una o más destrezas) | "nee" (por adaptación curricular)
+  planType             String    @db.VarChar(20)
+  // "borrador" | "activo" | "cerrado"
+  status               String    @default("borrador") @db.VarChar(20)
+  objetivoGeneral      String?   @map("objetivo_general")
+  estrategias          String?
+  responsables         String?
+  fechaInicio          DateTime? @map("fecha_inicio") @db.Date
+  fechaSeguimiento     DateTime? @map("fecha_seguimiento") @db.Date
+  observacionesFinales String?   @map("observaciones_finales")
+  createdBy            String    @map("created_by")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  institution      Institution              @relation(fields: [institutionId], references: [id])
+  student          User                     @relation("StudentReinforcementPlan", fields: [studentId], references: [id])
+  courseAssignment CourseAssignment         @relation(fields: [courseAssignmentId], references: [id])
+  academicPeriod   AcademicPeriod           @relation(fields: [academicPeriodId], references: [id])
+  creator          User                     @relation("ReinforcementPlanCreator", fields: [createdBy], references: [id])
+  skills           ReinforcementPlanSkill[]
+
+  @@unique([studentId, courseAssignmentId, academicPeriodId])
+  @@index([institutionId, academicPeriodId])
+  @@map("reinforcement_plans")
+}
+
+// Destreza puntual cubierta por un plan de refuerzo, con la nota que disparó la
+// detección (null si el plan es por NEE en vez de por notas bajas).
+model ReinforcementPlanSkill {
+  id                 String   @id @default(uuid())
+  planId             String   @map("plan_id")
+  curriculumSkillId  String   @map("curriculum_skill_id")
+  averageAtDetection Decimal? @map("average_at_detection") @db.Decimal(5, 2)
+  notes              String?
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  plan            ReinforcementPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  curriculumSkill CurriculumSkill   @relation(fields: [curriculumSkillId], references: [id])
+
+  @@unique([planId, curriculumSkillId])
+  @@map("reinforcement_plan_skills")
+}
+
+// ============================================================
+// PROYECTOS INTERDISCIPLINARIOS
+// ============================================================
+// Un reto/situación compartido por un paralelo durante N semanas de un
+// trimestre, donde ≥2 asignaturas (con sus propios docentes) contribuyen cada
+// una con su aporte disciplinar (destrezas/saberes del banco ya existente) y
+// actividades semana a semana. No pertenece a un solo PCA/docente — cualquier
+// docente del paralelo puede iniciarlo, y cada asignatura se "une" con su
+// propia CourseAssignment.
+
+model InterdisciplinaryProject {
+  id               String   @id @default(uuid())
+  institutionId    String   @map("institution_id")
+  parallelId       String   @map("parallel_id")
+  academicPeriodId String   @map("academic_period_id")
+  title            String   @db.VarChar(200)
+  situacionReto    String?  @map("situacion_reto")
+  contexto         String?
+  propositoComun   String?  @map("proposito_comun")
+  productoFinal    String?  @map("producto_final")
+  weeksCount       Int      @map("weeks_count")
+  // "borrador" | "enviado" | "aprobado"
+  status           String   @default("borrador") @db.VarChar(20)
+  createdBy        String   @map("created_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  institution    Institution                     @relation(fields: [institutionId], references: [id])
+  parallel       Parallel                        @relation(fields: [parallelId], references: [id])
+  academicPeriod AcademicPeriod                  @relation(fields: [academicPeriodId], references: [id])
+  creator        User                            @relation("InterdisciplinaryProjectCreator", fields: [createdBy], references: [id])
+  contributions  InterdisciplinaryContribution[]
+
+  @@unique([parallelId, academicPeriodId, title])
+  @@map("interdisciplinary_projects")
+}
+
+// Aporte disciplinar de UNA asignatura al proyecto ("6. Aportes disciplinares").
+// courseAssignmentId define la asignatura + docente responsable de este aporte.
+model InterdisciplinaryContribution {
+  id                 String   @id @default(uuid())
+  projectId          String   @map("project_id")
+  courseAssignmentId String   @map("course_assignment_id")
+  contribucion       String?
+  responsabilidad    String?
+  // Destrezas del banco curricular elegidas por este docente (su área+subnivel)
+  skillIds           String[] @map("skill_ids")
+  // Saberes (CurriculumSaber) elegidos/generados, mismo banco reusado del PUD
+  saberIds           String[] @map("saber_ids")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  project          InterdisciplinaryProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  courseAssignment CourseAssignment             @relation(fields: [courseAssignmentId], references: [id])
+  weekEntries      InterdisciplinaryWeekEntry[]
+
+  @@unique([projectId, courseAssignmentId])
+  @@map("interdisciplinary_contributions")
+}
+
+// Integración por hitos ("7. Integración interdisciplinaria por hitos") — una
+// fila por semana para una contribución (asignatura) específica.
+model InterdisciplinaryWeekEntry {
+  id                  String   @id @default(uuid())
+  contributionId      String   @map("contribution_id")
+  weekNumber          Int      @map("week_number")
+  // Propósito general de la semana — igual para todas las asignaturas de esa
+  // semana en el documento de referencia; se guarda redundante por fila para
+  // simplicidad de queries (no requiere tabla ProjectWeek intermedia).
+  weekProposito       String?  @map("week_proposito")
+  faseInicio          String?  @map("fase_inicio")
+  faseDesarrollo      String?  @map("fase_desarrollo")
+  faseCierre          String?  @map("fase_cierre")
+  propositoPedagogico String?  @map("proposito_pedagogico")
+  evidencias          String?
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  contribution InterdisciplinaryContribution @relation(fields: [contributionId], references: [id], onDelete: Cascade)
+
+  @@unique([contributionId, weekNumber])
+  @@map("interdisciplinary_week_entries")
 }
 
 // Suscripciones push para notificaciones web (PWA)
@@ -527,7 +913,7 @@ model AnamnesisTemplate {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  institution Institution        @relation(fields: [institutionId], references: [id])
+  institution Institution       @relation(fields: [institutionId], references: [id])
   records     AnamnesisRecord[]
 
   @@map("anamnesis_templates")
@@ -603,6 +989,11 @@ model Activity {
   activityTypeId     String    @map("activity_type_id")
   insumoId           String?   @map("insumo_id")
   taskId             String?   @unique @map("task_id")
+  // Destreza del banco curricular a la que se vincula esta actividad. Con esto,
+  // cada nota queda trazada a una sub-destreza específica, no solo al insumo
+  // genérico — es lo que permite detectar automáticamente quién necesita refuerzo
+  // por destreza (ver PedagogicRecovery.curriculumSkillId).
+  curriculumSkillId  String?   @map("curriculum_skill_id")
   name               String    @db.VarChar(200)
   description        String?
   maxScore           Decimal   @default(10) @map("max_score") @db.Decimal(5, 2)
@@ -619,11 +1010,13 @@ model Activity {
   activityType     ActivityType     @relation(fields: [activityTypeId], references: [id])
   insumo           Insumo?          @relation(fields: [insumoId], references: [id])
   task             Task?            @relation(fields: [taskId], references: [id])
+  curriculumSkill  CurriculumSkill? @relation(fields: [curriculumSkillId], references: [id])
   creator          User             @relation("ActivityCreator", fields: [createdBy], references: [id])
   grades           Grade[]
 
   @@index([courseAssignmentId, academicPeriodId])
   @@index([insumoId])
+  @@index([curriculumSkillId])
   @@map("activities")
 }
 
@@ -668,11 +1061,11 @@ model AttendanceRecord {
   recordedBy         String   @map("recorded_by")
   createdAt          DateTime @default(now()) @map("created_at")
 
-  institution      Institution       @relation(fields: [institutionId], references: [id])
-  courseAssignment CourseAssignment? @relation(fields: [courseAssignmentId], references: [id])
-  parallel         Parallel?         @relation(fields: [parallelId], references: [id])
-  student          User              @relation("StudentAttendance", fields: [studentId], references: [id])
-  recorder         User              @relation("AttendanceRecorder", fields: [recordedBy], references: [id])
+  institution      Institution               @relation(fields: [institutionId], references: [id])
+  courseAssignment CourseAssignment?         @relation(fields: [courseAssignmentId], references: [id])
+  parallel         Parallel?                 @relation(fields: [parallelId], references: [id])
+  student          User                      @relation("StudentAttendance", fields: [studentId], references: [id])
+  recorder         User                      @relation("AttendanceRecorder", fields: [recordedBy], references: [id])
   justifications   JustificationAttendance[]
 
   @@unique([courseAssignmentId, studentId, date])
@@ -692,9 +1085,9 @@ model AbsenceJustification {
   justifiedBy   String   @map("justified_by")
   createdAt     DateTime @default(now()) @map("created_at")
 
-  institution      Institution               @relation(fields: [institutionId], references: [id])
-  student          User                      @relation("StudentJustifications", fields: [studentId], references: [id])
-  justifier        User                      @relation("JustificationCreator", fields: [justifiedBy], references: [id])
+  institution       Institution               @relation(fields: [institutionId], references: [id])
+  student           User                      @relation("StudentJustifications", fields: [studentId], references: [id])
+  justifier         User                      @relation("JustificationCreator", fields: [justifiedBy], references: [id])
   attendanceRecords JustificationAttendance[]
 
   @@map("absence_justifications")
@@ -757,11 +1150,11 @@ model DisciplinaryIncident {
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  institution  Institution    @relation(fields: [institutionId], references: [id])
-  student      User           @relation("StudentIncidents", fields: [studentId], references: [id])
-  reporter     User           @relation("IncidentReporter", fields: [reportedBy], references: [id])
-  incidentType IncidentType?  @relation(fields: [incidentTypeId], references: [id])
-  assignedDece User?          @relation("IncidentDece", fields: [assignedDeceId], references: [id])
+  institution  Institution          @relation(fields: [institutionId], references: [id])
+  student      User                 @relation("StudentIncidents", fields: [studentId], references: [id])
+  reporter     User                 @relation("IncidentReporter", fields: [reportedBy], references: [id])
+  incidentType IncidentType?        @relation(fields: [incidentTypeId], references: [id])
+  assignedDece User?                @relation("IncidentDece", fields: [assignedDeceId], references: [id])
   events       IncidentEvent[]
   commitments  IncidentCommitment[]
   attachments  IncidentAttachment[]
@@ -772,14 +1165,14 @@ model DisciplinaryIncident {
 
 // Bitácora / línea de tiempo del debido proceso
 model IncidentEvent {
-  id          String   @id @default(uuid())
-  incidentId  String   @map("incident_id")
-  institutionId String @map("institution_id")
-  actorId     String   @map("actor_id")
-  type        String   @db.VarChar(40) // created | state_changed | note | dece_assigned | guardian_notified | commitment_created | attachment_added
-  description String?
-  metadata    Json     @default("{}")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid())
+  incidentId    String   @map("incident_id")
+  institutionId String   @map("institution_id")
+  actorId       String   @map("actor_id")
+  type          String   @db.VarChar(40) // created | state_changed | note | dece_assigned | guardian_notified | commitment_created | attachment_added
+  description   String?
+  metadata      Json     @default("{}")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   incident    DisciplinaryIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
   institution Institution          @relation(fields: [institutionId], references: [id])
@@ -791,17 +1184,17 @@ model IncidentEvent {
 
 // Acta de compromiso
 model IncidentCommitment {
-  id           String    @id @default(uuid())
-  incidentId   String    @map("incident_id")
-  institutionId String   @map("institution_id")
-  terms        String
-  followUpDate DateTime? @map("follow_up_date") @db.Date
-  status       String    @default("draft") @db.VarChar(20) // draft | signed
-  signatories  Json      @default("{}")
-  createdBy    String    @map("created_by")
-  signedAt     DateTime? @map("signed_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id            String    @id @default(uuid())
+  incidentId    String    @map("incident_id")
+  institutionId String    @map("institution_id")
+  terms         String
+  followUpDate  DateTime? @map("follow_up_date") @db.Date
+  status        String    @default("draft") @db.VarChar(20) // draft | signed
+  signatories   Json      @default("{}")
+  createdBy     String    @map("created_by")
+  signedAt      DateTime? @map("signed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   incident    DisciplinaryIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
   institution Institution          @relation(fields: [institutionId], references: [id])
@@ -812,15 +1205,15 @@ model IncidentCommitment {
 
 // Evidencias (espejo de TaskAttachment)
 model IncidentAttachment {
-  id           String   @id @default(uuid())
-  incidentId   String   @map("incident_id")
-  institutionId String  @map("institution_id")
-  fileName     String   @map("file_name") @db.VarChar(255)
-  storedName   String   @map("stored_name") @db.VarChar(255)
-  mimeType     String   @map("mime_type") @db.VarChar(100)
-  fileSize     Int      @map("file_size")
-  uploadedBy   String   @map("uploaded_by")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid())
+  incidentId    String   @map("incident_id")
+  institutionId String   @map("institution_id")
+  fileName      String   @map("file_name") @db.VarChar(255)
+  storedName    String   @map("stored_name") @db.VarChar(255)
+  mimeType      String   @map("mime_type") @db.VarChar(100)
+  fileSize      Int      @map("file_size")
+  uploadedBy    String   @map("uploaded_by")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   incident    DisciplinaryIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
   institution Institution          @relation(fields: [institutionId], references: [id])
@@ -925,12 +1318,12 @@ model MessageRecipient {
 // ============================================================
 
 model ScheduleEntry {
-  id                 String @id @default(uuid())
-  institutionId      String @map("institution_id")
-  courseAssignmentId String @map("course_assignment_id")
-  weekday            Int    @db.SmallInt
-  startTime          String @map("start_time") @db.VarChar(5)
-  endTime            String @map("end_time") @db.VarChar(5)
+  id                 String  @id @default(uuid())
+  institutionId      String  @map("institution_id")
+  courseAssignmentId String  @map("course_assignment_id")
+  weekday            Int     @db.SmallInt
+  startTime          String  @map("start_time") @db.VarChar(5)
+  endTime            String  @map("end_time") @db.VarChar(5)
   room               String? @db.VarChar(50)
 
   institution      Institution      @relation(fields: [institutionId], references: [id])
@@ -990,17 +1383,17 @@ model AuditLog {
 // ============================================================
 
 model Task {
-  id                 String    @id @default(uuid())
-  institutionId      String    @map("institution_id")
-  courseAssignmentId String    @map("course_assignment_id")
-  title              String    @db.VarChar(255)
+  id                 String   @id @default(uuid())
+  institutionId      String   @map("institution_id")
+  courseAssignmentId String   @map("course_assignment_id")
+  title              String   @db.VarChar(255)
   description        String?
-  dueDate            DateTime  @map("due_date")
-  publishAt          DateTime  @default(now()) @map("publish_at")
-  isPublished        Boolean   @default(false) @map("is_published")
-  createdBy          String    @map("created_by")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  dueDate            DateTime @map("due_date")
+  publishAt          DateTime @default(now()) @map("publish_at")
+  isPublished        Boolean  @default(false) @map("is_published")
+  createdBy          String   @map("created_by")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   institution      Institution      @relation(fields: [institutionId], references: [id])
   courseAssignment CourseAssignment @relation(fields: [courseAssignmentId], references: [id])
@@ -1014,18 +1407,18 @@ model Task {
 }
 
 model TaskAttachment {
-  id           String   @id @default(uuid())
-  taskId       String   @map("task_id")
-  institutionId String  @map("institution_id")
-  fileName     String   @map("file_name") @db.VarChar(255)
-  storedName   String   @map("stored_name") @db.VarChar(255)
-  mimeType     String   @map("mime_type") @db.VarChar(100)
-  fileSize     Int      @map("file_size")
-  uploadedBy   String   @map("uploaded_by")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid())
+  taskId        String   @map("task_id")
+  institutionId String   @map("institution_id")
+  fileName      String   @map("file_name") @db.VarChar(255)
+  storedName    String   @map("stored_name") @db.VarChar(255)
+  mimeType      String   @map("mime_type") @db.VarChar(100)
+  fileSize      Int      @map("file_size")
+  uploadedBy    String   @map("uploaded_by")
+  createdAt     DateTime @default(now()) @map("created_at")
 
-  task      Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  uploader  User @relation("AttachmentUploader", fields: [uploadedBy], references: [id])
+  task     Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploader User @relation("AttachmentUploader", fields: [uploadedBy], references: [id])
 
   @@map("task_attachments")
 }

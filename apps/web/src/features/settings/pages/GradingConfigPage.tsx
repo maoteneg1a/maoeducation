@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Sparkles, Trash2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/shared/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
-import { useGradingConfig, useUpdateGradingConfig } from '../hooks/useSettings'
-import type { BehaviorLevel, GradingConfig, QualitativeLevel } from '../api/settings.api'
+import { useAiConfig, useGradingConfig, useUpdateAiConfig, useUpdateGradingConfig } from '../hooks/useSettings'
+import type { AiConfig, BehaviorLevel, GradingConfig, QualitativeLevel } from '../api/settings.api'
 
 export function GradingConfigPage() {
   const { data, isLoading } = useGradingConfig()
@@ -55,6 +55,8 @@ export function GradingConfigPage() {
         </div>
         <Button onClick={() => update.mutate(cfg)} loading={update.isPending}>Guardar</Button>
       </div>
+
+      <AiAssistantConfigCard />
 
       {/* Escala cualitativa */}
       <Card>
@@ -181,6 +183,55 @@ export function GradingConfigPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function AiAssistantConfigCard() {
+  const { data } = useAiConfig()
+  const update = useUpdateAiConfig()
+  const [ai, setAi] = useState<AiConfig | null>(null)
+
+  useEffect(() => {
+    if (data) setAi(data)
+  }, [data])
+
+  if (!ai) return null
+
+  return (
+    <Card className="border-violet-300 bg-violet-50/40">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-violet-900">
+          <Sparkles className="h-5 w-5" />
+          Asistente IA de planificaciones
+        </CardTitle>
+        <CardDescription>
+          Genera competencias, indicadores, saberes y estrategias DUA por semana, para que el docente escriba lo mínimo.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="max-w-md space-y-4">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="h-4 w-4"
+            checked={ai.enabled}
+            onChange={(e) => setAi({ ...ai, enabled: e.target.checked })}
+          />
+          Habilitar asistente IA para los docentes
+        </label>
+        {ai.enabled && (
+          <div className="space-y-1.5">
+            <Label>Tope mensual de tokens (0 = sin tope)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={ai.monthlyTokenCap}
+              onChange={(e) => setAi({ ...ai, monthlyTokenCap: Number(e.target.value) })}
+            />
+          </div>
+        )}
+        <Button onClick={() => update.mutate(ai)} loading={update.isPending}>Guardar</Button>
+      </CardContent>
+    </Card>
   )
 }
 

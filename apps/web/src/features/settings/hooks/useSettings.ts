@@ -2,12 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/shared/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
-import { settingsApi, type GradingConfig, type InstitutionSettings } from '../api/settings.api'
+import { settingsApi, type AiConfig, type GradingConfig, type InstitutionSettings } from '../api/settings.api'
 import type { InstitutionBranding } from '@/store/auth.store'
 
 export const settingsKeys = {
   institution: ['institution-settings'] as const,
   gradingConfig: ['grading-config'] as const,
+  aiConfig: ['ai-config'] as const,
 }
 
 function syncStore(settings: InstitutionSettings) {
@@ -69,6 +70,25 @@ export function useUpdateGradingConfig() {
     onSuccess: (config) => {
       qc.setQueryData(settingsKeys.gradingConfig, config)
       toast.success('Configuración de calificación guardada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useAiConfig() {
+  return useQuery({
+    queryKey: settingsKeys.aiConfig,
+    queryFn: settingsApi.getAiConfig,
+  })
+}
+
+export function useUpdateAiConfig() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Partial<AiConfig>) => settingsApi.updateAiConfig(data),
+    onSuccess: (config) => {
+      qc.setQueryData(settingsKeys.aiConfig, config)
+      toast.success('Configuración del asistente IA guardada')
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })

@@ -2,13 +2,15 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { BadRequestError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import {
+  AiConfig,
   GradingConfig,
   InstitutionBranding,
   InstitutionSettingsDto,
+  UpdateAiConfigDto,
   UpdateGradingConfigDto,
   UpdateInstitutionSettingsDto,
 } from '../../application/dtos/institution.dto'
-import { DEFAULT_GRADING_CONFIG } from '../../../platform/application/services/institution-bootstrap'
+import { DEFAULT_AI_CONFIG, DEFAULT_GRADING_CONFIG } from '../../../platform/application/services/institution-bootstrap'
 
 function extractBranding(settings: unknown): InstitutionBranding {
   const s = (settings ?? {}) as Record<string, unknown>
@@ -40,6 +42,17 @@ function extractGradingConfig(settings: unknown): GradingConfig {
       ...DEFAULT_GRADING_CONFIG.pedagogicRecovery,
       ...(gc.pedagogicRecovery ?? {}),
     },
+  }
+}
+
+/** Devuelve la config del asistente IA con fallback a los defaults (apagado). */
+function extractAiConfig(settings: unknown): AiConfig {
+  const s = (settings ?? {}) as Record<string, unknown>
+  const ac = (s.aiConfig ?? {}) as Partial<AiConfig>
+  return {
+    enabled: ac.enabled ?? DEFAULT_AI_CONFIG.enabled,
+    model: ac.model ?? DEFAULT_AI_CONFIG.model,
+    monthlyTokenCap: ac.monthlyTokenCap ?? DEFAULT_AI_CONFIG.monthlyTokenCap,
   }
 }
 
@@ -133,6 +146,38 @@ export class PrismaInstitutionRepository {
       select: { settings: true },
     })
     return extractGradingConfig(updated.settings)
+  }
+
+  async getAiConfig(institutionId: string): Promise<AiConfig> {
+    const inst = await prisma.institution.findUnique({
+      where: { id: institutionId },
+      select: { settings: true },
+    })
+    if (!inst) throw new NotFoundError('Institución no encontrada')
+    return extractAiConfig(inst.settings)
+  }
+
+  async updateAiConfig(institutionId: string, dto: UpdateAiConfigDto): Promise<AiConfig> {
+    const inst = await prisma.institution.findUnique({
+      where: { id: institutionId },
+      select: { settings: true },
+    })
+    if (!inst) throw new NotFoundError('Institución no encontrada')
+
+    const currentSettings = (inst.settings ?? {}) as Record<string, unknown>
+    const current = extractAiConfig(inst.settings)
+    const next: AiConfig = {
+      enabled: dto.enabled ?? current.enabled,
+      model: dto.model ?? current.model,
+      monthlyTokenCap: dto.monthlyTokenCap ?? current.monthlyTokenCap,
+    }
+
+    const updated = await prisma.institution.update({
+      where: { id: institutionId },
+      data: { settings: { ...currentSettings, aiConfig: next } as unknown as Prisma.InputJsonValue },
+      select: { settings: true },
+    })
+    return extractAiConfig(updated.settings)
   }
 
   /** Guarda solo el logoUrl dentro de branding (tras subir el archivo). */

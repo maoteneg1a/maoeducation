@@ -5,6 +5,7 @@ import type {
   CreateEnrollmentDto,
   BulkEnrollmentDto,
   UpdateEnrollmentStatusDto,
+  UpdateEnrollmentAdaptationDto,
   CreateStudentEnrollmentDto,
   BulkCreateStudentsDto,
 } from '../../application/dtos/enrollment.dto'
@@ -362,6 +363,28 @@ export class PrismaEnrollmentRepository {
         },
         parallel: { include: { level: true } },
         academicYear: { select: { id: true, name: true, isActive: true } },
+      },
+    })
+  }
+
+  async updateAdaptation(id: string, institutionId: string, dto: UpdateEnrollmentAdaptationDto) {
+    const enrollment = await prisma.studentEnrollment.findFirst({ where: { id, institutionId } })
+    if (!enrollment) throw new NotFoundError('Matrícula no encontrada')
+
+    return prisma.studentEnrollment.update({
+      where: { id },
+      data: {
+        hasAdaptation: dto.hasAdaptation,
+        adaptationType: dto.hasAdaptation ? dto.adaptationType ?? null : null,
+        adaptationNotes: dto.hasAdaptation ? dto.adaptationNotes ?? null : null,
+      },
+      include: {
+        student: {
+          select: {
+            id: true,
+            profile: { select: { firstName: true, lastName: true, dni: true } },
+          },
+        },
       },
     })
   }
