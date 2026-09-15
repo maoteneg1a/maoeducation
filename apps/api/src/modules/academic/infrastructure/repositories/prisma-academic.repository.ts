@@ -37,6 +37,7 @@ export class PrismaAcademicRepository {
         name: dto.name,
         code,
         sortOrder: dto.order ?? 0,
+        subnivel: dto.subnivel,
       },
     })
   }
@@ -58,6 +59,7 @@ export class PrismaAcademicRepository {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.order !== undefined && { sortOrder: dto.order }),
         ...(dto.attendanceMode !== undefined && { attendanceMode: dto.attendanceMode }),
+        ...(dto.subnivel !== undefined && { subnivel: dto.subnivel }),
       },
     })
   }

@@ -2,6 +2,7 @@ export interface CreateLevelDto {
   name: string
   order?: number
   description?: string
+  subnivel?: string | null
 }
 
 export interface UpdateLevelDto {
@@ -9,6 +10,7 @@ export interface UpdateLevelDto {
   order?: number
   description?: string
   attendanceMode?: 'per_subject' | 'daily'
+  subnivel?: string | null
 }
 
 export interface CreateSubjectDto {
