@@ -4,6 +4,7 @@ import { requirePermission } from '../../../shared/infrastructure/middleware/rba
 import { draftWeek } from '../application/services/planning-ai.service'
 import { draftProject } from '../application/services/project-ai.service'
 import { draftCompetencyWeek } from '../application/services/competency-pedagogical-generator.service'
+import { draftSituationBlock, type DraftSituationBlockDto } from '../application/services/draft-situation-block.service'
 import type { DraftCompetencyWeekDto, DraftProjectDto, DraftWeekDto } from '../application/dtos/ai-assistant.dto'
 
 export default async function aiAssistantRoutes(app: FastifyInstance) {
@@ -27,6 +28,17 @@ export default async function aiAssistantRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const result = await draftCompetencyWeek(req.user.institutionId, req.user.sub, req.body)
       return reply.send(result)
+    },
+  )
+
+  // Estilo TIGA: genera y GUARDA de una sola vez las N semanas de un bloque completo
+  // (el docente elige destreza/competencia UNA vez, no semana por semana).
+  app.post<{ Body: DraftSituationBlockDto }>(
+    '/ai-assistant/draft-situation-block',
+    { preHandler: [requirePermission('planning', 'write', 'own')] },
+    async (req, reply) => {
+      const result = await draftSituationBlock(req.user.institutionId, req.user.sub, req.body)
+      return reply.status(201).send(result)
     },
   )
 

@@ -10,6 +10,7 @@ import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { WeekCard } from '../components/WeekCard'
+import { GenerateBlockPanel } from '../components/GenerateBlockPanel'
 import {
   useSituation,
   useUpdateSituation,
@@ -135,21 +136,28 @@ export function PlanningSituationPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Semanas</h2>
           {isEditable && (
-            <Button
-              size="sm"
-              onClick={() =>
-                createWeek.mutate(
-                  { situationId: id!, weekNumber: nextWeekNumber },
-                  { onSuccess: (week) => setExpandedWeek(week.id) },
-                )
-              }
-              loading={createWeek.isPending}
-            >
-              <Plus className="h-4 w-4" />
-              Agregar semana
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  createWeek.mutate(
+                    { situationId: id!, weekNumber: nextWeekNumber },
+                    { onSuccess: (week) => setExpandedWeek(week.id) },
+                  )
+                }
+                loading={createWeek.isPending}
+              >
+                <Plus className="h-4 w-4" />
+                Agregar semana suelta
+              </Button>
+            </div>
           )}
         </div>
+
+        {isEditable && (
+          <GenerateBlockPanel situationId={id!} subjectId={subjectId} subnivel={subnivel} />
+        )}
 
         {weeks.length === 0 ? (
           <EmptyState icon={NotebookPen} title="Sin semanas" description="Agrega la primera semana de esta situación de aprendizaje." />

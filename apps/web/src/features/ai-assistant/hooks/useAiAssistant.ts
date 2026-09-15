@@ -27,6 +27,13 @@ export function useDraftCompetencyWeek() {
   })
 }
 
+export function useDraftSituationBlock() {
+  return useMutation({
+    mutationFn: aiAssistantApi.draftSituationBlock,
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
 export function useDraftProject() {
   return useMutation({
     mutationFn: aiAssistantApi.draftProject,

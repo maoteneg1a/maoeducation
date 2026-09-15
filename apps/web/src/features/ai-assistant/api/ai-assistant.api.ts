@@ -38,6 +38,16 @@ export interface DraftCompetencyWeekResult {
   validationErrors: string[]
 }
 
+export interface DraftedBlockWeek {
+  weekId: string
+  weekNumber: number
+  result: DraftWeekResult | DraftCompetencyWeekResult
+}
+
+export interface DraftSituationBlockResult {
+  weeks: DraftedBlockWeek[]
+}
+
 export interface DraftedProjectContribution {
   contributionId: string
   contribucion: string
@@ -74,6 +84,10 @@ export const aiAssistantApi = {
   /** Igual que draftWeek pero para el modelo por competencias (motor en dos capas: IA validada + fallback determinista). */
   draftCompetencyWeek: (data: { situationId: string; competencyIds: string[]; weekName?: string }) =>
     apiPost<DraftCompetencyWeekResult>('ai-assistant/draft-competency-week', data),
+
+  /** Estilo TIGA: genera y guarda de una vez las N semanas de un bloque completo (una llamada de IA por semana, en el servidor). */
+  draftSituationBlock: (data: { situationId: string; weeksCount: number; skillIds?: string[]; competencyIds?: string[] }) =>
+    apiClient.post('ai-assistant/draft-situation-block', { json: data, timeout: 180000 }).json<DraftSituationBlockResult>(),
 
   /** Genera y guarda TODO el proyecto interdisciplinario a partir de un prompt/idea breve. */
   draftProject: (data: { projectId: string; prompt?: string }) =>
