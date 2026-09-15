@@ -584,6 +584,9 @@ export const DEFAULT_QUALITATIVE_SUBJECTS = [
 // Asistente IA de planificaciones — apagado por defecto, el admin lo activa
 // explícitamente desde Configuración. Modelo barato por defecto (tarea de
 // completar plantilla, no razonamiento profundo).
+/** Días de prueba de una institución nueva. */
+export const TRIAL_DAYS = 30
+
 export const DEFAULT_AI_CONFIG = {
   enabled: false,
   model: 'claude-haiku-4-5',
@@ -861,6 +864,19 @@ export async function bootstrapInstitution(
     },
   })
   await tx.userRole.create({ data: { userId: adminUser.id, roleId: roleMap['admin'] } })
+
+  // 9. Período de prueba. Se crea aquí para que toda institución nueva nazca
+  // gestionada: sin fila de suscripción el módulo de cobro no la restringe, que
+  // es justo lo que queremos para las que ya existían, pero no para las nuevas.
+  const trialStart = new Date()
+  await tx.subscription.create({
+    data: {
+      institutionId: inst.id,
+      plan: 'trial',
+      startsAt: trialStart,
+      expiresAt: new Date(trialStart.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+    },
+  })
 
   return { institutionId: inst.id, adminUserId: adminUser.id, academicYearId: academicYear.id }
 }

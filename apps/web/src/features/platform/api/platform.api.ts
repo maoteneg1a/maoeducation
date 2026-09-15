@@ -1,4 +1,4 @@
-import { platformGet, platformPost, platformPatch } from '@/shared/lib/platform-api-client'
+import { platformApiClient, platformGet, platformPost, platformPatch, platformPut } from '@/shared/lib/platform-api-client'
 import type { PlatformAdmin } from '@/store/platformAuth.store'
 import type { AuthUser } from '@/store/auth.store'
 
@@ -135,9 +135,101 @@ export const platformApi = {
   updateLeadStatus: (id: string, status: string) =>
     platformPatch<Lead>(`leads/${id}/status`, { status }),
 
+  getSubscriptions: () => platformGet<PlatformSubscription[]>('platform/subscriptions'),
+  getSubscriptionPayments: (status?: PaymentReviewStatus) =>
+    platformGet<PendingPayment[]>('platform/subscription-payments', { status }),
+  approvePayment: (id: string, data: ApprovePaymentPayload) =>
+    platformPost<unknown>(`platform/subscription-payments/${id}/approve`, data),
+  rejectPayment: (id: string, reviewNotes: string) =>
+    platformPost<unknown>(`platform/subscription-payments/${id}/reject`, { reviewNotes }),
+  setSubscriptionValidity: (institutionId: string, data: SetValidityPayload) =>
+    platformPut<{ status: PlatformSubscriptionStatus }>(
+      `platform/subscriptions/${institutionId}/validity`,
+      data,
+    ),
+  setSubscriptionSuspended: (institutionId: string, suspended: boolean) =>
+    platformPatch<{ status: PlatformSubscriptionStatus }>(
+      `platform/subscriptions/${institutionId}/suspend`,
+      { suspended },
+    ),
+  /**
+   * El comprobante se baja como blob: su ruta exige el header de autorización,
+   * que un <img src> no manda. Quien llame debe revocar la URL.
+   */
+  getReceiptUrl: async (paymentId: string): Promise<string> => {
+    const blob = await platformApiClient
+      .get(`platform/subscription-payments/${paymentId}/receipt`)
+      .blob()
+    return URL.createObjectURL(blob)
+  },
+
   getStatsOverview: () => platformGet<StatsOverview>('platform/stats/overview'),
   getPlatformUsers: (params: { page?: number; limit?: number; search?: string }) =>
     platformGet<{ data: PlatformUser[]; total: number }>('platform/users', params),
   impersonateUser: (userId: string) =>
     platformPost<{ accessToken: string; user: AuthUser }>(`platform/users/${userId}/impersonate`),
+}
+
+// ─── Suscripciones ──────────────────────────────────────────────────────────
+
+export type SubscriptionState = 'trial' | 'active' | 'grace' | 'readonly' | 'suspended'
+export type PaymentReviewStatus = 'pending' | 'approved' | 'rejected'
+
+export interface PlatformSubscriptionStatus {
+  state: SubscriptionState
+  plan: 'trial' | 'paid'
+  startsAt: string
+  expiresAt: string
+  graceEndsAt: string
+  daysRemaining: number
+  expiringSoon: boolean
+  readOnly: boolean
+}
+
+export interface PlatformSubscription {
+  institutionId: string
+  institutionName: string
+  institutionCode: string
+  accountType: 'personal' | 'institution'
+  userCount: number
+  /** null = institución sin suscripción gestionada (no se le restringe nada). */
+  status: PlatformSubscriptionStatus | null
+  notes: string | null
+  pendingPayments: number
+  lastPaymentAt: string | null
+}
+
+export interface PendingPayment {
+  id: string
+  institutionId: string
+  institutionName: string
+  status: PaymentReviewStatus
+  amount: number | null
+  currency: string
+  transferredAt: string | null
+  reference: string | null
+  notes: string | null
+  fileName: string
+  mimeType: string
+  fileSize: number
+  uploaderName: string | null
+  reviewedAt: string | null
+  reviewNotes: string | null
+  createdAt: string
+  currentExpiresAt: string | null
+  /** Un año desde hoy o desde el vencimiento actual, el que sea mayor. */
+  suggestedExpiresAt: string
+}
+
+export interface ApprovePaymentPayload {
+  expiresAt: string
+  amount?: number
+  reviewNotes?: string
+}
+
+export interface SetValidityPayload {
+  expiresAt: string
+  plan?: 'trial' | 'paid'
+  graceDays?: number
+  notes?: string
 }
