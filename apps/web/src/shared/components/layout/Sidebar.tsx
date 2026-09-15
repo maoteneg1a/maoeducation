@@ -111,6 +111,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: 'Asignaciones', path: '/academic/assignments' },
           { label: 'Insumos por paralelo', path: '/academic/insumo-setup' },
           { label: 'Calificación y Asistente IA', path: '/settings/calificacion' },
+          { label: 'Formato de Planificación', path: '/settings/formato-planificacion' },
         ],
       },
       {

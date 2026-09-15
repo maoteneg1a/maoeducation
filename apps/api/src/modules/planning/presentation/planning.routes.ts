@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { PrismaPlanningRepository } from '../infrastructure/repositories/prisma-planning.repository'
+import { PrismaInstitutionRepository } from '../../institution/infrastructure/repositories/prisma-institution.repository'
 import { buildMicrocurricularPdf } from '../application/services/microcurricular-pdf.service'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
@@ -18,6 +19,7 @@ import type {
 } from '../application/dtos/planning.dto'
 
 const repo = new PrismaPlanningRepository()
+const institutionRepo = new PrismaInstitutionRepository()
 
 export default async function planningRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware)
@@ -205,8 +207,11 @@ export default async function planningRoutes(app: FastifyInstance) {
     '/planning/situations/:id/pdf',
     { preHandler: [requirePermission('planning', 'read', 'own')] },
     async (req, reply) => {
-      const data = await repo.getSituationPdfData(req.params.id, req.user.institutionId)
-      const pdf = await buildMicrocurricularPdf(data)
+      const [data, template] = await Promise.all([
+        repo.getSituationPdfData(req.params.id, req.user.institutionId),
+        institutionRepo.getMicrocurricularTemplate(req.user.institutionId),
+      ])
+      const pdf = await buildMicrocurricularPdf(data, template)
       // Content-Disposition debe ser ASCII puro — un título con tildes/ñ (normal en
       // español: "Situación", "Ecología"...) rompía el header con ERR_INVALID_CHAR
       // y tumbaba la descarga con 500, sin relación con el contenido del PDF.

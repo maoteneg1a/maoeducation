@@ -47,6 +47,26 @@ export interface AiConfig {
 
 export type PlanningModel = 'destrezas' | 'competencias'
 
+export type SaberType = 'declarativo' | 'procedimental' | 'actitudinal'
+export type WeekLayout = 'table_per_week' | 'rows_in_single_table'
+
+export interface PhaseLabels {
+  anticipacion: string
+  construccionConocimiento: string
+  consolidacion: string
+}
+
+export interface MicrocurricularTemplateConfig {
+  headerColor: string
+  headerColor2: string
+  watermarkEnabled: boolean
+  phaseLabels: PhaseLabels
+  saberesOrder: SaberType[]
+  weekLayout: WeekLayout
+  sectionOrder: string[]
+  hiddenSections: string[]
+}
+
 export const settingsApi = {
   getSettings: () => apiGet<InstitutionSettings>('institution/settings'),
 
@@ -62,6 +82,11 @@ export const settingsApi = {
   getGradingConfig: () => apiGet<GradingConfig>('institution/grading-config'),
   updateGradingConfig: (data: GradingConfig) =>
     apiPut<GradingConfig>('institution/grading-config', data),
+
+  getMicrocurricularTemplate: () =>
+    apiGet<MicrocurricularTemplateConfig>('institution/document-templates/microcurricular'),
+  updateMicrocurricularTemplate: (data: Partial<MicrocurricularTemplateConfig>) =>
+    apiPut<MicrocurricularTemplateConfig>('institution/document-templates/microcurricular', data),
 
   getAiConfig: () => apiGet<AiConfig>('institution/ai-config'),
   updateAiConfig: (data: Partial<AiConfig>) => apiPut<AiConfig>('institution/ai-config', data),
