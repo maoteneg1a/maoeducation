@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from '@/shared/lib/api-client'
+import { apiClient, apiGet, apiPost } from '@/shared/lib/api-client'
 
 export interface AiConfig {
   enabled: boolean
@@ -59,5 +59,5 @@ export const aiAssistantApi = {
 
   /** Genera y guarda TODO el proyecto interdisciplinario a partir de un prompt/idea breve. */
   draftProject: (data: { projectId: string; prompt?: string }) =>
-    apiPost<DraftProjectResult>('ai-assistant/draft-project', data),
+    apiClient.post('ai-assistant/draft-project', { json: data, timeout: 120000 }).json<DraftProjectResult>(),
 }
