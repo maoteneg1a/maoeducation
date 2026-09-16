@@ -196,19 +196,66 @@ function weeklySaberCapacity(totalSabers: number, totalWeeksInBlock: number): nu
   return Math.max(1, Math.ceil(totalSabers / totalWeeksInBlock))
 }
 
+/** Rota `weekNumber` posiciones dentro de `list` (slicing circular) — sin recortar tamaño. */
+function rotateForWeek<T>(list: T[], count: number, weekNumber: number): T[] {
+  if (list.length === 0 || count >= list.length) return list
+  const offset = ((weekNumber - 1) * count) % list.length
+  const selected: T[] = []
+  for (let i = 0; i < count; i++) selected.push(list[(offset + i) % list.length])
+  return selected
+}
+
 /**
  * Selecciona qué subconjunto de saberes (ya existentes en la competencia)
  * corresponde a ESTA semana del bloque — rota por weekNumber para que
  * semanas consecutivas cubran saberes distintos en vez de repetir siempre
  * los primeros N, calcado del reparto por posición de TIGA (`week_indicators`/
  * `week_knowledge` en `_weekly_units`, que usa slicing rotatorio `[position::stride]`).
+ *
+ * Reparte por TIPO (declarativo/procedimental/actitudinal), no sobre la lista
+ * plana: Prisma devuelve los saberes agrupados por tipo (sin orderBy explícito),
+ * así que un slice rotatorio ingenuo sobre la lista completa podía caer entero
+ * dentro de un solo tipo y dejar fuera procedimentales/actitudinales en esa
+ * semana — cada semana debe relacionarse con los 3 tipos presentes en la
+ * competencia (no necesariamente en igual cantidad, pero ninguno ausente).
  */
-function selectSabersForWeek<T>(allSabers: T[], weekNumber: number, totalWeeksInBlock: number): T[] {
+function selectSabersForWeek<T extends { type: string }>(allSabers: T[], weekNumber: number, totalWeeksInBlock: number): T[] {
   const capacity = weeklySaberCapacity(allSabers.length, totalWeeksInBlock)
   if (capacity >= allSabers.length) return allSabers
-  const offset = ((weekNumber - 1) * capacity) % allSabers.length
+
+  const byType = new Map<string, T[]>()
+  for (const saber of allSabers) {
+    const group = byType.get(saber.type)
+    if (group) group.push(saber)
+    else byType.set(saber.type, [saber])
+  }
+  const types = [...byType.keys()]
+
+  // Reparto en 2 pasadas: (1) garantiza 1 por cada tipo presente mientras
+  // quede capacidad — así ningún tipo queda en cero aunque la iteración por
+  // orden de tipos agotaría la capacidad antes de llegar al último; (2) el
+  // resto se distribuye proporcionalmente al tamaño de cada tipo.
+  const quotas = new Map<string, number>(types.map((t) => [t, 0]))
+  let remaining = capacity
+  for (const type of types) {
+    if (remaining <= 0) break
+    quotas.set(type, 1)
+    remaining--
+  }
+  while (remaining > 0) {
+    const target = types
+      .filter((t) => quotas.get(t)! < byType.get(t)!.length)
+      .sort((a, b) => byType.get(b)!.length - byType.get(a)!.length)[0]
+    if (!target) break
+    quotas.set(target, quotas.get(target)! + 1)
+    remaining--
+  }
+
   const selected: T[] = []
-  for (let i = 0; i < capacity; i++) selected.push(allSabers[(offset + i) % allSabers.length])
+  for (const type of types) {
+    const quota = quotas.get(type) ?? 0
+    if (quota > 0) selected.push(...rotateForWeek(byType.get(type)!, quota, weekNumber))
+  }
   return selected
 }
 
