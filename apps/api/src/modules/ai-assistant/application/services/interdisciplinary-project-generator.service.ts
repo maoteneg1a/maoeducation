@@ -4,6 +4,7 @@ import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import { getAnthropicClient, isAnthropicConfigured } from '../../infrastructure/services/anthropic-client'
 import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
+import { resolveWorkload, weeklyPhaseCounts } from '../../../../shared/domain/workload-resolution'
 import type { DraftedSaber } from '../dtos/ai-assistant.dto'
 
 const institutionRepo = new PrismaInstitutionRepository()
@@ -99,6 +100,23 @@ export interface DraftInterdisciplinaryProjectResult {
 
 function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length
+}
+
+/**
+ * Etiqueta/propósito determinista de la fase del PROYECTO (no confundir con
+ * las fases Inicio/Desarrollo/Cierre de CADA semana) según su posición en la
+ * duración total — calcado de `_milestone_label()` en TIGA
+ * (interdisciplinary_project_orchestrator.py). Sin IA, sin persistencia: se
+ * deriva en el momento a partir de weekNumber/totalWeeks (siempre disponibles
+ * como columnas ya existentes), así que no requiere migración ni un campo
+ * nuevo en InterdisciplinaryWeekEntry — es la opción más simple que cumple el
+ * requisito de dar contexto de fase a la IA (y, si se necesita, a la UI).
+ */
+export function projectPhaseLabel(weekNumber: number, totalWeeks: number): { title: string; purpose: string } {
+  if (weekNumber === 1) return { title: 'Inicio del proyecto', purpose: 'Comprender el reto y organizar la participación.' }
+  if (weekNumber === totalWeeks) return { title: 'Presentación y cierre', purpose: 'Integrar y comunicar el producto final.' }
+  if (weekNumber * 3 <= totalWeeks * 2) return { title: 'Investigación y desarrollo', purpose: 'Desarrollar los aportes disciplinares previstos.' }
+  return { title: 'Producción e integración', purpose: 'Articular los aportes sin alterar su secuencia curricular.' }
 }
 
 /**
@@ -284,19 +302,37 @@ export async function draftInterdisciplinaryProject(
   const isCompetencyModel = planningModel === 'competencias'
   const subnivel = originAssignment.parallel.level.subnivel
 
+  // Carga horaria oficial por asignatura — OPCIONAL (pedido explícito del
+  // usuario: "que no sea obligado por ahora"), a diferencia de TIGA que
+  // rechaza el proyecto entero si falta (WORKLOAD_CONFIGURATION_REQUIRED).
+  // Aquí solo informa a la IA la densidad esperada de actividades de esa
+  // materia en el proyecto; si no está configurada, se usa una densidad
+  // estándar y el proyecto se genera igual (mismo patrón que
+  // competency-pedagogical-generator.service.ts para la planificación
+  // semanal individual — nunca bloquea).
+  const workloadEntries = await prisma.curricularWorkload.findMany()
+  const levelCode = originAssignment.parallel.level.code
+  const educationOffer = originAssignment.parallel.educationOffer
+
   const assignmentBlocks: string[] = []
   for (const a of assignments) {
+    const workload = resolveWorkload(workloadEntries, levelCode, a.subject.workloadCode, educationOffer, a.weeklyPeriodsOverride)
+    const phaseCounts = weeklyPhaseCounts(workload.weeklyPeriods)
+    const densityLine = workload.weeklyPeriods
+      ? `Carga horaria: ${workload.weeklyPeriods} períodos/semana — densidad de actividades por fase en las semanas de esta contribución: Inicio ${phaseCounts.anticipation}, Desarrollo ${phaseCounts.construction}, Cierre ${phaseCounts.consolidation} (guíate por esta densidad al describir faseInicio/faseDesarrollo/faseCierre, sin generar una lista numerada — sigue siendo un texto breve por fase).`
+      : 'Carga horaria no configurada para este grado+materia — usa densidad estándar (equivalente a Inicio 2, Desarrollo 2, Cierre 2) sin bloquear la generación.'
+
     if (isCompetencyModel) {
       const areaId = a.subject.competencyAreaId
       if (areaId && subnivel) {
         const available = await prisma.competency.findMany({ where: { areaId, subnivel, isActive: true }, take: 40 })
         const catalog = available.map((comp) => `      [${comp.id}] ${comp.code}: ${comp.text}`).join('\n')
         assignmentBlocks.push(
-          `- courseAssignmentId "${a.id}" — ${a.subject.name} (elige 1-2 competencias relevantes al reto, usa sus ids reales en competencyIds; deja skillIds vacío):\n${catalog || '      (sin competencias disponibles)'}`,
+          `- courseAssignmentId "${a.id}" — ${a.subject.name} (elige 1-2 competencias relevantes al reto, usa sus ids reales en competencyIds; deja skillIds vacío). ${densityLine}\n${catalog || '      (sin competencias disponibles)'}`,
         )
       } else {
         assignmentBlocks.push(
-          `- courseAssignmentId "${a.id}" — ${a.subject.name} (sin área de competencias vinculada — deja skillIds y competencyIds vacíos, pero SÍ genera contribucion/responsabilidad/weeks)`,
+          `- courseAssignmentId "${a.id}" — ${a.subject.name} (sin área de competencias vinculada — deja skillIds y competencyIds vacíos, pero SÍ genera contribucion/responsabilidad/weeks). ${densityLine}`,
         )
       }
       continue
@@ -306,14 +342,24 @@ export async function draftInterdisciplinaryProject(
       const available = await prisma.curriculumSkill.findMany({ where: { criterion: { areaId, subnivel }, isActive: true }, take: 40 })
       const catalog = available.map((s) => `      [${s.id}] ${s.code}: ${s.description}`).join('\n')
       assignmentBlocks.push(
-        `- courseAssignmentId "${a.id}" — ${a.subject.name} (elige 1-2 destrezas relevantes al reto, usa sus ids reales en skillIds; deja competencyIds vacío):\n${catalog || '      (sin destrezas disponibles)'}`,
+        `- courseAssignmentId "${a.id}" — ${a.subject.name} (elige 1-2 destrezas relevantes al reto, usa sus ids reales en skillIds; deja competencyIds vacío). ${densityLine}\n${catalog || '      (sin destrezas disponibles)'}`,
       )
     } else {
       assignmentBlocks.push(
-        `- courseAssignmentId "${a.id}" — ${a.subject.name} (sin área curricular vinculada — deja skillIds y competencyIds vacíos, pero SÍ genera contribucion/responsabilidad/weeks)`,
+        `- courseAssignmentId "${a.id}" — ${a.subject.name} (sin área curricular vinculada — deja skillIds y competencyIds vacíos, pero SÍ genera contribucion/responsabilidad/weeks). ${densityLine}`,
       )
     }
   }
+
+  // Fase del PROYECTO por semana (distinta de las fases Inicio/Desarrollo/Cierre
+  // de cada semana individual) — determinista, calcada de TIGA, comunicada a la
+  // IA como contexto obligatorio para que weekProposito refleje la progresión
+  // real del proyecto (semana 1 de arranque, últimas de cierre, etc.).
+  const projectPhaseLines = Array.from({ length: weeksCount }, (_, i) => {
+    const week = i + 1
+    const { title, purpose } = projectPhaseLabel(week, weeksCount)
+    return `  Semana ${week} de ${weeksCount} — fase del proyecto: "${title}". ${purpose}`
+  }).join('\n')
 
   const expectedAssignmentIds = new Set(assignments.map((a) => a.id))
 
@@ -329,6 +375,9 @@ Asignaturas/docentes que contribuyen (una entrada de "contributions" por cada co
 
 ${assignmentBlocks.join('\n\n')}
 
+Fase del proyecto por semana (contexto OBLIGATORIO — cada weekProposito debe reflejar coherentemente este momento del proyecto, no un texto genérico repetido):
+${projectPhaseLines}
+
 Genera el proyecto completo con esta tool:
 1. title: título corto y concreto del proyecto (distinto del título de la situación de origen, pero inspirado en ella).
 2. situacionReto: una pregunta retadora concreta (formato "¿Qué solución sustentada podemos construir al...?") que conecte de forma genuina TODAS las asignaturas listadas.
@@ -341,7 +390,7 @@ Genera el proyecto completo con esta tool:
    - ${isCompetencyModel ? 'competencyIds' : 'skillIds'}: elige 1-2 ids reales del catálogo dado para esa asignatura (nunca inventes ids). Deja el otro campo (${isCompetencyModel ? 'skillIds' : 'competencyIds'}) vacío en TODAS las contribuciones.
    - Saberes: si la destreza/competencia elegida no tenía saberes en el catálogo, propone 1-2 nuevos de cada tipo (declarativo/procedimental/actitudinal) en newSabers con code "<código_base>.d.1"/".p.1"/".a.1"; si ya tenía, deja newSabers vacío y no listes nada en reusedSaberIds (el sistema los resuelve).
    - weeks: EXACTAMENTE ${weeksCount} entradas, weekNumber de 1 a ${weeksCount} sin repetir ni saltar ninguno. Cada semana necesita:
-     - weekProposito: el MISMO texto para TODAS las asignaturas en esa semana (deben coincidir literalmente entre contribuciones) — describe el hito común de esa semana en el proyecto.
+     - weekProposito: el MISMO texto para TODAS las asignaturas en esa semana (deben coincidir literalmente entre contribuciones) — describe el hito común de esa semana en el proyecto, reflejando la fase del proyecto indicada arriba para ese número de semana (no un texto genérico igual en todas las semanas).
      - faseInicio/faseDesarrollo/faseCierre: actividad CONCRETA y ESPECÍFICA de esa fase para ESTA asignatura en particular (nunca genérica, nunca igual entre fases, nunca igual a la de otra asignatura en la misma semana).
 
 Reglas estrictas: no repitas texto entre situacionReto/contexto/propositoComun/productoFinal; no repitas contribucion y responsabilidad de una misma asignatura; no repitas las 3 fases de una misma semana entre sí; nunca inventes ids de destrezas/competencias fuera de los catálogos dados; genera EXACTAMENTE una contribución por cada courseAssignmentId listado.`
