@@ -49,32 +49,6 @@ export function useUpdatePlan(id: string) {
   })
 }
 
-export function useSubmitPlan(id: string) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: () => planningApi.submitPlan(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['planning-plan', id] })
-      qc.invalidateQueries({ queryKey: ['planning-plans'] })
-      toast.success('PCA enviado para aprobación')
-    },
-    onError: (err) => toast.error(getErrorMessage(err)),
-  })
-}
-
-export function useApprovePlan(id: string) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: () => planningApi.approvePlan(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['planning-plan', id] })
-      qc.invalidateQueries({ queryKey: ['planning-plans'] })
-      toast.success('PCA aprobado')
-    },
-    onError: (err) => toast.error(getErrorMessage(err)),
-  })
-}
-
 // ─── Situaciones de aprendizaje ─────────────────────────────────────────────
 
 export function useSituations(planId: string | undefined) {

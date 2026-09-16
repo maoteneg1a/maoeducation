@@ -75,6 +75,9 @@ export class PrismaPlanningRepository {
       include: {
         courseAssignment: { include: { subject: true, parallel: { include: { level: true } } } },
         template: true,
+        // Solo el status de cada situación — la UI (PlanningListPage) deriva de
+        // aquí el indicador de completitud del plan, nunca de CurriculumPlan.status.
+        situations: { select: { status: true } },
         _count: { select: { situations: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -119,44 +122,17 @@ export class PrismaPlanningRepository {
     })
   }
 
+  // Sin flujo de aprobación por terceros para el plan padre — el PCA/Planificación
+  // por Competencias siempre es editable (ver comentario en CurriculumPlan.status
+  // del schema). submitPlan/approvePlan eliminados junto con sus endpoints.
   async updatePlan(id: string, institutionId: string, dto: UpdatePlanDto) {
     const plan = await prisma.curriculumPlan.findFirst({ where: { id, institutionId } })
     if (!plan) throw new NotFoundError('Plan no encontrado')
-    if (plan.status === 'aprobado') throw new ConflictError('El plan ya fue aprobado y no se puede editar')
 
     return prisma.curriculumPlan.update({
       where: { id },
       data: { ...(dto.data !== undefined && { data: dto.data as unknown as Prisma.InputJsonValue }) },
     })
-  }
-
-  async submitPlan(id: string, institutionId: string) {
-    const plan = await prisma.curriculumPlan.findFirst({ where: { id, institutionId } })
-    if (!plan) throw new NotFoundError('Plan no encontrado')
-    if (plan.status !== 'borrador') throw new ConflictError('Solo un plan en borrador puede enviarse')
-    return prisma.curriculumPlan.update({ where: { id }, data: { status: 'enviado' } })
-  }
-
-  async approvePlan(id: string, institutionId: string, approverId: string) {
-    const plan = await prisma.curriculumPlan.findFirst({ where: { id, institutionId } })
-    if (!plan) throw new NotFoundError('Plan no encontrado')
-    if (plan.status !== 'enviado') throw new ConflictError('Solo un plan enviado puede aprobarse')
-
-    const updated = await prisma.curriculumPlan.update({
-      where: { id },
-      data: { status: 'aprobado', approvedBy: approverId, approvedAt: new Date() },
-    })
-    await prisma.auditLog.create({
-      data: {
-        institutionId,
-        userId: approverId,
-        action: 'planning.approve_pca',
-        resourceType: 'curriculum_plan',
-        resourceId: id,
-        newValue: { status: 'aprobado' },
-      },
-    })
-    return updated
   }
 
   // ─── Situación de aprendizaje ───────────────────────────────────────────

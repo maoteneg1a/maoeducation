@@ -752,7 +752,16 @@ model CurriculumPlan {
   institutionId      String    @map("institution_id")
   courseAssignmentId String    @map("course_assignment_id")
   templateId         String    @map("template_id")
-  // "borrador" | "enviado" | "aprobado"
+  // DEPRECADO — "borrador" | "enviado" | "aprobado". El PCA/Planificación por
+  // Competencias tenía su propio flujo de aprobación por terceros, INDEPENDIENTE
+  // del de sus LearningSituation hijas, lo que producía estados contradictorios
+  // en la UI (plan "Aprobado" con situaciones en "Borrador" — el docente no
+  // entendía qué significaba cada cosa). Pedido explícito del usuario: la única
+  // señal de completitud vive en LearningSituation.status (borrador/listo); el
+  // plan padre ya no tiene flujo de aprobación propio y este campo deja de
+  // escribirse (se conserva la columna por histórico, igual que approvedBy/
+  // approvedAt debajo). No usar para gating de UI ni de negocio — ver
+  // PlanningListPage (indicador derivado de las situaciones reales).
   status             String    @default("borrador") @db.VarChar(20)
   data               Json      @default("{}") // objetivos, ejes transversales, campos configurables del template
   createdBy          String    @map("created_by")

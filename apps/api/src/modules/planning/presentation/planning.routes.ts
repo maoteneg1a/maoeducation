@@ -74,18 +74,12 @@ export default async function planningRoutes(app: FastifyInstance) {
     async (req, reply) => reply.send(await repo.updatePlan(req.params.id, req.user.institutionId, req.body)),
   )
 
-  app.post<{ Params: { id: string } }>(
-    '/planning/plans/:id/submit',
-    { preHandler: [requirePermission('planning', 'write', 'own')] },
-    async (req, reply) => reply.send(await repo.submitPlan(req.params.id, req.user.institutionId)),
-  )
-
-  app.post<{ Params: { id: string } }>(
-    '/planning/plans/:id/approve',
-    { preHandler: [requirePermission('planning', 'manage', 'all')] },
-    async (req, reply) =>
-      reply.send(await repo.approvePlan(req.params.id, req.user.institutionId, req.user.sub)),
-  )
+  // Sin flujo de aprobación por terceros para el plan padre (pedido explícito
+  // del usuario): antes existían /plans/:id/submit y /plans/:id/approve con
+  // CurriculumPlan.status ("borrador"|"enviado"|"aprobado") completamente
+  // desconectado del estado real de las situaciones hijas — se podía "aprobar"
+  // un plan con 0 situaciones o con todas en borrador. Eliminados; ver
+  // comentario en el modelo CurriculumPlan (schema.prisma).
 
   // ─── Situación de aprendizaje ───────────────────────────────────────────
   app.get<{ Params: { planId: string } }>(

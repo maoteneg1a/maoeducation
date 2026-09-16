@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Send, CheckCircle2, NotebookPen, Search, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, NotebookPen, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { Card } from '@/shared/components/ui/card'
@@ -12,7 +12,6 @@ import {
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { DynamicForm } from '@/shared/components/form/DynamicForm'
-import { usePermissions } from '@/shared/hooks/usePermissions'
 import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { usePeriods } from '@/features/academic/hooks/useAcademic'
 import { useCompetenciesForSubject } from '@/features/competency-curriculum/hooks/useCompetencyCurriculum'
@@ -22,13 +21,11 @@ import { cn } from '@/shared/lib/utils'
 import {
   usePlan,
   useUpdatePlan,
-  useSubmitPlan,
-  useApprovePlan,
   useSituations,
   useCreateSituation,
   useDeleteSituation,
 } from '../hooks/usePlanning'
-import type { ApprovalStatus, SituationStatus } from '../api/planning.api'
+import type { SituationStatus } from '../api/planning.api'
 
 function normalizeSearch(value: string): string {
   return value
@@ -155,12 +152,6 @@ function SearchableCompetencyPicker({
   )
 }
 
-const PCA_STATUS_LABEL: Record<ApprovalStatus, { label: string; variant: 'success' | 'warning' | 'secondary' }> = {
-  borrador: { label: 'Borrador', variant: 'secondary' },
-  enviado: { label: 'Enviado', variant: 'warning' },
-  aprobado: { label: 'Aprobado', variant: 'success' },
-}
-
 // Sin flujo de aprobación por terceros para la Situación de Aprendizaje — solo "Borrador"/"Listo".
 const SITUATION_STATUS_LABEL: Record<SituationStatus, { label: string; variant: 'success' | 'warning' | 'secondary' }> = {
   borrador: { label: 'Borrador', variant: 'secondary' },
@@ -170,8 +161,6 @@ const SITUATION_STATUS_LABEL: Record<SituationStatus, { label: string; variant: 
 export function PlanningDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { hasPermission } = usePermissions()
-  const canApprove = hasPermission('planning:manage')
   const { data: planningModel } = usePlanningModel()
   const isCompetencyModel = planningModel === 'competencias'
   // TIGA no tiene un nivel de "plan anual" para el modelo por competencias — todo
@@ -182,8 +171,6 @@ export function PlanningDetailPage() {
 
   const { data: plan, isLoading } = usePlan(id)
   const updatePlan = useUpdatePlan(id!)
-  const submitPlan = useSubmitPlan(id!)
-  const approvePlan = useApprovePlan(id!)
 
   const { data: situations = [] } = useSituations(id)
   const createSituation = useCreateSituation(id!)
@@ -213,7 +200,9 @@ export function PlanningDetailPage() {
   if (isLoading) return <PageLoader />
   if (!plan) return <EmptyState icon={NotebookPen} title="Planificación no encontrada" />
 
-  const isEditable = plan.status === 'borrador'
+  // El plan padre (PCA/Planificación por Competencias) ya no tiene flujo de
+  // aprobación propio — siempre es editable. La única señal de completitud
+  // real vive en cada LearningSituation (borrador/listo, ver más abajo).
 
   // En competencias basta periodo + competencia; en destrezas sigue pidiendo título.
   const canCreateSituation = isCompetencyModel
@@ -257,7 +246,6 @@ export function PlanningDetailPage() {
             {plan.courseAssignment?.parallel.level.name} {plan.courseAssignment?.parallel.name}
           </p>
         </div>
-        <Badge variant={PCA_STATUS_LABEL[plan.status].variant}>{PCA_STATUS_LABEL[plan.status].label}</Badge>
       </div>
 
       {activePeriod && (
@@ -292,34 +280,18 @@ export function PlanningDetailPage() {
             schema={plan.template.schema}
             values={formData}
             onChange={(key, value) => setFormData((prev) => ({ ...prev, [key]: value }))}
-            disabled={!isEditable}
           />
         )}
         {isCompetencyModel && (
           <p className="text-sm text-muted-foreground">
-            Nada que llenar aquí — usa el botón de abajo para enviar este bloque a aprobación cuando tengas listas
-            sus situaciones de aprendizaje.
+            Nada que llenar aquí — define las situaciones de aprendizaje más abajo.
           </p>
         )}
 
-        {isEditable && (
-          <div className={isCompetencyModel ? 'mt-4 flex justify-end gap-2' : 'mt-4 flex justify-end gap-2 border-t pt-4'}>
-            {!isCompetencyModel && (
-              <Button variant="outline" onClick={() => updatePlan.mutate({ data: formData })} loading={updatePlan.isPending}>
-                Guardar borrador
-              </Button>
-            )}
-            <Button onClick={() => submitPlan.mutate()} loading={submitPlan.isPending}>
-              <Send className="h-4 w-4" />
-              Enviar para aprobación
-            </Button>
-          </div>
-        )}
-        {plan.status === 'enviado' && canApprove && (
-          <div className="mt-4 flex justify-end border-t pt-4">
-            <Button onClick={() => approvePlan.mutate()} loading={approvePlan.isPending}>
-              <CheckCircle2 className="h-4 w-4" />
-              Aprobar {planLabel}
+        {!isCompetencyModel && (
+          <div className="mt-4 flex justify-end gap-2 border-t pt-4">
+            <Button variant="outline" onClick={() => updatePlan.mutate({ data: formData })} loading={updatePlan.isPending}>
+              Guardar
             </Button>
           </div>
         )}
@@ -330,42 +302,40 @@ export function PlanningDetailPage() {
           <h2 className="text-lg font-semibold">Situaciones de aprendizaje (Planificación Microcurricular)</h2>
         </div>
 
-        {isEditable && (
-          <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
-            {isCompetencyModel ? (
-              <div className="min-w-0 flex-1">
-                <label className="mb-1 block text-xs font-medium">Competencia específica</label>
-                <SearchableCompetencyPicker
-                  competencies={competencies}
-                  value={newCompetencyId}
-                  onChange={setNewCompetencyId}
-                />
-              </div>
-            ) : (
-              <div className="flex-1">
-                <label className="mb-1 block text-xs font-medium">Título de la situación de aprendizaje</label>
-                <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Ej: Voces del mundo digital" />
-              </div>
-            )}
-            <div className="sm:w-48">
-              <label className="mb-1 block text-xs font-medium">Trimestre / periodo</label>
-              <Select value={newPeriodId} onValueChange={setNewPeriodId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Periodo" />
-                </SelectTrigger>
-                <SelectContent>
-                  {periods.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
+          {isCompetencyModel ? (
+            <div className="min-w-0 flex-1">
+              <label className="mb-1 block text-xs font-medium">Competencia específica</label>
+              <SearchableCompetencyPicker
+                competencies={competencies}
+                value={newCompetencyId}
+                onChange={setNewCompetencyId}
+              />
             </div>
-            <Button onClick={handleCreateSituation} disabled={!canCreateSituation} loading={createSituation.isPending}>
-              <Plus className="h-4 w-4" />
-              Crear
-            </Button>
-          </Card>
-        )}
+          ) : (
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium">Título de la situación de aprendizaje</label>
+              <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Ej: Voces del mundo digital" />
+            </div>
+          )}
+          <div className="sm:w-48">
+            <label className="mb-1 block text-xs font-medium">Trimestre / periodo</label>
+            <Select value={newPeriodId} onValueChange={setNewPeriodId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Periodo" />
+              </SelectTrigger>
+              <SelectContent>
+                {periods.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={handleCreateSituation} disabled={!canCreateSituation} loading={createSituation.isPending}>
+            <Plus className="h-4 w-4" />
+            Crear
+          </Button>
+        </Card>
 
         {situations.length === 0 ? (
           <EmptyState
