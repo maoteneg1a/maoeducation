@@ -3,6 +3,14 @@ import type { CurriculumSkill } from '@/features/curriculum/api/curriculum.api'
 import type { Competency } from '@/features/competency-curriculum/api/competency-curriculum.api'
 
 export type PlanningTemplateType = 'pca'
+/**
+ * @deprecated CurriculumPlan.status ya no tiene flujo de aprobación por
+ * terceros (quedaba desconectado del estado real de sus LearningSituation
+ * hijas y mostraba información contradictoria en la UI). El campo se
+ * conserva en la respuesta del backend por histórico, pero no debe usarse
+ * para gating de UI ni de negocio — ver PlanningListPage para el indicador
+ * derivado de las situaciones reales.
+ */
 export type ApprovalStatus = 'borrador' | 'enviado' | 'aprobado'
 /** Sin flujo de aprobación por terceros — solo el docente decide, transición libre en ambos sentidos. */
 export type SituationStatus = 'borrador' | 'listo'
@@ -162,10 +170,6 @@ export const planningApi = {
 
   updatePlan: (id: string, data: { data: Record<string, unknown> }) =>
     apiPut<CurriculumPlan>(`planning/plans/${id}`, data),
-
-  submitPlan: (id: string) => apiPost<CurriculumPlan>(`planning/plans/${id}/submit`),
-
-  approvePlan: (id: string) => apiPost<CurriculumPlan>(`planning/plans/${id}/approve`),
 
   // Situaciones de aprendizaje
   listSituations: (planId: string) => apiGet<LearningSituation[]>(`planning/plans/${planId}/situations`),
