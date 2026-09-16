@@ -590,6 +590,26 @@ export const DEFAULT_AI_CONFIG = {
   monthlyTokenCap: 2_000_000,
 } as const
 
+// Formato del PDF de Planificación Microcurricular tal como sale hoy (mismos
+// valores que microcurricular-pdf.service.ts tenía hardcodeados). Cada
+// institución pide su propio look (colores, marca de agua, nombres de fase,
+// orden de saberes/secciones) — este default reproduce exactamente lo que ya
+// existía antes de hacerlo configurable, para no romper a nadie en el cambio.
+export const DEFAULT_MICROCURRICULAR_TEMPLATE = {
+  headerColor: '#e5e5e5',
+  headerColor2: '#f2f2f2',
+  watermarkEnabled: false,
+  phaseLabels: {
+    anticipacion: 'ANTICIPACIÓN',
+    construccionConocimiento: 'CONSTRUCCIÓN DEL CONOCIMIENTO',
+    consolidacion: 'CONSOLIDACIÓN',
+  },
+  saberesOrder: ['declarativo', 'procedimental', 'actitudinal'],
+  weekLayout: 'table_per_week',
+  sectionOrder: ['datos_informativos', 'situacion_aprendizaje', 'conexion_interdisciplinar', 'semanas'],
+  hiddenSections: [],
+} as const
+
 export interface BootstrapAdminInput {
   email: string
   firstName: string

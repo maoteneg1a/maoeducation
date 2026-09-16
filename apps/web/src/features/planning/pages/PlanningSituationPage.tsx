@@ -1,8 +1,6 @@
 import * as React from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { toast } from 'sonner'
 import { ArrowLeft, Plus, Send, CheckCircle2, ClipboardCheck, NotebookPen, Download, Pencil } from 'lucide-react'
-import { getErrorMessage } from '@/shared/lib/utils'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { Card } from '@/shared/components/ui/card'
@@ -10,6 +8,8 @@ import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
+import { PdfPreviewModal } from '@/shared/components/feedback/PdfPreviewModal'
+import { apiClient } from '@/shared/lib/api-client'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { WeekCard } from '../components/WeekCard'
@@ -23,7 +23,7 @@ import {
   useWeeks,
   useCreateWeek,
 } from '../hooks/usePlanning'
-import { planningApi, type SituationStatus } from '../api/planning.api'
+import type { SituationStatus } from '../api/planning.api'
 
 const STATUS_LABEL: Record<SituationStatus, { label: string; variant: 'success' | 'warning' | 'secondary' }> = {
   borrador: { label: 'Borrador', variant: 'secondary' },
@@ -52,6 +52,8 @@ export function PlanningSituationPage() {
 
   const { data: weeks = [] } = useWeeks(id)
   const createWeek = useCreateWeek(id!)
+
+  const [pdfPreviewOpen, setPdfPreviewOpen] = React.useState(false)
 
   const [title, setTitle] = React.useState('')
   const [description, setDescription] = React.useState('')
@@ -94,13 +96,7 @@ export function PlanningSituationPage() {
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={STATUS_LABEL[situation.status].variant}>{STATUS_LABEL[situation.status].label}</Badge>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              planningApi.openSituationPdf(situation.id).catch((err) => toast.error(getErrorMessage(err)))
-            }}
-          >
+          <Button variant="outline" size="sm" onClick={() => setPdfPreviewOpen(true)}>
             <Download className="h-4 w-4" />
             PDF
           </Button>
@@ -266,6 +262,13 @@ export function PlanningSituationPage() {
           </div>
         )}
       </div>
+
+      <PdfPreviewModal
+        open={pdfPreviewOpen}
+        onOpenChange={setPdfPreviewOpen}
+        title={situation.title}
+        fetchPdf={() => apiClient.get(`planning/situations/${situation.id}/pdf`).blob()}
+      />
     </div>
   )
 }

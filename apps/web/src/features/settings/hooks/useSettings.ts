@@ -2,7 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/shared/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
-import { settingsApi, type AiConfig, type GradingConfig, type InstitutionSettings, type PlanningModel } from '../api/settings.api'
+import {
+  settingsApi,
+  type AiConfig,
+  type GradingConfig,
+  type InstitutionSettings,
+  type MicrocurricularTemplateConfig,
+  type PlanningModel,
+} from '../api/settings.api'
 import type { InstitutionBranding } from '@/store/auth.store'
 
 export const settingsKeys = {
@@ -10,6 +17,7 @@ export const settingsKeys = {
   gradingConfig: ['grading-config'] as const,
   aiConfig: ['ai-config'] as const,
   planningModel: ['planning-model'] as const,
+  microcurricularTemplate: ['microcurricular-template'] as const,
 }
 
 function syncStore(settings: InstitutionSettings) {
@@ -71,6 +79,25 @@ export function useUpdateGradingConfig() {
     onSuccess: (config) => {
       qc.setQueryData(settingsKeys.gradingConfig, config)
       toast.success('Configuración de calificación guardada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useMicrocurricularTemplate() {
+  return useQuery({
+    queryKey: settingsKeys.microcurricularTemplate,
+    queryFn: settingsApi.getMicrocurricularTemplate,
+  })
+}
+
+export function useUpdateMicrocurricularTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Partial<MicrocurricularTemplateConfig>) => settingsApi.updateMicrocurricularTemplate(data),
+    onSuccess: (config) => {
+      qc.setQueryData(settingsKeys.microcurricularTemplate, config)
+      toast.success('Formato de planificación guardado')
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })

@@ -86,3 +86,38 @@ export type PlanningModel = 'destrezas' | 'competencias'
 export interface UpdatePlanningModelDto {
   planningModel: PlanningModel
 }
+
+// ---- Plantilla de documento — Planificación Microcurricular (configurable por institución) ----
+// Cada institución pide su propio formato (colores, marca de agua, nombres de fase,
+// orden de saberes/secciones) — antes esto significaba editar código; ahora es config.
+
+export type SaberType = 'declarativo' | 'procedimental' | 'actitudinal'
+export type WeekLayout = 'table_per_week' | 'rows_in_single_table'
+
+export interface PhaseLabels {
+  anticipacion: string
+  construccionConocimiento: string
+  consolidacion: string
+}
+
+export interface MicrocurricularTemplateConfig {
+  headerColor: string
+  headerColor2: string
+  watermarkEnabled: boolean
+  phaseLabels: PhaseLabels
+  saberesOrder: SaberType[]
+  weekLayout: WeekLayout
+  sectionOrder: string[]
+  hiddenSections: string[]
+}
+
+export interface UpdateMicrocurricularTemplateDto {
+  headerColor?: string
+  headerColor2?: string
+  watermarkEnabled?: boolean
+  phaseLabels?: Partial<PhaseLabels>
+  saberesOrder?: SaberType[]
+  weekLayout?: WeekLayout
+  sectionOrder?: string[]
+  hiddenSections?: string[]
+}

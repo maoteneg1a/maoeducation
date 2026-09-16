@@ -482,6 +482,20 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      // ---- Settings / Microcurricular document template ----
+      {
+        path: 'settings/formato-planificacion',
+        element: <PermissionGuard permission="academic_config:manage" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/settings/pages/MicrocurricularTemplatePage').then((m) => ({
+                Component: m.MicrocurricularTemplatePage,
+              })),
+          },
+        ],
+      },
       // ---- Settings / Anamnesis template ----
       {
         path: 'settings/anamnesis',
