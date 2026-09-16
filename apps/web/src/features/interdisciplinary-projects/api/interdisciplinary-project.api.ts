@@ -93,6 +93,8 @@ export const interdisciplinaryProjectApi = {
     }>,
   ) => apiPut<InterdisciplinaryProject>(`interdisciplinary-projects/${id}`, data),
 
+  deleteProject: (id: string) => apiDelete(`interdisciplinary-projects/${id}`),
+
   joinProject: (projectId: string, courseAssignmentId: string) =>
     apiPost<Contribution>(`interdisciplinary-projects/${projectId}/contributions`, { courseAssignmentId }),
 

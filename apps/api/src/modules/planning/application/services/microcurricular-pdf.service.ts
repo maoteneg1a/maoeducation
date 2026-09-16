@@ -485,6 +485,41 @@ export function buildMicrocurricularPdf(
         // calcada de TIGA — weekLayout (que solo tiene sentido para destrezas) se
         // ignora aquí a propósito (ver comentario en DEFAULT_MICROCURRICULAR_TEMPLATE).
         if (data.weeks.some((w) => w.isCompetencyModel)) {
+          // Bloque agregado del período — calcado de TIGA: antes de listar las
+          // semanas, un resumen único con las competencias específicas, indicadores
+          // y la tabla de saberes (3 columnas D/P/A) de TODO el trimestre, no
+          // repetido por semana (cada semana ya imprime sus propios códigos en
+          // "Saberes movilizados" dentro de drawCompetencyWeekHeader).
+          const competencyTextsDelPeriodo = [
+            ...new Set(data.weeks.flatMap((w) => (w.competenciasEspecificas ?? '').split('\n').filter(Boolean))),
+          ]
+          const indicadoresDelPeriodo = [
+            ...new Set(data.weeks.flatMap((w) => (w.indicadoresEvaluacion ?? '').split('\n').filter(Boolean))),
+          ]
+          const saberesDelPeriodo = new Map<string, MicrocurricularWeek['saberes'][number]>()
+          for (const week of data.weeks) {
+            for (const saber of week.saberes) saberesDelPeriodo.set(saber.code, saber)
+          }
+          const bySaberType = (t: SaberType) => [...saberesDelPeriodo.values()].filter((s) => s.type === t)
+          const joinSaberes = (list: MicrocurricularWeek['saberes']) => list.map((s) => `${s.code}: ${s.description}`).join('\n')
+
+          if (competencyTextsDelPeriodo.length) {
+            drawSectionBand(doc, x0, fullWidth, 'Competencias específicas del período', headerColor)
+            drawRow(doc, x0, [{ text: competencyTextsDelPeriodo.join('\n'), width: fullWidth }])
+          }
+          if (saberesDelPeriodo.size > 0) {
+            drawSaberesTable(
+              doc,
+              x0,
+              fullWidth,
+              indicadoresDelPeriodo.join('\n'),
+              saberesOrder.map((t) => ({ label: SABER_LABEL[t], text: joinSaberes(bySaberType(t)) })),
+              headerColor,
+              headerColor2,
+            )
+            doc.moveDown(0.4)
+          }
+
           drawSectionBand(doc, x0, fullWidth, 'SEMANAS', headerColor)
           for (const week of data.weeks) {
             drawCompetencyWeekHeader(doc, x0, fullWidth, week)

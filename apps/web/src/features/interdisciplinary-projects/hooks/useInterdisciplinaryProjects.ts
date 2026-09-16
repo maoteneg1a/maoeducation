@@ -31,6 +31,18 @@ export function useCreateProject() {
   })
 }
 
+export function useDeleteProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: interdisciplinaryProjectApi.deleteProject,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['interdisciplinary-projects'] })
+      toast.success('Proyecto interdisciplinario eliminado')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
 /** Situaciones de aprendizaje del paralelo/periodo con conexión interdisciplinar marcada — candidatas para "Generar con IA". */
 export function useEligibleSituations(parallelId: string | undefined, academicPeriodId: string | undefined) {
   return useQuery({

@@ -226,7 +226,11 @@ async function resolveLink(
   return undefined
 }
 
-async function momentosFromPayload(raw: RawGenerationPayload, criterio: string): Promise<CompetencyWeekMomentos> {
+async function momentosFromPayload(
+  raw: RawGenerationPayload,
+  criterio: string,
+  instrumentLabelByCode: Map<string, string>,
+): Promise<CompetencyWeekMomentos> {
   const fases = {} as CompetencyWeekMomentos['fases']
   const PHASE_TO_KEY: Record<PedagogicalPhase, 'inicio' | 'desarrollo' | 'cierre'> = {
     ANTICIPATION: 'inicio',
@@ -249,7 +253,10 @@ async function momentosFromPayload(raw: RawGenerationPayload, criterio: string):
     evaluacion: {
       evidencia: raw.assessment.evidence,
       criterio,
-      instrumento: raw.assessment.instrument,
+      // El catálogo devuelve códigos técnicos (ANALYTIC_RUBRIC, CHECKLIST...) — el
+      // docente debe ver siempre el label en español ("Rúbrica analítica"), nunca
+      // el código crudo en inglés.
+      instrumento: instrumentLabelByCode.get(raw.assessment.instrument) ?? raw.assessment.instrument,
       instrumentoLink: instrumentoLink,
     },
   }
@@ -318,6 +325,7 @@ export async function draftCompetencyWeek(
     cp.strategies.map((s) => ({ id: s.id, text: s.text, compatiblePhases: s.compatiblePhases, checkpointOperationalCode: cp.operationalCode })),
   )
   const allowedDuaCodes = new Set(duaCheckpoints.map((cp) => cp.operationalCode))
+  const instrumentLabelByCode = new Map(assessmentInstruments.map((i) => [i.code, i.label]))
   const techniqueInstrumentMap = new Map(assessmentTechniques.map((t) => [t.code, new Set(t.compatibleInstrumentCodes)]))
   const allowedTechniqueCodes = new Set(assessmentTechniques.map((t) => t.code))
   const allowedInstrumentCodes = new Set(assessmentInstruments.map((i) => i.code))
@@ -546,7 +554,7 @@ Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o in
         indicadoresEvaluacion,
         newSabers: createdSabers,
         reusedSaberIds: [...raw.reusedSaberIds, ...reusedIds],
-        momentos: await momentosFromPayload(raw, criterio),
+        momentos: await momentosFromPayload(raw, criterio, instrumentLabelByCode),
         generationMode: 'AI_ENHANCED',
         validationErrors: [],
       }
