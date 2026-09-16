@@ -8,6 +8,8 @@ import { Label } from '@/shared/components/ui/label'
 import { personalApi, PersonalSetupDto } from '../api/personal.api'
 import { ExcelStudentUpload, ParsedStudent } from '../components/ExcelStudentUpload'
 import { useAuthStore } from '@/store/auth.store'
+import { useCurriculumAreas } from '@/features/curriculum/hooks/useCurriculum'
+import { useCompetencyAreas } from '@/features/competency-curriculum/hooks/useCompetencyCurriculum'
 
 type TeachingProfile = 'subject-first' | 'classroom-first'
 type Subnivel = 'inicial' | 'preparatoria' | 'elemental' | 'media' | 'superior' | 'bgu'
@@ -15,12 +17,12 @@ type PlanningModel = 'destrezas' | 'competencias'
 
 interface WizardState {
   profile: TeachingProfile | null
-  // subject-first
-  subjectName: string
+  // subject-first — una sola materia, elegida del catálogo oficial de áreas
+  subjectAreaId: string | null
   groups: string[]
-  // classroom-first
+  // classroom-first — un solo grupo, varias materias del catálogo oficial de áreas
   parallelName: string
-  subjectNames: string[]
+  subjectAreaIds: string[]
   // year
   yearName: string
   yearStart: string
@@ -66,10 +68,10 @@ export function PersonalSetupPage() {
   const [step, setStep] = useState(0)
   const [state, setState] = useState<WizardState>({
     profile: null,
-    subjectName: '',
+    subjectAreaId: null,
     groups: [''],
     parallelName: '',
-    subjectNames: [''],
+    subjectAreaIds: [],
     yearName: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
     yearStart: `${new Date().getFullYear()}-09-01`,
     yearEnd: `${new Date().getFullYear() + 1}-07-31`,
@@ -79,6 +81,13 @@ export function PersonalSetupPage() {
     planningModel: 'destrezas',
   })
   const setInstitution = useAuthStore((s) => s.setInstitution)
+
+  // Catálogo real de áreas MINEDUC de la institución — el docente elige de
+  // aquí, nunca escribe el nombre de la materia a mano. Se usa el banco que
+  // corresponda al planningModel elegido en el paso anterior del wizard.
+  const { data: curriculumAreas = [] } = useCurriculumAreas()
+  const { data: competencyAreas = [] } = useCompetencyAreas()
+  const catalogAreas = state.planningModel === 'competencias' ? competencyAreas : curriculumAreas
 
   const setupMutation = useMutation({
     mutationFn: (dto: PersonalSetupDto) => personalApi.setup(dto),
@@ -104,12 +113,12 @@ export function PersonalSetupPage() {
       planningModel: state.planningModel,
       ...(state.profile === 'subject-first'
         ? {
-            subjectName: state.subjectName,
+            subjectAreaId: state.subjectAreaId ?? undefined,
             groups: state.groups.filter(Boolean).map((name) => ({ name })),
           }
         : {
             parallelName: state.parallelName,
-            subjectNames: state.subjectNames.filter(Boolean),
+            subjectAreaIds: state.subjectAreaIds,
           }),
     }
 
@@ -144,8 +153,8 @@ export function PersonalSetupPage() {
     if (step === 0) return state.profile !== null
     if (step === 1) return state.subnivel !== null
     if (step === 2) {
-      if (state.profile === 'subject-first') return state.subjectName.trim() && state.groups.some((g) => g.trim())
-      return state.parallelName.trim() && state.subjectNames.some((s) => s.trim())
+      if (state.profile === 'subject-first') return !!state.subjectAreaId && state.groups.some((g) => g.trim())
+      return state.parallelName.trim() && state.subjectAreaIds.length > 0
     }
     if (step === 3) return state.yearName.trim() && state.yearStart && state.yearEnd
     return true
@@ -275,13 +284,27 @@ export function PersonalSetupPage() {
         {/* Step 2 — Clases */}
         {step === 2 && state.profile === 'subject-first' && (
           <div className="space-y-4">
-            <div className="space-y-1">
+            <div className="space-y-2">
               <Label>¿Qué materia enseñas?</Label>
-              <Input
-                placeholder="ej. Matemáticas"
-                value={state.subjectName}
-                onChange={(e) => set('subjectName', e.target.value)}
-              />
+              <p className="text-xs text-gray-500">
+                Elige del catálogo oficial — así queda vinculada automáticamente a sus destrezas/competencias.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {catalogAreas.map((area) => (
+                  <button
+                    key={area.id}
+                    type="button"
+                    onClick={() => set('subjectAreaId', area.id)}
+                    className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors ${
+                      state.subjectAreaId === area.id
+                        ? 'border-blue-600 bg-blue-50 text-blue-700 font-medium'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                    }`}
+                  >
+                    {area.name}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="space-y-2">
               <Label>¿A cuáles grupos?</Label>
@@ -334,39 +357,42 @@ export function PersonalSetupPage() {
             </div>
             <div className="space-y-2">
               <Label>¿Qué materias dictas?</Label>
-              {state.subjectNames.map((s, i) => (
-                <div key={i} className="flex gap-2">
-                  <Input
-                    placeholder={`ej. Matemáticas`}
-                    value={s}
-                    onChange={(e) => {
-                      const next = [...state.subjectNames]
-                      next[i] = e.target.value
-                      set('subjectNames', next)
-                    }}
-                  />
-                  {state.subjectNames.length > 1 && (
-                    <Button
+              <p className="text-xs text-gray-500">
+                Elige una o varias del catálogo oficial — así quedan vinculadas automáticamente a sus destrezas/competencias.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {catalogAreas.map((area) => {
+                  const selected = state.subjectAreaIds.includes(area.id)
+                  return (
+                    <button
+                      key={area.id}
                       type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 text-gray-400"
-                      onClick={() => set('subjectNames', state.subjectNames.filter((_, j) => j !== i))}
+                      onClick={() =>
+                        set(
+                          'subjectAreaIds',
+                          selected
+                            ? state.subjectAreaIds.filter((id) => id !== area.id)
+                            : [...state.subjectAreaIds, area.id],
+                        )
+                      }
+                      className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors flex items-center gap-2 ${
+                        selected
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 font-medium'
+                          : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                      }`}
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-blue-600 hover:text-blue-700 px-0"
-                onClick={() => set('subjectNames', [...state.subjectNames, ''])}
-              >
-                <Plus className="w-4 h-4 mr-1" /> Agregar materia
-              </Button>
+                      <span
+                        className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center ${
+                          selected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
+                        }`}
+                      >
+                        {selected && <Check className="w-3 h-3 text-white" />}
+                      </span>
+                      {area.name}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </div>
         )}
