@@ -398,13 +398,28 @@ export default async function personalRoutes(app: FastifyInstance) {
         select: { id: true, periodsCount: true },
       })
 
-      // Create academic year
-      const year = await prisma.academicYear.create({
-        data: { institutionId, name: yearName, startDate: new Date(yearStart), endDate: new Date(yearEnd) },
-      })
+      // Create academic year — bootstrapInstitution (en /personal/register) ya crea
+      // un año lectivo activo con el nombre por defecto del régimen (ej. "2026-2027")
+      // más sus 3 períodos, para que la app no salga vacía antes del wizard. Si el
+      // docente deja ese mismo nombre en este paso, create() chocaba con el
+      // constraint único (institution_id, name) — se reusa ese año existente
+      // (actualizando fechas si las cambió) en vez de duplicar.
+      const existingYear = await prisma.academicYear.findFirst({ where: { institutionId, name: yearName } })
+      const year = existingYear
+        ? await prisma.academicYear.update({
+            where: { id: existingYear.id },
+            data: { startDate: new Date(yearStart), endDate: new Date(yearEnd) },
+          })
+        : await prisma.academicYear.create({
+            data: { institutionId, name: yearName, startDate: new Date(yearStart), endDate: new Date(yearEnd) },
+          })
+      const yearHadPeriods = existingYear
+        ? (await prisma.academicPeriod.count({ where: { academicYearId: year.id } })) > 0
+        : false
 
-      // Auto-generate trimester periods
-      if (scheme) {
+      // Auto-generate trimester periods — solo si el año es nuevo o no tenía
+      // períodos todavía (el año que ya trae bootstrapInstitution ya tiene los suyos).
+      if (scheme && !yearHadPeriods) {
         const start = new Date(yearStart)
         const end = new Date(yearEnd)
         const totalMs = end.getTime() - start.getTime()
