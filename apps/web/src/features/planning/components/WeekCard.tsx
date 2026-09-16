@@ -231,6 +231,18 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
     )
   }
 
+  // "Regenerar solo actividades" — el docente ya tiene competencias/saberes/
+  // indicadores elegidos y solo quiere que la IA vuelva a redactar Inicio/
+  // Desarrollo/Cierre + recursos + evaluación con esos datos, sin proponer
+  // saberes nuevos ni tocar lo que ya tiene. Usa el mismo endpoint (que
+  // siempre devuelve todo junto), pero solo aplica el campo `momentos`.
+  const handleRegenerateActivitiesOnly = () => {
+    draftCompetencyWeek.mutate(
+      { situationId, competencyIds, weekName: name || undefined },
+      { onSuccess: (result) => setCompetencyMomentos(result.momentos as unknown as CompetencyPlanningMomentos) },
+    )
+  }
+
   const handleApproveAndEdit = () => {
     if (!pendingResult) return
     if (isCompetencyModel) {
@@ -445,16 +457,32 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
                     : 'Genera competencias, indicadores, saberes y las 3 fases (Inicio/Desarrollo/Cierre) a partir de las destrezas seleccionadas.'}
                 </p>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleGenerateWithAi}
-                disabled={selectedCount === 0}
-                loading={isCompetencyModel ? draftCompetencyWeek.isPending : draftWeek.isPending}
-              >
-                <Sparkles className="h-4 w-4" />
-                Regenerar con IA
-              </Button>
+              <div className="flex items-center gap-2">
+                {isCompetencyModel && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRegenerateActivitiesOnly}
+                    disabled={selectedCount === 0}
+                    loading={draftCompetencyWeek.isPending}
+                    title="Vuelve a redactar Inicio/Desarrollo/Cierre, recursos y evaluación sin tocar competencias/saberes/indicadores ya elegidos"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Regenerar solo actividades
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleGenerateWithAi}
+                  disabled={selectedCount === 0}
+                  loading={isCompetencyModel ? draftCompetencyWeek.isPending : draftWeek.isPending}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Regenerar con IA
+                </Button>
+              </div>
             </div>
           )}
 

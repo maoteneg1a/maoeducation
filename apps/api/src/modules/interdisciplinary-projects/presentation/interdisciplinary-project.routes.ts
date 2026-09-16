@@ -53,6 +53,15 @@ export default async function interdisciplinaryProjectRoutes(app: FastifyInstanc
     async (req, reply) => reply.send(await repo.updateProject(req.params.id, req.user.institutionId, req.body)),
   )
 
+  app.delete<{ Params: { id: string } }>(
+    '/interdisciplinary-projects/:id',
+    { preHandler: [requirePermission('planning', 'write', 'own')] },
+    async (req, reply) => {
+      await repo.deleteProject(req.params.id, req.user.institutionId)
+      reply.status(204).send()
+    },
+  )
+
   // ─── Generación casi automática con IA a partir de una Situación de Aprendizaje ──
   // Toma las semanas y áreas interdisciplinares ya marcadas en la situación de
   // origen y genera + persiste TODO: proyecto, aportes por asignatura y semanas.

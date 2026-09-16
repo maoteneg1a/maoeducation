@@ -208,7 +208,7 @@ export function PlanningSituationPage() {
                 variant="default"
                 onClick={() =>
                   draftInterdisciplinaryProject.mutate(situation.id, {
-                    onSuccess: (project) => navigate(`/interdisciplinary-projects/${project.id}`),
+                    onSuccess: (project) => project?.id && navigate(`/interdisciplinary-projects/${project.id}`),
                   })
                 }
                 loading={draftInterdisciplinaryProject.isPending}

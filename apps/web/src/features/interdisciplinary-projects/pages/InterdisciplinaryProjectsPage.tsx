@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Puzzle, Plus, Sparkles } from 'lucide-react'
+import { Puzzle, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { Card } from '@/shared/components/ui/card'
@@ -15,7 +15,7 @@ import { useAcademicYears, useParallels, usePeriods } from '@/features/academic/
 import { useAuthStore } from '@/store/auth.store'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import {
-  useProjects, useCreateProject, useEligibleSituations, useDraftProjectFromSituation,
+  useProjects, useCreateProject, useDeleteProject, useEligibleSituations, useDraftProjectFromSituation,
 } from '../hooks/useInterdisciplinaryProjects'
 import type { InterdisciplinaryProjectStatus } from '../api/interdisciplinary-project.api'
 
@@ -60,6 +60,7 @@ export function InterdisciplinaryProjectsPage() {
 
   const { data: projects = [], isLoading } = useProjects(parallelId || undefined, periodId || undefined)
   const createProject = useCreateProject()
+  const deleteProject = useDeleteProject()
 
   const [newTitle, setNewTitle] = React.useState('')
   const [newWeeksCount, setNewWeeksCount] = React.useState('10')
@@ -74,7 +75,7 @@ export function InterdisciplinaryProjectsPage() {
         weeksCount: Number(newWeeksCount) || 10,
       },
       {
-        onSuccess: (project) => navigate(`/interdisciplinary-projects/${project.id}`),
+        onSuccess: (project) => project?.id && navigate(`/interdisciplinary-projects/${project.id}`),
       },
     )
   }
@@ -87,7 +88,7 @@ export function InterdisciplinaryProjectsPage() {
   const handleGenerateWithAi = () => {
     if (!situationId) return
     draftFromSituation.mutate(situationId, {
-      onSuccess: (project) => navigate(`/interdisciplinary-projects/${project.id}`),
+      onSuccess: (project) => project?.id && navigate(`/interdisciplinary-projects/${project.id}`),
     })
   }
 
@@ -202,6 +203,24 @@ export function InterdisciplinaryProjectsPage() {
                   <p className="mt-2 text-xs text-muted-foreground">
                     {project._count?.contributions ?? 0} asignatura(s) · {project.weeksCount} semanas
                   </p>
+                  <div className="mt-3 flex justify-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                      loading={deleteProject.isPending}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (confirm(`¿Eliminar el proyecto "${project.title}"? Esta acción no se puede deshacer.`)) {
+                          deleteProject.mutate(project.id)
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Eliminar
+                    </Button>
+                  </div>
                 </Card>
               ))}
             </div>

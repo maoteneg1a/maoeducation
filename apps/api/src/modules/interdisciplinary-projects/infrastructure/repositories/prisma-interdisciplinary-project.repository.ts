@@ -62,6 +62,13 @@ export class PrismaInterdisciplinaryProjectRepository {
     return project
   }
 
+  /** Borra el proyecto y en cascada sus contribuciones/semanas (onDelete: Cascade en el schema). */
+  async deleteProject(id: string, institutionId: string) {
+    const project = await prisma.interdisciplinaryProject.findFirst({ where: { id, institutionId } })
+    if (!project) throw new NotFoundError('Proyecto interdisciplinario no encontrado')
+    await prisma.interdisciplinaryProject.delete({ where: { id } })
+  }
+
   async createProject(institutionId: string, actorId: string, dto: CreateInterdisciplinaryProjectDto) {
     if (dto.title.trim().length > 200) {
       throw new BadRequestError('El título no puede superar los 200 caracteres')
