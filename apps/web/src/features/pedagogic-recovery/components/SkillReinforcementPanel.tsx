@@ -9,7 +9,9 @@ import {
   getSkillReinforcementCandidates,
   createReinforcementPlan,
   listReinforcementPlans,
+  listReinforcementCases,
 } from '../api/pedagogic-recovery.api'
+import { CreateReinforcementCaseButton } from './ReinforcementCaseWizard'
 
 interface SkillReinforcementPanelProps {
   courseAssignmentId: string
@@ -37,6 +39,13 @@ export function SkillReinforcementPanel({ courseAssignmentId, academicPeriodId }
     enabled: !!courseAssignmentId && !!academicPeriodId,
   })
   const studentsWithPlan = new Set(existingPlans.map((p) => p.studentId))
+
+  const { data: existingCases = [] } = useQuery({
+    queryKey: ['reinforcement-cases', courseAssignmentId, academicPeriodId],
+    queryFn: () => listReinforcementCases({ courseAssignmentId, academicPeriodId }),
+    enabled: !!courseAssignmentId && !!academicPeriodId,
+  })
+  const studentsWithCase = new Set(existingCases.map((c) => c.studentId))
 
   const createPlan = useMutation({
     mutationFn: createReinforcementPlan,
@@ -107,6 +116,13 @@ export function SkillReinforcementPanel({ courseAssignmentId, academicPeriodId }
                         <ClipboardPlus className="h-3 w-3" />
                       </Button>
                     )}
+                    <CreateReinforcementCaseButton
+                      courseAssignmentId={courseAssignmentId}
+                      academicPeriodId={academicPeriodId}
+                      candidate={c}
+                      student={s}
+                      hasCase={studentsWithCase.has(s.studentId)}
+                    />
                   </span>
                 )
               })}
@@ -116,7 +132,8 @@ export function SkillReinforcementPanel({ courseAssignmentId, academicPeriodId }
       </div>
       <p className="text-xs text-amber-800">
         Promedio bajo el umbral de aprobación en actividades vinculadas a esa destreza. Crea el plan de
-        refuerzo individualizado con un clic, o registra una recuperación puntual desde "Recuperación".
+        refuerzo individualizado con un clic, o el ícono ✨ para el flujo completo de refuerzo (propuesta,
+        plan temporal por semanas, comunicaciones, seguimiento y reevaluación).
       </p>
     </Card>
   )
