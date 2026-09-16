@@ -17,5 +17,7 @@ export function buildAuthInstitution(institution: {
       sidebarColor: (branding.sidebarColor as string | undefined) ?? null,
     },
     modules: (settings.modules as string[] | undefined) ?? null,
+    accountType: (settings.accountType as string | undefined) ?? null,
+    setupComplete: (settings.setupComplete as boolean | undefined) ?? true,
   }
 }

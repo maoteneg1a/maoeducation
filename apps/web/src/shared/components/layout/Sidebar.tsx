@@ -18,7 +18,7 @@ interface NavItem {
   path: string
   permission?: string
   module?: string
-  children?: Array<{ label: string; path: string }>
+  children?: Array<{ label: string; path: string; hideForPersonal?: boolean }>
 }
 
 interface NavSection {
@@ -104,12 +104,18 @@ const NAV_SECTIONS: NavSection[] = [
         permission: 'academic_config:manage',
         module: 'academic',
         children: [
-          { label: 'Niveles',    path: '/academic/levels' },
-          { label: 'Materias',   path: '/academic/subjects' },
-          { label: 'Años lectivos', path: '/academic/years' },
-          { label: 'Paralelos',  path: '/academic/parallels' },
-          { label: 'Asignaciones', path: '/academic/assignments' },
-          { label: 'Insumos por paralelo', path: '/academic/insumo-setup' },
+          // Estructura académica: se crea una sola vez desde el wizard de
+          // /personal/setup para cuentas personales de profesor, así que no se
+          // vuelve a exponer en su sidebar (ver hideForPersonal más abajo y
+          // PersonalStructureGuard en router/index.tsx, que bloquea la ruta
+          // directa también). Calificación y Formato de Planificación SÍ se
+          // conservan: son plantillas/personalización, no estructura.
+          { label: 'Niveles',    path: '/academic/levels', hideForPersonal: true },
+          { label: 'Materias',   path: '/academic/subjects', hideForPersonal: true },
+          { label: 'Años lectivos', path: '/academic/years', hideForPersonal: true },
+          { label: 'Paralelos',  path: '/academic/parallels', hideForPersonal: true },
+          { label: 'Asignaciones', path: '/academic/assignments', hideForPersonal: true },
+          { label: 'Insumos por paralelo', path: '/academic/insumo-setup', hideForPersonal: true },
           { label: 'Calificación y Asistente IA', path: '/settings/calificacion' },
           { label: 'Formato de Planificación', path: '/settings/formato-planificacion' },
         ],
@@ -254,15 +260,28 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const institution = useAuthStore((s) => s.user?.institution ?? null)
 
   const enabledModules = institution?.modules ?? null
+  const isPersonalAccount = institution?.accountType === 'personal'
 
   const isVisible = (item: NavItem) =>
     (!item.permission || hasPermission(item.permission)) &&
     (!item.module || !enabledModules || enabledModules.includes(item.module))
 
   // Una sección sin ítems visibles desaparece con su encabezado — así una cuenta
-  // personal sin módulos institucionales no muestra un título vacío.
+  // personal sin módulos institucionales no muestra un título vacío. Los hijos
+  // de estructura académica (niveles/materias/años/paralelos/asignaciones) se
+  // ocultan además para cuentas personales — esa estructura ya la resolvió el
+  // wizard de /personal/setup una sola vez (ver PersonalStructureGuard, que
+  // bloquea también el acceso por URL directa a esas rutas).
   const visibleSections = NAV_SECTIONS
-    .map((section) => ({ ...section, items: section.items.filter(isVisible) }))
+    .map((section) => ({
+      ...section,
+      items: section.items
+        .filter(isVisible)
+        .map((item) => ({
+          ...item,
+          children: item.children?.filter((c) => !isPersonalAccount || !c.hideForPersonal),
+        })),
+    }))
     .filter((section) => section.items.length > 0)
 
   const renderItem = (item: NavItem) => {

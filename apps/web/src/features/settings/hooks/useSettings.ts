@@ -21,11 +21,17 @@ export const settingsKeys = {
 }
 
 function syncStore(settings: InstitutionSettings) {
+  // Preserva accountType/setupComplete/modules ya cargados en el store — este
+  // endpoint solo devuelve id/name/branding, así que sobreescribir el objeto
+  // completo perdería el estado del gate de cuentas personales (PrivateRoute).
+  const current = useAuthStore.getState().user?.institution
   useAuthStore.getState().setInstitution({
     id: settings.id,
     name: settings.name,
     branding: settings.branding,
-    modules: null,
+    modules: current?.modules ?? null,
+    accountType: current?.accountType ?? null,
+    setupComplete: current?.setupComplete ?? true,
   })
 }
 
