@@ -123,16 +123,22 @@ model User {
   recordedBehavior BehaviorGrade[] @relation("BehaviorRecorder")
 
   // Promoción y recuperaciones
-  pushSubscriptions                PushSubscription[]
-  studentRecoveries                SubjectRecovery[]          @relation("StudentRecovery")
-  recordedRecoveries               SubjectRecovery[]          @relation("RecoveryRecorder")
-  studentPedagogicRecoveries       PedagogicRecovery[]        @relation("StudentPedagogicRecovery")
-  recordedPedagogicRecoveries      PedagogicRecovery[]        @relation("PedagogicRecoveryRecorder")
-  studentReinforcementPlans        ReinforcementPlan[]        @relation("StudentReinforcementPlan")
-  createdReinforcementPlans        ReinforcementPlan[]        @relation("ReinforcementPlanCreator")
-  createdInterdisciplinaryProjects InterdisciplinaryProject[] @relation("InterdisciplinaryProjectCreator")
-  studentPromotions                PromotionDecision[]        @relation("StudentPromotion")
-  decidedPromotions                PromotionDecision[]        @relation("PromotionDecider")
+  pushSubscriptions                  PushSubscription[]
+  studentRecoveries                  SubjectRecovery[]                  @relation("StudentRecovery")
+  recordedRecoveries                 SubjectRecovery[]                  @relation("RecoveryRecorder")
+  studentPedagogicRecoveries         PedagogicRecovery[]                @relation("StudentPedagogicRecovery")
+  recordedPedagogicRecoveries        PedagogicRecovery[]                @relation("PedagogicRecoveryRecorder")
+  studentReinforcementPlans          ReinforcementPlan[]                @relation("StudentReinforcementPlan")
+  createdReinforcementPlans          ReinforcementPlan[]                @relation("ReinforcementPlanCreator")
+  reinforcementCaseParticipations    ReinforcementCaseStudent[]         @relation("ReinforcementCaseStudent")
+  createdReinforcementCommunications ReinforcementCommunication[]       @relation("ReinforcementCommunicationCreator")
+  createdReinforcementCommitments    ReinforcementCommitment[]          @relation("ReinforcementCommitmentCreator")
+  createdReinforcementFollowUps      ReinforcementFollowUp[]            @relation("ReinforcementFollowUpCreator")
+  createdReinforcementReevaluations  ReinforcementReevaluation[]        @relation("ReinforcementReevaluationCreator")
+  reinforcementReevaluationOutcomes  ReinforcementReevaluationOutcome[] @relation("ReinforcementReevaluationOutcomeStudent")
+  createdInterdisciplinaryProjects   InterdisciplinaryProject[]         @relation("InterdisciplinaryProjectCreator")
+  studentPromotions                  PromotionDecision[]                @relation("StudentPromotion")
+  decidedPromotions                  PromotionDecision[]                @relation("PromotionDecider")
 
   // Planificación curricular (PCA/PUD)
   createdCurriculumPlans     CurriculumPlan[]    @relation("CurriculumPlanCreator")
@@ -786,46 +792,46 @@ model CurriculumPlan {
 // Flujo de aprobación en 2 pasos, replicando el pie de firmas del formato oficial:
 // Elaborado (docente) -> Revisado (director de área/subnivel) -> Aprobado (subdirección).
 model LearningSituation {
-  id                       String    @id @default(uuid())
-  institutionId            String    @map("institution_id")
-  planId                   String    @map("plan_id")
-  academicPeriodId         String    @map("academic_period_id")
-  title                    String    @db.VarChar(200)
-  description              String?
+  id                          String    @id @default(uuid())
+  institutionId               String    @map("institution_id")
+  planId                      String    @map("plan_id")
+  academicPeriodId            String    @map("academic_period_id")
+  title                       String    @db.VarChar(200)
+  description                 String?
   // Fechas del bloque — equivalente a "Fecha inicio"/"Fecha fin" de TIGA, usadas
   // por ambos modelos de planificación (opcional para destrezas, que no las pedía).
-  startDate                DateTime? @map("start_date") @db.Date
-  endDate                  DateTime? @map("end_date") @db.Date
+  startDate                   DateTime? @map("start_date") @db.Date
+  endDate                     DateTime? @map("end_date") @db.Date
   // DEPRECADO — IDs de CurriculumArea. Nunca tuvo UI que lo escribiera (revisado
   // en el código: 0 escrituras reales antes de este cambio). Se conserva la
   // columna para no romper filas que pudieran existir, pero el selector nuevo de
   // "Conexión interdisciplinar" usa interdisciplinarySubjectIds en su lugar.
-  interdisciplinaryAreaIds String[]  @map("interdisciplinary_area_ids")
+  interdisciplinaryAreaIds    String[]  @map("interdisciplinary_area_ids")
   // IDs de Subject (materias) del propio docente con las que esta situación
   // declara conexión interdisciplinar — pedido explícito del usuario: elegir
   // entre SUS materias asignadas (CourseAssignment), no el catálogo completo de
   // la institución. Mínimo 2 para contar como interdisciplinar (se valida en la
   // UI/uso, no aquí — la persistencia acepta cualquier cantidad, incluida 0/1,
   // para no bloquear guardados parciales mientras el docente decide).
-  interdisciplinarySubjectIds String[] @map("interdisciplinary_subject_ids")
+  interdisciplinarySubjectIds String[]  @map("interdisciplinary_subject_ids")
   // Competencias del bloque (modelo CNC). Se eligen UNA vez al crear la situación
   // y de aquí las toma el generador de semanas — antes el docente tenía que
   // volver a elegirlas en el panel de IA aunque ya las hubiera indicado.
-  competencyIds            String[]  @map("competency_ids")
+  competencyIds               String[]  @map("competency_ids")
   // "borrador" | "listo" — SIN flujo de aprobación por terceros (pedido explícito
   // del usuario: solo el docente decide, transición libre en ambos sentidos).
   // Antes existían "enviado"/"revisado"/"aprobado" (flujo de 2 pasos director de
   // área -> subdirección) — migrados a "listo" en 20261016000000_situation_status_simplify.
   // reviewedBy/reviewedAt/approvedBy/approvedAt quedan en desuso (se conservan
   // por histórico, ya no se escriben).
-  status                   String    @default("borrador") @db.VarChar(20)
-  createdBy                String    @map("created_by")
-  reviewedBy               String?   @map("reviewed_by")
-  reviewedAt               DateTime? @map("reviewed_at")
-  approvedBy               String?   @map("approved_by")
-  approvedAt               DateTime? @map("approved_at")
-  createdAt                DateTime  @default(now()) @map("created_at")
-  updatedAt                DateTime  @updatedAt @map("updated_at")
+  status                      String    @default("borrador") @db.VarChar(20)
+  createdBy                   String    @map("created_by")
+  reviewedBy                  String?   @map("reviewed_by")
+  reviewedAt                  DateTime? @map("reviewed_at")
+  approvedBy                  String?   @map("approved_by")
+  approvedAt                  DateTime? @map("approved_at")
+  createdAt                   DateTime  @default(now()) @map("created_at")
+  updatedAt                   DateTime  @updatedAt @map("updated_at")
 
   institution    Institution    @relation(fields: [institutionId], references: [id])
   plan           CurriculumPlan @relation(fields: [planId], references: [id])
@@ -983,6 +989,16 @@ model PedagogicRecovery {
 // agrupa las destrezas donde necesita refuerzo (detectadas automáticamente por notas
 // bajas vía getSkillReinforcementCandidates, o por adaptación curricular NEE marcada
 // en StudentEnrollment). Se imprime/archiva como PDF con firmas.
+//
+// Además de ese documento simple (usado por planType="nee"), este modelo es también
+// el AGREGADO RAÍZ del flujo completo de refuerzo pedagógico (calcado del motor TIGA)
+// para planType="academico": máquina de estados DETECTED→PLANNED→IN_REINFORCEMENT→
+// EVALUATED→{CLOSED|CONTINUES_REINFORCEMENT}, propuesta editable, detección, plan
+// temporal por semanas (ReinforcementPlanUnit), comunicaciones/compromisos/
+// seguimientos/reevaluaciones y encadenamiento de ciclos (rootCaseId/previousCaseId).
+// El campo `status` legado (borrador/activo/cerrado) sigue gobernando el flujo NEE
+// simple; `caseStatus` gobierna la máquina de estados nueva para planType="academico"
+// (ver apps/api/src/shared/domain/reinforcement-domain.ts).
 model ReinforcementPlan {
   id                   String    @id @default(uuid())
   institutionId        String    @map("institution_id")
@@ -991,7 +1007,7 @@ model ReinforcementPlan {
   academicPeriodId     String    @map("academic_period_id")
   // "academico" (detectado por notas bajas en una o más destrezas) | "nee" (por adaptación curricular)
   planType             String    @db.VarChar(20)
-  // "borrador" | "activo" | "cerrado"
+  // "borrador" | "activo" | "cerrado" — flujo simple, usado tal cual por planType="nee"
   status               String    @default("borrador") @db.VarChar(20)
   objetivoGeneral      String?   @map("objetivo_general")
   estrategias          String?
@@ -1003,6 +1019,54 @@ model ReinforcementPlan {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
+  // ── TIGA: máquina de estados del caso de refuerzo (planType="academico") ──
+  // DETECTED|PLANNED|IN_REINFORCEMENT|EVALUATED|CLOSED|CONTINUES_REINFORCEMENT
+  caseStatus                 String  @default("DETECTED") @map("case_status") @db.VarChar(30)
+  mode                       String  @default("INDIVIDUAL") @db.VarChar(10) // INDIVIDUAL | GROUP
+  modeAuthority              String? @map("mode_authority") @db.VarChar(40)
+  rootCaseId                 String? @map("root_case_id")
+  previousCaseId             String? @unique @map("previous_case_id")
+  cycleNumber                Int     @default(1) @map("cycle_number")
+  reinforcementDurationWeeks Int?    @map("reinforcement_duration_weeks")
+  reinforcementFrequency     String? @map("reinforcement_frequency")
+
+  // ── Detección (DetectionRecord) ──
+  detectionSourceCode                 String?   @map("detection_source_code") @db.VarChar(40)
+  detectionObservation                String?   @map("detection_observation")
+  detectionEvidenceValue              String?   @map("detection_evidence_value")
+  detectionPeriod                     String?   @map("detection_period")
+  detectionInitialResult              String?   @map("detection_initial_result")
+  detectionEvidenceOrigin             String?   @map("detection_evidence_origin")
+  psychopedagogicalReportExists       Boolean   @default(false) @map("psychopedagogical_report_exists")
+  psychopedagogicalAuthorityReference String?   @map("psychopedagogical_authority_reference")
+  detectedOn                          DateTime? @map("detected_on") @db.Date
+
+  // ── Necesidad(es) pedagógica(s) elegidas (catálogo fijo, ver reinforcement-catalog.ts) ──
+  needCodes       String[] @map("need_codes")
+  needObservation String?  @map("need_observation")
+
+  // ── LearningTarget / EvaluationReference — snapshot neutral (no se re-deriva) ──
+  learningTargetTitle       String?  @map("learning_target_title")
+  learningTargetDescription String?  @map("learning_target_description")
+  learningTargetActivities  String[] @map("learning_target_activities")
+  learningTargetEvidence    String?  @map("learning_target_evidence")
+  evaluationInstrument      String?  @map("evaluation_instrument")
+  evaluationScaleType       String?  @default("NONE") @map("evaluation_scale_type") @db.VarChar(20)
+  evaluationObservedResult  String?  @map("evaluation_observed_result")
+
+  // ── ReinforcementProposal — editable por el docente hasta que confirma el plan ──
+  proposalLearningToReinforce String? @map("proposal_learning_to_reinforce")
+  proposalObjective           String? @map("proposal_objective")
+  proposalActiveStrategy      String? @map("proposal_active_strategy")
+  proposalConcreteActivity    String? @map("proposal_concrete_activity")
+  proposalResource            String? @map("proposal_resource")
+  proposalEvidence            String? @map("proposal_evidence")
+  proposalEvaluation          String? @map("proposal_evaluation")
+  proposalDurationFrequency   String? @map("proposal_duration_frequency")
+  proposalExpectedResult      String? @map("proposal_expected_result")
+  proposalAuthority           String? @default("TIGA_SUGGESTED") @map("proposal_authority") @db.VarChar(30)
+  proposalTeacherConfirmed    Boolean @default(false) @map("proposal_teacher_confirmed")
+
   institution      Institution              @relation(fields: [institutionId], references: [id])
   student          User                     @relation("StudentReinforcementPlan", fields: [studentId], references: [id])
   courseAssignment CourseAssignment         @relation(fields: [courseAssignmentId], references: [id])
@@ -1010,9 +1074,161 @@ model ReinforcementPlan {
   creator          User                     @relation("ReinforcementPlanCreator", fields: [createdBy], references: [id])
   skills           ReinforcementPlanSkill[]
 
-  @@unique([studentId, courseAssignmentId, academicPeriodId])
+  rootCase      ReinforcementPlan?  @relation("ReinforcementCaseRoot", fields: [rootCaseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rootedCases   ReinforcementPlan[] @relation("ReinforcementCaseRoot")
+  previousCase  ReinforcementPlan?  @relation("ReinforcementCasePrevious", fields: [previousCaseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nextCycleCase ReinforcementPlan?  @relation("ReinforcementCasePrevious")
+
+  participants   ReinforcementCaseStudent[]
+  units          ReinforcementPlanUnit[]
+  communications ReinforcementCommunication[]
+  commitments    ReinforcementCommitment[]
+  followUps      ReinforcementFollowUp[]
+  reevaluations  ReinforcementReevaluation[]
+
   @@index([institutionId, academicPeriodId])
+  @@index([studentId, courseAssignmentId, academicPeriodId])
   @@map("reinforcement_plans")
+}
+
+// Estudiante participante de un caso de refuerzo — normalmente solo el titular
+// (ReinforcementPlan.studentId), salvo mode="GROUP" donde hay más de uno.
+model ReinforcementCaseStudent {
+  id        String @id @default(uuid())
+  planId    String @map("plan_id")
+  studentId String @map("student_id")
+
+  plan    ReinforcementPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  student User              @relation("ReinforcementCaseStudent", fields: [studentId], references: [id])
+
+  @@unique([planId, studentId])
+  @@map("reinforcement_case_students")
+}
+
+// Unidad temporal (una por semana) del plan generado por el motor determinista de
+// refuerzo (reinforcement-planning-engine.ts) — 6 fases fijas calcadas de TIGA. Se
+// regenera completa (delete+recreate) cada vez que se confirma un nuevo plan
+// temporal, nunca se edita campo por campo.
+model ReinforcementPlanUnit {
+  id                   String   @id @default(uuid())
+  planId               String   @map("plan_id")
+  temporalIndex        Int      @map("temporal_index")
+  phase                String   @db.VarChar(30)
+  learningFocus        String   @map("learning_focus")
+  specificObjective    String   @map("specific_objective")
+  strategy             String
+  concreteActivity     String   @map("concrete_activity")
+  requiredResource     String   @map("required_resource")
+  observableEvidence   String   @map("observable_evidence")
+  evaluationMechanism  String   @map("evaluation_mechanism")
+  frequency            String?
+  advancementCriterion String   @map("advancement_criterion")
+  nextStep             String   @map("next_step")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  plan ReinforcementPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, temporalIndex])
+  @@map("reinforcement_plan_units")
+}
+
+// Comunicación registrada con el representante durante el ciclo de refuerzo.
+model ReinforcementCommunication {
+  id                String   @id @default(uuid())
+  planId            String   @map("plan_id")
+  date              DateTime @db.Date
+  mediumCode        String   @map("medium_code") @db.VarChar(30)
+  mediumLabel       String   @map("medium_label")
+  recipient         String   @default("Representante")
+  institutionalText String   @map("institutional_text")
+  createdBy         String   @map("created_by")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  plan    ReinforcementPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  creator User              @relation("ReinforcementCommunicationCreator", fields: [createdBy], references: [id])
+
+  @@map("reinforcement_communications")
+}
+
+// Compromiso acordado (representante/estudiante) durante el ciclo de refuerzo.
+model ReinforcementCommitment {
+  id              String    @id @default(uuid())
+  planId          String    @map("plan_id")
+  commitmentCode  String    @map("commitment_code") @db.VarChar(30)
+  commitmentLabel String    @map("commitment_label")
+  responsible     String    @default("Representante y estudiante")
+  targetDate      DateTime? @map("target_date") @db.Date
+  note            String?
+  createdBy       String    @map("created_by")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  plan    ReinforcementPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  creator User              @relation("ReinforcementCommitmentCreator", fields: [createdBy], references: [id])
+
+  @@map("reinforcement_commitments")
+}
+
+// Registro de seguimiento durante IN_REINFORCEMENT (solo válido en ese estado).
+model ReinforcementFollowUp {
+  id                   String   @id @default(uuid())
+  planId               String   @map("plan_id")
+  date                 DateTime @db.Date
+  strategyApplied      String   @map("strategy_applied")
+  evidence             String
+  observation          String
+  activityApplied      String?  @map("activity_applied")
+  supportOrAdjustment  String?  @map("support_or_adjustment")
+  observedProgress     String?  @map("observed_progress")
+  persistentDifficulty String?  @map("persistent_difficulty")
+  nextAction           String?  @map("next_action")
+  createdBy            String   @map("created_by")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  plan    ReinforcementPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  creator User              @relation("ReinforcementFollowUpCreator", fields: [createdBy], references: [id])
+
+  @@map("reinforcement_follow_ups")
+}
+
+// Reevaluación (transición IN_REINFORCEMENT→EVALUATED) — requiere un resultado por
+// cada estudiante participante (ReinforcementReevaluationOutcome).
+model ReinforcementReevaluation {
+  id                             String   @id @default(uuid())
+  planId                         String   @map("plan_id")
+  date                           DateTime @db.Date
+  evaluation                     String
+  persistentDifficulty           Boolean  @default(false) @map("persistent_difficulty")
+  institutionalSupportSuggestion String?  @map("institutional_support_suggestion")
+  initialResult                  String?  @map("initial_result")
+  subsequentResult               String?  @map("subsequent_result")
+  observedProgress               String?  @map("observed_progress")
+  evidence                       String?
+  // LEARNING_ACHIEVED | CONTINUE_REINFORCEMENT | MODIFY_STRATEGY_OR_SUPPORT | INSTITUTIONAL_FOLLOW_UP
+  pedagogicalDecision            String?  @map("pedagogical_decision") @db.VarChar(40)
+  createdBy                      String   @map("created_by")
+  createdAt                      DateTime @default(now()) @map("created_at")
+
+  plan     ReinforcementPlan                  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  creator  User                               @relation("ReinforcementReevaluationCreator", fields: [createdBy], references: [id])
+  outcomes ReinforcementReevaluationOutcome[]
+
+  @@map("reinforcement_reevaluations")
+}
+
+// Resultado individual de un estudiante en una reevaluación (N estudiantes x N reevaluaciones).
+model ReinforcementReevaluationOutcome {
+  id              String  @id @default(uuid())
+  reevaluationId  String  @map("reevaluation_id")
+  studentId       String  @map("student_id")
+  result          String  @db.VarChar(20) // CONSOLIDATED | NOT_CONSOLIDATED
+  assessmentValue String? @map("assessment_value")
+  observation     String?
+
+  reevaluation ReinforcementReevaluation @relation(fields: [reevaluationId], references: [id], onDelete: Cascade)
+  student      User                      @relation("ReinforcementReevaluationOutcomeStudent", fields: [studentId], references: [id])
+
+  @@unique([reevaluationId, studentId])
+  @@map("reinforcement_reevaluation_outcomes")
 }
 
 // Destreza puntual cubierta por un plan de refuerzo, con la nota que disparó la

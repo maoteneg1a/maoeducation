@@ -5,6 +5,7 @@ import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
 import { SkillReinforcementPanel } from '../components/SkillReinforcementPanel'
 import { ReinforcementPlansList } from '../components/ReinforcementPlansList'
+import { ReinforcementCaseWizard } from '../components/ReinforcementCaseWizard'
 
 export function ReinforcementPlansPage() {
   const { assignments, periods, defaultAssignmentId, defaultPeriodId } = useTeacherDefaults()
@@ -71,6 +72,7 @@ export function ReinforcementPlansPage() {
       ) : (
         <div className="space-y-4">
           <SkillReinforcementPanel courseAssignmentId={assignmentId} academicPeriodId={periodId} />
+          <ReinforcementCaseWizard courseAssignmentId={assignmentId} academicPeriodId={periodId} />
           <ReinforcementPlansList
             courseAssignmentId={assignmentId}
             academicPeriodId={periodId}
