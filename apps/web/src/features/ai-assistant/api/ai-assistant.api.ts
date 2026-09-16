@@ -103,8 +103,11 @@ export const aiAssistantApi = {
     apiPost<DraftWeekResult>('ai-assistant/draft-week', data),
 
   /** Igual que draftWeek pero para el modelo por competencias (motor en dos capas: IA validada + fallback determinista). */
+  // 120s: la generación con IA puede reintentar hasta 2 veces contra Anthropic
+  // (validación + corrección) — el timeout default de 30s del cliente corta la
+  // conexión antes de que el backend termine, aunque este sí complete bien.
   draftCompetencyWeek: (data: { situationId: string; competencyIds: string[]; weekName?: string; weekNumber?: number }) =>
-    apiPost<DraftCompetencyWeekResult>('ai-assistant/draft-competency-week', data),
+    apiPost<DraftCompetencyWeekResult>('ai-assistant/draft-competency-week', data, { timeout: 120000 }),
 
   /** Estilo TIGA: genera y guarda de una vez las N semanas de un bloque completo (una llamada de IA por semana, en el servidor). */
   draftSituationBlock: (data: { situationId: string; weeksCount: number; skillIds?: string[]; competencyIds?: string[] }) =>
