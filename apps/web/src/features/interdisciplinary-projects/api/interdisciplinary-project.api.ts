@@ -65,9 +65,12 @@ export const interdisciplinaryProjectApi = {
   listEligibleSituations: (params: { parallelId: string; academicPeriodId: string }) =>
     apiGet<EligibleSituation[]>('interdisciplinary-projects/eligible-situations', params),
 
+  // 120s: genera N contribuciones × M semanas con reintentos de IA — puede
+  // tardar más que el timeout default de 30s del cliente (visto en producción:
+  // "Request timed out" aunque el backend seguía generando correctamente).
   /** Genera y guarda TODO el proyecto (reto, contribuciones, semanas) a partir de una situación de aprendizaje. */
   draftFromSituation: (situationId: string) =>
-    apiPost<InterdisciplinaryProject>('interdisciplinary-projects/draft', { situationId }),
+    apiPost<InterdisciplinaryProject>('interdisciplinary-projects/draft', { situationId }, { timeout: 120000 }),
 
   createProject: (data: {
     parallelId: string
