@@ -207,7 +207,7 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
   const handleGenerateWithAi = () => {
     if (isCompetencyModel) {
       draftCompetencyWeek.mutate(
-        { situationId, competencyIds, weekName: name || undefined },
+        { situationId, competencyIds, weekName: name || undefined, weekNumber: week.weekNumber },
         {
           onSuccess: (result) => {
             setPendingResult(result)
@@ -238,7 +238,7 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
   // siempre devuelve todo junto), pero solo aplica el campo `momentos`.
   const handleRegenerateActivitiesOnly = () => {
     draftCompetencyWeek.mutate(
-      { situationId, competencyIds, weekName: name || undefined },
+      { situationId, competencyIds, weekName: name || undefined, weekNumber: week.weekNumber },
       { onSuccess: (result) => setCompetencyMomentos(result.momentos as unknown as CompetencyPlanningMomentos) },
     )
   }

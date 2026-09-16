@@ -103,7 +103,7 @@ export const aiAssistantApi = {
     apiPost<DraftWeekResult>('ai-assistant/draft-week', data),
 
   /** Igual que draftWeek pero para el modelo por competencias (motor en dos capas: IA validada + fallback determinista). */
-  draftCompetencyWeek: (data: { situationId: string; competencyIds: string[]; weekName?: string }) =>
+  draftCompetencyWeek: (data: { situationId: string; competencyIds: string[]; weekName?: string; weekNumber?: number }) =>
     apiPost<DraftCompetencyWeekResult>('ai-assistant/draft-competency-week', data),
 
   /** Estilo TIGA: genera y guarda de una vez las N semanas de un bloque completo (una llamada de IA por semana, en el servidor). */

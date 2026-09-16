@@ -75,6 +75,13 @@ export interface DraftCompetencyWeekDto {
   weekName?: string
   /** Número de semana dentro del bloque — rota la estrategia/técnica del fallback determinista para que semanas consecutivas no salgan idénticas. */
   rotationSeed?: number
+  /**
+   * Número real de la semana (PlanningWeek.weekNumber) que se está generando —
+   * usado para distribuir los saberes de la competencia entre las semanas del
+   * bloque en vez de asignarlos TODOS a cada semana (imposible de cubrir en
+   * una sola semana). Sin este dato se asume semana 1 de un bloque de 1.
+   */
+  weekNumber?: number
 }
 
 export interface DraftCompetencyWeekResult {
