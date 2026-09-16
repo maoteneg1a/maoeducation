@@ -58,6 +58,13 @@ function sampleMicrocurricularData(institutionName: string, logoUrl: string | nu
 const ALLOWED_LOGO_MIME = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp']
 const MAX_LOGO_BYTES = 500 * 1024 // 500 KB (se guarda en BD como data URI)
 
+// El banner de encabezado es una imagen ancha (todo el ancho de la página) —
+// se permite un poco más de peso que el logo para no degradar demasiado su
+// calidad visual, pero sigue guardándose como data URI en BD (mismo patrón
+// que el logo, sin usar el storage service de disco/S3 — ver ALLOWED_LOGO_MIME).
+const ALLOWED_BANNER_MIME = ALLOWED_LOGO_MIME
+const MAX_BANNER_BYTES = 1024 * 1024 // 1 MB
+
 export default async function institutionRoutes(app: FastifyInstance) {
   const repo = new PrismaInstitutionRepository()
 
@@ -189,6 +196,42 @@ export default async function institutionRoutes(app: FastifyInstance) {
       const logoUrl = `data:${data.mimetype};base64,${buf.toString('base64')}`
       await repo.setLogoUrl(req.user.institutionId, logoUrl)
       return reply.status(201).send({ logoUrl })
+    },
+  )
+
+  // POST /institution/document-templates/microcurricular/header-banner — subir
+  // el banner de encabezado completo (imagen ya diseñada por la institución:
+  // fondo, ondas, logo, nombre, caja de datos institucionales...). Mismo patrón
+  // que /institution/logo — se guarda como data URI en la plantilla (BD), no en
+  // disco. Reemplaza el bloque superior (logo pequeño + nombre en texto) del PDF.
+  app.post(
+    '/institution/document-templates/microcurricular/header-banner',
+    { preHandler: [requirePermission('academic_config', 'manage')] },
+    async (req, reply) => {
+      const data = await req.file()
+      if (!data) return reply.status(400).send({ message: 'No se recibió ningún archivo' })
+      if (!ALLOWED_BANNER_MIME.includes(data.mimetype)) {
+        return reply.status(400).send({ message: 'Formato no permitido (usa PNG, JPG, SVG o WebP)' })
+      }
+
+      const buf = await data.toBuffer()
+      if (buf.length > MAX_BANNER_BYTES) {
+        return reply.status(400).send({ message: 'El banner no debe superar 1 MB' })
+      }
+      const headerBannerUrl = `data:${data.mimetype};base64,${buf.toString('base64')}`
+      const template = await repo.updateMicrocurricularTemplate(req.user.institutionId, { headerBannerUrl })
+      return reply.status(201).send({ headerBannerUrl, template })
+    },
+  )
+
+  // DELETE /institution/document-templates/microcurricular/header-banner — quitar
+  // el banner y volver al encabezado por defecto (logo pequeño + nombre en texto).
+  app.delete(
+    '/institution/document-templates/microcurricular/header-banner',
+    { preHandler: [requirePermission('academic_config', 'manage')] },
+    async (req, reply) => {
+      const template = await repo.updateMicrocurricularTemplate(req.user.institutionId, { headerBannerUrl: null })
+      return reply.send({ template })
     },
   )
 }

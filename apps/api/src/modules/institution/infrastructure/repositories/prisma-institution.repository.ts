@@ -78,6 +78,7 @@ function extractMicrocurricularTemplate(settings: unknown): MicrocurricularTempl
         ? t.sectionOrder
         : (DEFAULT_MICROCURRICULAR_TEMPLATE.sectionOrder as unknown as string[]),
     hiddenSections: t.hiddenSections ?? (DEFAULT_MICROCURRICULAR_TEMPLATE.hiddenSections as unknown as string[]),
+    headerBannerUrl: t.headerBannerUrl ?? DEFAULT_MICROCURRICULAR_TEMPLATE.headerBannerUrl,
   }
 }
 
@@ -233,6 +234,10 @@ export class PrismaInstitutionRepository {
       weekLayout: dto.weekLayout ?? current.weekLayout,
       sectionOrder: dto.sectionOrder ?? current.sectionOrder,
       hiddenSections: dto.hiddenSections ?? current.hiddenSections,
+      // dto.headerBannerUrl puede venir explícitamente `null` para QUITAR el
+      // banner — por eso se distingue de "no vino en el body" con `!== undefined`
+      // (a diferencia de los demás campos, que nunca necesitan volver a null).
+      headerBannerUrl: dto.headerBannerUrl !== undefined ? dto.headerBannerUrl : current.headerBannerUrl,
     }
 
     const updated = await prisma.institution.update({

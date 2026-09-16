@@ -1,5 +1,5 @@
 import PDFDocument from 'pdfkit'
-import { resolveLogo, drawWatermark } from '../../../../shared/infrastructure/services/pdf-helpers'
+import { resolveLogo, drawWatermark, getImageSize } from '../../../../shared/infrastructure/services/pdf-helpers'
 import {
   cellHeight,
   ensureSpace,
@@ -441,20 +441,47 @@ export function buildMicrocurricularPdf(
       }
     }
 
-    // ── Encabezado con logo ──
-    const logoW = logo ? 50 : 0
-    if (logo) {
+    // ── Encabezado ──
+    // Si la institución subió un banner completo (imagen ya diseñada: fondo,
+    // ondas, logo, caja de datos institucionales, etc.), reemplaza SOLO este
+    // bloque (logo pequeño + nombre en texto + línea divisoria) — se dibuja a
+    // ANCHO COMPLETO de página, con la altura que le corresponda según su
+    // aspect ratio real (mismo cuidado de "un solo eje" que drawWatermark, ver
+    // pdf-helpers.ts, para no deformar la imagen).
+    //
+    // Decisión de alcance: NO reemplaza la fila `topHeaderColor` (nombre +
+    // "Año lectivo: ...") ni la banda "Planificación Microcurricular" que
+    // vienen después. Razones: (1) el año lectivo es un dato dinámico por
+    // documento que una imagen estática no puede mostrar; (2) esas bandas son
+    // estructurales del documento (título del documento, secciones
+    // reordenables vía sectionOrder/hiddenSections), no identidad visual de la
+    // institución — quitarlas rompería la funcionalidad de reordenar/ocultar
+    // secciones que ya existe. El "encabezado actual" que el usuario pidió
+    // reemplazar es literalmente el bloque logo+nombre en texto plano.
+    const headerBanner = resolveLogo(template.headerBannerUrl)
+    if (headerBanner) {
       try {
-        doc.image(logo, x0, doc.y, { width: 40 })
-      } catch { /* logo inválido, se omite */ }
+        const { width: bannerNaturalW, height: bannerNaturalH } = getImageSize(doc, headerBanner)
+        const bannerH = fullWidth * (bannerNaturalH / bannerNaturalW)
+        doc.image(headerBanner, x0, doc.y, { width: fullWidth })
+        doc.y += bannerH
+      } catch { /* banner inválido, se omite */ }
+      doc.moveDown(0.3)
+    } else {
+      const logoW = logo ? 50 : 0
+      if (logo) {
+        try {
+          doc.image(logo, x0, doc.y, { width: 40 })
+        } catch { /* logo inválido, se omite */ }
+      }
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(15)
+        .text(data.institutionName.toUpperCase(), x0 + logoW, doc.y, { width: fullWidth - logoW, align: 'center' })
+      doc.moveDown(0.4)
+      doc.moveTo(x0, doc.y).lineTo(x0 + fullWidth, doc.y).lineWidth(1.5).strokeColor('#333333').stroke()
+      doc.moveDown(0.5)
     }
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(15)
-      .text(data.institutionName.toUpperCase(), x0 + logoW, doc.y, { width: fullWidth - logoW, align: 'center' })
-    doc.moveDown(0.4)
-    doc.moveTo(x0, doc.y).lineTo(x0 + fullWidth, doc.y).lineWidth(1.5).strokeColor('#333333').stroke()
-    doc.moveDown(0.5)
 
     drawRow(doc, x0, [
       { text: data.institutionName.toUpperCase(), width: half, bold: true, fill: topHeaderColor, textColor: topHeaderTextColor },
