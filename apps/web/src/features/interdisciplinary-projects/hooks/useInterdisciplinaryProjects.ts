@@ -31,6 +31,27 @@ export function useCreateProject() {
   })
 }
 
+/** Situaciones de aprendizaje del paralelo/periodo con conexión interdisciplinar marcada — candidatas para "Generar con IA". */
+export function useEligibleSituations(parallelId: string | undefined, academicPeriodId: string | undefined) {
+  return useQuery({
+    queryKey: ['interdisciplinary-eligible-situations', parallelId, academicPeriodId],
+    queryFn: () => interdisciplinaryProjectApi.listEligibleSituations({ parallelId: parallelId!, academicPeriodId: academicPeriodId! }),
+    enabled: !!parallelId && !!academicPeriodId,
+  })
+}
+
+export function useDraftProjectFromSituation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: interdisciplinaryProjectApi.draftFromSituation,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['interdisciplinary-projects'] })
+      toast.success('Proyecto generado con IA — revísalo y ajústalo si es necesario')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
 export function useUpdateProject(id: string) {
   const qc = useQueryClient()
   return useMutation({

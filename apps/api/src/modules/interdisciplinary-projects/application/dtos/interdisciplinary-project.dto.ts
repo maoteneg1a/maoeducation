@@ -52,3 +52,10 @@ export interface UpsertWeekEntryDto {
   propositoPedagogico?: string
   evidencias?: string
 }
+
+// ─── Generación casi automática desde una Situación de Aprendizaje ─────────
+
+/** El docente solo indica desde qué situación de aprendizaje partir — todo lo demás lo infiere la IA. */
+export interface DraftInterdisciplinaryProjectDto {
+  situationId: string
+}

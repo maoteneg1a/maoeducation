@@ -34,6 +34,24 @@ export class PrismaInterdisciplinaryProjectRepository {
     })
   }
 
+  /**
+   * Situaciones de aprendizaje del paralelo/periodo dado que ya marcaron ≥2 áreas
+   * con conexión interdisciplinar y tienen al menos 1 semana — candidatas válidas
+   * para el generador con IA (POST /interdisciplinary-projects/draft).
+   */
+  async listEligibleSituations(institutionId: string, parallelId: string, academicPeriodId: string) {
+    const situations = await prisma.learningSituation.findMany({
+      where: {
+        institutionId,
+        academicPeriodId,
+        plan: { courseAssignment: { parallelId } },
+      },
+      include: { _count: { select: { weeks: true } } },
+      orderBy: { createdAt: 'desc' },
+    })
+    return situations.filter((s) => s.interdisciplinaryAreaIds.length >= 2 && s._count.weeks > 0)
+  }
+
   async getProject(id: string, institutionId: string) {
     const project = await prisma.interdisciplinaryProject.findFirst({
       where: { id, institutionId },
