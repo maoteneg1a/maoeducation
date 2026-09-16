@@ -120,6 +120,27 @@ export function projectPhaseLabel(weekNumber: number, totalWeeks: number): { tit
 }
 
 /**
+ * Evidencia común de una semana del proyecto — determinista, NO generada por
+ * IA, calcada de `_milestone_evidence()` en TIGA (interdisciplinary_project_
+ * orchestrator.py): agrega el "foco" de cada asignatura que participa esa
+ * semana (su `contribucion`, ya redactada por la IA a nivel de contribución
+ * completa, no por semana) en una sola frase de evidencia integrada. Se
+ * calcula ANTES de persistir, usando el payload en memoria — evita depender
+ * de una segunda pasada de lectura a BD tras crear las contribuciones.
+ */
+function buildCommonEvidence(
+  weekNumber: number,
+  totalWeeks: number,
+  contributionsThisWeek: { subjectName: string; focus: string }[],
+): string {
+  const { title } = projectPhaseLabel(weekNumber, totalWeeks)
+  const subjectNames = contributionsThisWeek.map((c) => c.subjectName)
+  const focuses = [...new Set(contributionsThisWeek.map((c) => c.focus).filter(Boolean))].slice(0, 3)
+  const summary = focuses.join('; ')
+  return `Semana ${weekNumber}, ${title.toLowerCase()}: evidencia integrada de ${subjectNames.join(', ')}${summary ? ` sobre ${summary}` : ''}.`
+}
+
+/**
  * Valida agresivamente el payload generado — nunca confía en la IA por defecto.
  * Rechaza campos vacíos/genéricos, texto repetido entre secciones distintas del
  * mismo proyecto, semanas faltantes o fuera de rango, y courseAssignmentId que
@@ -493,6 +514,21 @@ Reglas estrictas: no repitas texto entre situacionReto/contexto/propositoComun/p
     title = `${title} (${situation.title.slice(0, 40)})`.slice(0, 200)
   }
 
+  // Mapa semana -> asignaturas participantes esa semana + su "foco" (contribucion,
+  // ya redactada por la IA a nivel de la contribución completa) — se construye en
+  // memoria a partir del payload verificado, ANTES de persistir, para no depender
+  // de una segunda pasada de lectura a BD tras crear las contribuciones.
+  const contributionsByWeek = new Map<number, { subjectName: string; focus: string }[]>()
+  for (const c of raw.contributions) {
+    const assignment = assignments.find((a) => a.id === c.courseAssignmentId)
+    if (!assignment) continue
+    for (const week of c.weeks) {
+      const list = contributionsByWeek.get(week.weekNumber) ?? []
+      list.push({ subjectName: assignment.subject.name, focus: c.contribucion })
+      contributionsByWeek.set(week.weekNumber, list)
+    }
+  }
+
   const projectId = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const project = await tx.interdisciplinaryProject.create({
       data: {
@@ -589,6 +625,11 @@ Reglas estrictas: no repitas texto entre situacionReto/contexto/propositoComun/p
             faseInicio: week.faseInicio,
             faseDesarrollo: week.faseDesarrollo,
             faseCierre: week.faseCierre,
+            // Deterministas, no generados por IA — calcados de TIGA (ver
+            // projectPhaseLabel/buildCommonEvidence): antes quedaban siempre
+            // vacíos porque el esquema de la IA nunca los pedía.
+            propositoPedagogico: projectPhaseLabel(week.weekNumber, weeksCount).purpose,
+            evidencias: buildCommonEvidence(week.weekNumber, weeksCount, contributionsByWeek.get(week.weekNumber) ?? []),
           },
         })
       }
