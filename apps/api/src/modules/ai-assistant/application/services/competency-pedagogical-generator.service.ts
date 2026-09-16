@@ -389,8 +389,8 @@ export async function draftCompetencyWeek(
     .join('\n')
 
   const densityLine = workload.weeklyPeriods
-    ? `Carga horaria: ${workload.weeklyPeriods} períodos/semana. Número de actividades numeradas que DEBES generar por fase: Inicio ${phaseCounts.anticipation}, Desarrollo ${phaseCounts.construction}, Cierre ${phaseCounts.consolidation}. Respeta este número exacto — ni más ni menos.`
-    : 'Carga horaria no configurada para este grado+materia — genera exactamente 1 actividad en Inicio, 2 en Desarrollo y 1 en Cierre (densidad estándar).'
+    ? `Carga horaria: ${workload.weeklyPeriods} períodos/semana. Número de actividades numeradas que DEBES generar por fase: Inicio ${phaseCounts.anticipation}, Desarrollo ${phaseCounts.construction}, Cierre ${phaseCounts.consolidation}. Respeta este número exacto — ni más ni menos. NUNCA menos de 2 actividades en ninguna fase, sin excepción.`
+    : 'Carga horaria no configurada para este grado+materia — genera exactamente 2 actividades en Inicio, 2 en Desarrollo y 2 en Cierre (densidad estándar). NUNCA menos de 2 actividades en ninguna fase, sin excepción.'
 
   const systemPrompt = `Eres un asistente pedagógico que ayuda a docentes ecuatorianos a redactar la planificación microcurricular semanal (PUD) por COMPETENCIAS, siguiendo el Currículo Nacional por Competencias (CNC) del MINEDUC.
 

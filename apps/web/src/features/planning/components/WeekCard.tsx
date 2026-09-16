@@ -75,6 +75,72 @@ function NamedLink({ link, label }: { link: { title: string; url: string } | und
   )
 }
 
+/**
+ * Igual que NamedLink pero editable — el docente puede no estar conforme con
+ * el recurso/instrumento que generó la IA y necesita poner su propio link en
+ * su lugar (o quitarlo del todo), sin depender de volver a generar la semana.
+ */
+function EditableNamedLink({
+  link,
+  label,
+  isEditable,
+  onChange,
+}: {
+  link: { title: string; url: string } | undefined
+  label: string
+  isEditable: boolean
+  onChange: (link: { title: string; url: string } | undefined) => void
+}) {
+  const [editing, setEditing] = React.useState(false)
+  const [title, setTitle] = React.useState(link?.title ?? '')
+  const [url, setUrl] = React.useState(link?.url ?? '')
+
+  if (!isEditable) return <NamedLink link={link} label={label} />
+
+  if (editing) {
+    return (
+      <div className="mt-1 space-y-1.5 rounded border border-input p-2">
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título del recurso" className="h-7 text-xs" />
+        <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." className="h-7 text-xs" />
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-xs"
+            onClick={() => {
+              onChange(url.trim() ? { title: title.trim() || label, url: url.trim() } : undefined)
+              setEditing(false)
+            }}
+          >
+            Guardar
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setEditing(false)}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-1 flex items-center gap-2">
+      <NamedLink link={link} label={label} />
+      <button
+        type="button"
+        onClick={() => {
+          setTitle(link?.title ?? '')
+          setUrl(link?.url ?? '')
+          setEditing(true)
+        }}
+        className="text-xs text-muted-foreground underline hover:text-foreground"
+      >
+        {link ? 'Cambiar link' : `Agregar ${label.toLowerCase()}`}
+      </button>
+    </div>
+  )
+}
+
 function emptyCompetencyMomentos(): CompetencyPlanningMomentos {
   return {
     fases: { inicio: { activities: [] }, desarrollo: { activities: [] }, cierre: { activities: [] } },
@@ -427,6 +493,10 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
                   onEvaluacionChange={(field, value) =>
                     setCompetencyMomentos((prev) => ({ ...prev, evaluacion: { ...prev.evaluacion, [field]: value } }))
                   }
+                  onRecursoLinkChange={(recursoLink) => setCompetencyMomentos((prev) => ({ ...prev, recursoLink }))}
+                  onInstrumentoLinkChange={(instrumentoLink) =>
+                    setCompetencyMomentos((prev) => ({ ...prev, evaluacion: { ...prev.evaluacion, instrumentoLink } }))
+                  }
                 />
               ) : (
                 <div className="space-y-3">
@@ -567,12 +637,16 @@ function CompetencyMethodologyEditor({
   onPhaseChange,
   onResourcesChange,
   onEvaluacionChange,
+  onRecursoLinkChange,
+  onInstrumentoLinkChange,
 }: {
   momentos: CompetencyPlanningMomentos
   isEditable: boolean
   onPhaseChange: (phaseKey: 'inicio' | 'desarrollo' | 'cierre', activities: { text: string; duaCode: string }[]) => void
   onResourcesChange: (recursos: string[]) => void
   onEvaluacionChange: (field: 'evidencia' | 'criterio' | 'instrumento', value: string) => void
+  onRecursoLinkChange: (link: { title: string; url: string } | undefined) => void
+  onInstrumentoLinkChange: (link: { title: string; url: string } | undefined) => void
 }) {
   const recursosText = (momentos.recursos ?? []).join('\n')
 
@@ -650,7 +724,7 @@ function CompetencyMethodologyEditor({
           disabled={!isEditable}
           className="mt-1 flex w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
         />
-        <NamedLink link={momentos.recursoLink} label="Abrir recurso" />
+        <EditableNamedLink link={momentos.recursoLink} label="Abrir recurso" isEditable={isEditable} onChange={onRecursoLinkChange} />
       </div>
 
       <div className="rounded border p-3">
@@ -681,7 +755,12 @@ function CompetencyMethodologyEditor({
               onChange={(e) => onEvaluacionChange('instrumento', e.target.value)}
               disabled={!isEditable}
             />
-            <NamedLink link={momentos.evaluacion?.instrumentoLink} label="Abrir instrumento" />
+            <EditableNamedLink
+              link={momentos.evaluacion?.instrumentoLink}
+              label="Abrir instrumento"
+              isEditable={isEditable}
+              onChange={onInstrumentoLinkChange}
+            />
           </div>
         </div>
       </div>

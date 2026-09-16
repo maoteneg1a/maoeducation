@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, CheckCircle2, RotateCcw, NotebookPen, Download, Pencil } from 'lucide-react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, Plus, CheckCircle2, RotateCcw, NotebookPen, Download, Pencil, Sparkles, Puzzle } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { Card } from '@/shared/components/ui/card'
@@ -11,6 +11,7 @@ import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { PdfPreviewModal } from '@/shared/components/feedback/PdfPreviewModal'
 import { apiClient } from '@/shared/lib/api-client'
 import { usePlanningModel } from '@/features/settings/hooks/useSettings'
+import { useDraftProjectFromSituation } from '@/features/interdisciplinary-projects/hooks/useInterdisciplinaryProjects'
 import { WeekCard } from '../components/WeekCard'
 import { GenerateBlockPanel } from '../components/GenerateBlockPanel'
 import { InterdisciplinaryConnectionSelector } from '../components/InterdisciplinaryConnectionSelector'
@@ -37,6 +38,7 @@ function formatDate(iso: string): string {
 
 export function PlanningSituationPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { data: planningModel } = usePlanningModel()
   const isCompetencyModel = planningModel === 'competencias'
 
@@ -45,6 +47,7 @@ export function PlanningSituationPage() {
   const updateSituation = useUpdateSituation(id!, planId)
   const markSituationReady = useMarkSituationReady(id!, planId)
   const reopenSituation = useReopenSituation(id!, planId)
+  const draftInterdisciplinaryProject = useDraftProjectFromSituation()
 
   const { data: weeks = [] } = useWeeks(id)
   const createWeek = useCreateWeek(id!)
@@ -199,7 +202,21 @@ export function PlanningSituationPage() {
           </div>
         )}
         {situation.status === 'listo' && (
-          <div className="flex justify-end border-t pt-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-4">
+            {situation.interdisciplinarySubjectIds.length >= 2 && (
+              <Button
+                variant="default"
+                onClick={() =>
+                  draftInterdisciplinaryProject.mutate(situation.id, {
+                    onSuccess: (project) => navigate(`/interdisciplinary-projects/${project.id}`),
+                  })
+                }
+                loading={draftInterdisciplinaryProject.isPending}
+              >
+                <Sparkles className="h-4 w-4" />
+                Generar proyecto interdisciplinario en automático
+              </Button>
+            )}
             <Button variant="outline" onClick={() => reopenSituation.mutate()} loading={reopenSituation.isPending}>
               <RotateCcw className="h-4 w-4" />
               Volver a borrador

@@ -167,7 +167,10 @@ export function buildDeterministicCompetencyMethodology(
   for (const phase of PHASES) {
     const compatible = duaStrategies.filter((s) => s.compatiblePhases.includes(phase))
     const pool = compatible.length ? compatible : duaStrategies
-    const count = Math.max(1, phaseCounts[PHASE_COUNT_KEY[phase]] ?? 1)
+    // Mínimo 2 actividades por fase siempre, sin importar lo que indique la
+    // densidad por carga horaria — pedido explícito, ninguna fase debe quedar
+    // con una sola actividad.
+    const count = Math.max(2, phaseCounts[PHASE_COUNT_KEY[phase]] ?? 2)
     const activities: CompetencyActivityItem[] = []
     for (let i = 0; i < count; i++) {
       const pick = pool.length ? pool[(rotationSeed + i) % pool.length] : undefined
