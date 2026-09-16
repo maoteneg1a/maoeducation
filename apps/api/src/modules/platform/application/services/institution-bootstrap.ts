@@ -582,11 +582,12 @@ export const DEFAULT_QUALITATIVE_SUBJECTS = [
 ] as const
 
 // Asistente IA de planificaciones — apagado por defecto, el admin lo activa
-// explícitamente desde Configuración. Modelo barato por defecto (tarea de
-// completar plantilla, no razonamiento profundo).
+// explícitamente desde Configuración. Sonnet por defecto: redactar actividades,
+// estrategias DUA y recursos con calidad pedagógica real necesita más capacidad
+// que Haiku (que dejaba actividades genéricas/pobres en pruebas reales).
 export const DEFAULT_AI_CONFIG = {
   enabled: false,
-  model: 'claude-haiku-4-5',
+  model: 'claude-sonnet-4-6',
   monthlyTokenCap: 2_000_000,
 } as const
 
