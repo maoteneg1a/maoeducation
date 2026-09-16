@@ -64,6 +64,8 @@ model Institution {
   planningWeeks             PlanningWeek[]
   reinforcementPlans        ReinforcementPlan[]
   interdisciplinaryProjects InterdisciplinaryProject[]
+  subscription              Subscription?
+  subscriptionPayments      SubscriptionPayment[]
 
   @@map("institutions")
 }
@@ -96,6 +98,7 @@ model User {
   createdInsumos        Insumo[]               @relation("InsumoCreator")
   createdTasks          Task[]                 @relation("TaskCreator")
   uploadedAttachments   TaskAttachment[]       @relation("AttachmentUploader")
+  uploadedReceipts      SubscriptionPayment[]  @relation("SubscriptionPaymentUploader")
 
   // Relaciones como alumno
   studentEnrollments    StudentEnrollment[]    @relation("StudentEnrollments")
@@ -1963,4 +1966,80 @@ model VerificationToken {
 
   @@index([userId])
   @@map("verification_tokens")
+}
+
+// ============================================================
+// SUSCRIPCIONES (cobro manual por transferencia)
+// ============================================================
+
+// Una suscripción por institución. Las cuentas personales de docentes también
+// son instituciones por debajo, así que quedan cubiertas por el mismo modelo.
+//
+// El estado efectivo (activa / gracia / solo-lectura) NO se guarda: se deriva de
+// expiresAt + graceDays en cada lectura. Guardar un status sería garantizar que
+// se quede viejo — nadie corre un cron para moverlo cuando pasa la medianoche.
+//
+// Una institución SIN fila de suscripción no tiene restricciones. Es lo que
+// mantiene funcionando a las instituciones que ya existían antes de este módulo:
+// se les crea la suscripción a mano cuando corresponda.
+model Subscription {
+  id            String    @id @default(uuid())
+  institutionId String    @unique @map("institution_id")
+  /// trial | paid — qué clase de período es el vigente.
+  plan          String    @default("trial") @db.VarChar(20)
+  startsAt      DateTime  @map("starts_at")
+  expiresAt     DateTime  @map("expires_at")
+  /// Días de tolerancia tras el vencimiento antes de pasar a solo-lectura.
+  graceDays     Int       @default(7) @map("grace_days")
+  /// Corte manual del superadmin: bloquea sin importar las fechas.
+  suspendedAt   DateTime? @map("suspended_at")
+  notes         String?   @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  institution Institution           @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  payments    SubscriptionPayment[]
+
+  @@index([expiresAt])
+  @@map("subscriptions")
+}
+
+// Comprobante de transferencia subido por el admin de la institución, más la
+// revisión del superadmin. Aprobar un pago es lo que mueve expiresAt.
+model SubscriptionPayment {
+  id             String    @id @default(uuid())
+  subscriptionId String    @map("subscription_id")
+  institutionId  String    @map("institution_id")
+  /// pending | approved | rejected
+  status         String    @default("pending") @db.VarChar(20)
+  amount         Decimal?  @db.Decimal(10, 2)
+  currency       String    @default("USD") @db.VarChar(3)
+  /// Fecha en que el cliente dice haber hecho la transferencia.
+  transferredAt  DateTime? @map("transferred_at")
+  /// Banco y/o número de comprobante, como lo escribe el cliente.
+  reference      String?   @db.VarChar(160)
+  notes          String?   @db.Text
+
+  // Captura del comprobante (mismo patrón que incident_attachments)
+  fileName   String @map("file_name") @db.VarChar(255)
+  storedName String @map("stored_name") @db.VarChar(255)
+  mimeType   String @map("mime_type") @db.VarChar(100)
+  fileSize   Int    @map("file_size")
+  uploadedBy String @map("uploaded_by")
+
+  // Revisión del superadmin
+  reviewedAt  DateTime? @map("reviewed_at")
+  /// platform_admins.id — sin FK porque no es un User del tenant.
+  reviewedBy  String?   @map("reviewed_by")
+  reviewNotes String?   @map("review_notes") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  institution  Institution  @relation(fields: [institutionId], references: [id])
+  uploader     User         @relation("SubscriptionPaymentUploader", fields: [uploadedBy], references: [id])
+
+  @@index([status, createdAt])
+  @@index([institutionId, createdAt])
+  @@map("subscription_payments")
 }

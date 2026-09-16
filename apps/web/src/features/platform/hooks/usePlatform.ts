@@ -10,6 +10,9 @@ import {
   type PlatformLoginPayload,
   type UpdateAdminPayload,
   type Institution,
+  type ApprovePaymentPayload,
+  type PaymentReviewStatus,
+  type SetValidityPayload,
 } from '../api/platform.api'
 
 export const platformKeys = {
@@ -132,4 +135,86 @@ export function useInstitutionModules(institution: Institution | null) {
   const settings = institution?.settings as Record<string, unknown> | undefined
   const modules = settings?.modules as string[] | undefined
   return modules ?? null
+}
+
+// ─── Suscripciones ──────────────────────────────────────────────────────────
+
+export const subscriptionKeys = {
+  subscriptions: ['platform-subscriptions'] as const,
+  payments: (status?: PaymentReviewStatus) => ['platform-subscription-payments', status] as const,
+}
+
+export function usePlatformSubscriptions() {
+  return useQuery({
+    queryKey: subscriptionKeys.subscriptions,
+    queryFn: platformApi.getSubscriptions,
+  })
+}
+
+export function useSubscriptionPayments(status?: PaymentReviewStatus) {
+  return useQuery({
+    queryKey: subscriptionKeys.payments(status),
+    queryFn: () => platformApi.getSubscriptionPayments(status),
+  })
+}
+
+/** Invalida todo lo que cambia al revisar un pago o mover una vigencia. */
+function useRefreshSubscriptions() {
+  const queryClient = useQueryClient()
+  return () => {
+    queryClient.invalidateQueries({ queryKey: subscriptionKeys.subscriptions })
+    queryClient.invalidateQueries({ queryKey: ['platform-subscription-payments'] })
+  }
+}
+
+export function useApprovePayment() {
+  const refresh = useRefreshSubscriptions()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: ApprovePaymentPayload }) =>
+      platformApi.approvePayment(id, data),
+    onSuccess: () => {
+      refresh()
+      toast.success('Pago aprobado y vigencia actualizada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useRejectPayment() {
+  const refresh = useRefreshSubscriptions()
+  return useMutation({
+    mutationFn: ({ id, reviewNotes }: { id: string; reviewNotes: string }) =>
+      platformApi.rejectPayment(id, reviewNotes),
+    onSuccess: () => {
+      refresh()
+      toast.success('Comprobante rechazado')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useSetSubscriptionValidity() {
+  const refresh = useRefreshSubscriptions()
+  return useMutation({
+    mutationFn: ({ institutionId, data }: { institutionId: string; data: SetValidityPayload }) =>
+      platformApi.setSubscriptionValidity(institutionId, data),
+    onSuccess: () => {
+      refresh()
+      toast.success('Vigencia actualizada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useSetSubscriptionSuspended() {
+  const refresh = useRefreshSubscriptions()
+  return useMutation({
+    mutationFn: ({ institutionId, suspended }: { institutionId: string; suspended: boolean }) =>
+      platformApi.setSubscriptionSuspended(institutionId, suspended),
+    onSuccess: (_data, vars) => {
+      refresh()
+      toast.success(vars.suspended ? 'Cuenta suspendida' : 'Cuenta reactivada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
 }

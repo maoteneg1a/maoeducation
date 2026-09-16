@@ -47,3 +47,14 @@ export class BadRequestError extends AppError {
     super(message, 400, 'BAD_REQUEST')
   }
 }
+
+/**
+ * La suscripción de la institución no permite escribir (venció la tolerancia o
+ * está suspendida). 402 y no 403: no es un problema de permisos del usuario,
+ * es la cuenta la que está en solo-lectura.
+ */
+export class SubscriptionInactiveError extends AppError {
+  constructor(message = 'La suscripción venció. Puedes consultar y exportar, pero no registrar cambios.') {
+    super(message, 402, 'SUBSCRIPTION_INACTIVE')
+  }
+}

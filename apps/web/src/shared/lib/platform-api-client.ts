@@ -78,3 +78,7 @@ export async function platformPost<T>(url: string, data?: unknown): Promise<T> {
 export async function platformPatch<T>(url: string, data?: unknown): Promise<T> {
   return platformApiClient.patch(url, { json: data }).json<T>()
 }
+
+export async function platformPut<T>(url: string, data?: unknown): Promise<T> {
+  return platformApiClient.put(url, { json: data }).json<T>()
+}

@@ -4,7 +4,7 @@ import {
   ClipboardList, AlertTriangle, MessageSquare, Calendar,
   FileText, ChevronDown, X, UserPlus, ShieldCheck,
   ClipboardCheck, CalendarDays, Palette, Smile, Award, HeartHandshake, FolderOpen, NotebookPen, Puzzle,
-  Sparkles, School,
+  Sparkles, School, CreditCard,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { usePermissions } from '@/shared/hooks/usePermissions'
@@ -242,6 +242,14 @@ const NAV_SECTIONS: NavSection[] = [
         path: '/settings/branding',
         permission: 'institution_config:manage',
         module: 'branding',
+      },
+      {
+        // Sin `module` a propósito: si se pudiera desactivar, una institución
+        // bloqueada por falta de pago se quedaría sin forma de pagar.
+        label: 'Suscripción',
+        icon: CreditCard,
+        path: '/subscription',
+        permission: 'institution_config:manage',
       },
     ],
   },

@@ -9,6 +9,7 @@ import fp from 'fastify-plugin'
 import { env } from './config/env'
 import { errorPlugin } from './shared/infrastructure/plugins/error.plugin'
 import { registerRoutes } from './shared/infrastructure/routes'
+import { registerSubscriptionGuard } from './shared/infrastructure/middleware/subscription.middleware'
 import { storage } from './shared/infrastructure/services/storage.service'
 
 // Content-Type por extensión para la descarga de adjuntos.
@@ -79,6 +80,10 @@ export function buildApp() {
     reply.header('Cache-Control', 'public, max-age=86400')
     return reply.send(stream)
   })
+
+  // Modo solo-lectura cuando la suscripción venció. Hook global sobre métodos
+  // que escriben — gatear ruta por ruta en ~30 módulos es olvidarse de alguna.
+  registerSubscriptionGuard(app)
 
   // Error handler global
   app.register(fp(errorPlugin))

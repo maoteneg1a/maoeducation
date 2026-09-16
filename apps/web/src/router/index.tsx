@@ -479,6 +479,22 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      // ---- Suscripción ----
+      // Va por permiso, NO por módulo: un módulo desactivable dejaría a una
+      // institución bloqueada por falta de pago sin forma de pagar.
+      {
+        path: 'subscription',
+        element: <PermissionGuard permission="institution_config:manage" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/subscription/pages/SubscriptionPage').then((m) => ({
+                Component: m.SubscriptionPage,
+              })),
+          },
+        ],
+      },
       // ---- Settings / Grading config ----
       {
         path: 'settings/calificacion',
@@ -556,6 +572,13 @@ export const router = createBrowserRouter([
         lazy: () =>
           import('@/features/platform/pages/InstitutionAdminsPage').then((m) => ({
             Component: m.InstitutionAdminsPage,
+          })),
+      },
+      {
+        path: 'subscriptions',
+        lazy: () =>
+          import('@/features/platform/pages/SubscriptionsPage').then((m) => ({
+            Component: m.SubscriptionsPage,
           })),
       },
       {
