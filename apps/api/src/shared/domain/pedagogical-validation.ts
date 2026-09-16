@@ -149,6 +149,11 @@ export function validateGeneratedCompetencyPedagogy(
       errors.push(`${phase}_MISSING`)
       continue
     }
+    // Mínimo 2 actividades por fase siempre — si la IA entrega solo 1, se
+    // rechaza y reintenta en vez de dejarla pasar.
+    if (block.activities.length < 2) {
+      errors.push(`${phase}_NEEDS_MIN_2_ACTIVITIES`)
+    }
     for (const activity of block.activities) {
       if (!activity.text || typeof activity.text !== 'string') {
         errors.push(`${phase}_INCOMPLETE`)

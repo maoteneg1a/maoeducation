@@ -115,14 +115,16 @@ export function resolveWorkload(
 
 /**
  * Densidad de actividades por fase según períodos semanales — calcado de
- * _weekly_phase_counts() en TIGA (competency_planning_service.py). Determinista,
- * sin IA: la carga horaria mueve cuántas actividades sugiere el generador por
- * fase (Anticipación/Construcción/Consolidación), no solo aparece como dato.
+ * _weekly_phase_counts() en TIGA (competency_planning_service.py), con un
+ * mínimo de 2 actividades por fase siempre (pedido explícito: la IA debe
+ * generar mínimo 2 actividades en Inicio/Desarrollo/Cierre sin excepción,
+ * incluso con poca carga horaria — antes 1-2 períodos dejaba Inicio/Cierre
+ * en 1 sola actividad). Determinista, sin IA: la carga horaria mueve cuántas
+ * actividades sugiere el generador por fase, nunca menos del mínimo.
  */
 export function weeklyPhaseCounts(weeklyPeriods: number | null): { anticipation: number; construction: number; consolidation: number } {
   const periods = Math.max(2, weeklyPeriods ?? 3)
-  if (periods <= 2) return { anticipation: 1, construction: 1, consolidation: 1 }
-  if (periods === 3) return { anticipation: 1, construction: 2, consolidation: 1 }
-  if (periods <= 6) return { anticipation: 1, construction: 2, consolidation: 1 }
-  return { anticipation: 2, construction: 3, consolidation: 1 }
+  if (periods <= 3) return { anticipation: 2, construction: 2, consolidation: 2 }
+  if (periods <= 6) return { anticipation: 2, construction: 3, consolidation: 2 }
+  return { anticipation: 2, construction: 4, consolidation: 2 }
 }
