@@ -19,6 +19,10 @@ const schema = z.object({
   VAPID_SUBJECT:        z.string().default('mailto:hola@auleka.com'),
   RESEND_API_KEY:       z.string().optional(),
   APP_URL:              z.string().default('https://app.auleka.com'),
+  // URL pública de ESTA API (no la del frontend) — se usa para construir links
+  // absolutos a /uploads/* embebidos en texto (ej. recursos generados por la IA
+  // de planificación), que deben funcionar fuera de la app (compartidos, impresos).
+  API_PUBLIC_URL:       z.string().default('http://localhost:3000'),
   // Asistente IA de planificaciones (Claude) — opcional: sin esta key el asistente
   // se deshabilita automáticamente, el resto del módulo de planificación sigue intacto.
   ANTHROPIC_API_KEY:    z.string().optional(),

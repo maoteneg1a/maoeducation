@@ -30,6 +30,26 @@ const MOMENT_KEYS = [
   { key: 'consolidacion' as const, label: 'Consolidación' },
 ]
 
+const URL_PATTERN = /https?:\/\/\S+/
+
+/** El campo "recursos" es texto libre — cuando la IA embebió un link real (búsqueda
+ * web o ficha generada), se muestra como enlace clicable debajo del texto. */
+function ResourceLinkPreview({ text }: { text: string | undefined }) {
+  const match = text?.match(URL_PATTERN)
+  if (!match) return null
+  const url = match[0].replace(/[.,;:]+$/, '')
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-1 inline-block text-xs text-primary underline hover:text-primary/80"
+    >
+      Abrir recurso ↗
+    </a>
+  )
+}
+
 interface WeekCardProps {
   week: PlanningWeek
   situationId: string
@@ -271,6 +291,7 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
                         <p className="text-xs font-semibold uppercase text-muted-foreground">{MOMENT_KEYS.find((m) => m.key === key)?.label}</p>
                         <p>{pendingResult.momentos[key]?.estrategiasDua}</p>
                         <p className="text-xs text-muted-foreground">Recursos: {pendingResult.momentos[key]?.recursos}</p>
+                        <ResourceLinkPreview text={pendingResult.momentos[key]?.recursos} />
                       </div>
                     ))}
                   </div>
@@ -368,6 +389,7 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
                           disabled={!isEditable}
                           className="flex w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
                         />
+                        <ResourceLinkPreview text={momentos[key]?.recursos} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Técnica</Label>
