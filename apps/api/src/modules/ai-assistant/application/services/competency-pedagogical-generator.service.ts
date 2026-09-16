@@ -182,6 +182,36 @@ async function assertBudgetAvailable(institutionId: string, monthlyTokenCap: num
   }
 }
 
+/**
+ * Cuántos saberes de una competencia son razonables para UNA semana — calcado
+ * de `competency_capacity()` en cnc_curriculum_distribution_engine.py de TIGA:
+ * una competencia amplia (con muchos saberes) requiere varias semanas para
+ * cubrirse completa, así que asignar TODOS sus saberes a cada semana del
+ * bloque es pedagógicamente imposible (17 saberes en 1 semana, por ejemplo).
+ * Con más semanas en el bloque, cada una necesita menos saberes propios;
+ * con pocas semanas, cada una necesita cubrir más. Nunca menos de 1.
+ */
+function weeklySaberCapacity(totalSabers: number, totalWeeksInBlock: number): number {
+  if (totalWeeksInBlock <= 1) return totalSabers
+  return Math.max(1, Math.ceil(totalSabers / totalWeeksInBlock))
+}
+
+/**
+ * Selecciona qué subconjunto de saberes (ya existentes en la competencia)
+ * corresponde a ESTA semana del bloque — rota por weekNumber para que
+ * semanas consecutivas cubran saberes distintos en vez de repetir siempre
+ * los primeros N, calcado del reparto por posición de TIGA (`week_indicators`/
+ * `week_knowledge` en `_weekly_units`, que usa slicing rotatorio `[position::stride]`).
+ */
+function selectSabersForWeek<T>(allSabers: T[], weekNumber: number, totalWeeksInBlock: number): T[] {
+  const capacity = weeklySaberCapacity(allSabers.length, totalWeeksInBlock)
+  if (capacity >= allSabers.length) return allSabers
+  const offset = ((weekNumber - 1) * capacity) % allSabers.length
+  const selected: T[] = []
+  for (let i = 0; i < capacity; i++) selected.push(allSabers[(offset + i) % allSabers.length])
+  return selected
+}
+
 function toValidationPayload(raw: RawGenerationPayload): GeneratedCompetencyPedagogyPayload {
   return {
     identityCode: raw.identityCode,
@@ -303,6 +333,7 @@ export async function draftCompetencyWeek(
     include: {
       academicPeriod: true,
       plan: { include: { courseAssignment: { include: { subject: true, parallel: { include: { level: true } } } } } },
+      weeks: { select: { weekNumber: true } },
     },
   })
   if (!situation) throw new NotFoundError('Situación de aprendizaje no encontrada')
@@ -339,6 +370,15 @@ export async function draftCompetencyWeek(
   const indicadoresEvaluacion = formatIndicatorsWithCode(competencies) || primary.code
   const criterio = indicatorCodes(competencies) || primary.code
 
+  // Distribución de saberes entre semanas del bloque — calcado del motor de
+  // TIGA (competency_capacity + reparto rotatorio por posición): asignar TODOS
+  // los saberes de la competencia a cada semana es imposible de cubrir (ej. 17
+  // saberes en 1 semana), así que cada semana recibe solo el subconjunto que
+  // le corresponde según su posición en el bloque.
+  const totalWeeksInBlock = Math.max(situation.weeks.length, 1)
+  const currentWeekNumber = dto.weekNumber ?? 1
+  const primarySabersForWeek = selectSabersForWeek(primary.sabers, currentWeekNumber, totalWeeksInBlock)
+
   // Carga horaria oficial (períodos semanales) determina cuántas actividades
   // numeradas trae cada fase — calcado de _weekly_phase_counts() en TIGA.
   const assignment = situation.plan.courseAssignment
@@ -362,7 +402,7 @@ export async function draftCompetencyWeek(
   const fallbackResult = (validationErrors: string[]): DraftCompetencyWeekResult => ({
     indicadoresEvaluacion,
     newSabers: [],
-    reusedSaberIds: primary.sabers.map((s) => s.id),
+    reusedSaberIds: primarySabersForWeek.map((s) => s.id),
     momentos: deterministic,
     generationMode: 'AI_FALLBACK',
     validationErrors,
@@ -382,10 +422,11 @@ export async function draftCompetencyWeek(
   const competenciesBlock = competencies
     .map((c) => {
       const indicators = c.indicators.map((i) => `    - [${i.code}] ${i.text}`).join('\n') || '    (sin indicadores)'
-      const sabers = c.sabers.length
-        ? c.sabers.map((s) => `      - [${s.id}] (${s.type}) ${s.code}: ${s.description}`).join('\n')
+      const sabersForWeek = selectSabersForWeek(c.sabers, currentWeekNumber, totalWeeksInBlock)
+      const sabers = sabersForWeek.length
+        ? sabersForWeek.map((s) => `      - [${s.id}] (${s.type}) ${s.code}: ${s.description}`).join('\n')
         : '      (sin saberes — propone nuevos)'
-      return `- ${c.code}: ${c.text}\n  Indicadores:\n${indicators}\n  Saberes ya existentes (reusa por id si aplican):\n${sabers}`
+      return `- ${c.code}: ${c.text}\n  Indicadores:\n${indicators}\n  Saberes de ESTA semana (reusa por id — es un subconjunto ya repartido entre las ${totalWeeksInBlock} semanas del bloque, no todos los que tiene la competencia):\n${sabers}`
     })
     .join('\n\n')
 
@@ -422,7 +463,7 @@ ${techniquesText}
 IMPORTANTE — terminología del documento final: las 3 fases se llaman "Inicio", "Desarrollo" y "Cierre" (nunca "Anticipación"/"Construcción"/"Consolidación" — esos son solo los nombres técnicos internos de las claves ANTICIPATION/CONSTRUCTION/CONSOLIDATION que usas en el JSON, el docente nunca los ve).
 
 Genera:
-1. Saberes: si la competencia YA tiene saberes, pon sus ids en reusedSaberIds; si no, propone 1-2 nuevos de cada tipo en newSabers con code "<código_competencia>.d.1"/".p.1"/".a.1".
+1. Saberes: pon en reusedSaberIds ÚNICAMENTE los ids listados arriba en "Saberes de ESTA semana" de cada competencia — NUNCA agregues otros saberes de la competencia que no estén en esa lista, aunque los conozcas por el código; esa lista ya es el subconjunto correcto para esta semana específica del bloque, no toda la competencia. Si una competencia no tiene ningún saber listado, propone 1-2 nuevos de cada tipo en newSabers con code "<código_competencia>.d.1"/".p.1"/".a.1".
 2. methodology: para ANTICIPATION (Inicio), CONSTRUCTION (Desarrollo) y CONSOLIDATION (Cierre) — cada fase es una lista de "activities", con EXACTAMENTE el número de actividades indicado arriba en "Número de actividades...". Cada actividad tiene:
    - text: una actividad CONCRETA y ESPECÍFICA de al menos 8 palabras, nunca genérica tipo "trabajar en grupos".
    - duaCode: EXACTAMENTE un código del catálogo DUA dado arriba, coherente con esa fase y esa actividad específica (no repitas el mismo código en todas las actividades salvo que realmente aplique).
