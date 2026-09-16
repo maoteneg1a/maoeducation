@@ -130,6 +130,13 @@ export interface MicrocurricularTemplateConfig {
   weekLayout: WeekLayout
   sectionOrder: string[]
   hiddenSections: string[]
+  /** Imagen de encabezado completa subida por la institución (banner ya diseñado:
+   *  fondo, ondas, logo, nombre, caja de datos institucionales, etc. — diseño
+   *  gráfico libre que no se puede replicar con controles paramétricos). Si está
+   *  configurada, reemplaza el bloque superior (logo pequeño + nombre en texto)
+   *  del PDF, dibujándose a ancho completo de página. `null`/vacío = sin banner,
+   *  se mantiene el encabezado por defecto. */
+  headerBannerUrl: string | null
 }
 
 export interface UpdateMicrocurricularTemplateDto {
@@ -147,4 +154,5 @@ export interface UpdateMicrocurricularTemplateDto {
   weekLayout?: WeekLayout
   sectionOrder?: string[]
   hiddenSections?: string[]
+  headerBannerUrl?: string | null
 }

@@ -73,6 +73,10 @@ export interface MicrocurricularTemplateConfig {
   weekLayout: WeekLayout
   sectionOrder: string[]
   hiddenSections: string[]
+  /** Imagen de encabezado completa subida por la institución (banner ya diseñado
+   *  con su propio logo/colores/cajas de datos) — reemplaza el bloque superior
+   *  logo+nombre del PDF cuando está configurada. `null` = sin banner. */
+  headerBannerUrl: string | null
 }
 
 export const settingsApi = {
@@ -95,6 +99,18 @@ export const settingsApi = {
     apiGet<MicrocurricularTemplateConfig>('institution/document-templates/microcurricular'),
   updateMicrocurricularTemplate: (data: Partial<MicrocurricularTemplateConfig>) =>
     apiPut<MicrocurricularTemplateConfig>('institution/document-templates/microcurricular', data),
+
+  uploadHeaderBanner: async (file: File): Promise<{ headerBannerUrl: string; template: MicrocurricularTemplateConfig }> => {
+    const form = new FormData()
+    form.append('file', file)
+    return apiClient
+      .post('institution/document-templates/microcurricular/header-banner', { body: form })
+      .json<{ headerBannerUrl: string; template: MicrocurricularTemplateConfig }>()
+  },
+  removeHeaderBanner: async (): Promise<{ template: MicrocurricularTemplateConfig }> =>
+    apiClient
+      .delete('institution/document-templates/microcurricular/header-banner')
+      .json<{ template: MicrocurricularTemplateConfig }>(),
 
   getAiConfig: () => apiGet<AiConfig>('institution/ai-config'),
   updateAiConfig: (data: Partial<AiConfig>) => apiPut<AiConfig>('institution/ai-config', data),
