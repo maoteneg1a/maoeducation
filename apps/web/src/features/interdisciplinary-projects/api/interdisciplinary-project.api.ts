@@ -52,7 +52,7 @@ export interface InterdisciplinaryProject {
 export interface EligibleSituation {
   id: string
   title: string
-  interdisciplinaryAreaIds: string[]
+  interdisciplinarySubjectIds: string[]
   _count?: { weeks: number }
 }
 

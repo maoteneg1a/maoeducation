@@ -245,8 +245,8 @@ export async function draftInterdisciplinaryProject(
   })
   if (!situation) throw new NotFoundError('Situación de aprendizaje no encontrada')
 
-  if (situation.interdisciplinaryAreaIds.length < 2) {
-    throw new BadRequestError('La situación debe tener al menos 2 áreas marcadas con conexión interdisciplinar')
+  if (situation.interdisciplinarySubjectIds.length < 2) {
+    throw new BadRequestError('La situación debe tener al menos 2 materias marcadas con conexión interdisciplinar')
   }
 
   const weeksCount = situation.weeks.length
@@ -259,19 +259,15 @@ export async function draftInterdisciplinaryProject(
   const academicYearId = originAssignment.academicYearId
   const academicPeriodId = situation.academicPeriodId
 
-  // Nota de implementación: el campo persistido HOY en el schema es
-  // `interdisciplinaryAreaIds` (apunta a CurriculumArea, resuelto por el PDF de
-  // proyectos interdisciplinarios vía prisma.curriculumArea.findMany). No existe
-  // en este checkout un `interdisciplinarySubjectIds` sobre CourseAssignment/Subject
-  // — se decidió usar el campo existente para no bloquear la entrega.
-  const areas = await prisma.curriculumArea.findMany({ where: { id: { in: situation.interdisciplinaryAreaIds } } })
-  if (areas.length < 2) throw new BadRequestError('No se encontraron al menos 2 áreas curriculares interdisciplinares válidas')
-
+  // El selector de "Conexión interdisciplinar" (WeekCard/PlanningSituationPage)
+  // persiste materias del propio docente en `interdisciplinarySubjectIds` —
+  // ya no se usa `interdisciplinaryAreaIds` (deprecado, nunca tuvo UI que lo
+  // escribiera) como insumo para este generador.
   const subjects = await prisma.subject.findMany({
-    where: { institutionId, curriculumAreaId: { in: areas.map((a) => a.id) }, isActive: true },
+    where: { id: { in: situation.interdisciplinarySubjectIds }, institutionId, isActive: true },
   })
-  if (subjects.length === 0) {
-    throw new BadRequestError('Ninguna materia de la institución está vinculada a las áreas interdisciplinares marcadas')
+  if (subjects.length < 2) {
+    throw new BadRequestError('No se encontraron al menos 2 materias interdisciplinares válidas')
   }
 
   const assignments = await prisma.courseAssignment.findMany({
@@ -327,7 +323,7 @@ Situación de aprendizaje de origen: "${situation.title}"
 Grado/Paralelo: ${originAssignment.parallel.level.name} "${originAssignment.parallel.name}"
 Periodo: ${situation.academicPeriod.name}
 Número de semanas (EXACTO — debe coincidir con las semanas de la situación de origen): ${weeksCount}
-Áreas curriculares con conexión interdisciplinar: ${areas.map((a) => a.name).join(', ')}
+Materias con conexión interdisciplinar: ${subjects.map((s) => s.name).join(', ')}
 
 Asignaturas/docentes que contribuyen (una entrada de "contributions" por cada courseAssignmentId, ni más ni menos):
 
