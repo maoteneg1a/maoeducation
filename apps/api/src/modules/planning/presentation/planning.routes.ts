@@ -114,30 +114,27 @@ export default async function planningRoutes(app: FastifyInstance) {
       reply.send(await repo.updateSituation(req.params.id, req.user.institutionId, req.body)),
   )
 
+  // Sin flujo de aprobación por terceros para este documento (pedido explícito
+  // del usuario) — el propio docente marca "listo" cuando termina, y puede
+  // volver a "borrador" libremente. Ambos endpoints requieren solo permiso de
+  // escritura "own" (el mismo que edita la situación), no "manage"/"all" como
+  // antes con review/approve.
   app.post<{ Params: { id: string } }>(
-    '/planning/situations/:id/submit',
+    '/planning/situations/:id/mark-ready',
     { preHandler: [requirePermission('planning', 'write', 'own')] },
-    async (req, reply) => reply.send(await repo.submitSituation(req.params.id, req.user.institutionId)),
+    async (req, reply) => reply.send(await repo.markSituationReady(req.params.id, req.user.institutionId, req.user.sub)),
+  )
+
+  app.post<{ Params: { id: string } }>(
+    '/planning/situations/:id/reopen',
+    { preHandler: [requirePermission('planning', 'write', 'own')] },
+    async (req, reply) => reply.send(await repo.reopenSituation(req.params.id, req.user.institutionId, req.user.sub)),
   )
 
   app.delete<{ Params: { id: string } }>(
     '/planning/situations/:id',
     { preHandler: [requirePermission('planning', 'write', 'own')] },
     async (req, reply) => reply.send(await repo.deleteSituation(req.params.id, req.user.institutionId)),
-  )
-
-  app.post<{ Params: { id: string } }>(
-    '/planning/situations/:id/review',
-    { preHandler: [requirePermission('planning', 'manage', 'all')] },
-    async (req, reply) =>
-      reply.send(await repo.reviewSituation(req.params.id, req.user.institutionId, req.user.sub)),
-  )
-
-  app.post<{ Params: { id: string } }>(
-    '/planning/situations/:id/approve',
-    { preHandler: [requirePermission('planning', 'manage', 'all')] },
-    async (req, reply) =>
-      reply.send(await repo.approveSituation(req.params.id, req.user.institutionId, req.user.sub)),
   )
 
   // ─── Semanas (PlanningWeek) ─────────────────────────────────────────────

@@ -161,11 +161,10 @@ const PCA_STATUS_LABEL: Record<ApprovalStatus, { label: string; variant: 'succes
   aprobado: { label: 'Aprobado', variant: 'success' },
 }
 
+// Sin flujo de aprobación por terceros para la Situación de Aprendizaje — solo "Borrador"/"Listo".
 const SITUATION_STATUS_LABEL: Record<SituationStatus, { label: string; variant: 'success' | 'warning' | 'secondary' }> = {
   borrador: { label: 'Borrador', variant: 'secondary' },
-  enviado: { label: 'Enviado', variant: 'warning' },
-  revisado: { label: 'Revisado', variant: 'warning' },
-  aprobado: { label: 'Aprobado', variant: 'success' },
+  listo: { label: 'Listo', variant: 'success' },
 }
 
 export function PlanningDetailPage() {

@@ -3,10 +3,17 @@ import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { ForbiddenError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import { getAnthropicClient, isAnthropicConfigured } from '../../infrastructure/services/anthropic-client'
 import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
-import { buildDeterministicMethodology, type DuaStrategyInput } from '../../../../shared/domain/pedagogical-methodology'
 import {
-  validateGeneratedPedagogy,
-  type GeneratedPedagogyPayload,
+  buildDeterministicCompetencyMethodology,
+  PHASES,
+  type CompetencyWeekMomentos,
+  type DuaStrategyInput,
+  type PedagogicalPhase,
+} from '../../../../shared/domain/pedagogical-methodology'
+import {
+  validateGeneratedCompetencyPedagogy,
+  type GeneratedCompetencyPedagogyPayload,
+  type GeneratedResourceLink,
   type PedagogicalValidationContext,
 } from '../../../../shared/domain/pedagogical-validation'
 import { resolveWorkload, weeklyPhaseCounts } from '../../../../shared/domain/workload-resolution'
@@ -40,14 +47,10 @@ const RESOURCE_LINK_SCHEMA = {
     // web_search: usa la herramienta de búsqueda para encontrar un recurso digital
     // REAL ya publicado (video, artículo, imagen) — nunca inventes una URL sin buscarla.
     // generate_document: el recurso no existe en internet pero es simple de producir
-    // (ficha, organizador, guía) — describe su contenido en documentSpec, el sistema
-    // genera el PDF y te devuelve su link real.
+    // (ficha, organizador, guía, rúbrica) — describe su contenido en documentSpec, el
+    // sistema genera el PDF y te devuelve su link real.
     kind: { type: 'string', enum: ['web_search', 'generate_document'] },
     searchQuery: { type: 'string' },
-    // Solo para kind="web_search": la URL REAL que encontraste con la herramienta de
-    // búsqueda web (copia exacta del resultado — nunca la inventes ni la modifiques).
-    // Si la búsqueda no encontró nada útil, omite resourceLink por completo en vez
-    // de completar resolvedUrl con algo inventado.
     resolvedUrl: { type: 'string' },
     resolvedTitle: { type: 'string' },
     documentSpec: {
@@ -65,16 +68,25 @@ const RESOURCE_LINK_SCHEMA = {
   additionalProperties: false,
 }
 
+const ACTIVITY_SCHEMA = {
+  type: 'object' as const,
+  properties: {
+    text: { type: 'string' },
+    // Código de checkpoint DUA del catálogo — UNO por actividad (no un bloque
+    // genérico de "estrategias DUA" para toda la fase, como pedía el formato
+    // anterior — cada actividad individual justifica su propio código).
+    duaCode: { type: 'string' },
+  },
+  required: ['text', 'duaCode'],
+  additionalProperties: false,
+}
+
 const PHASE_SCHEMA = {
   type: 'object' as const,
   properties: {
-    activity: { type: 'string' },
-    duaCodes: { type: 'array', items: { type: 'string' } },
-    resources: { type: 'array', items: { type: 'string' } },
-    evidence: { type: 'string' },
-    resourceLink: RESOURCE_LINK_SCHEMA,
+    activities: { type: 'array', items: ACTIVITY_SCHEMA },
   },
-  required: ['activity', 'duaCodes', 'resources', 'evidence'],
+  required: ['activities'],
   additionalProperties: false,
 }
 
@@ -93,7 +105,6 @@ const RESPONSE_SCHEMA = {
   type: 'object' as const,
   properties: {
     identityCode: { type: 'string' },
-    indicadoresEvaluacion: { type: 'string' },
     newSabers: { type: 'array', items: SABER_SCHEMA },
     reusedSaberIds: { type: 'array', items: { type: 'string' } },
     methodology: {
@@ -106,46 +117,51 @@ const RESPONSE_SCHEMA = {
       required: ['ANTICIPATION', 'CONSTRUCTION', 'CONSOLIDATION'],
       additionalProperties: false,
     },
+    // Recursos y evaluación se piden UNA sola vez para toda la semana — NO por
+    // fase — porque el formato final es una sola tabla de 3 columnas por semana,
+    // no 3 tablas repetidas (pedido explícito: "NO SE DEBE REPETIR TODO ESO").
+    resources: { type: 'array', items: { type: 'string' } },
+    resourceLink: RESOURCE_LINK_SCHEMA,
     assessment: {
       type: 'object',
       properties: {
-        activity: { type: 'string' },
+        evidence: { type: 'string' },
         technique: { type: 'string' },
         instrument: { type: 'string' },
-        evidence: { type: 'string' },
-        criteria: { type: 'array', items: { type: 'string' } },
+        instrumentLink: RESOURCE_LINK_SCHEMA,
       },
-      required: ['activity', 'technique', 'instrument', 'evidence', 'criteria'],
+      required: ['evidence', 'technique', 'instrument'],
       additionalProperties: false,
     },
   },
-  required: ['identityCode', 'indicadoresEvaluacion', 'newSabers', 'reusedSaberIds', 'methodology', 'assessment'],
+  required: ['identityCode', 'newSabers', 'reusedSaberIds', 'methodology', 'resources', 'assessment'],
   additionalProperties: false,
 }
 
-interface RawResourceLink {
-  kind: 'web_search' | 'generate_document'
-  searchQuery?: string
-  resolvedUrl?: string
-  resolvedTitle?: string
-  documentSpec?: DocumentSpec
+interface RawActivity {
+  text: string
+  duaCode: string
 }
 
 interface RawPhase {
-  activity: string
-  duaCodes: string[]
-  resources: string[]
+  activities: RawActivity[]
+}
+
+interface RawAssessment {
   evidence: string
-  resourceLink?: RawResourceLink
+  technique: string
+  instrument: string
+  instrumentLink?: GeneratedResourceLink & { documentSpec?: DocumentSpec }
 }
 
 interface RawGenerationPayload {
   identityCode: string
-  indicadoresEvaluacion: string
   newSabers: { type: 'declarativo' | 'procedimental' | 'actitudinal'; code: string; description: string }[]
   reusedSaberIds: string[]
-  methodology: Record<'ANTICIPATION' | 'CONSTRUCTION' | 'CONSOLIDATION', RawPhase>
-  assessment: { activity: string; technique: string; instrument: string; evidence: string; criteria: string[] }
+  methodology: Record<PedagogicalPhase, RawPhase>
+  resources: string[]
+  resourceLink?: GeneratedResourceLink & { documentSpec?: DocumentSpec }
+  assessment: RawAssessment
 }
 
 async function assertBudgetAvailable(institutionId: string, monthlyTokenCap: number) {
@@ -166,62 +182,92 @@ async function assertBudgetAvailable(institutionId: string, monthlyTokenCap: num
   }
 }
 
-function toPayload(raw: RawGenerationPayload): GeneratedPedagogyPayload {
+function toValidationPayload(raw: RawGenerationPayload): GeneratedCompetencyPedagogyPayload {
   return {
     identityCode: raw.identityCode,
-    methodology: [
-      { phase: 'ANTICIPATION', ...raw.methodology.ANTICIPATION },
-      { phase: 'CONSTRUCTION', ...raw.methodology.CONSTRUCTION },
-      { phase: 'CONSOLIDATION', ...raw.methodology.CONSOLIDATION },
-    ],
-    assessment: raw.assessment,
+    methodology: raw.methodology,
+    resources: raw.resources,
+    resourceLink: raw.resourceLink,
+    assessment: {
+      evidence: raw.assessment.evidence,
+      technique: raw.assessment.technique,
+      instrument: raw.assessment.instrument,
+      instrumentLink: raw.assessment.instrumentLink,
+    },
   }
 }
 
 /**
- * Si la fase pidió un resourceLink, produce el texto final del link a embeber en
- * "recursos" — o bien la URL real que Claude ya encontró con web_search, o bien
- * genera el PDF del documentSpec, lo sube al storage, y devuelve su URL pública.
- * Nunca lanza: un fallo aquí (storage caído, etc.) simplemente omite el link,
- * no debe tumbar la generación de la semana completa.
+ * Si el link pedido es "web_search", ya trae la URL real que Claude encontró
+ * con la herramienta de búsqueda — solo se empaqueta. Si es "generate_document",
+ * genera el PDF del documentSpec (reusa el mismo motor que las fichas de
+ * recurso), lo sube al storage, y devuelve su URL pública. Nunca lanza: un
+ * fallo aquí (storage caído, etc.) simplemente omite el link.
  */
-async function resolveResourceLinkText(link: RawResourceLink | undefined): Promise<string | null> {
-  if (!link) return null
+async function resolveLink(
+  link: (GeneratedResourceLink & { documentSpec?: DocumentSpec; resolvedTitle?: string }) | undefined,
+  fallbackTitle: string,
+): Promise<{ title: string; url: string } | undefined> {
+  if (!link) return undefined
   try {
     if (link.kind === 'web_search') {
-      if (!link.resolvedUrl) return null
-      return `${link.resolvedTitle ?? 'Recurso'}: ${link.resolvedUrl}`
+      if (!link.resolvedUrl) return undefined
+      return { title: link.resolvedTitle ?? fallbackTitle, url: link.resolvedUrl }
     }
     if (link.kind === 'generate_document' && link.documentSpec) {
       const pdf = await buildResourceDocumentPdf(link.documentSpec)
       const key = `planning-resources/${randomUUID()}.pdf`
       await storage.save(key, pdf, 'application/pdf')
-      return `${link.documentSpec.title}: ${env.API_PUBLIC_URL}/uploads/${key}`
+      return { title: link.documentSpec.title, url: `${env.API_PUBLIC_URL}/uploads/${key}` }
     }
   } catch (error) {
-    console.warn('[resolveResourceLinkText] no se pudo generar/resolver el link, se omite:', error)
+    console.warn('[resolveLink] no se pudo generar/resolver el link, se omite:', error)
   }
-  return null
+  return undefined
 }
 
-async function momentosFromPayload(raw: RawGenerationPayload): Promise<DraftCompetencyWeekResult['momentos']> {
-  const format = async (phase: 'ANTICIPATION' | 'CONSTRUCTION' | 'CONSOLIDATION') => {
-    const m = raw.methodology[phase]
-    const linkText = await resolveResourceLinkText(m.resourceLink)
-    const recursos = linkText ? `${m.resources.join(', ')} — ${linkText}` : m.resources.join(', ')
-    return {
-      estrategiasDua: `${m.activity} (DUA: ${m.duaCodes.join(', ') || 'ninguno'})`,
-      recursos,
-      tecnica: phase === 'CONSOLIDATION' ? raw.assessment.technique : '',
-      instrumento: phase === 'CONSOLIDATION' ? raw.assessment.instrument : '',
-    }
+async function momentosFromPayload(raw: RawGenerationPayload, criterio: string): Promise<CompetencyWeekMomentos> {
+  const fases = {} as CompetencyWeekMomentos['fases']
+  const PHASE_TO_KEY: Record<PedagogicalPhase, 'inicio' | 'desarrollo' | 'cierre'> = {
+    ANTICIPATION: 'inicio',
+    CONSTRUCTION: 'desarrollo',
+    CONSOLIDATION: 'cierre',
   }
-  const [anticipacion, construccionConocimiento, consolidacion] = await Promise.all([
-    format('ANTICIPATION'),
-    format('CONSTRUCTION'),
-    format('CONSOLIDATION'),
+  for (const phase of PHASES) {
+    fases[PHASE_TO_KEY[phase]] = { activities: raw.methodology[phase].activities.map((a) => ({ text: a.text, duaCode: a.duaCode })) }
+  }
+
+  const [recursoLink, instrumentoLink] = await Promise.all([
+    resolveLink(raw.resourceLink, 'Recurso'),
+    resolveLink(raw.assessment.instrumentLink, 'Instrumento'),
   ])
-  return { anticipacion, construccionConocimiento, consolidacion }
+
+  return {
+    fases,
+    recursos: raw.resources,
+    recursoLink,
+    evaluacion: {
+      evidencia: raw.assessment.evidence,
+      criterio,
+      instrumento: raw.assessment.instrument,
+      instrumentoLink: instrumentoLink,
+    },
+  }
+}
+
+/** "[CODE] texto" por cada indicador de las competencias seleccionadas — el código SIEMPRE se muestra junto a su texto (nunca solo texto libre). */
+function formatIndicatorsWithCode(competencies: { indicators: { code: string; text: string }[] }[]): string {
+  const all = competencies.flatMap((c) => c.indicators)
+  if (all.length === 0) return ''
+  return all.map((i) => `[${i.code}] ${i.text}`).join('; ')
+}
+
+/** Solo los códigos de indicador, para la columna "Criterio" de Evaluación (formato CNC: código, no reformulación en prosa). */
+function indicatorCodes(competencies: { indicators: { code: string; text: string }[] }[]): string {
+  return competencies
+    .flatMap((c) => c.indicators)
+    .map((i) => i.code)
+    .join(', ')
 }
 
 /**
@@ -233,6 +279,12 @@ async function momentosFromPayload(raw: RawGenerationPayload): Promise<DraftComp
  * agota los intentos, cae a un motor determinista que compone metodología y
  * evaluación seleccionando directamente de los mismos catálogos — el docente
  * nunca se queda sin nada, aunque sea más genérico.
+ *
+ * Formato de salida calcado de TIGA (referencia con acuerdo de reutilización):
+ * fases "Inicio/Desarrollo/Cierre" con N actividades numeradas (según densidad
+ * por carga horaria) y su propio código DUA cada una, más recursos y
+ * evaluación consolidados UNA sola vez para toda la semana — nunca repetidos
+ * por fase.
  */
 export async function draftCompetencyWeek(
   institutionId: string,
@@ -276,17 +328,34 @@ export async function draftCompetencyWeek(
   const primary = competencies[0]
   const primaryIndicator = primary.indicators[0]
   const identityCode = primaryIndicator ? primaryIndicator.code : primary.code
+  const indicadoresEvaluacion = formatIndicatorsWithCode(competencies) || primary.code
+  const criterio = indicatorCodes(competencies) || primary.code
 
-  const deterministic = buildDeterministicMethodology(
+  // Carga horaria oficial (períodos semanales) determina cuántas actividades
+  // numeradas trae cada fase — calcado de _weekly_phase_counts() en TIGA.
+  const assignment = situation.plan.courseAssignment
+  const workloadEntries = await prisma.curricularWorkload.findMany()
+  const workload = resolveWorkload(
+    workloadEntries,
+    assignment.parallel.level.code,
+    assignment.subject.workloadCode,
+    assignment.parallel.educationOffer,
+    assignment.weeklyPeriodsOverride,
+  )
+  const phaseCounts = weeklyPhaseCounts(workload.weeklyPeriods)
+
+  const deterministic = buildDeterministicCompetencyMethodology(
     duaStrategies,
     { techniques: assessmentTechniques, instruments: assessmentInstruments },
+    phaseCounts,
     dto.rotationSeed ?? 0,
   )
+  deterministic.evaluacion.criterio = criterio
   const fallbackResult = (validationErrors: string[]): DraftCompetencyWeekResult => ({
-    indicadoresEvaluacion: primaryIndicator?.text ?? '',
+    indicadoresEvaluacion,
     newSabers: [],
     reusedSaberIds: primary.sabers.map((s) => s.id),
-    momentos: deterministic.momentos,
+    momentos: deterministic,
     generationMode: 'AI_FALLBACK',
     validationErrors,
   })
@@ -319,21 +388,9 @@ export async function draftCompetencyWeek(
     .map((t) => `  ${t.code} (${t.label}) -> instrumentos válidos: ${t.compatibleInstrumentCodes.join(', ')}`)
     .join('\n')
 
-  // Carga horaria oficial (períodos semanales) determina la densidad de la semana —
-  // calcado de _weekly_phase_counts() en TIGA: más períodos, más actividades por fase.
-  const assignment = situation.plan.courseAssignment
-  const workloadEntries = await prisma.curricularWorkload.findMany()
-  const workload = resolveWorkload(
-    workloadEntries,
-    assignment.parallel.level.code,
-    assignment.subject.workloadCode,
-    assignment.parallel.educationOffer,
-    assignment.weeklyPeriodsOverride,
-  )
-  const phaseCounts = weeklyPhaseCounts(workload.weeklyPeriods)
   const densityLine = workload.weeklyPeriods
-    ? `Carga horaria: ${workload.weeklyPeriods} períodos/semana. Densidad esperada de actividades por fase: Anticipación ${phaseCounts.anticipation}, Construcción ${phaseCounts.construction}, Consolidación ${phaseCounts.consolidation}. Ajusta la profundidad de la actividad de cada fase a esta densidad (no la ignores).`
-    : 'Carga horaria no configurada para este grado+materia — usa una densidad estándar (una actividad concreta por fase).'
+    ? `Carga horaria: ${workload.weeklyPeriods} períodos/semana. Número de actividades numeradas que DEBES generar por fase: Inicio ${phaseCounts.anticipation}, Desarrollo ${phaseCounts.construction}, Cierre ${phaseCounts.consolidation}. Respeta este número exacto — ni más ni menos.`
+    : 'Carga horaria no configurada para este grado+materia — genera exactamente 1 actividad en Inicio, 2 en Desarrollo y 1 en Cierre (densidad estándar).'
 
   const systemPrompt = `Eres un asistente pedagógico que ayuda a docentes ecuatorianos a redactar la planificación microcurricular semanal (PUD) por COMPETENCIAS, siguiendo el Currículo Nacional por Competencias (CNC) del MINEDUC.
 
@@ -348,21 +405,31 @@ ${competenciesBlock}
 
 Identidad inmutable de esta generación (repítela EXACTA en identityCode, no la alteres): "${identityCode}"
 
-Catálogo DUA disponible — SOLO puedes usar estos códigos en duaCodes, no inventes otros:
+Catálogo DUA disponible — cada actividad debe llevar EXACTAMENTE UN código de este catálogo, no inventes otros:
 ${duaCatalogText}
 
 Catálogo de evaluación — technique debe ser uno de estos códigos EXACTOS, e instrument debe ser uno de sus instrumentos compatibles listados:
 ${techniquesText}
 
+IMPORTANTE — terminología del documento final: las 3 fases se llaman "Inicio", "Desarrollo" y "Cierre" (nunca "Anticipación"/"Construcción"/"Consolidación" — esos son solo los nombres técnicos internos de las claves ANTICIPATION/CONSTRUCTION/CONSOLIDATION que usas en el JSON, el docente nunca los ve).
+
 Genera:
-1. indicadoresEvaluacion: indicador(es) de evaluación (usa los oficiales listados arriba).
-2. Saberes: si la competencia YA tiene saberes, pon sus ids en reusedSaberIds; si no, propone 1-2 nuevos de cada tipo en newSabers con code "<código_competencia>.d.1"/".p.1"/".a.1".
-3. methodology: para ANTICIPATION, CONSTRUCTION y CONSOLIDATION — cada fase necesita: activity (una actividad CONCRETA y ESPECÍFICA de al menos 8 palabras, nunca genérica tipo "trabajar en grupos"), duaCodes (1-2 códigos del catálogo dado, coherentes con esa fase), resources (cada recurso debe ser una palabra o frase CORTA de 1-3 palabras — SIN paréntesis, comas ni descripciones adicionales — copiada EXACTAMENTE igual, carácter por carácter, dentro del texto de activity; ejemplo correcto: resources=["bloques multibase","ábaco"] si activity dice "...usando bloques multibase y un ábaco para..."; ejemplo INCORRECTO: resources=["bloques multibase para representar decenas y unidades"] porque esa frase larga no aparece igual en activity), evidence (evidencia observable, distinta del texto de la actividad).
-4. assessment: activity, technique (código del catálogo), instrument (compatible con esa técnica), evidence (observable, distinta de activity), criteria (lista de 2-3 criterios que retomen literalmente palabras clave del indicador de evaluación).
-5. resourceLink (OPCIONAL, solo en la fase donde aplique): si uno de los recursos de esa fase es un material DIGITAL que debería tener un enlace real para el docente, agrega resourceLink:
-   - kind="web_search" + searchQuery: cuando el recurso ya existe publicado en internet (un video, una imagen, un artículo) — ej. actividad menciona "video sobre el ciclo del agua" → searchQuery="video educativo ciclo del agua para niños". Usa la herramienta de búsqueda web ANTES de llamar a submit_competency_week_draft, y solo si encuentras un resultado real completa resolvedUrl (la URL exacta de ese resultado, sin modificarla) y resolvedTitle (su título). Si la búsqueda no encuentra nada útil, NO incluyas resourceLink para esa fase — nunca inventes una URL.
-   - kind="generate_document" + documentSpec: cuando el recurso es un material que NO existe en internet pero es simple de producir (una ficha, un organizador gráfico, una guía de trabajo) — ej. actividad dice "lámina para clasificar animales en una tabla" → documentSpec describe título/instrucciones/bloques (paragraph, numbered_lines, table con headers+rows, o blank_space con label para que el estudiante pegue/dibuje algo).
-   - Si el recurso es solo un material físico genérico (pizarra, cuaderno, fichas impresas sin contenido específico), NO agregues resourceLink — deja el campo fuera por completo.
+1. Saberes: si la competencia YA tiene saberes, pon sus ids en reusedSaberIds; si no, propone 1-2 nuevos de cada tipo en newSabers con code "<código_competencia>.d.1"/".p.1"/".a.1".
+2. methodology: para ANTICIPATION (Inicio), CONSTRUCTION (Desarrollo) y CONSOLIDATION (Cierre) — cada fase es una lista de "activities", con EXACTAMENTE el número de actividades indicado arriba en "Número de actividades...". Cada actividad tiene:
+   - text: una actividad CONCRETA y ESPECÍFICA de al menos 8 palabras, nunca genérica tipo "trabajar en grupos".
+   - duaCode: EXACTAMENTE un código del catálogo DUA dado arriba, coherente con esa fase y esa actividad específica (no repitas el mismo código en todas las actividades salvo que realmente aplique).
+3. resources: lista de 3-6 recursos CONCRETOS para TODA la semana (no por fase) — cada uno una palabra o frase CORTA de 1-3 palabras, SIN paréntesis ni descripciones — que aparezca mencionado (mismas palabras) en al menos una de las actividades de methodology. NO repitas la misma redacción de las actividades: el recurso es solo el NOMBRE del material, la actividad ya explica el uso.
+4. resourceLink (OPCIONAL): si uno de los recursos de la semana es un material DIGITAL que debería tener un enlace real:
+   - kind="web_search" + searchQuery: cuando el recurso ya existe publicado en internet (video, imagen, artículo). Usa la herramienta de búsqueda web ANTES de llamar a submit_competency_week_draft, y solo si encuentras un resultado real completa resolvedUrl (URL exacta, sin modificar) y resolvedTitle. Si no encuentras nada útil, NO incluyas resourceLink.
+   - kind="generate_document" + documentSpec: cuando el recurso es un material que NO existe en internet pero es simple de producir (ficha, organizador gráfico, guía de trabajo) — documentSpec describe título/instrucciones/bloques (paragraph, numbered_lines, table con headers+rows, o blank_space con label).
+   - Si el recurso es solo un material físico genérico (pizarra, cuaderno), NO agregues resourceLink.
+5. assessment: evaluación de TODA la semana (una sola, no por fase):
+   - evidence: el producto o desempeño observable que demuestra el aprendizaje de la semana — DEBE ser distinto en palabras de cualquiera de las actividades de methodology (no repitas la misma redacción, aporta información nueva: qué se entrega/observa, no qué se hizo).
+   - technique: código del catálogo de evaluación.
+   - instrument: instrumento compatible con esa técnica (del catálogo).
+   - instrumentLink (OPCIONAL): si el instrumento (ej. una rúbrica o lista de cotejo) conviene entregarse como documento descargable, usa kind="generate_document" con documentSpec describiendo una tabla de rúbrica/lista de cotejo con los criterios de evaluación como filas — reusa el mismo formato de documentSpec que resourceLink.
+
+No redactes "criterio" ni "indicadoresEvaluacion" — el sistema los deriva automáticamente de los códigos de indicador ya seleccionados por el docente.
 
 Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o instrumento fuera de los dados. No inventes URLs — usa siempre la herramienta de búsqueda web para verificarlas.`
 
@@ -376,9 +443,6 @@ Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o in
   // forzado al tool de respuesta, Claude NUNCA podría buscar en el mismo turno, así
   // que se pasa a "auto" + se instruye en el prompt que siempre debe terminar
   // llamando submit_competency_week_draft.
-  // allowed_callers: ["direct"] es obligatorio en modelos que no soportan
-  // programmatic tool calling (ej. Haiku 4.5) — sin esto la API rechaza la
-  // request con "does not support programmatic tool calling".
   const serverTools = [{ type: 'web_search_20260209' as const, name: 'web_search' as const, allowed_callers: ['direct' as const] }]
   const MAX_PAUSE_RESUMES = 5
 
@@ -393,17 +457,10 @@ Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o in
     let apiError: string | null = null
     let nonRetryableApiError = false
 
-    // Un turno con web_search puede pausarse (stop_reason: "pause_turn") si el
-    // servidor alcanza su límite interno de iteraciones de búsqueda — se reenvía
-    // el turno tal cual (el server detecta el server_tool_use colgante y resume
-    // solo) hasta MAX_PAUSE_RESUMES veces.
     for (let resumes = 0; resumes <= MAX_PAUSE_RESUMES; resumes++) {
       try {
         response = await client.messages.create({
           model: aiConfig.model,
-          // Con resourceLink (documentSpec de fichas con tablas) el payload puede
-          // crecer bastante más que la metodología simple — 2200 se truncaba a
-          // mitad de la respuesta y dejaba "assessment" fuera del tool_use.input.
           max_tokens: 4096,
           system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
           messages,
@@ -411,9 +468,6 @@ Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o in
           tool_choice: { type: 'auto' },
         })
       } catch (error) {
-        // Un fallo de la API (timeout, 401, rate-limit, 5xx) nunca debe tumbar la
-        // generación completa — cae al motor determinista igual que un error de
-        // validación de contenido.
         const status = error instanceof Anthropic.APIError ? error.status : undefined
         nonRetryableApiError = status === 401 || status === 403 || status === 429
         apiError = `API_ERROR_${status ?? 'UNKNOWN'}`
@@ -459,10 +513,7 @@ Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o in
       continue
     }
     const raw = toolUse.input as RawGenerationPayload
-    // Una respuesta truncada por max_tokens puede dejar el tool_use.input a medias
-    // (ej. sin "assessment") — eso debe reintentar como error de validación, nunca
-    // tumbar la petición con una excepción sin control dentro del validador.
-    if (!raw.methodology || !raw.assessment) {
+    if (!raw.methodology || !raw.assessment || !raw.resources) {
       lastErrors = ['INCOMPLETE_TOOL_INPUT']
       messages.push({ role: 'assistant', content: response.content })
       messages.push({
@@ -487,24 +538,20 @@ Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o in
       techniqueInstrumentMap,
       allowedInstrumentCodes,
     }
-    const validation = validateGeneratedPedagogy(toPayload(raw), ctx)
+    const validation = validateGeneratedCompetencyPedagogy(toValidationPayload(raw), ctx)
 
     if (validation.status === 'VERIFIED') {
       const { createdSabers, reusedIds } = await persistSabers(raw.newSabers, competencies)
       return {
-        indicadoresEvaluacion: raw.indicadoresEvaluacion,
+        indicadoresEvaluacion,
         newSabers: createdSabers,
         reusedSaberIds: [...raw.reusedSaberIds, ...reusedIds],
-        momentos: await momentosFromPayload(raw),
+        momentos: await momentosFromPayload(raw, criterio),
         generationMode: 'AI_ENHANCED',
         validationErrors: [],
       }
     }
     lastErrors = validation.errors
-    // El "tool_result" con los errores concretos es lo que le permite a Claude
-    // corregir en el siguiente intento — sin la respuesta anterior (tool_use) y
-    // este resultado, el mensaje de corrección queda huérfano y el modelo termina
-    // respondiendo con texto pidiendo aclaraciones en vez de corregir.
     messages.push({ role: 'assistant', content: response.content })
     messages.push({
       role: 'user',

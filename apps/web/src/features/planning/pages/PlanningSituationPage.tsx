@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Send, CheckCircle2, ClipboardCheck, NotebookPen, Download, Pencil } from 'lucide-react'
+import { ArrowLeft, Plus, CheckCircle2, RotateCcw, NotebookPen, Download, Pencil } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { Card } from '@/shared/components/ui/card'
@@ -10,26 +10,25 @@ import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { PdfPreviewModal } from '@/shared/components/feedback/PdfPreviewModal'
 import { apiClient } from '@/shared/lib/api-client'
-import { usePermissions } from '@/shared/hooks/usePermissions'
 import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { WeekCard } from '../components/WeekCard'
 import { GenerateBlockPanel } from '../components/GenerateBlockPanel'
+import { InterdisciplinaryConnectionSelector } from '../components/InterdisciplinaryConnectionSelector'
 import {
   useSituation,
   useUpdateSituation,
-  useSubmitSituation,
-  useReviewSituation,
-  useApproveSituation,
+  useMarkSituationReady,
+  useReopenSituation,
   useWeeks,
   useCreateWeek,
 } from '../hooks/usePlanning'
 import type { SituationStatus } from '../api/planning.api'
 
+// Sin flujo de aprobación por terceros (pedido explícito del usuario) — solo
+// "Borrador" y "Listo", decididos únicamente por el docente.
 const STATUS_LABEL: Record<SituationStatus, { label: string; variant: 'success' | 'warning' | 'secondary' }> = {
   borrador: { label: 'Borrador', variant: 'secondary' },
-  enviado: { label: 'Enviado — pendiente de revisión', variant: 'warning' },
-  revisado: { label: 'Revisado — pendiente de aprobación', variant: 'warning' },
-  aprobado: { label: 'Aprobado', variant: 'success' },
+  listo: { label: 'Listo', variant: 'success' },
 }
 
 function formatDate(iso: string): string {
@@ -38,17 +37,14 @@ function formatDate(iso: string): string {
 
 export function PlanningSituationPage() {
   const { id } = useParams<{ id: string }>()
-  const { hasPermission } = usePermissions()
-  const canApprove = hasPermission('planning:manage')
   const { data: planningModel } = usePlanningModel()
   const isCompetencyModel = planningModel === 'competencias'
 
   const { data: situation, isLoading } = useSituation(id)
   const planId = situation?.planId
   const updateSituation = useUpdateSituation(id!, planId)
-  const submitSituation = useSubmitSituation(id!, planId)
-  const reviewSituation = useReviewSituation(id!, planId)
-  const approveSituation = useApproveSituation(id!, planId)
+  const markSituationReady = useMarkSituationReady(id!, planId)
+  const reopenSituation = useReopenSituation(id!, planId)
 
   const { data: weeks = [] } = useWeeks(id)
   const createWeek = useCreateWeek(id!)
@@ -59,6 +55,7 @@ export function PlanningSituationPage() {
   const [description, setDescription] = React.useState('')
   const [startDate, setStartDate] = React.useState('')
   const [endDate, setEndDate] = React.useState('')
+  const [interdisciplinarySubjectIds, setInterdisciplinarySubjectIds] = React.useState<string[]>([])
   const [expandedWeek, setExpandedWeek] = React.useState<string | null>(null)
   const [detailsOpen, setDetailsOpen] = React.useState(false)
 
@@ -68,6 +65,7 @@ export function PlanningSituationPage() {
       setDescription(situation.description ?? '')
       setStartDate(situation.startDate?.slice(0, 10) ?? '')
       setEndDate(situation.endDate?.slice(0, 10) ?? '')
+      setInterdisciplinarySubjectIds(situation.interdisciplinarySubjectIds ?? [])
     }
   }, [situation?.id])
 
@@ -163,6 +161,12 @@ export function PlanningSituationPage() {
                 </div>
               </div>
             )}
+
+            <InterdisciplinaryConnectionSelector
+              subjectIds={interdisciplinarySubjectIds}
+              onSubjectIdsChange={setInterdisciplinarySubjectIds}
+              isEditable={isEditable}
+            />
           </>
         )}
 
@@ -178,6 +182,7 @@ export function PlanningSituationPage() {
                       description,
                       startDate: startDate || null,
                       endDate: endDate || null,
+                      interdisciplinarySubjectIds,
                     },
                     { onSuccess: () => setDetailsOpen(false) },
                   )
@@ -187,25 +192,17 @@ export function PlanningSituationPage() {
                 Guardar borrador
               </Button>
             )}
-            <Button onClick={() => submitSituation.mutate()} loading={submitSituation.isPending} disabled={weeks.length === 0}>
-              <Send className="h-4 w-4" />
-              Enviar para revisión
-            </Button>
-          </div>
-        )}
-        {situation.status === 'enviado' && canApprove && (
-          <div className="flex justify-end border-t pt-4">
-            <Button onClick={() => reviewSituation.mutate()} loading={reviewSituation.isPending}>
-              <ClipboardCheck className="h-4 w-4" />
-              Marcar como revisado
-            </Button>
-          </div>
-        )}
-        {situation.status === 'revisado' && canApprove && (
-          <div className="flex justify-end border-t pt-4">
-            <Button onClick={() => approveSituation.mutate()} loading={approveSituation.isPending}>
+            <Button onClick={() => markSituationReady.mutate()} loading={markSituationReady.isPending} disabled={weeks.length === 0}>
               <CheckCircle2 className="h-4 w-4" />
-              Aprobar
+              Marcar como lista
+            </Button>
+          </div>
+        )}
+        {situation.status === 'listo' && (
+          <div className="flex justify-end border-t pt-4">
+            <Button variant="outline" onClick={() => reopenSituation.mutate()} loading={reopenSituation.isPending}>
+              <RotateCcw className="h-4 w-4" />
+              Volver a borrador
             </Button>
           </div>
         )}

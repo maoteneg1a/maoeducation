@@ -119,40 +119,29 @@ export function useUpdateSituation(id: string, planId?: string) {
   })
 }
 
-export function useSubmitSituation(id: string, planId?: string) {
+/** Sin flujo de aprobación por terceros — el docente marca "listo" cuando termina esta situación. */
+export function useMarkSituationReady(id: string, planId?: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: () => planningApi.submitSituation(id),
+    mutationFn: () => planningApi.markSituationReady(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['planning-situation', id] })
       if (planId) qc.invalidateQueries({ queryKey: ['planning-situations', planId] })
-      toast.success('Enviado para revisión')
+      toast.success('Situación marcada como lista')
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
 }
 
-export function useReviewSituation(id: string, planId?: string) {
+/** El docente puede volver a "borrador" una situación ya marcada como lista, para seguir editándola. */
+export function useReopenSituation(id: string, planId?: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: () => planningApi.reviewSituation(id),
+    mutationFn: () => planningApi.reopenSituation(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['planning-situation', id] })
       if (planId) qc.invalidateQueries({ queryKey: ['planning-situations', planId] })
-      toast.success('Marcado como revisado')
-    },
-    onError: (err) => toast.error(getErrorMessage(err)),
-  })
-}
-
-export function useApproveSituation(id: string, planId?: string) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: () => planningApi.approveSituation(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['planning-situation', id] })
-      if (planId) qc.invalidateQueries({ queryKey: ['planning-situations', planId] })
-      toast.success('Situación aprobada')
+      toast.success('Situación devuelta a borrador')
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
