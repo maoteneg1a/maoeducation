@@ -34,7 +34,7 @@ export function buildEnrollmentCertificatePdf(data: EnrollmentCertificatePdfData
     doc.on('error', reject)
 
     const logo = resolveLogo(data.logoUrl)
-    drawWatermark(doc, logo)
+    drawWatermark(doc, logo, 0.07)
     drawHeader(doc, logo, data.institutionName, 'CERTIFICADO DE MATRÍCULA')
     doc.moveDown(0.5)
 

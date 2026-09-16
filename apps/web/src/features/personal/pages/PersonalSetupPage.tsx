@@ -8,17 +8,21 @@ import { Label } from '@/shared/components/ui/label'
 import { personalApi, PersonalSetupDto } from '../api/personal.api'
 import { ExcelStudentUpload, ParsedStudent } from '../components/ExcelStudentUpload'
 import { useAuthStore } from '@/store/auth.store'
+import { useCurriculumAreas } from '@/features/curriculum/hooks/useCurriculum'
+import { useCompetencyAreas } from '@/features/competency-curriculum/hooks/useCompetencyCurriculum'
 
 type TeachingProfile = 'subject-first' | 'classroom-first'
+type Subnivel = 'inicial' | 'preparatoria' | 'elemental' | 'media' | 'superior' | 'bgu'
+type PlanningModel = 'destrezas' | 'competencias'
 
 interface WizardState {
   profile: TeachingProfile | null
-  // subject-first
-  subjectName: string
+  // subject-first — una sola materia, elegida del catálogo oficial de áreas
+  subjectAreaId: string | null
   groups: string[]
-  // classroom-first
+  // classroom-first — un solo grupo, varias materias del catálogo oficial de áreas
   parallelName: string
-  subjectNames: string[]
+  subjectAreaIds: string[]
   // year
   yearName: string
   yearStart: string
@@ -27,9 +31,21 @@ interface WizardState {
   workspaceName: string
   // students
   students: ParsedStudent[]
+  // currículo — filtra qué competencias/destrezas se ofrecen luego al planificar
+  subnivel: Subnivel | null
+  planningModel: PlanningModel
 }
 
-const STEPS = ['Perfil', 'Mis clases', 'Año escolar', 'Estudiantes', 'Tu aula']
+const STEPS = ['Perfil', 'Currículo', 'Mis clases', 'Año escolar', 'Estudiantes', 'Tu aula']
+
+const SUBNIVEL_OPTIONS: Array<{ value: Subnivel; label: string; hint: string }> = [
+  { value: 'inicial', label: 'Inicial', hint: 'Maternal / 3 a 5 años' },
+  { value: 'preparatoria', label: 'Preparatoria', hint: '1ro de Básica' },
+  { value: 'elemental', label: 'Elemental', hint: '2do a 4to de Básica' },
+  { value: 'media', label: 'Media', hint: '5to a 7mo de Básica' },
+  { value: 'superior', label: 'Superior', hint: '8vo a 10mo de Básica' },
+  { value: 'bgu', label: 'Bachillerato', hint: '1ro a 3ro BGU' },
+]
 
 function StepIndicator({ current, total }: { current: number; total: number }) {
   return (
@@ -52,20 +68,29 @@ export function PersonalSetupPage() {
   const [step, setStep] = useState(0)
   const [state, setState] = useState<WizardState>({
     profile: null,
-    subjectName: '',
+    subjectAreaId: null,
     groups: [''],
     parallelName: '',
-    subjectNames: [''],
+    subjectAreaIds: [],
     yearName: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
     yearStart: `${new Date().getFullYear()}-09-01`,
     yearEnd: `${new Date().getFullYear() + 1}-07-31`,
     workspaceName: '',
     students: [],
+    subnivel: null,
+    planningModel: 'destrezas',
   })
+  const setInstitution = useAuthStore((s) => s.setInstitution)
+
+  // Catálogo real de áreas MINEDUC de la institución — el docente elige de
+  // aquí, nunca escribe el nombre de la materia a mano. Se usa el banco que
+  // corresponda al planningModel elegido en el paso anterior del wizard.
+  const { data: curriculumAreas = [] } = useCurriculumAreas()
+  const { data: competencyAreas = [] } = useCompetencyAreas()
+  const catalogAreas = state.planningModel === 'competencias' ? competencyAreas : curriculumAreas
 
   const setupMutation = useMutation({
     mutationFn: (dto: PersonalSetupDto) => personalApi.setup(dto),
-    onSuccess: () => navigate('/dashboard', { replace: true }),
   })
 
   const bulkStudentsMutation = useMutation({
@@ -84,14 +109,16 @@ export function PersonalSetupPage() {
       yearStart: state.yearStart,
       yearEnd: state.yearEnd,
       workspaceName: state.workspaceName || undefined,
+      subnivel: state.subnivel ?? undefined,
+      planningModel: state.planningModel,
       ...(state.profile === 'subject-first'
         ? {
-            subjectName: state.subjectName,
+            subjectAreaId: state.subjectAreaId ?? undefined,
             groups: state.groups.filter(Boolean).map((name) => ({ name })),
           }
         : {
             parallelName: state.parallelName,
-            subjectNames: state.subjectNames.filter(Boolean),
+            subjectAreaIds: state.subjectAreaIds,
           }),
     }
 
@@ -110,6 +137,12 @@ export function PersonalSetupPage() {
       })
     }
 
+    // Libera el gate de PrivateRoute de inmediato: sin esto, setupComplete
+    // seguiría en false en el store hasta el próximo refresh de token y el
+    // usuario quedaría atrapado en /personal/setup tras terminar el wizard.
+    const institution = useAuthStore.getState().user?.institution
+    if (institution) setInstitution({ ...institution, setupComplete: true })
+
     navigate('/dashboard', { replace: true })
   }
 
@@ -118,11 +151,12 @@ export function PersonalSetupPage() {
 
   const canNext = () => {
     if (step === 0) return state.profile !== null
-    if (step === 1) {
-      if (state.profile === 'subject-first') return state.subjectName.trim() && state.groups.some((g) => g.trim())
-      return state.parallelName.trim() && state.subjectNames.some((s) => s.trim())
+    if (step === 1) return state.subnivel !== null
+    if (step === 2) {
+      if (state.profile === 'subject-first') return !!state.subjectAreaId && state.groups.some((g) => g.trim())
+      return state.parallelName.trim() && state.subjectAreaIds.length > 0
     }
-    if (step === 2) return state.yearName.trim() && state.yearStart && state.yearEnd
+    if (step === 3) return state.yearName.trim() && state.yearStart && state.yearEnd
     return true
   }
 
@@ -140,10 +174,11 @@ export function PersonalSetupPage() {
             </p>
             <h1 className="text-xl font-bold text-gray-900 mt-0.5">
               {step === 0 && `Hola, ${user?.fullName?.split(' ')[0] ?? 'profe'} 👋`}
-              {step === 1 && 'Configura tus clases'}
-              {step === 2 && 'Año escolar'}
-              {step === 3 && 'Agrega a tus estudiantes'}
-              {step === 4 && 'Personaliza tu aula'}
+              {step === 1 && 'Currículo que usas'}
+              {step === 2 && 'Configura tus clases'}
+              {step === 3 && 'Año escolar'}
+              {step === 4 && 'Agrega a tus estudiantes'}
+              {step === 5 && 'Personaliza tu aula'}
             </h1>
           </div>
         </div>
@@ -184,16 +219,92 @@ export function PersonalSetupPage() {
           </div>
         )}
 
-        {/* Step 1 — Clases */}
-        {step === 1 && state.profile === 'subject-first' && (
+        {/* Step 1 — Currículo (subnivel + modelo de planificación) */}
+        {step === 1 && (
           <div className="space-y-4">
-            <div className="space-y-1">
+            <div className="space-y-2">
+              <Label>¿En qué subnivel enseñas?</Label>
+              <p className="text-xs text-gray-500">
+                Con esto filtramos las competencias y destrezas oficiales que verás al planificar —
+                para que luego solo tengas que elegir de una lista y generar con IA, sin buscar nada.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {SUBNIVEL_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => set('subnivel', opt.value)}
+                    className={`flex flex-col items-start gap-0.5 p-3 rounded-lg border-2 text-left transition-all ${
+                      state.subnivel === opt.value
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="text-sm font-medium text-gray-900">{opt.label}</span>
+                    <span className="text-xs text-gray-500">{opt.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>¿Con qué currículo planificas?</Label>
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  type="button"
+                  onClick={() => set('planningModel', 'destrezas')}
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                    state.planningModel === 'destrezas'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <p className="text-sm font-medium text-gray-900">Destrezas (Currículo Priorizado)</p>
+                  <p className="text-xs text-gray-500 mt-0.5">El estándar MINEDUC más usado.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set('planningModel', 'competencias')}
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                    state.planningModel === 'competencias'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <p className="text-sm font-medium text-gray-900">Competencias (CNC)</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Currículo Nacional por Competencias.</p>
+                </button>
+              </div>
+              <p className="text-xs text-gray-500">
+                No te preocupes por elegir mal: puedes escribirnos para cambiarlo más adelante.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2 — Clases */}
+        {step === 2 && state.profile === 'subject-first' && (
+          <div className="space-y-4">
+            <div className="space-y-2">
               <Label>¿Qué materia enseñas?</Label>
-              <Input
-                placeholder="ej. Matemáticas"
-                value={state.subjectName}
-                onChange={(e) => set('subjectName', e.target.value)}
-              />
+              <p className="text-xs text-gray-500">
+                Elige del catálogo oficial — así queda vinculada automáticamente a sus destrezas/competencias.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {catalogAreas.map((area) => (
+                  <button
+                    key={area.id}
+                    type="button"
+                    onClick={() => set('subjectAreaId', area.id)}
+                    className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors ${
+                      state.subjectAreaId === area.id
+                        ? 'border-blue-600 bg-blue-50 text-blue-700 font-medium'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                    }`}
+                  >
+                    {area.name}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="space-y-2">
               <Label>¿A cuáles grupos?</Label>
@@ -234,7 +345,7 @@ export function PersonalSetupPage() {
           </div>
         )}
 
-        {step === 1 && state.profile === 'classroom-first' && (
+        {step === 2 && state.profile === 'classroom-first' && (
           <div className="space-y-4">
             <div className="space-y-1">
               <Label>¿Cuál es tu grado o aula?</Label>
@@ -246,45 +357,48 @@ export function PersonalSetupPage() {
             </div>
             <div className="space-y-2">
               <Label>¿Qué materias dictas?</Label>
-              {state.subjectNames.map((s, i) => (
-                <div key={i} className="flex gap-2">
-                  <Input
-                    placeholder={`ej. Matemáticas`}
-                    value={s}
-                    onChange={(e) => {
-                      const next = [...state.subjectNames]
-                      next[i] = e.target.value
-                      set('subjectNames', next)
-                    }}
-                  />
-                  {state.subjectNames.length > 1 && (
-                    <Button
+              <p className="text-xs text-gray-500">
+                Elige una o varias del catálogo oficial — así quedan vinculadas automáticamente a sus destrezas/competencias.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {catalogAreas.map((area) => {
+                  const selected = state.subjectAreaIds.includes(area.id)
+                  return (
+                    <button
+                      key={area.id}
                       type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 text-gray-400"
-                      onClick={() => set('subjectNames', state.subjectNames.filter((_, j) => j !== i))}
+                      onClick={() =>
+                        set(
+                          'subjectAreaIds',
+                          selected
+                            ? state.subjectAreaIds.filter((id) => id !== area.id)
+                            : [...state.subjectAreaIds, area.id],
+                        )
+                      }
+                      className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors flex items-center gap-2 ${
+                        selected
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 font-medium'
+                          : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                      }`}
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-blue-600 hover:text-blue-700 px-0"
-                onClick={() => set('subjectNames', [...state.subjectNames, ''])}
-              >
-                <Plus className="w-4 h-4 mr-1" /> Agregar materia
-              </Button>
+                      <span
+                        className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center ${
+                          selected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
+                        }`}
+                      >
+                        {selected && <Check className="w-3 h-3 text-white" />}
+                      </span>
+                      {area.name}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Step 2 — Año escolar */}
-        {step === 2 && (
+        {/* Step 3 — Año escolar */}
+        {step === 3 && (
           <div className="space-y-4">
             <div className="space-y-1">
               <Label>Nombre del año escolar</Label>
@@ -318,8 +432,8 @@ export function PersonalSetupPage() {
           </div>
         )}
 
-        {/* Step 3 — Estudiantes */}
-        {step === 3 && (
+        {/* Step 4 — Estudiantes */}
+        {step === 4 && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
               Sube tu lista en Excel o agrega estudiantes manualmente desde el panel más tarde.
@@ -328,8 +442,8 @@ export function PersonalSetupPage() {
           </div>
         )}
 
-        {/* Step 4 — Workspace */}
-        {step === 4 && (
+        {/* Step 5 — Workspace */}
+        {step === 5 && (
           <div className="space-y-4">
             <div className="space-y-1">
               <Label>¿Cómo se llama tu aula o academia?</Label>
@@ -367,7 +481,7 @@ export function PersonalSetupPage() {
           </Button>
 
           <div className="flex gap-2">
-            {step === 3 && (
+            {step === 4 && (
               <Button
                 type="button"
                 variant="ghost"

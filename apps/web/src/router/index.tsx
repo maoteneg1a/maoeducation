@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppLayout } from '@/shared/components/layout/AppLayout'
 import { PrivateRoute } from './PrivateRoute'
 import { PermissionGuard } from './PermissionGuard'
+import { PersonalStructureGuard } from './PersonalStructureGuard'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { PersonalRegisterPage } from '@/features/personal/pages/PersonalRegisterPage'
 import { PersonalLoginPage } from '@/features/personal/pages/PersonalLoginPage'
@@ -87,58 +88,68 @@ export const router = createBrowserRouter([
         ],
       },
       // ---- Academic Config ----
+      // Estructura académica (niveles, materias, años, paralelos, asignaciones,
+      // insumos): se crea una sola vez desde el wizard /personal/setup para
+      // cuentas personales de profesor, así que PersonalStructureGuard bloquea
+      // el acceso a esa cuenta aunque entre por URL directa. No afecta a
+      // instituciones normales (accountType !== 'personal').
       {
         path: 'academic',
         element: <PermissionGuard permission="academic_config:manage" />,
         children: [
           {
-            index: true,
-            lazy: () =>
-              import('@/features/academic/pages/AcademicPage').then((m) => ({
-                Component: m.AcademicPage,
-              })),
-          },
-          {
-            path: 'levels',
-            lazy: () =>
-              import('@/features/academic/pages/LevelsPage').then((m) => ({
-                Component: m.LevelsPage,
-              })),
-          },
-          {
-            path: 'subjects',
-            lazy: () =>
-              import('@/features/academic/pages/SubjectsPage').then((m) => ({
-                Component: m.SubjectsPage,
-              })),
-          },
-          {
-            path: 'years',
-            lazy: () =>
-              import('@/features/academic/pages/AcademicYearsPage').then((m) => ({
-                Component: m.AcademicYearsPage,
-              })),
-          },
-          {
-            path: 'parallels',
-            lazy: () =>
-              import('@/features/academic/pages/ParallelsPage').then((m) => ({
-                Component: m.ParallelsPage,
-              })),
-          },
-          {
-            path: 'assignments',
-            lazy: () =>
-              import('@/features/academic/pages/CourseAssignmentsPage').then((m) => ({
-                Component: m.CourseAssignmentsPage,
-              })),
-          },
-          {
-            path: 'insumo-setup',
-            lazy: () =>
-              import('@/features/academic/pages/ParallelInsumoSetupPage').then((m) => ({
-                Component: m.ParallelInsumoSetupPage,
-              })),
+            element: <PersonalStructureGuard />,
+            children: [
+              {
+                index: true,
+                lazy: () =>
+                  import('@/features/academic/pages/AcademicPage').then((m) => ({
+                    Component: m.AcademicPage,
+                  })),
+              },
+              {
+                path: 'levels',
+                lazy: () =>
+                  import('@/features/academic/pages/LevelsPage').then((m) => ({
+                    Component: m.LevelsPage,
+                  })),
+              },
+              {
+                path: 'subjects',
+                lazy: () =>
+                  import('@/features/academic/pages/SubjectsPage').then((m) => ({
+                    Component: m.SubjectsPage,
+                  })),
+              },
+              {
+                path: 'years',
+                lazy: () =>
+                  import('@/features/academic/pages/AcademicYearsPage').then((m) => ({
+                    Component: m.AcademicYearsPage,
+                  })),
+              },
+              {
+                path: 'parallels',
+                lazy: () =>
+                  import('@/features/academic/pages/ParallelsPage').then((m) => ({
+                    Component: m.ParallelsPage,
+                  })),
+              },
+              {
+                path: 'assignments',
+                lazy: () =>
+                  import('@/features/academic/pages/CourseAssignmentsPage').then((m) => ({
+                    Component: m.CourseAssignmentsPage,
+                  })),
+              },
+              {
+                path: 'insumo-setup',
+                lazy: () =>
+                  import('@/features/academic/pages/ParallelInsumoSetupPage').then((m) => ({
+                    Component: m.ParallelInsumoSetupPage,
+                  })),
+              },
+            ],
           },
         ],
       },
@@ -494,6 +505,20 @@ export const router = createBrowserRouter([
             lazy: () =>
               import('@/features/settings/pages/GradingConfigPage').then((m) => ({
                 Component: m.GradingConfigPage,
+              })),
+          },
+        ],
+      },
+      // ---- Settings / Microcurricular document template ----
+      {
+        path: 'settings/formato-planificacion',
+        element: <PermissionGuard permission="academic_config:manage" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/settings/pages/MicrocurricularTemplatePage').then((m) => ({
+                Component: m.MicrocurricularTemplatePage,
               })),
           },
         ],

@@ -47,6 +47,38 @@ export interface AiConfig {
 
 export type PlanningModel = 'destrezas' | 'competencias'
 
+export type SaberType = 'declarativo' | 'procedimental' | 'actitudinal'
+export type WeekLayout = 'table_per_week' | 'rows_in_single_table'
+
+export interface PhaseLabels {
+  anticipacion: string
+  construccionConocimiento: string
+  consolidacion: string
+}
+
+export type WatermarkScope = 'all_pages' | 'first_page_only'
+
+export interface MicrocurricularTemplateConfig {
+  topHeaderColor: string
+  topHeaderTextColor: string
+  headerColor: string
+  headerTextColor: string
+  headerColor2: string
+  headerColor2TextColor: string
+  watermarkEnabled: boolean
+  watermarkOpacity: number
+  watermarkScope: WatermarkScope
+  phaseLabels: PhaseLabels
+  saberesOrder: SaberType[]
+  weekLayout: WeekLayout
+  sectionOrder: string[]
+  hiddenSections: string[]
+  /** Imagen de encabezado completa subida por la institución (banner ya diseñado
+   *  con su propio logo/colores/cajas de datos) — reemplaza el bloque superior
+   *  logo+nombre del PDF cuando está configurada. `null` = sin banner. */
+  headerBannerUrl: string | null
+}
+
 export const settingsApi = {
   getSettings: () => apiGet<InstitutionSettings>('institution/settings'),
 
@@ -62,6 +94,23 @@ export const settingsApi = {
   getGradingConfig: () => apiGet<GradingConfig>('institution/grading-config'),
   updateGradingConfig: (data: GradingConfig) =>
     apiPut<GradingConfig>('institution/grading-config', data),
+
+  getMicrocurricularTemplate: () =>
+    apiGet<MicrocurricularTemplateConfig>('institution/document-templates/microcurricular'),
+  updateMicrocurricularTemplate: (data: Partial<MicrocurricularTemplateConfig>) =>
+    apiPut<MicrocurricularTemplateConfig>('institution/document-templates/microcurricular', data),
+
+  uploadHeaderBanner: async (file: File): Promise<{ headerBannerUrl: string; template: MicrocurricularTemplateConfig }> => {
+    const form = new FormData()
+    form.append('file', file)
+    return apiClient
+      .post('institution/document-templates/microcurricular/header-banner', { body: form })
+      .json<{ headerBannerUrl: string; template: MicrocurricularTemplateConfig }>()
+  },
+  removeHeaderBanner: async (): Promise<{ template: MicrocurricularTemplateConfig }> =>
+    apiClient
+      .delete('institution/document-templates/microcurricular/header-banner')
+      .json<{ template: MicrocurricularTemplateConfig }>(),
 
   getAiConfig: () => apiGet<AiConfig>('institution/ai-config'),
   updateAiConfig: (data: Partial<AiConfig>) => apiPut<AiConfig>('institution/ai-config', data),

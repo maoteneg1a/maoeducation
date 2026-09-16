@@ -6,13 +6,19 @@ import {
   GradingConfig,
   InstitutionBranding,
   InstitutionSettingsDto,
+  MicrocurricularTemplateConfig,
   PlanningModel,
   UpdateAiConfigDto,
   UpdateGradingConfigDto,
   UpdateInstitutionSettingsDto,
+  UpdateMicrocurricularTemplateDto,
   UpdatePlanningModelDto,
 } from '../../application/dtos/institution.dto'
-import { DEFAULT_AI_CONFIG, DEFAULT_GRADING_CONFIG } from '../../../platform/application/services/institution-bootstrap'
+import {
+  DEFAULT_AI_CONFIG,
+  DEFAULT_GRADING_CONFIG,
+  DEFAULT_MICROCURRICULAR_TEMPLATE,
+} from '../../../platform/application/services/institution-bootstrap'
 
 function extractBranding(settings: unknown): InstitutionBranding {
   const s = (settings ?? {}) as Record<string, unknown>
@@ -44,6 +50,35 @@ function extractGradingConfig(settings: unknown): GradingConfig {
       ...DEFAULT_GRADING_CONFIG.pedagogicRecovery,
       ...(gc.pedagogicRecovery ?? {}),
     },
+  }
+}
+
+function extractMicrocurricularTemplate(settings: unknown): MicrocurricularTemplateConfig {
+  const s = (settings ?? {}) as Record<string, unknown>
+  const templates = (s.documentTemplates ?? {}) as Record<string, unknown>
+  const t = (templates.microcurricular ?? {}) as Partial<MicrocurricularTemplateConfig>
+  return {
+    topHeaderColor: t.topHeaderColor ?? DEFAULT_MICROCURRICULAR_TEMPLATE.topHeaderColor,
+    topHeaderTextColor: t.topHeaderTextColor ?? DEFAULT_MICROCURRICULAR_TEMPLATE.topHeaderTextColor,
+    headerColor: t.headerColor ?? DEFAULT_MICROCURRICULAR_TEMPLATE.headerColor,
+    headerTextColor: t.headerTextColor ?? DEFAULT_MICROCURRICULAR_TEMPLATE.headerTextColor,
+    headerColor2: t.headerColor2 ?? DEFAULT_MICROCURRICULAR_TEMPLATE.headerColor2,
+    headerColor2TextColor: t.headerColor2TextColor ?? DEFAULT_MICROCURRICULAR_TEMPLATE.headerColor2TextColor,
+    watermarkEnabled: t.watermarkEnabled ?? DEFAULT_MICROCURRICULAR_TEMPLATE.watermarkEnabled,
+    watermarkOpacity: t.watermarkOpacity ?? DEFAULT_MICROCURRICULAR_TEMPLATE.watermarkOpacity,
+    watermarkScope: t.watermarkScope ?? DEFAULT_MICROCURRICULAR_TEMPLATE.watermarkScope,
+    phaseLabels: { ...DEFAULT_MICROCURRICULAR_TEMPLATE.phaseLabels, ...(t.phaseLabels ?? {}) },
+    saberesOrder:
+      t.saberesOrder && t.saberesOrder.length === 3
+        ? t.saberesOrder
+        : (DEFAULT_MICROCURRICULAR_TEMPLATE.saberesOrder as unknown as MicrocurricularTemplateConfig['saberesOrder']),
+    weekLayout: t.weekLayout ?? DEFAULT_MICROCURRICULAR_TEMPLATE.weekLayout,
+    sectionOrder:
+      t.sectionOrder && t.sectionOrder.length > 0
+        ? t.sectionOrder
+        : (DEFAULT_MICROCURRICULAR_TEMPLATE.sectionOrder as unknown as string[]),
+    hiddenSections: t.hiddenSections ?? (DEFAULT_MICROCURRICULAR_TEMPLATE.hiddenSections as unknown as string[]),
+    headerBannerUrl: t.headerBannerUrl ?? DEFAULT_MICROCURRICULAR_TEMPLATE.headerBannerUrl,
   }
 }
 
@@ -154,6 +189,68 @@ export class PrismaInstitutionRepository {
       select: { settings: true },
     })
     return extractGradingConfig(updated.settings)
+  }
+
+  async getMicrocurricularTemplate(institutionId: string): Promise<MicrocurricularTemplateConfig> {
+    const inst = await prisma.institution.findUnique({
+      where: { id: institutionId },
+      select: { settings: true },
+    })
+    if (!inst) throw new NotFoundError('Institución no encontrada')
+    return extractMicrocurricularTemplate(inst.settings)
+  }
+
+  async updateMicrocurricularTemplate(
+    institutionId: string,
+    dto: UpdateMicrocurricularTemplateDto,
+  ): Promise<MicrocurricularTemplateConfig> {
+    if (dto.saberesOrder && dto.saberesOrder.length !== 3) {
+      throw new BadRequestError('saberesOrder debe incluir exactamente los 3 tipos de saberes')
+    }
+    if (dto.watermarkOpacity !== undefined && (dto.watermarkOpacity < 0 || dto.watermarkOpacity > 1)) {
+      throw new BadRequestError('watermarkOpacity debe estar entre 0 y 1')
+    }
+    const inst = await prisma.institution.findUnique({
+      where: { id: institutionId },
+      select: { settings: true },
+    })
+    if (!inst) throw new NotFoundError('Institución no encontrada')
+
+    const currentSettings = (inst.settings ?? {}) as Record<string, unknown>
+    const currentTemplates = (currentSettings.documentTemplates ?? {}) as Record<string, unknown>
+    const current = extractMicrocurricularTemplate(inst.settings)
+    const next: MicrocurricularTemplateConfig = {
+      topHeaderColor: dto.topHeaderColor ?? current.topHeaderColor,
+      topHeaderTextColor: dto.topHeaderTextColor ?? current.topHeaderTextColor,
+      headerColor: dto.headerColor ?? current.headerColor,
+      headerTextColor: dto.headerTextColor ?? current.headerTextColor,
+      headerColor2: dto.headerColor2 ?? current.headerColor2,
+      headerColor2TextColor: dto.headerColor2TextColor ?? current.headerColor2TextColor,
+      watermarkEnabled: dto.watermarkEnabled ?? current.watermarkEnabled,
+      watermarkOpacity: dto.watermarkOpacity ?? current.watermarkOpacity,
+      watermarkScope: dto.watermarkScope ?? current.watermarkScope,
+      phaseLabels: { ...current.phaseLabels, ...(dto.phaseLabels ?? {}) },
+      saberesOrder: dto.saberesOrder ?? current.saberesOrder,
+      weekLayout: dto.weekLayout ?? current.weekLayout,
+      sectionOrder: dto.sectionOrder ?? current.sectionOrder,
+      hiddenSections: dto.hiddenSections ?? current.hiddenSections,
+      // dto.headerBannerUrl puede venir explícitamente `null` para QUITAR el
+      // banner — por eso se distingue de "no vino en el body" con `!== undefined`
+      // (a diferencia de los demás campos, que nunca necesitan volver a null).
+      headerBannerUrl: dto.headerBannerUrl !== undefined ? dto.headerBannerUrl : current.headerBannerUrl,
+    }
+
+    const updated = await prisma.institution.update({
+      where: { id: institutionId },
+      data: {
+        settings: {
+          ...currentSettings,
+          documentTemplates: { ...currentTemplates, microcurricular: next },
+        } as unknown as Prisma.InputJsonValue,
+      },
+      select: { settings: true },
+    })
+    return extractMicrocurricularTemplate(updated.settings)
   }
 
   async getAiConfig(institutionId: string): Promise<AiConfig> {

@@ -58,12 +58,19 @@ function isResourceJustified(resource: string, activity: string): boolean {
   return false
 }
 
+export interface GeneratedResourceLink {
+  kind: 'web_search' | 'generate_document'
+  resolvedUrl?: string
+  documentSpec?: unknown
+}
+
 export interface GeneratedPhaseActivity {
   phase: PedagogicalPhase
   activity: string
   duaCodes: string[]
   resources: string[]
   evidence: string
+  resourceLink?: GeneratedResourceLink
 }
 
 export interface GeneratedAssessment {
@@ -78,6 +85,151 @@ export interface GeneratedPedagogyPayload {
   identityCode: string
   methodology: GeneratedPhaseActivity[]
   assessment: GeneratedAssessment
+}
+
+// ─── Validación — modelo por COMPETENCIAS (formato CNC/TIGA: N actividades
+// numeradas por fase con su propio código DUA, recursos y evaluación
+// consolidados una sola vez por semana) ─────────────────────────────────────
+
+export interface GeneratedCompetencyActivity {
+  text: string
+  duaCode: string
+}
+
+export interface GeneratedCompetencyPhase {
+  activities: GeneratedCompetencyActivity[]
+}
+
+// NOTA: a diferencia del modelo por destrezas, "criterio" NO lo redacta la IA —
+// se deriva directamente de los códigos de indicador ya elegidos por el docente
+// (ver competency-pedagogical-generator.service.ts). Evita que la IA reformule
+// con palabras propias algo que ya es un código oficial (fuente de redundancia
+// e inconsistencia), y garantiza que el código SIEMPRE se muestre.
+export interface GeneratedCompetencyAssessment {
+  evidence: string
+  technique: string
+  instrument: string
+  instrumentLink?: GeneratedResourceLink
+}
+
+export interface GeneratedCompetencyPedagogyPayload {
+  identityCode: string
+  methodology: Record<PedagogicalPhase, GeneratedCompetencyPhase>
+  resources: string[]
+  resourceLink?: GeneratedResourceLink
+  assessment: GeneratedCompetencyAssessment
+}
+
+const MIN_ACTIVITY_WORDS_COMPETENCY = 6
+
+/** Todas las palabras significativas del texto combinado de TODAS las actividades de la semana — un recurso/criterio del nivel-semana se justifica contra el conjunto, no contra una sola actividad. */
+function allActivitiesStems(methodology: Record<PedagogicalPhase, GeneratedCompetencyPhase>): Set<string> {
+  const stems = new Set<string>()
+  for (const phase of PHASES) {
+    for (const activity of methodology[phase]?.activities ?? []) {
+      for (const s of significantStems(activity.text)) stems.add(s)
+    }
+  }
+  return stems
+}
+
+export function validateGeneratedCompetencyPedagogy(
+  payload: GeneratedCompetencyPedagogyPayload,
+  ctx: PedagogicalValidationContext,
+): PedagogicalValidationResult {
+  const errors: string[] = []
+
+  if (payload.identityCode !== ctx.expectedIdentityCode) {
+    errors.push('IDENTITY_CODE_ALTERED')
+  }
+
+  for (const phase of PHASES) {
+    const block = payload.methodology?.[phase]
+    if (!block || !Array.isArray(block.activities) || block.activities.length === 0) {
+      errors.push(`${phase}_MISSING`)
+      continue
+    }
+    // Mínimo 2 actividades por fase siempre — si la IA entrega solo 1, se
+    // rechaza y reintenta en vez de dejarla pasar.
+    if (block.activities.length < 2) {
+      errors.push(`${phase}_NEEDS_MIN_2_ACTIVITIES`)
+    }
+    for (const activity of block.activities) {
+      if (!activity.text || typeof activity.text !== 'string') {
+        errors.push(`${phase}_INCOMPLETE`)
+        continue
+      }
+      const wordCount = activity.text.trim().split(/\s+/).filter(Boolean).length
+      if (wordCount < MIN_ACTIVITY_WORDS_COMPETENCY || GENERIC_ACTIVITIES.has(activity.text.trim().toLowerCase())) {
+        errors.push(`${phase}_GENERIC_ACTIVITY`)
+      }
+      if (!activity.duaCode || !ctx.allowedDuaCodes.has(activity.duaCode)) {
+        errors.push('DUA_CODE_NOT_ALLOWED')
+      }
+    }
+  }
+
+  if (!Array.isArray(payload.resources) || payload.resources.length === 0) {
+    errors.push('RESOURCES_MISSING')
+  } else {
+    const activityStems = allActivitiesStems(payload.methodology ?? ({} as Record<PedagogicalPhase, GeneratedCompetencyPhase>))
+    if (payload.resources.some((r) => !isResourceJustified(r, [...activityStems].join(' ')))) {
+      errors.push('RESOURCE_NOT_JUSTIFIED')
+    }
+  }
+  if (payload.resourceLink) {
+    if (payload.resourceLink.kind === 'web_search' && !payload.resourceLink.resolvedUrl) {
+      errors.push('RESOURCE_LINK_MISSING_URL')
+    }
+    if (payload.resourceLink.kind === 'generate_document' && !payload.resourceLink.documentSpec) {
+      errors.push('RESOURCE_LINK_MISSING_SPEC')
+    }
+  }
+
+  const { assessment } = payload
+  if (!assessment || !assessment.evidence || !assessment.technique || !assessment.instrument) {
+    errors.push('ASSESSMENT_INCOMPLETE')
+    return { status: 'REJECTED', errors: [...new Set(errors)] }
+  }
+  if (!ctx.allowedTechniqueCodes.has(assessment.technique)) {
+    errors.push('TECHNIQUE_NOT_ALLOWED')
+  } else if (!ctx.techniqueInstrumentMap.get(assessment.technique)?.has(assessment.instrument)) {
+    errors.push('TECHNIQUE_INSTRUMENT_INCOMPATIBLE')
+  }
+  if (!ctx.allowedInstrumentCodes.has(assessment.instrument)) {
+    errors.push('INSTRUMENT_NOT_ALLOWED')
+  }
+  if (assessment.instrumentLink) {
+    if (assessment.instrumentLink.kind === 'web_search' && !assessment.instrumentLink.resolvedUrl) {
+      errors.push('INSTRUMENT_LINK_MISSING_URL')
+    }
+    if (assessment.instrumentLink.kind === 'generate_document' && !assessment.instrumentLink.documentSpec) {
+      errors.push('INSTRUMENT_LINK_MISSING_SPEC')
+    }
+  }
+
+  // Evidencia no debe repetir literalmente el texto de ninguna actividad —
+  // pedido explícito del usuario: "HAY MUCHA REDUNDANCIA EN LAS PALABRAS".
+  // El criterio ya no lo redacta la IA (se deriva de los códigos de indicador),
+  // así que solo queda comparar evidencia contra actividades.
+  const evidenceNorm = assessment.evidence.trim().toLowerCase()
+  const activityTexts = PHASES.flatMap((phase) => payload.methodology?.[phase]?.activities ?? []).map((a) =>
+    a.text.trim().toLowerCase(),
+  )
+  if (activityTexts.includes(evidenceNorm)) {
+    errors.push('ASSESSMENT_EVIDENCE_NOT_OBSERVABLE')
+  }
+
+  const indicatorTerms = ctx.indicatorText
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 5)
+  const aligned = indicatorTerms.some((term) => evidenceNorm.includes(term.replace(/[.,;:()]/g, '')))
+  if (indicatorTerms.length > 0 && !aligned) {
+    errors.push('ASSESSMENT_NOT_ALIGNED_WITH_INDICATOR')
+  }
+
+  return { status: errors.length === 0 ? 'VERIFIED' : 'REJECTED', errors: [...new Set(errors)] }
 }
 
 export interface PedagogicalValidationContext {
@@ -129,6 +281,18 @@ export function validateGeneratedPedagogy(
     }
     if (!item.evidence || typeof item.evidence !== 'string' || item.evidence.trim() === item.activity.trim()) {
       errors.push(`${item.phase}_EVIDENCE_NOT_OBSERVABLE`)
+    }
+    // resourceLink es opcional, pero si el modelo lo incluye, cada kind exige su
+    // dato correspondiente — un resourceLink incompleto pierde el link en
+    // silencio (resolveResourceLinkText simplemente lo omite), así que mejor
+    // rechazar y reintentar en vez de dejarlo pasar a medias.
+    if (item.resourceLink) {
+      if (item.resourceLink.kind === 'web_search' && !item.resourceLink.resolvedUrl) {
+        errors.push(`${item.phase}_RESOURCE_LINK_MISSING_URL`)
+      }
+      if (item.resourceLink.kind === 'generate_document' && !item.resourceLink.documentSpec) {
+        errors.push(`${item.phase}_RESOURCE_LINK_MISSING_SPEC`)
+      }
     }
   }
 

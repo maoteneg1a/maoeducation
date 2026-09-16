@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { PrismaPlanningRepository } from '../infrastructure/repositories/prisma-planning.repository'
+import { PrismaInstitutionRepository } from '../../institution/infrastructure/repositories/prisma-institution.repository'
 import { buildMicrocurricularPdf } from '../application/services/microcurricular-pdf.service'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
@@ -18,6 +19,7 @@ import type {
 } from '../application/dtos/planning.dto'
 
 const repo = new PrismaPlanningRepository()
+const institutionRepo = new PrismaInstitutionRepository()
 
 export default async function planningRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware)
@@ -72,18 +74,12 @@ export default async function planningRoutes(app: FastifyInstance) {
     async (req, reply) => reply.send(await repo.updatePlan(req.params.id, req.user.institutionId, req.body)),
   )
 
-  app.post<{ Params: { id: string } }>(
-    '/planning/plans/:id/submit',
-    { preHandler: [requirePermission('planning', 'write', 'own')] },
-    async (req, reply) => reply.send(await repo.submitPlan(req.params.id, req.user.institutionId)),
-  )
-
-  app.post<{ Params: { id: string } }>(
-    '/planning/plans/:id/approve',
-    { preHandler: [requirePermission('planning', 'manage', 'all')] },
-    async (req, reply) =>
-      reply.send(await repo.approvePlan(req.params.id, req.user.institutionId, req.user.sub)),
-  )
+  // Sin flujo de aprobación por terceros para el plan padre (pedido explícito
+  // del usuario): antes existían /plans/:id/submit y /plans/:id/approve con
+  // CurriculumPlan.status ("borrador"|"enviado"|"aprobado") completamente
+  // desconectado del estado real de las situaciones hijas — se podía "aprobar"
+  // un plan con 0 situaciones o con todas en borrador. Eliminados; ver
+  // comentario en el modelo CurriculumPlan (schema.prisma).
 
   // ─── Situación de aprendizaje ───────────────────────────────────────────
   app.get<{ Params: { planId: string } }>(
@@ -112,24 +108,27 @@ export default async function planningRoutes(app: FastifyInstance) {
       reply.send(await repo.updateSituation(req.params.id, req.user.institutionId, req.body)),
   )
 
+  // Sin flujo de aprobación por terceros para este documento (pedido explícito
+  // del usuario) — el propio docente marca "listo" cuando termina, y puede
+  // volver a "borrador" libremente. Ambos endpoints requieren solo permiso de
+  // escritura "own" (el mismo que edita la situación), no "manage"/"all" como
+  // antes con review/approve.
   app.post<{ Params: { id: string } }>(
-    '/planning/situations/:id/submit',
+    '/planning/situations/:id/mark-ready',
     { preHandler: [requirePermission('planning', 'write', 'own')] },
-    async (req, reply) => reply.send(await repo.submitSituation(req.params.id, req.user.institutionId)),
+    async (req, reply) => reply.send(await repo.markSituationReady(req.params.id, req.user.institutionId, req.user.sub)),
   )
 
   app.post<{ Params: { id: string } }>(
-    '/planning/situations/:id/review',
-    { preHandler: [requirePermission('planning', 'manage', 'all')] },
-    async (req, reply) =>
-      reply.send(await repo.reviewSituation(req.params.id, req.user.institutionId, req.user.sub)),
+    '/planning/situations/:id/reopen',
+    { preHandler: [requirePermission('planning', 'write', 'own')] },
+    async (req, reply) => reply.send(await repo.reopenSituation(req.params.id, req.user.institutionId, req.user.sub)),
   )
 
-  app.post<{ Params: { id: string } }>(
-    '/planning/situations/:id/approve',
-    { preHandler: [requirePermission('planning', 'manage', 'all')] },
-    async (req, reply) =>
-      reply.send(await repo.approveSituation(req.params.id, req.user.institutionId, req.user.sub)),
+  app.delete<{ Params: { id: string } }>(
+    '/planning/situations/:id',
+    { preHandler: [requirePermission('planning', 'write', 'own')] },
+    async (req, reply) => reply.send(await repo.deleteSituation(req.params.id, req.user.institutionId)),
   )
 
   // ─── Semanas (PlanningWeek) ─────────────────────────────────────────────
@@ -199,9 +198,21 @@ export default async function planningRoutes(app: FastifyInstance) {
     '/planning/situations/:id/pdf',
     { preHandler: [requirePermission('planning', 'read', 'own')] },
     async (req, reply) => {
-      const data = await repo.getSituationPdfData(req.params.id, req.user.institutionId)
-      const pdf = await buildMicrocurricularPdf(data)
-      const slug = data.situationTitle.replace(/\s+/g, '_').toLowerCase()
+      const [data, template] = await Promise.all([
+        repo.getSituationPdfData(req.params.id, req.user.institutionId),
+        institutionRepo.getMicrocurricularTemplate(req.user.institutionId),
+      ])
+      const pdf = await buildMicrocurricularPdf(data, template)
+      // Content-Disposition debe ser ASCII puro — un título con tildes/ñ (normal en
+      // español: "Situación", "Ecología"...) rompía el header con ERR_INVALID_CHAR
+      // y tumbaba la descarga con 500, sin relación con el contenido del PDF.
+      const slug = data.situationTitle
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .toLowerCase() || 'situacion'
       return reply
         .header('Content-Type', 'application/pdf')
         .header('Content-Disposition', `inline; filename="planificacion-${slug}.pdf"`)

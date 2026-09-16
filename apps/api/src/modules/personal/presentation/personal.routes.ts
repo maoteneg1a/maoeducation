@@ -13,6 +13,56 @@ import { sendVerificationEmail } from '../../../shared/infrastructure/services/e
 const userRepo = new PrismaAuthUserRepository()
 
 /**
+ * Subniveles MINEDUC válidos para el wizard de setup personal — mismo catálogo
+ * que usa el admin en Configuración > Niveles (ver SUBNIVEL_LABEL en
+ * apps/web/src/features/academic/pages/LevelsPage.tsx).
+ */
+const VALID_SUBNIVELES = ['inicial', 'preparatoria', 'elemental', 'media', 'superior', 'bgu']
+
+/**
+ * El wizard nunca deja escribir el nombre de una materia a mano: el profesor
+ * elige de un catálogo oficial (banco de destrezas o de competencias, según
+ * el planningModel del paso "Currículo") y aquí resolvemos el/los área(s)
+ * seleccionadas contra ese catálogo real de la institución — sin heurística
+ * de texto de ningún tipo. El código MINEDUC (M, LL, CN, CS, ECA, EF, EFL,
+ * EG...) es compartido entre ambos bancos, así que además de vincular el área
+ * del modelo elegido, intentamos enlazar también la equivalente del otro
+ * banco por code exacto — no por keywords — para que si el profesor cambia
+ * de planningModel más adelante la materia ya quede enlazada en ambos.
+ */
+async function resolveSubjectAreaLinks(
+  institutionId: string,
+  planningModel: 'destrezas' | 'competencias',
+  areaId: string,
+): Promise<{ name: string; curriculumAreaId?: string; competencyAreaId?: string }> {
+  if (planningModel === 'competencias') {
+    const competencyArea = await prisma.competencyArea.findFirst({ where: { id: areaId, institutionId } })
+    if (!competencyArea) throw new NotFoundError('Área de competencias no encontrada en el catálogo de la institución')
+    const curriculumArea = await prisma.curriculumArea.findFirst({
+      where: { institutionId, code: competencyArea.code },
+      select: { id: true },
+    })
+    return {
+      name: competencyArea.name,
+      competencyAreaId: competencyArea.id,
+      ...(curriculumArea ? { curriculumAreaId: curriculumArea.id } : {}),
+    }
+  }
+
+  const curriculumArea = await prisma.curriculumArea.findFirst({ where: { id: areaId, institutionId } })
+  if (!curriculumArea) throw new NotFoundError('Área curricular no encontrada en el catálogo de la institución')
+  const competencyArea = await prisma.competencyArea.findFirst({
+    where: { institutionId, code: curriculumArea.code },
+    select: { id: true },
+  })
+  return {
+    name: curriculumArea.name,
+    curriculumAreaId: curriculumArea.id,
+    ...(competencyArea ? { competencyAreaId: competencyArea.id } : {}),
+  }
+}
+
+/**
  * Módulos que recibe una cuenta personal de docente al registrarse.
  *
  * Los tres primeros son el grupo de planificación — la razón por la que un
@@ -280,12 +330,16 @@ export default async function personalRoutes(app: FastifyInstance) {
       yearStart: string
       yearEnd: string
       workspaceName?: string
-      // subject-first
-      subjectName?: string
+      // subject-first — una sola materia (elegida del catálogo oficial), varios grupos
+      subjectAreaId?: string
       groups?: Array<{ name: string }>
-      // classroom-first
+      // classroom-first — un solo grupo, varias materias (elegidas del catálogo oficial)
       parallelName?: string
-      subjectNames?: string[]
+      subjectAreaIds?: string[]
+      // paso de competencias — fijan de una vez el modelo de planificación para
+      // que el profesor nunca tenga que tocar Configuración > Calificación.
+      subnivel?: string
+      planningModel?: 'destrezas' | 'competencias'
     }
   }>(
     '/personal/setup',
@@ -301,10 +355,12 @@ export default async function personalRoutes(app: FastifyInstance) {
             yearStart: { type: 'string' },
             yearEnd: { type: 'string' },
             workspaceName: { type: 'string' },
-            subjectName: { type: 'string' },
+            subjectAreaId: { type: 'string' },
             groups: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' } } } },
             parallelName: { type: 'string' },
-            subjectNames: { type: 'array', items: { type: 'string' } },
+            subjectAreaIds: { type: 'array', items: { type: 'string' } },
+            subnivel: { type: 'string', enum: VALID_SUBNIVELES },
+            planningModel: { type: 'string', enum: ['destrezas', 'competencias'] },
           },
         },
       },
@@ -322,7 +378,7 @@ export default async function personalRoutes(app: FastifyInstance) {
         return reply.status(403).send({ message: 'Solo disponible para cuentas personales' })
       }
 
-      const { profile, yearName, yearStart, yearEnd, workspaceName } = req.body
+      const { profile, yearName, yearStart, yearEnd, workspaceName, subnivel, planningModel } = req.body
 
       // Update workspace name if provided
       if (workspaceName?.trim()) {
@@ -335,13 +391,28 @@ export default async function personalRoutes(app: FastifyInstance) {
         select: { id: true, periodsCount: true },
       })
 
-      // Create academic year
-      const year = await prisma.academicYear.create({
-        data: { institutionId, name: yearName, startDate: new Date(yearStart), endDate: new Date(yearEnd) },
-      })
+      // Create academic year — bootstrapInstitution (en /personal/register) ya crea
+      // un año lectivo activo con el nombre por defecto del régimen (ej. "2026-2027")
+      // más sus 3 períodos, para que la app no salga vacía antes del wizard. Si el
+      // docente deja ese mismo nombre en este paso, create() chocaba con el
+      // constraint único (institution_id, name) — se reusa ese año existente
+      // (actualizando fechas si las cambió) en vez de duplicar.
+      const existingYear = await prisma.academicYear.findFirst({ where: { institutionId, name: yearName } })
+      const year = existingYear
+        ? await prisma.academicYear.update({
+            where: { id: existingYear.id },
+            data: { startDate: new Date(yearStart), endDate: new Date(yearEnd) },
+          })
+        : await prisma.academicYear.create({
+            data: { institutionId, name: yearName, startDate: new Date(yearStart), endDate: new Date(yearEnd) },
+          })
+      const yearHadPeriods = existingYear
+        ? (await prisma.academicPeriod.count({ where: { academicYearId: year.id } })) > 0
+        : false
 
-      // Auto-generate trimester periods
-      if (scheme) {
+      // Auto-generate trimester periods — solo si el año es nuevo o no tenía
+      // períodos todavía (el año que ya trae bootstrapInstitution ya tiene los suyos).
+      if (scheme && !yearHadPeriods) {
         const start = new Date(yearStart)
         const end = new Date(yearEnd)
         const totalMs = end.getTime() - start.getTime()
@@ -363,23 +434,52 @@ export default async function personalRoutes(app: FastifyInstance) {
         }
       }
 
-      // Get or create default level for personal accounts
+      // Get or create default level for personal accounts. El subnivel elegido
+      // en el wizard (paso Competencias) decide qué banco curricular (destrezas
+      // o competencias) le ofrece luego el selector de la planificación semanal
+      // — así el profesor nunca necesita ir a Configuración > Niveles a fijarlo.
+      const resolvedSubnivel = subnivel && VALID_SUBNIVELES.includes(subnivel) ? subnivel : 'media'
       let level = await prisma.level.findFirst({ where: { institutionId, code: 'PERSONAL' } })
       if (!level) {
         level = await prisma.level.create({
-          data: { institutionId, code: 'PERSONAL', name: 'Mis Cursos', sortOrder: 99 },
+          data: { institutionId, code: 'PERSONAL', name: 'Mis Cursos', sortOrder: 99, subnivel: resolvedSubnivel },
         })
+      } else if (subnivel && level.subnivel !== resolvedSubnivel) {
+        level = await prisma.level.update({ where: { id: level.id }, data: { subnivel: resolvedSubnivel } })
       }
 
       const assignmentIds: string[] = []
       const subjectIds: string[] = []
       const parallelIds: string[] = []
+      const resolvedPlanningModel: 'destrezas' | 'competencias' =
+        planningModel ?? ((settings.planningModel as 'destrezas' | 'competencias' | undefined) ?? 'destrezas')
 
-      if (profile === 'subject-first' && req.body.subjectName && req.body.groups?.length) {
-        // One subject, multiple parallels
-        const subject = await prisma.subject.create({
-          data: { institutionId, name: req.body.subjectName },
+      // Reusa una materia existente con el mismo área en vez de duplicarla si el
+      // profesor ya la había creado antes (ej. reintenta el wizard, o eligió la
+      // misma área en ambos perfiles) — el catálogo de áreas es fijo por
+      // institución, así que dos Subjects con la misma área serían redundantes.
+      async function getOrCreateSubjectForArea(areaId: string) {
+        const { name, curriculumAreaId, competencyAreaId } = await resolveSubjectAreaLinks(
+          institutionId,
+          resolvedPlanningModel,
+          areaId,
+        )
+        const existing = await prisma.subject.findFirst({
+          where: {
+            institutionId,
+            ...(curriculumAreaId ? { curriculumAreaId } : {}),
+            ...(competencyAreaId ? { competencyAreaId } : {}),
+          },
         })
+        if (existing) return existing
+        return prisma.subject.create({
+          data: { institutionId, name, curriculumAreaId, competencyAreaId },
+        })
+      }
+
+      if (profile === 'subject-first' && req.body.subjectAreaId && req.body.groups?.length) {
+        // One subject (del catálogo oficial), multiple parallels
+        const subject = await getOrCreateSubjectForArea(req.body.subjectAreaId)
         subjectIds.push(subject.id)
 
         for (const g of req.body.groups) {
@@ -393,17 +493,15 @@ export default async function personalRoutes(app: FastifyInstance) {
           })
           assignmentIds.push(assignment.id)
         }
-      } else if (profile === 'classroom-first' && req.body.parallelName && req.body.subjectNames?.length) {
-        // One parallel, multiple subjects
+      } else if (profile === 'classroom-first' && req.body.parallelName && req.body.subjectAreaIds?.length) {
+        // One parallel, multiple subjects (cada una del catálogo oficial)
         const parallel = await prisma.parallel.create({
           data: { institutionId, name: req.body.parallelName, levelId: level.id, academicYearId: year.id },
         })
         parallelIds.push(parallel.id)
 
-        for (const sName of req.body.subjectNames) {
-          const subject = await prisma.subject.create({
-            data: { institutionId, name: sName },
-          })
+        for (const areaId of req.body.subjectAreaIds) {
+          const subject = await getOrCreateSubjectForArea(areaId)
           subjectIds.push(subject.id)
 
           const assignment = await prisma.courseAssignment.create({
@@ -413,11 +511,19 @@ export default async function personalRoutes(app: FastifyInstance) {
         }
       }
 
-      // Mark setup complete (preserve existing settings like branding)
+      // Mark setup complete (preserve existing settings like branding) y fija el
+      // modelo de planificación elegido en el wizard — así el profesor nunca
+      // tiene que tocar Configuración > Calificación para elegirlo.
       const currentSettings = (institution?.settings ?? {}) as Record<string, unknown>
       await prisma.institution.update({
         where: { id: institutionId },
-        data: { settings: { ...currentSettings, setupComplete: true } as unknown as Parameters<typeof prisma.institution.update>[0]['data']['settings'] },
+        data: {
+          settings: {
+            ...currentSettings,
+            setupComplete: true,
+            planningModel: planningModel ?? currentSettings.planningModel ?? 'destrezas',
+          } as unknown as Parameters<typeof prisma.institution.update>[0]['data']['settings'],
+        },
       })
 
       return reply.send({ yearId: year.id, parallelIds, subjectIds, assignmentIds })

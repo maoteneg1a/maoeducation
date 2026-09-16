@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { ConflictError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
+import { buildSituationTitle } from '../../domain/situation-title'
 import type {
   CreatePlanDto,
   CreateSituationDto,
@@ -74,6 +75,9 @@ export class PrismaPlanningRepository {
       include: {
         courseAssignment: { include: { subject: true, parallel: { include: { level: true } } } },
         template: true,
+        // Solo el status de cada situación — la UI (PlanningListPage) deriva de
+        // aquí el indicador de completitud del plan, nunca de CurriculumPlan.status.
+        situations: { select: { status: true } },
         _count: { select: { situations: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -118,44 +122,17 @@ export class PrismaPlanningRepository {
     })
   }
 
+  // Sin flujo de aprobación por terceros para el plan padre — el PCA/Planificación
+  // por Competencias siempre es editable (ver comentario en CurriculumPlan.status
+  // del schema). submitPlan/approvePlan eliminados junto con sus endpoints.
   async updatePlan(id: string, institutionId: string, dto: UpdatePlanDto) {
     const plan = await prisma.curriculumPlan.findFirst({ where: { id, institutionId } })
     if (!plan) throw new NotFoundError('Plan no encontrado')
-    if (plan.status === 'aprobado') throw new ConflictError('El plan ya fue aprobado y no se puede editar')
 
     return prisma.curriculumPlan.update({
       where: { id },
       data: { ...(dto.data !== undefined && { data: dto.data as unknown as Prisma.InputJsonValue }) },
     })
-  }
-
-  async submitPlan(id: string, institutionId: string) {
-    const plan = await prisma.curriculumPlan.findFirst({ where: { id, institutionId } })
-    if (!plan) throw new NotFoundError('Plan no encontrado')
-    if (plan.status !== 'borrador') throw new ConflictError('Solo un plan en borrador puede enviarse')
-    return prisma.curriculumPlan.update({ where: { id }, data: { status: 'enviado' } })
-  }
-
-  async approvePlan(id: string, institutionId: string, approverId: string) {
-    const plan = await prisma.curriculumPlan.findFirst({ where: { id, institutionId } })
-    if (!plan) throw new NotFoundError('Plan no encontrado')
-    if (plan.status !== 'enviado') throw new ConflictError('Solo un plan enviado puede aprobarse')
-
-    const updated = await prisma.curriculumPlan.update({
-      where: { id },
-      data: { status: 'aprobado', approvedBy: approverId, approvedAt: new Date() },
-    })
-    await prisma.auditLog.create({
-      data: {
-        institutionId,
-        userId: approverId,
-        action: 'planning.approve_pca',
-        resourceType: 'curriculum_plan',
-        resourceId: id,
-        newValue: { status: 'aprobado' },
-      },
-    })
-    return updated
   }
 
   // ─── Situación de aprendizaje ───────────────────────────────────────────
@@ -186,16 +163,42 @@ export class PrismaPlanningRepository {
     const plan = await prisma.curriculumPlan.findFirst({ where: { id: dto.planId, institutionId } })
     if (!plan) throw new NotFoundError('Plan no encontrado')
 
+    const period = await prisma.academicPeriod.findUnique({
+      where: { id: dto.academicPeriodId },
+      select: { name: true, startDate: true, endDate: true },
+    })
+    if (!period) throw new NotFoundError('Periodo académico no encontrado')
+
+    const competencyIds = dto.competencyIds ?? []
+
+    // El título se deriva de la competencia para que el docente no tenga que
+    // escribir nada: solo selecciona periodo y competencia. Se resuelve aquí y
+    // no en el cliente porque el texto de la competencia ya está en la base.
+    let title = dto.title?.trim()
+    if (!title && competencyIds.length) {
+      const competency = await prisma.competency.findFirst({
+        where: { id: { in: competencyIds }, area: { institutionId } },
+        orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+        select: { code: true, text: true },
+      })
+      if (competency) title = buildSituationTitle(competency.code, competency.text)
+    }
+    if (!title) title = period.name
+
     return prisma.learningSituation.create({
       data: {
         institutionId,
         planId: dto.planId,
         academicPeriodId: dto.academicPeriodId,
-        title: dto.title,
+        title,
         description: dto.description,
-        startDate: dto.startDate ? new Date(dto.startDate) : null,
-        endDate: dto.endDate ? new Date(dto.endDate) : null,
+        // Sin fechas explícitas, el bloque cubre el periodo completo — el docente
+        // las ajusta después si el bloque es más corto.
+        startDate: dto.startDate ? new Date(dto.startDate) : period.startDate,
+        endDate: dto.endDate ? new Date(dto.endDate) : period.endDate,
         interdisciplinaryAreaIds: dto.interdisciplinaryAreaIds ?? [],
+        interdisciplinarySubjectIds: dto.interdisciplinarySubjectIds ?? [],
+        competencyIds,
         createdBy: actorId,
       },
     })
@@ -211,62 +214,67 @@ export class PrismaPlanningRepository {
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
         ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.competencyIds !== undefined && { competencyIds: dto.competencyIds }),
         ...(dto.startDate !== undefined && { startDate: dto.startDate ? new Date(dto.startDate) : null }),
         ...(dto.endDate !== undefined && { endDate: dto.endDate ? new Date(dto.endDate) : null }),
         ...(dto.interdisciplinaryAreaIds !== undefined && { interdisciplinaryAreaIds: dto.interdisciplinaryAreaIds }),
+        ...(dto.interdisciplinarySubjectIds !== undefined && { interdisciplinarySubjectIds: dto.interdisciplinarySubjectIds }),
       },
     })
   }
 
-  async submitSituation(id: string, institutionId: string) {
+  /** El docente marca la situación como terminada — sin aprobación de terceros (ver comentario en SituationStatus). */
+  async markSituationReady(id: string, institutionId: string, actorId: string) {
     const situation = await prisma.learningSituation.findFirst({ where: { id, institutionId } })
     if (!situation) throw new NotFoundError('Situación de aprendizaje no encontrada')
-    if (situation.status !== 'borrador') throw new ConflictError('Solo una situación en borrador puede enviarse')
-    return prisma.learningSituation.update({ where: { id }, data: { status: 'enviado' } })
-  }
+    if (situation.status !== 'borrador') throw new ConflictError('Solo una situación en borrador puede marcarse como lista')
 
-  async reviewSituation(id: string, institutionId: string, reviewerId: string) {
-    const situation = await prisma.learningSituation.findFirst({ where: { id, institutionId } })
-    if (!situation) throw new NotFoundError('Situación de aprendizaje no encontrada')
-    if (situation.status !== 'enviado') throw new ConflictError('Solo una situación enviada puede revisarse')
-
-    const updated = await prisma.learningSituation.update({
-      where: { id },
-      data: { status: 'revisado', reviewedBy: reviewerId, reviewedAt: new Date() },
-    })
+    const updated = await prisma.learningSituation.update({ where: { id }, data: { status: 'listo' } })
     await prisma.auditLog.create({
       data: {
         institutionId,
-        userId: reviewerId,
-        action: 'planning.review_situation',
+        userId: actorId,
+        action: 'planning.mark_situation_ready',
         resourceType: 'learning_situation',
         resourceId: id,
-        newValue: { status: 'revisado' },
+        newValue: { status: 'listo' },
       },
     })
     return updated
   }
 
-  async approveSituation(id: string, institutionId: string, approverId: string) {
+  /** El docente puede volver a editar una situación ya marcada como lista. */
+  async reopenSituation(id: string, institutionId: string, actorId: string) {
     const situation = await prisma.learningSituation.findFirst({ where: { id, institutionId } })
     if (!situation) throw new NotFoundError('Situación de aprendizaje no encontrada')
-    if (situation.status !== 'revisado') throw new ConflictError('Solo una situación revisada puede aprobarse')
+    if (situation.status !== 'listo') throw new ConflictError('Solo una situación lista puede volver a borrador')
 
-    const updated = await prisma.learningSituation.update({
-      where: { id },
-      data: { status: 'aprobado', approvedBy: approverId, approvedAt: new Date() },
-    })
+    const updated = await prisma.learningSituation.update({ where: { id }, data: { status: 'borrador' } })
     await prisma.auditLog.create({
       data: {
         institutionId,
-        userId: approverId,
-        action: 'planning.approve_situation',
+        userId: actorId,
+        action: 'planning.reopen_situation',
         resourceType: 'learning_situation',
         resourceId: id,
-        newValue: { status: 'aprobado' },
+        newValue: { status: 'borrador' },
       },
     })
     return updated
+  }
+
+  async deleteSituation(id: string, institutionId: string) {
+    const situation = await prisma.learningSituation.findFirst({ where: { id, institutionId } })
+    if (!situation) throw new NotFoundError('Situación de aprendizaje no encontrada')
+    if (situation.status !== 'borrador') {
+      throw new ConflictError('Solo una situación en borrador puede eliminarse')
+    }
+    // PlanningWeek no tiene onDelete: Cascade — se borran explícitamente primero.
+    await prisma.$transaction([
+      prisma.planningWeek.deleteMany({ where: { situationId: id } }),
+      prisma.learningSituation.delete({ where: { id } }),
+    ])
+    return { ok: true }
   }
 
   // ─── Semana (PlanningWeek) ──────────────────────────────────────────────
@@ -381,6 +389,9 @@ export class PrismaPlanningRepository {
     const interdisciplinaryAreas = situation.interdisciplinaryAreaIds.length
       ? await prisma.curriculumArea.findMany({ where: { id: { in: situation.interdisciplinaryAreaIds } } })
       : []
+    const interdisciplinarySubjects = situation.interdisciplinarySubjectIds.length
+      ? await prisma.subject.findMany({ where: { id: { in: situation.interdisciplinarySubjectIds } } })
+      : []
 
     const allSaberIds = Array.from(new Set(situation.weeks.flatMap((w) => w.saberIds)))
     const sabers = allSaberIds.length
@@ -393,14 +404,19 @@ export class PrismaPlanningRepository {
     // en el mismo shape que el PDF ya sabe renderizar.
     const allCompetencyIds = Array.from(new Set(situation.weeks.flatMap((w) => w.competencyIds)))
     const allCompetencySaberIds = Array.from(new Set(situation.weeks.flatMap((w) => w.competencySaberIds)))
-    const [competencies, competencySabers] = await Promise.all([
+    const allCompetencyIndicatorIds = Array.from(new Set(situation.weeks.flatMap((w) => w.competencyIndicatorIds)))
+    const [competencies, competencySabers, competencyIndicators] = await Promise.all([
       allCompetencyIds.length ? prisma.competency.findMany({ where: { id: { in: allCompetencyIds } } }) : [],
       allCompetencySaberIds.length
         ? prisma.competencySaber.findMany({ where: { id: { in: allCompetencySaberIds } } })
         : [],
+      allCompetencyIndicatorIds.length
+        ? prisma.competencyIndicator.findMany({ where: { id: { in: allCompetencyIndicatorIds } } })
+        : [],
     ])
     const competencyById = new Map(competencies.map((c) => [c.id, c]))
     const competencySaberById = new Map(competencySabers.map((s) => [s.id, s]))
+    const competencyIndicatorById = new Map(competencyIndicators.map((i) => [i.id, i]))
 
     const teacherProfile = situation.plan.courseAssignment.teacher.profile
 
@@ -416,6 +432,7 @@ export class PrismaPlanningRepository {
       situationTitle: situation.title,
       situationDescription: situation.description,
       interdisciplinaryAreaNames: interdisciplinaryAreas.map((a) => a.name),
+      interdisciplinarySubjectNames: interdisciplinarySubjects.map((s) => s.name),
       weeks: situation.weeks.map((week) => {
         // Si la semana usó el modelo por competencias, el texto de "competencias
         // específicas" se deriva de las competencias elegidas (no hay campo de texto
@@ -428,6 +445,24 @@ export class PrismaPlanningRepository {
           .map((sid) => competencySaberById.get(sid))
           .filter((s): s is NonNullable<typeof s> => !!s)
           .map((s) => ({ type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description }))
+
+        // Formato CNC/TIGA: "Competencia(s)"/"Indicador(es)"/"Saberes movilizados" se
+        // imprimen como CÓDIGOS separados por coma bajo el título de semana — nunca
+        // el texto/descripción completo, que ya se ve en el propio contenido de la
+        // tabla. Solo aplica al modelo por competencias (isCompetencyModel).
+        const competencyCodes = week.competencyIds.map((cid) => competencyById.get(cid)?.code).filter((c): c is string => !!c)
+        // El generador embebe los códigos como "[CODE] texto" dentro de indicadoresEvaluacion
+        // (ver formatIndicatorsWithCode en competency-pedagogical-generator.service.ts) — se
+        // extraen de ahí en vez de depender de competencyIndicatorIds (que ese flujo no llena).
+        // Si la semana sí tiene competencyIndicatorIds explícitos (edición manual futura), se
+        // priorizan esos.
+        const indicatorCodesForWeek = week.competencyIndicatorIds.length
+          ? week.competencyIndicatorIds
+              .map((iid) => competencyIndicatorById.get(iid)?.code)
+              .filter((c): c is string => !!c)
+          : [...(week.indicadoresEvaluacion ?? '').matchAll(/\[([^\]]+)\]/g)].map((m) => m[1])
+        const saberCodesForWeek = competencySaberes.map((s) => s.code)
+        const isCompetencyModel = week.competencyIds.length > 0
 
         return {
           weekNumber: week.weekNumber,
@@ -443,12 +478,26 @@ export class PrismaPlanningRepository {
                 .filter((s): s is NonNullable<typeof s> => !!s)
                 .map((s) => ({ type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description })),
           momentos: (week.momentos ?? {}) as Record<string, { estrategiasDua?: string; recursos?: string; tecnica?: string; instrumento?: string }>,
+          isCompetencyModel,
+          competencyCodes,
+          indicatorCodesForWeek,
+          saberCodesForWeek,
+          competencyMomentos: isCompetencyModel
+            ? (week.momentos as unknown as import('../../../../shared/domain/pedagogical-methodology').CompetencyWeekMomentos)
+            : undefined,
         }
       }),
+      // El pie de firmas "Elaborado/Revisado/Aprobado" es parte del formato oficial
+      // MINEDUC del documento — se conserva visualmente (no se elimina el layout),
+      // pero ya no hay flujo de revisión/aprobación por terceros para esta Situación
+      // de Aprendizaje (solo borrador/listo, ver SituationStatus): reviewedAt/
+      // approvedAt quedan en desuso (no se escriben más) y las filas correspondientes
+      // ya no traen fecha — quedan en blanco para llenado manual si la institución
+      // igual las hace firmar en papel.
       signatories: [
         { role: 'Elaborado por: Docente(s)', name: teacherProfile ? `${teacherProfile.firstName} ${teacherProfile.lastName}` : null, date: null },
-        { role: 'Revisado por: Director de área/subnivel', name: null, date: situation.reviewedAt },
-        { role: 'Aprobado por: Subdirección', name: null, date: situation.approvedAt },
+        { role: 'Revisado por: Director de área/subnivel', name: null, date: null },
+        { role: 'Aprobado por: Subdirección', name: null, date: null },
       ],
     }
   }

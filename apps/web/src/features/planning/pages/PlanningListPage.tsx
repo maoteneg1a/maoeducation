@@ -12,12 +12,31 @@ import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
 import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { usePlans, useCreatePlan } from '../hooks/usePlanning'
-import type { ApprovalStatus } from '../api/planning.api'
+import type { CurriculumPlan } from '../api/planning.api'
 
-const STATUS_LABEL: Record<ApprovalStatus, { label: string; variant: 'success' | 'warning' | 'secondary' }> = {
-  borrador: { label: 'Borrador', variant: 'secondary' },
-  enviado: { label: 'Enviado', variant: 'warning' },
-  aprobado: { label: 'Aprobado', variant: 'success' },
+/**
+ * Indicador de completitud del plan — SIEMPRE derivado del estado real de sus
+ * LearningSituation hijas (nunca de CurriculumPlan.status, que quedaba
+ * desconectado y mostraba "Aprobado" con situaciones en "Borrador" — el bug
+ * reportado). "Completo" solo si hay al menos una situación y TODAS están
+ * "listo"; "En progreso" si hay mezcla de listas/borrador; "Sin empezar" si no
+ * hay ninguna o todas están en borrador.
+ */
+type PlanProgress = 'sin-empezar' | 'en-progreso' | 'completo'
+
+const PROGRESS_LABEL: Record<PlanProgress, { label: string; variant: 'success' | 'warning' | 'secondary' }> = {
+  'sin-empezar': { label: 'Sin empezar', variant: 'secondary' },
+  'en-progreso': { label: 'En progreso', variant: 'warning' },
+  completo: { label: 'Completo', variant: 'success' },
+}
+
+function getPlanProgress(plan: CurriculumPlan): { progress: PlanProgress; ready: number; total: number } {
+  const total = plan._count?.situations ?? 0
+  const ready = plan.situations?.filter((s) => s.status === 'listo').length ?? 0
+  if (total === 0) return { progress: 'sin-empezar', ready, total }
+  if (ready === total) return { progress: 'completo', ready, total }
+  if (ready === 0) return { progress: 'sin-empezar', ready, total }
+  return { progress: 'en-progreso', ready, total }
 }
 
 export function PlanningListPage() {
@@ -97,26 +116,29 @@ export function PlanningListPage() {
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {plans.map((plan) => (
-            <Card
-              key={plan.id}
-              className="cursor-pointer p-4 transition hover:border-primary/50 hover:shadow-sm"
-              onClick={() => navigate(`/planning/${plan.id}`)}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-medium">{plan.courseAssignment?.subject.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {plan.courseAssignment?.parallel.level.name} {plan.courseAssignment?.parallel.name}
-                  </p>
+          {plans.map((plan) => {
+            const { progress, ready, total } = getPlanProgress(plan)
+            return (
+              <Card
+                key={plan.id}
+                className="cursor-pointer p-4 transition hover:border-primary/50 hover:shadow-sm"
+                onClick={() => navigate(`/planning/${plan.id}`)}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium">{plan.courseAssignment?.subject.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {plan.courseAssignment?.parallel.level.name} {plan.courseAssignment?.parallel.name}
+                    </p>
+                  </div>
+                  <Badge variant={PROGRESS_LABEL[progress].variant}>{PROGRESS_LABEL[progress].label}</Badge>
                 </div>
-                <Badge variant={STATUS_LABEL[plan.status].variant}>{STATUS_LABEL[plan.status].label}</Badge>
-              </div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                {plan._count?.situations ?? 0} situación(es) de aprendizaje
-              </p>
-            </Card>
-          ))}
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {total === 0 ? 'Sin situaciones de aprendizaje' : `${ready} de ${total} situación(es) lista(s)`}
+                </p>
+              </Card>
+            )
+          })}
         </div>
       )}
     </div>

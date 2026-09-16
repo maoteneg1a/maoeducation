@@ -25,15 +25,36 @@ export interface DraftWeekResult {
   }
 }
 
+/** Una actividad numerada dentro de una fase — cada una con su propio código DUA (formato CNC/TIGA). */
+export interface CompetencyActivity {
+  text: string
+  duaCode: string
+}
+export interface CompetencyPhase {
+  activities: CompetencyActivity[]
+}
+/** Fases "Inicio/Desarrollo/Cierre" (nombres finales, sin necesidad de mapeo de labels como en destrezas) — recursos y evaluación consolidados UNA vez por semana, no repetidos por fase. */
+export interface CompetencyWeekMomentos {
+  fases: {
+    inicio?: CompetencyPhase
+    desarrollo?: CompetencyPhase
+    cierre?: CompetencyPhase
+  }
+  recursos: string[]
+  recursoLink?: { title: string; url: string }
+  evaluacion: {
+    evidencia: string
+    criterio: string
+    instrumento: string
+    instrumentoLink?: { title: string; url: string }
+  }
+}
+
 export interface DraftCompetencyWeekResult {
   indicadoresEvaluacion: string
   newSabers: DraftedSaber[]
   reusedSaberIds: string[]
-  momentos: {
-    anticipacion: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
-    construccionConocimiento: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
-    consolidacion: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
-  }
+  momentos: CompetencyWeekMomentos
   generationMode: 'AI_ENHANCED' | 'AI_FALLBACK'
   validationErrors: string[]
 }
@@ -82,8 +103,11 @@ export const aiAssistantApi = {
     apiPost<DraftWeekResult>('ai-assistant/draft-week', data),
 
   /** Igual que draftWeek pero para el modelo por competencias (motor en dos capas: IA validada + fallback determinista). */
-  draftCompetencyWeek: (data: { situationId: string; competencyIds: string[]; weekName?: string }) =>
-    apiPost<DraftCompetencyWeekResult>('ai-assistant/draft-competency-week', data),
+  // 120s: la generación con IA puede reintentar hasta 2 veces contra Anthropic
+  // (validación + corrección) — el timeout default de 30s del cliente corta la
+  // conexión antes de que el backend termine, aunque este sí complete bien.
+  draftCompetencyWeek: (data: { situationId: string; competencyIds: string[]; weekName?: string; weekNumber?: number }) =>
+    apiPost<DraftCompetencyWeekResult>('ai-assistant/draft-competency-week', data, { timeout: 120000 }),
 
   /** Estilo TIGA: genera y guarda de una vez las N semanas de un bloque completo (una llamada de IA por semana, en el servidor). */
   draftSituationBlock: (data: { situationId: string; weeksCount: number; skillIds?: string[]; competencyIds?: string[] }) =>

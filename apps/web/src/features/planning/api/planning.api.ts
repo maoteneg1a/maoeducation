@@ -1,10 +1,19 @@
-import { apiClient, apiDelete, apiGet, apiPost, apiPut } from '@/shared/lib/api-client'
+import { apiDelete, apiGet, apiPost, apiPut } from '@/shared/lib/api-client'
 import type { CurriculumSkill } from '@/features/curriculum/api/curriculum.api'
 import type { Competency } from '@/features/competency-curriculum/api/competency-curriculum.api'
 
 export type PlanningTemplateType = 'pca'
+/**
+ * @deprecated CurriculumPlan.status ya no tiene flujo de aprobación por
+ * terceros (quedaba desconectado del estado real de sus LearningSituation
+ * hijas y mostraba información contradictoria en la UI). El campo se
+ * conserva en la respuesta del backend por histórico, pero no debe usarse
+ * para gating de UI ni de negocio — ver PlanningListPage para el indicador
+ * derivado de las situaciones reales.
+ */
 export type ApprovalStatus = 'borrador' | 'enviado' | 'aprobado'
-export type SituationStatus = 'borrador' | 'enviado' | 'revisado' | 'aprobado'
+/** Sin flujo de aprobación por terceros — solo el docente decide, transición libre en ambos sentidos. */
+export type SituationStatus = 'borrador' | 'listo'
 
 export interface PlanningField {
   key: string
@@ -58,9 +67,14 @@ export interface LearningSituation {
   academicPeriodId: string
   title: string
   description: string | null
+  /** Competencias del bloque, elegidas al crear la situación. */
+  competencyIds: string[]
   startDate: string | null
   endDate: string | null
+  /** @deprecated sin UI que lo escriba — usa interdisciplinarySubjectIds. */
   interdisciplinaryAreaIds: string[]
+  /** Materias (Subject) del propio docente con las que hay conexión interdisciplinar — mínimo 2 para contar como tal. */
+  interdisciplinarySubjectIds: string[]
   status: SituationStatus
   createdAt: string
   reviewedAt: string | null
@@ -71,6 +85,7 @@ export interface LearningSituation {
   _count?: { weeks: number }
 }
 
+/** Modelo por DESTREZAS — un bloque de texto por fase (sin cambios). */
 export interface PlanningMoment {
   estrategiasDua?: string
   recursos?: string
@@ -82,6 +97,40 @@ export interface PlanningMomentos {
   anticipacion?: PlanningMoment
   construccionConocimiento?: PlanningMoment
   consolidacion?: PlanningMoment
+}
+
+/** Modelo por COMPETENCIAS — formato CNC/TIGA: N actividades numeradas por fase
+ * (Inicio/Desarrollo/Cierre) con su propio código DUA cada una; recursos y
+ * evaluación consolidados UNA vez por semana. */
+export interface CompetencyPlanningActivity {
+  text: string
+  duaCode: string
+}
+export interface CompetencyPlanningPhase {
+  activities: CompetencyPlanningActivity[]
+}
+export interface CompetencyPlanningMomentos {
+  fases: {
+    inicio?: CompetencyPlanningPhase
+    desarrollo?: CompetencyPlanningPhase
+    cierre?: CompetencyPlanningPhase
+  }
+  recursos?: string[]
+  recursoLink?: { title: string; url: string }
+  evaluacion?: {
+    evidencia?: string
+    criterio?: string
+    instrumento?: string
+    instrumentoLink?: { title: string; url: string }
+  }
+}
+
+/** El shape guardado depende del planningModel de la institución al crear la semana — nunca se mezclan. */
+export type WeekMomentos = PlanningMomentos | CompetencyPlanningMomentos
+
+/** Type guard — distingue el shape por competencias (tiene "fases") del de destrezas (tiene claves de fase directas). */
+export function isCompetencyMomentos(m: WeekMomentos | undefined | null): m is CompetencyPlanningMomentos {
+  return !!m && 'fases' in m
 }
 
 export interface PlanningWeek {
@@ -98,7 +147,7 @@ export interface PlanningWeek {
   competencyIds: string[]
   competencyIndicatorIds: string[]
   competencySaberIds: string[]
-  momentos: PlanningMomentos
+  momentos: WeekMomentos
   createdAt: string
 }
 
@@ -122,10 +171,6 @@ export const planningApi = {
   updatePlan: (id: string, data: { data: Record<string, unknown> }) =>
     apiPut<CurriculumPlan>(`planning/plans/${id}`, data),
 
-  submitPlan: (id: string) => apiPost<CurriculumPlan>(`planning/plans/${id}/submit`),
-
-  approvePlan: (id: string) => apiPost<CurriculumPlan>(`planning/plans/${id}/approve`),
-
   // Situaciones de aprendizaje
   listSituations: (planId: string) => apiGet<LearningSituation[]>(`planning/plans/${planId}/situations`),
 
@@ -134,11 +179,15 @@ export const planningApi = {
   createSituation: (data: {
     planId: string
     academicPeriodId: string
-    title: string
+    /** Si se omite, el backend lo deriva de la competencia (o del periodo). */
+    title?: string
     description?: string
+    /** Si se omiten, el backend toma las del periodo académico. */
     startDate?: string
     endDate?: string
     interdisciplinaryAreaIds?: string[]
+    interdisciplinarySubjectIds?: string[]
+    competencyIds?: string[]
   }) => apiPost<LearningSituation>('planning/situations', data),
 
   updateSituation: (
@@ -149,14 +198,18 @@ export const planningApi = {
       startDate: string | null
       endDate: string | null
       interdisciplinaryAreaIds: string[]
+      interdisciplinarySubjectIds: string[]
+      competencyIds: string[]
     }>,
   ) => apiPut<LearningSituation>(`planning/situations/${id}`, data),
 
-  submitSituation: (id: string) => apiPost<LearningSituation>(`planning/situations/${id}/submit`),
+  /** Sin flujo de aprobación por terceros — el docente marca "listo" cuando termina. */
+  markSituationReady: (id: string) => apiPost<LearningSituation>(`planning/situations/${id}/mark-ready`),
 
-  reviewSituation: (id: string) => apiPost<LearningSituation>(`planning/situations/${id}/review`),
+  /** El docente puede volver a "borrador" una situación ya marcada como lista. */
+  reopenSituation: (id: string) => apiPost<LearningSituation>(`planning/situations/${id}/reopen`),
 
-  approveSituation: (id: string) => apiPost<LearningSituation>(`planning/situations/${id}/approve`),
+  deleteSituation: (id: string) => apiDelete(`planning/situations/${id}`),
 
   // Semanas
   listWeeks: (situationId: string) => apiGet<PlanningWeek[]>(`planning/situations/${situationId}/weeks`),
@@ -176,7 +229,7 @@ export const planningApi = {
     competencyIds?: string[]
     competencyIndicatorIds?: string[]
     competencySaberIds?: string[]
-    momentos?: PlanningMomentos
+    momentos?: WeekMomentos
   }) => apiPost<PlanningWeek>('planning/weeks', data),
 
   updateWeek: (
@@ -192,7 +245,7 @@ export const planningApi = {
       competencyIds: string[]
       competencyIndicatorIds: string[]
       competencySaberIds: string[]
-      momentos: PlanningMomentos
+      momentos: WeekMomentos
     }>,
   ) => apiPut<PlanningWeek>(`planning/weeks/${id}`, data),
 
@@ -206,11 +259,4 @@ export const planningApi = {
   listPlannedCompetencies: (courseAssignmentId: string, academicPeriodId: string) =>
     apiGet<Competency[]>('planning/planned-competencies', { courseAssignmentId, academicPeriodId }),
 
-  /** Descarga el PDF autenticado y lo abre en una pestaña nueva (no un link directo — necesita el JWT en el header). */
-  async openSituationPdf(situationId: string) {
-    const blob = await apiClient.get(`planning/situations/${situationId}/pdf`).blob()
-    const url = URL.createObjectURL(blob)
-    window.open(url, '_blank')
-    setTimeout(() => URL.revokeObjectURL(url), 60_000)
-  },
 }

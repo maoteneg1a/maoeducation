@@ -1,10 +1,12 @@
 import { FastifyInstance } from 'fastify'
 import { PrismaInterdisciplinaryProjectRepository } from '../infrastructure/repositories/prisma-interdisciplinary-project.repository'
 import { buildInterdisciplinaryProjectPdf } from '../application/services/interdisciplinary-project-pdf.service'
+import { draftInterdisciplinaryProject } from '../../ai-assistant/application/services/interdisciplinary-project-generator.service'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import type {
   CreateInterdisciplinaryProjectDto,
+  DraftInterdisciplinaryProjectDto,
   JoinProjectDto,
   ListInterdisciplinaryProjectsQuery,
   UpdateContributionDto,
@@ -21,6 +23,15 @@ export default async function interdisciplinaryProjectRoutes(app: FastifyInstanc
     '/interdisciplinary-projects',
     { preHandler: [requirePermission('planning', 'read', 'own')] },
     async (req, reply) => reply.send(await repo.listProjects(req.user.institutionId, req.query)),
+  )
+
+  // Situaciones de aprendizaje del paralelo/periodo con conexión interdisciplinar
+  // marcada (≥2 áreas) — candidatas para "Generar con IA".
+  app.get<{ Querystring: { parallelId: string; academicPeriodId: string } }>(
+    '/interdisciplinary-projects/eligible-situations',
+    { preHandler: [requirePermission('planning', 'read', 'own')] },
+    async (req, reply) =>
+      reply.send(await repo.listEligibleSituations(req.user.institutionId, req.query.parallelId, req.query.academicPeriodId)),
   )
 
   app.get<{ Params: { id: string } }>(
@@ -40,6 +51,27 @@ export default async function interdisciplinaryProjectRoutes(app: FastifyInstanc
     '/interdisciplinary-projects/:id',
     { preHandler: [requirePermission('planning', 'write', 'own')] },
     async (req, reply) => reply.send(await repo.updateProject(req.params.id, req.user.institutionId, req.body)),
+  )
+
+  app.delete<{ Params: { id: string } }>(
+    '/interdisciplinary-projects/:id',
+    { preHandler: [requirePermission('planning', 'write', 'own')] },
+    async (req, reply) => {
+      await repo.deleteProject(req.params.id, req.user.institutionId)
+      reply.status(204).send()
+    },
+  )
+
+  // ─── Generación casi automática con IA a partir de una Situación de Aprendizaje ──
+  // Toma las semanas y áreas interdisciplinares ya marcadas en la situación de
+  // origen y genera + persiste TODO: proyecto, aportes por asignatura y semanas.
+  app.post<{ Body: DraftInterdisciplinaryProjectDto }>(
+    '/interdisciplinary-projects/draft',
+    { preHandler: [requirePermission('planning', 'write', 'own')] },
+    async (req, reply) => {
+      const { projectId } = await draftInterdisciplinaryProject(req.user.institutionId, req.user.sub, req.body.situationId)
+      reply.status(201).send(await repo.getProject(projectId, req.user.institutionId))
+    },
   )
 
   // ─── Contribuciones (una asignatura se une al proyecto) ────────────────

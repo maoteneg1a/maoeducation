@@ -49,11 +49,28 @@ export interface InterdisciplinaryProject {
   _count?: { contributions: number }
 }
 
+export interface EligibleSituation {
+  id: string
+  title: string
+  interdisciplinarySubjectIds: string[]
+  _count?: { weeks: number }
+}
+
 export const interdisciplinaryProjectApi = {
   listProjects: (params: { parallelId: string; academicPeriodId: string }) =>
     apiGet<InterdisciplinaryProject[]>('interdisciplinary-projects', params),
 
   getProject: (id: string) => apiGet<InterdisciplinaryProject>(`interdisciplinary-projects/${id}`),
+
+  listEligibleSituations: (params: { parallelId: string; academicPeriodId: string }) =>
+    apiGet<EligibleSituation[]>('interdisciplinary-projects/eligible-situations', params),
+
+  // 120s: genera N contribuciones × M semanas con reintentos de IA — puede
+  // tardar más que el timeout default de 30s del cliente (visto en producción:
+  // "Request timed out" aunque el backend seguía generando correctamente).
+  /** Genera y guarda TODO el proyecto (reto, contribuciones, semanas) a partir de una situación de aprendizaje. */
+  draftFromSituation: (situationId: string) =>
+    apiPost<InterdisciplinaryProject>('interdisciplinary-projects/draft', { situationId }, { timeout: 120000 }),
 
   createProject: (data: {
     parallelId: string
@@ -78,6 +95,8 @@ export const interdisciplinaryProjectApi = {
       status: InterdisciplinaryProjectStatus
     }>,
   ) => apiPut<InterdisciplinaryProject>(`interdisciplinary-projects/${id}`, data),
+
+  deleteProject: (id: string) => apiDelete(`interdisciplinary-projects/${id}`),
 
   joinProject: (projectId: string, courseAssignmentId: string) =>
     apiPost<Contribution>(`interdisciplinary-projects/${projectId}/contributions`, { courseAssignmentId }),

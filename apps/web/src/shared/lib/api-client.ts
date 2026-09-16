@@ -81,8 +81,8 @@ export async function apiGet<T>(url: string, params?: Record<string, string | nu
   return apiClient.get(url, { searchParams }).json<T>()
 }
 
-export async function apiPost<T>(url: string, data?: unknown): Promise<T> {
-  return apiClient.post(url, { json: data }).json<T>()
+export async function apiPost<T>(url: string, data?: unknown, options?: { timeout?: number }): Promise<T> {
+  return apiClient.post(url, { json: data, timeout: options?.timeout ?? 30000 }).json<T>()
 }
 
 export async function apiPut<T>(url: string, data?: unknown): Promise<T> {

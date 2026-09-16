@@ -581,16 +581,67 @@ export const DEFAULT_QUALITATIVE_SUBJECTS = [
   'Animación a la lectura',
 ] as const
 
-// Asistente IA de planificaciones — apagado por defecto, el admin lo activa
-// explícitamente desde Configuración. Modelo barato por defecto (tarea de
-// completar plantilla, no razonamiento profundo).
 /** Días de prueba de una institución nueva. */
 export const TRIAL_DAYS = 30
 
+// Asistente IA de planificaciones — apagado por defecto, el admin lo activa
+// explícitamente desde Configuración. Sonnet por defecto: redactar actividades,
+// estrategias DUA y recursos con calidad pedagógica real necesita más capacidad
+// que Haiku (que dejaba actividades genéricas/pobres en pruebas reales).
 export const DEFAULT_AI_CONFIG = {
   enabled: false,
-  model: 'claude-haiku-4-5',
+  model: 'claude-sonnet-4-6',
   monthlyTokenCap: 2_000_000,
+} as const
+
+// Formato del PDF de Planificación Microcurricular tal como sale hoy (mismos
+// valores que microcurricular-pdf.service.ts tenía hardcodeados). Cada
+// institución pide su propio look (colores, marca de agua, nombres de fase,
+// orden de saberes/secciones) — este default reproduce exactamente lo que ya
+// existía antes de hacerlo configurable, para no romper a nadie en el cambio.
+// Nombres de fase: "Inicio/Desarrollo/Cierre" — pedido explícito del usuario
+// ("NO USAMOS ANTICIPACION AHORA ES INICIO..."), calcado de la terminología de
+// TIGA (methodology_phase_labels.py). Las claves internas (anticipacion/
+// construccionConocimiento/consolidacion) NO cambian — son las que usa la BD y
+// el motor determinista — solo cambia lo que el docente VE. Como es un default
+// (fallback en extractMicrocurricularTemplate), instituciones que no hayan
+// personalizado su plantilla ven el cambio de inmediato sin migración.
+//
+// topHeaderColor/topHeaderTextColor, headerColor/headerTextColor y
+// headerColor2/headerColor2TextColor son los 3 pares de color independientes
+// (encabezado superior con institución/año lectivo, bandas de sección
+// genéricas, sub-encabezados de tabla) — antes solo existían headerColor y
+// headerColor2 (2 pares) y el encabezado superior no tenía fondo ni color de
+// texto configurable (blanco/negro fijo). watermarkOpacity/watermarkScope
+// reproducen el comportamiento HOY: opacidad fija al 7% y la marca de agua
+// solo se dibujaba una vez antes del contenido (nunca se repetía en páginas
+// siguientes) — no era una decisión consciente, era lo único que hacía el
+// código, así que el default preserva "first_page_only" para no romper a
+// instituciones existentes.
+export const DEFAULT_MICROCURRICULAR_TEMPLATE = {
+  topHeaderColor: '#FFFFFF',
+  topHeaderTextColor: '#111111',
+  headerColor: '#1F4E78',
+  headerTextColor: '#111111',
+  headerColor2: '#D9EAF7',
+  headerColor2TextColor: '#111111',
+  watermarkEnabled: false,
+  watermarkOpacity: 0.07,
+  watermarkScope: 'first_page_only',
+  phaseLabels: {
+    anticipacion: 'INICIO',
+    construccionConocimiento: 'DESARROLLO',
+    consolidacion: 'CIERRE',
+  },
+  saberesOrder: ['declarativo', 'procedimental', 'actitudinal'],
+  // weekLayout solo aplica al modelo por DESTREZAS — el modelo por COMPETENCIAS
+  // siempre usa una sola tabla de 3 columnas por semana (formato CNC/TIGA fijo,
+  // ver drawCompetencyWeekTable en microcurricular-pdf.service.ts), sin importar
+  // esta opción.
+  weekLayout: 'table_per_week',
+  sectionOrder: ['datos_informativos', 'situacion_aprendizaje', 'conexion_interdisciplinar', 'semanas'],
+  hiddenSections: [],
+  headerBannerUrl: null,
 } as const
 
 export interface BootstrapAdminInput {

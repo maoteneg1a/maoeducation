@@ -95,3 +95,107 @@ export interface ListReinforcementPlansQuery {
   courseAssignmentId: string
   academicPeriodId: string
 }
+
+// ─── Flujo completo de refuerzo pedagógico (motor TIGA) ────────────────────
+// Máquina de estados DETECTED→PLANNED→IN_REINFORCEMENT→EVALUATED→
+// {CLOSED|CONTINUES_REINFORCEMENT} sobre el mismo ReinforcementPlan (planType
+// "academico"). Ver apps/api/src/shared/domain/reinforcement-domain.ts y
+// reinforcement-planning-engine.ts.
+
+export interface CreateReinforcementCaseDto {
+  studentIds: string[]
+  courseAssignmentId: string
+  academicPeriodId: string
+  // Snapshot neutral del aprendizaje a reforzar — normalmente viene del candidato
+  // detectado automáticamente (destreza/competencia + promedio bajo umbral).
+  learningTarget: {
+    title: string
+    description: string
+    activities?: string[]
+    evidence?: string
+  }
+  curriculumSkillId?: string
+  competencyId?: string
+  evaluationInstrument?: string
+  evaluationObservedResult?: string
+  detectionSourceCode: string
+  detectionObservation: string
+  detectionEvidenceValue?: string
+  detectionPeriod?: string
+  detectionInitialResult?: string
+  detectionEvidenceOrigin?: string
+  psychopedagogicalReportExists?: boolean
+  psychopedagogicalAuthorityReference?: string
+  needCodes: string[]
+  needObservation?: string
+  mode?: 'INDIVIDUAL' | 'GROUP'
+  teacherConfirmsGroup?: boolean
+  reinforcementDurationWeeks: number
+  reinforcementFrequency?: string
+}
+
+export interface EditReinforcementProposalDto {
+  learningToReinforce?: string
+  objective?: string
+  activeStrategy?: string
+  concreteActivity?: string
+  resource?: string
+  evidence?: string
+  evaluation?: string
+  durationFrequency?: string
+  expectedResult?: string
+}
+
+export interface AddReinforcementCommunicationDto {
+  mediumCode: string
+  recipient?: string
+  text?: string
+  date?: string
+}
+
+export interface AddReinforcementCommitmentDto {
+  commitmentCode: string
+  responsible?: string
+  targetDate?: string
+  note?: string
+}
+
+export interface AddReinforcementFollowUpDto {
+  strategyApplied: string
+  evidence: string
+  observation: string
+  date?: string
+  activityApplied?: string
+  supportOrAdjustment?: string
+  observedProgress?: string
+  persistentDifficulty?: string
+  nextAction?: string
+}
+
+export interface ReinforcementOutcomeDto {
+  studentId: string
+  result: 'CONSOLIDATED' | 'NOT_CONSOLIDATED'
+  assessmentValue?: string
+  observation?: string
+}
+
+export interface ReevaluateReinforcementCaseDto {
+  evaluation: string
+  outcomes: ReinforcementOutcomeDto[]
+  persistentDifficulty?: boolean
+  date?: string
+  initialResult?: string
+  subsequentResult?: string
+  observedProgress?: string
+  evidence?: string
+  pedagogicalDecision?: string
+}
+
+export interface ConfirmReinforcementOutcomeDto {
+  close: boolean
+}
+
+export interface CreateNextReinforcementCycleDto {
+  detectionPeriod?: string
+  initialResult?: string
+}

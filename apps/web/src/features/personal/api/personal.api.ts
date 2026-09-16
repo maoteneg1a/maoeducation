@@ -14,10 +14,16 @@ export interface PersonalSetupDto {
   yearStart: string
   yearEnd: string
   workspaceName?: string
-  subjectName?: string
+  /** subject-first: una sola materia, elegida del catálogo oficial de áreas (destrezas o competencias). */
+  subjectAreaId?: string
   groups?: Array<{ name: string }>
   parallelName?: string
-  subjectNames?: string[]
+  /** classroom-first: varias materias, elegidas del catálogo oficial de áreas (destrezas o competencias). */
+  subjectAreaIds?: string[]
+  /** Subnivel MINEDUC — filtra qué competencias/destrezas se ofrecen luego al planificar. */
+  subnivel?: string
+  /** Modelo de planificación curricular a fijar de una vez para esta cuenta. */
+  planningModel?: 'destrezas' | 'competencias'
 }
 
 export interface BulkCreateStudentsDto {

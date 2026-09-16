@@ -2,7 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/shared/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
-import { settingsApi, type AiConfig, type GradingConfig, type InstitutionSettings, type PlanningModel } from '../api/settings.api'
+import {
+  settingsApi,
+  type AiConfig,
+  type GradingConfig,
+  type InstitutionSettings,
+  type MicrocurricularTemplateConfig,
+  type PlanningModel,
+} from '../api/settings.api'
 import type { InstitutionBranding } from '@/store/auth.store'
 
 export const settingsKeys = {
@@ -10,14 +17,21 @@ export const settingsKeys = {
   gradingConfig: ['grading-config'] as const,
   aiConfig: ['ai-config'] as const,
   planningModel: ['planning-model'] as const,
+  microcurricularTemplate: ['microcurricular-template'] as const,
 }
 
 function syncStore(settings: InstitutionSettings) {
+  // Preserva accountType/setupComplete/modules ya cargados en el store — este
+  // endpoint solo devuelve id/name/branding, así que sobreescribir el objeto
+  // completo perdería el estado del gate de cuentas personales (PrivateRoute).
+  const current = useAuthStore.getState().user?.institution
   useAuthStore.getState().setInstitution({
     id: settings.id,
     name: settings.name,
     branding: settings.branding,
-    modules: null,
+    modules: current?.modules ?? null,
+    accountType: current?.accountType ?? null,
+    setupComplete: current?.setupComplete ?? true,
   })
 }
 
@@ -71,6 +85,49 @@ export function useUpdateGradingConfig() {
     onSuccess: (config) => {
       qc.setQueryData(settingsKeys.gradingConfig, config)
       toast.success('Configuración de calificación guardada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useMicrocurricularTemplate() {
+  return useQuery({
+    queryKey: settingsKeys.microcurricularTemplate,
+    queryFn: settingsApi.getMicrocurricularTemplate,
+  })
+}
+
+export function useUpdateMicrocurricularTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Partial<MicrocurricularTemplateConfig>) => settingsApi.updateMicrocurricularTemplate(data),
+    onSuccess: (config) => {
+      qc.setQueryData(settingsKeys.microcurricularTemplate, config)
+      toast.success('Formato de planificación guardado')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useUploadHeaderBanner() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => settingsApi.uploadHeaderBanner(file),
+    onSuccess: ({ template }) => {
+      qc.setQueryData(settingsKeys.microcurricularTemplate, template)
+      toast.success('Banner de encabezado actualizado')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useRemoveHeaderBanner() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => settingsApi.removeHeaderBanner(),
+    onSuccess: ({ template }) => {
+      qc.setQueryData(settingsKeys.microcurricularTemplate, template)
+      toast.success('Banner de encabezado eliminado')
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
