@@ -20,51 +20,44 @@ const userRepo = new PrismaAuthUserRepository()
 const VALID_SUBNIVELES = ['inicial', 'preparatoria', 'elemental', 'media', 'superior', 'bgu']
 
 /**
- * Match best-effort del nombre libre de materia que escribe el profesor contra
- * los códigos oficiales de área (banco de destrezas y de competencias comparten
- * los mismos códigos MINEDUC: M, LL, CN, CS, ECA, EF, EFL, EG...). Así, al crear
- * la materia en el wizard, queda vinculada al área correcta sin que el profesor
- * tenga que ir a Configuración > Materias a enlazarla manualmente — condición
- * para que "planificación sea solo apretar botones".
+ * El wizard nunca deja escribir el nombre de una materia a mano: el profesor
+ * elige de un catálogo oficial (banco de destrezas o de competencias, según
+ * el planningModel del paso "Currículo") y aquí resolvemos el/los área(s)
+ * seleccionadas contra ese catálogo real de la institución — sin heurística
+ * de texto de ningún tipo. El código MINEDUC (M, LL, CN, CS, ECA, EF, EFL,
+ * EG...) es compartido entre ambos bancos, así que además de vincular el área
+ * del modelo elegido, intentamos enlazar también la equivalente del otro
+ * banco por code exacto — no por keywords — para que si el profesor cambia
+ * de planningModel más adelante la materia ya quede enlazada en ambos.
  */
-const SUBJECT_AREA_ALIASES: Array<{ code: string; keywords: string[] }> = [
-  { code: 'M', keywords: ['matematica', 'matemáticas', 'matematicas'] },
-  { code: 'LL', keywords: ['lengua y literatura', 'lenguaje', 'literatura', 'comunicacion'] },
-  { code: 'CN', keywords: ['ciencias naturales', 'naturales', 'biologia'] },
-  { code: 'CS', keywords: ['ciencias sociales', 'estudios sociales', 'sociales', 'historia'] },
-  { code: 'ECA', keywords: ['educacion cultural y artistica', 'artistica', 'arte', 'cultural'] },
-  { code: 'EF', keywords: ['educacion fisica', 'fisica'] },
-  { code: 'EFL', keywords: ['ingles', 'lengua extranjera'] },
-  { code: 'EG', keywords: ['emprendimiento', 'gestion'] },
-]
-
-function normalizeText(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-}
-
-function detectAreaCode(subjectName: string): string | null {
-  const normalized = normalizeText(subjectName)
-  for (const entry of SUBJECT_AREA_ALIASES) {
-    if (entry.keywords.some((kw) => normalized.includes(normalizeText(kw)))) return entry.code
+async function resolveSubjectAreaLinks(
+  institutionId: string,
+  planningModel: 'destrezas' | 'competencias',
+  areaId: string,
+): Promise<{ name: string; curriculumAreaId?: string; competencyAreaId?: string }> {
+  if (planningModel === 'competencias') {
+    const competencyArea = await prisma.competencyArea.findFirst({ where: { id: areaId, institutionId } })
+    if (!competencyArea) throw new NotFoundError('Área de competencias no encontrada en el catálogo de la institución')
+    const curriculumArea = await prisma.curriculumArea.findFirst({
+      where: { institutionId, code: competencyArea.code },
+      select: { id: true },
+    })
+    return {
+      name: competencyArea.name,
+      competencyAreaId: competencyArea.id,
+      ...(curriculumArea ? { curriculumAreaId: curriculumArea.id } : {}),
+    }
   }
-  return null
-}
 
-/** Busca el área (destrezas y/o competencias) que corresponde al nombre libre de una materia y arma los campos a enlazar en el create. */
-async function resolveSubjectAreas(institutionId: string, subjectName: string) {
-  const code = detectAreaCode(subjectName)
-  if (!code) return {}
-
-  const [curriculumArea, competencyArea] = await Promise.all([
-    prisma.curriculumArea.findFirst({ where: { institutionId, code }, select: { id: true } }),
-    prisma.competencyArea.findFirst({ where: { institutionId, code }, select: { id: true } }),
-  ])
-
+  const curriculumArea = await prisma.curriculumArea.findFirst({ where: { id: areaId, institutionId } })
+  if (!curriculumArea) throw new NotFoundError('Área curricular no encontrada en el catálogo de la institución')
+  const competencyArea = await prisma.competencyArea.findFirst({
+    where: { institutionId, code: curriculumArea.code },
+    select: { id: true },
+  })
   return {
-    ...(curriculumArea ? { curriculumAreaId: curriculumArea.id } : {}),
+    name: curriculumArea.name,
+    curriculumAreaId: curriculumArea.id,
     ...(competencyArea ? { competencyAreaId: competencyArea.id } : {}),
   }
 }
@@ -337,12 +330,12 @@ export default async function personalRoutes(app: FastifyInstance) {
       yearStart: string
       yearEnd: string
       workspaceName?: string
-      // subject-first
-      subjectName?: string
+      // subject-first — una sola materia (elegida del catálogo oficial), varios grupos
+      subjectAreaId?: string
       groups?: Array<{ name: string }>
-      // classroom-first
+      // classroom-first — un solo grupo, varias materias (elegidas del catálogo oficial)
       parallelName?: string
-      subjectNames?: string[]
+      subjectAreaIds?: string[]
       // paso de competencias — fijan de una vez el modelo de planificación para
       // que el profesor nunca tenga que tocar Configuración > Calificación.
       subnivel?: string
@@ -362,10 +355,10 @@ export default async function personalRoutes(app: FastifyInstance) {
             yearStart: { type: 'string' },
             yearEnd: { type: 'string' },
             workspaceName: { type: 'string' },
-            subjectName: { type: 'string' },
+            subjectAreaId: { type: 'string' },
             groups: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' } } } },
             parallelName: { type: 'string' },
-            subjectNames: { type: 'array', items: { type: 'string' } },
+            subjectAreaIds: { type: 'array', items: { type: 'string' } },
             subnivel: { type: 'string', enum: VALID_SUBNIVELES },
             planningModel: { type: 'string', enum: ['destrezas', 'competencias'] },
           },
@@ -458,12 +451,35 @@ export default async function personalRoutes(app: FastifyInstance) {
       const assignmentIds: string[] = []
       const subjectIds: string[] = []
       const parallelIds: string[] = []
+      const resolvedPlanningModel: 'destrezas' | 'competencias' =
+        planningModel ?? ((settings.planningModel as 'destrezas' | 'competencias' | undefined) ?? 'destrezas')
 
-      if (profile === 'subject-first' && req.body.subjectName && req.body.groups?.length) {
-        // One subject, multiple parallels
-        const subject = await prisma.subject.create({
-          data: { institutionId, name: req.body.subjectName, ...(await resolveSubjectAreas(institutionId, req.body.subjectName)) },
+      // Reusa una materia existente con el mismo área en vez de duplicarla si el
+      // profesor ya la había creado antes (ej. reintenta el wizard, o eligió la
+      // misma área en ambos perfiles) — el catálogo de áreas es fijo por
+      // institución, así que dos Subjects con la misma área serían redundantes.
+      async function getOrCreateSubjectForArea(areaId: string) {
+        const { name, curriculumAreaId, competencyAreaId } = await resolveSubjectAreaLinks(
+          institutionId,
+          resolvedPlanningModel,
+          areaId,
+        )
+        const existing = await prisma.subject.findFirst({
+          where: {
+            institutionId,
+            ...(curriculumAreaId ? { curriculumAreaId } : {}),
+            ...(competencyAreaId ? { competencyAreaId } : {}),
+          },
         })
+        if (existing) return existing
+        return prisma.subject.create({
+          data: { institutionId, name, curriculumAreaId, competencyAreaId },
+        })
+      }
+
+      if (profile === 'subject-first' && req.body.subjectAreaId && req.body.groups?.length) {
+        // One subject (del catálogo oficial), multiple parallels
+        const subject = await getOrCreateSubjectForArea(req.body.subjectAreaId)
         subjectIds.push(subject.id)
 
         for (const g of req.body.groups) {
@@ -477,17 +493,15 @@ export default async function personalRoutes(app: FastifyInstance) {
           })
           assignmentIds.push(assignment.id)
         }
-      } else if (profile === 'classroom-first' && req.body.parallelName && req.body.subjectNames?.length) {
-        // One parallel, multiple subjects
+      } else if (profile === 'classroom-first' && req.body.parallelName && req.body.subjectAreaIds?.length) {
+        // One parallel, multiple subjects (cada una del catálogo oficial)
         const parallel = await prisma.parallel.create({
           data: { institutionId, name: req.body.parallelName, levelId: level.id, academicYearId: year.id },
         })
         parallelIds.push(parallel.id)
 
-        for (const sName of req.body.subjectNames) {
-          const subject = await prisma.subject.create({
-            data: { institutionId, name: sName, ...(await resolveSubjectAreas(institutionId, sName)) },
-          })
+        for (const areaId of req.body.subjectAreaIds) {
+          const subject = await getOrCreateSubjectForArea(areaId)
           subjectIds.push(subject.id)
 
           const assignment = await prisma.courseAssignment.create({
