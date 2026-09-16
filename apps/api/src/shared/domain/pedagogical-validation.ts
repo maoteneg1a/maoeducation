@@ -58,12 +58,19 @@ function isResourceJustified(resource: string, activity: string): boolean {
   return false
 }
 
+export interface GeneratedResourceLink {
+  kind: 'web_search' | 'generate_document'
+  resolvedUrl?: string
+  documentSpec?: unknown
+}
+
 export interface GeneratedPhaseActivity {
   phase: PedagogicalPhase
   activity: string
   duaCodes: string[]
   resources: string[]
   evidence: string
+  resourceLink?: GeneratedResourceLink
 }
 
 export interface GeneratedAssessment {
@@ -129,6 +136,18 @@ export function validateGeneratedPedagogy(
     }
     if (!item.evidence || typeof item.evidence !== 'string' || item.evidence.trim() === item.activity.trim()) {
       errors.push(`${item.phase}_EVIDENCE_NOT_OBSERVABLE`)
+    }
+    // resourceLink es opcional, pero si el modelo lo incluye, cada kind exige su
+    // dato correspondiente — un resourceLink incompleto pierde el link en
+    // silencio (resolveResourceLinkText simplemente lo omite), así que mejor
+    // rechazar y reintentar en vez de dejarlo pasar a medias.
+    if (item.resourceLink) {
+      if (item.resourceLink.kind === 'web_search' && !item.resourceLink.resolvedUrl) {
+        errors.push(`${item.phase}_RESOURCE_LINK_MISSING_URL`)
+      }
+      if (item.resourceLink.kind === 'generate_document' && !item.resourceLink.documentSpec) {
+        errors.push(`${item.phase}_RESOURCE_LINK_MISSING_SPEC`)
+      }
     }
   }
 
