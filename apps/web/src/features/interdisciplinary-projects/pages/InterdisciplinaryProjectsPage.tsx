@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Puzzle, Plus } from 'lucide-react'
+import { Puzzle, Plus, Sparkles } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { Card } from '@/shared/components/ui/card'
@@ -14,7 +14,9 @@ import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { useAcademicYears, useParallels, usePeriods } from '@/features/academic/hooks/useAcademic'
 import { useAuthStore } from '@/store/auth.store'
 import { usePermissions } from '@/shared/hooks/usePermissions'
-import { useProjects, useCreateProject } from '../hooks/useInterdisciplinaryProjects'
+import {
+  useProjects, useCreateProject, useEligibleSituations, useDraftProjectFromSituation,
+} from '../hooks/useInterdisciplinaryProjects'
 import type { InterdisciplinaryProjectStatus } from '../api/interdisciplinary-project.api'
 
 const STATUS_LABEL: Record<InterdisciplinaryProjectStatus, { label: string; variant: 'success' | 'warning' | 'secondary' }> = {
@@ -77,6 +79,18 @@ export function InterdisciplinaryProjectsPage() {
     )
   }
 
+  // ─── Generar con IA a partir de una situación de aprendizaje ────────────
+  const { data: eligibleSituations = [] } = useEligibleSituations(parallelId || undefined, periodId || undefined)
+  const draftFromSituation = useDraftProjectFromSituation()
+  const [situationId, setSituationId] = React.useState('')
+
+  const handleGenerateWithAi = () => {
+    if (!situationId) return
+    draftFromSituation.mutate(situationId, {
+      onSuccess: (project) => navigate(`/interdisciplinary-projects/${project.id}`),
+    })
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div>
@@ -126,6 +140,34 @@ export function InterdisciplinaryProjectsPage() {
         <EmptyState icon={Puzzle} title="Selecciona paralelo y periodo" description="Verás los proyectos interdisciplinarios de ese paralelo y podrás crear uno nuevo." />
       ) : (
         <>
+          {eligibleSituations.length > 0 && (
+            <Card className="flex flex-col gap-3 border-primary/30 bg-primary/5 p-4 sm:flex-row sm:items-end">
+              <div className="flex-1 space-y-1.5">
+                <Label className="flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  Generar con IA desde una situación de aprendizaje
+                </Label>
+                <Select value={situationId} onValueChange={setSituationId}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona una situación con conexión interdisciplinar" /></SelectTrigger>
+                  <SelectContent>
+                    {eligibleSituations.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.title} ({s._count?.weeks ?? 0} semanas)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Se generará el reto, contexto, propósito, producto final y el aporte + semanas de cada asignatura marcada como interdisciplinar en esa situación.
+                </p>
+              </div>
+              <Button onClick={handleGenerateWithAi} disabled={!situationId} loading={draftFromSituation.isPending} variant="default">
+                <Sparkles className="h-4 w-4" />
+                Generar con IA
+              </Button>
+            </Card>
+          )}
+
           <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
             <div className="flex-1 space-y-1.5">
               <Label>Título del proyecto</Label>
@@ -135,9 +177,9 @@ export function InterdisciplinaryProjectsPage() {
               <Label>N.º de semanas</Label>
               <Input type="number" min={1} value={newWeeksCount} onChange={(e) => setNewWeeksCount(e.target.value)} />
             </div>
-            <Button onClick={handleCreate} disabled={!newTitle.trim()} loading={createProject.isPending}>
+            <Button onClick={handleCreate} disabled={!newTitle.trim()} loading={createProject.isPending} variant="outline">
               <Plus className="h-4 w-4" />
-              Crear proyecto
+              Crear manualmente
             </Button>
           </Card>
 
