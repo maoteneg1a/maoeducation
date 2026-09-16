@@ -100,10 +100,31 @@ export interface PhaseLabels {
   consolidacion: string
 }
 
+/** Alcance de la marca de agua en el documento generado:
+ *  - all_pages: se repite en cada página (se escucha 'pageAdded' de PDFKit).
+ *  - first_page_only: solo en la primera página — comportamiento histórico,
+ *    antes de que esto fuera configurable (ver microcurricular-pdf.service.ts). */
+export type WatermarkScope = 'all_pages' | 'first_page_only'
+
 export interface MicrocurricularTemplateConfig {
+  /** Fondo del encabezado superior (nombre de institución + año lectivo). */
+  topHeaderColor: string
+  /** Color de texto del encabezado superior. */
+  topHeaderTextColor: string
+  /** Fondo de las bandas de sección genéricas (Datos informativos, Situación de
+   *  aprendizaje, Conexión interdisciplinar, SEMANAS, título "Saberes"...). */
   headerColor: string
+  /** Color de texto sobre `headerColor`. */
+  headerTextColor: string
+  /** Fondo de los sub-encabezados (tabla de saberes: Indicadores/D/P/A; tabla de
+   *  metodología semanal por semana/filas; pie de firmas). */
   headerColor2: string
+  /** Color de texto sobre `headerColor2`. */
+  headerColor2TextColor: string
   watermarkEnabled: boolean
+  /** Opacidad de la marca de agua, de 0 a 1. */
+  watermarkOpacity: number
+  watermarkScope: WatermarkScope
   phaseLabels: PhaseLabels
   saberesOrder: SaberType[]
   weekLayout: WeekLayout
@@ -112,9 +133,15 @@ export interface MicrocurricularTemplateConfig {
 }
 
 export interface UpdateMicrocurricularTemplateDto {
+  topHeaderColor?: string
+  topHeaderTextColor?: string
   headerColor?: string
+  headerTextColor?: string
   headerColor2?: string
+  headerColor2TextColor?: string
   watermarkEnabled?: boolean
+  watermarkOpacity?: number
+  watermarkScope?: WatermarkScope
   phaseLabels?: Partial<PhaseLabels>
   saberesOrder?: SaberType[]
   weekLayout?: WeekLayout

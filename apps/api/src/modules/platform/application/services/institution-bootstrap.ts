@@ -603,10 +603,28 @@ export const DEFAULT_AI_CONFIG = {
 // el motor determinista — solo cambia lo que el docente VE. Como es un default
 // (fallback en extractMicrocurricularTemplate), instituciones que no hayan
 // personalizado su plantilla ven el cambio de inmediato sin migración.
+//
+// topHeaderColor/topHeaderTextColor, headerColor/headerTextColor y
+// headerColor2/headerColor2TextColor son los 3 pares de color independientes
+// (encabezado superior con institución/año lectivo, bandas de sección
+// genéricas, sub-encabezados de tabla) — antes solo existían headerColor y
+// headerColor2 (2 pares) y el encabezado superior no tenía fondo ni color de
+// texto configurable (blanco/negro fijo). watermarkOpacity/watermarkScope
+// reproducen el comportamiento HOY: opacidad fija al 7% y la marca de agua
+// solo se dibujaba una vez antes del contenido (nunca se repetía en páginas
+// siguientes) — no era una decisión consciente, era lo único que hacía el
+// código, así que el default preserva "first_page_only" para no romper a
+// instituciones existentes.
 export const DEFAULT_MICROCURRICULAR_TEMPLATE = {
+  topHeaderColor: '#FFFFFF',
+  topHeaderTextColor: '#111111',
   headerColor: '#1F4E78',
+  headerTextColor: '#111111',
   headerColor2: '#D9EAF7',
+  headerColor2TextColor: '#111111',
   watermarkEnabled: false,
+  watermarkOpacity: 0.07,
+  watermarkScope: 'first_page_only',
   phaseLabels: {
     anticipacion: 'INICIO',
     construccionConocimiento: 'DESARROLLO',

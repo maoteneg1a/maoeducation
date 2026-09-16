@@ -81,9 +81,9 @@ function fmtDate(d: Date | null): string {
 
 type Doc = InstanceType<typeof PDFDocument>
 
-/** Título de sección con banda de ancho completo — color configurable por institución. */
-function drawSectionBand(doc: Doc, x0: number, width: number, text: string, color: string) {
-  drawRow(doc, x0, [{ text, width, bold: true, fill: color, align: 'center' }])
+/** Título de sección con banda de ancho completo — fondo y texto configurables por institución. */
+function drawSectionBand(doc: Doc, x0: number, width: number, text: string, color: string, textColor: string) {
+  drawRow(doc, x0, [{ text, width, bold: true, fill: color, align: 'center', textColor }])
 }
 
 /**
@@ -101,7 +101,9 @@ function drawSaberesTable(
   indicadores: string,
   columns: { label: string; text: string }[],
   headerColor: string,
+  headerTextColor: string,
   headerColor2: string,
+  headerColor2TextColor: string,
 ) {
   const indicW = fullWidth * 0.22
   const colW = (fullWidth - indicW) / columns.length
@@ -119,22 +121,22 @@ function drawSaberesTable(
   doc.lineWidth(0.75).strokeColor('#333333').rect(x0, y0, indicW, totalRowspanHeight).stroke()
   doc.save().fillColor(headerColor2).rect(x0, y0, indicW, headerH).fill().restore()
   doc.lineWidth(0.75).strokeColor('#333333').rect(x0, y0, indicW, headerH).stroke()
-  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#111111').text('Indicadores de evaluación', x0 + 4, y0 + 4, {
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor(headerColor2TextColor).text('Indicadores de evaluación', x0 + 4, y0 + 4, {
     width: indicW - 8,
     align: 'center',
   })
-  doc.font('Helvetica').fontSize(8.5).text(indicadores, x0 + 4, y0 + headerH + subHeaderH + 4, { width: indicW - 8 })
+  doc.font('Helvetica').fontSize(8.5).fillColor('#111111').text(indicadores, x0 + 4, y0 + headerH + subHeaderH + 4, { width: indicW - 8 })
 
   const saberesW = fullWidth - indicW
   doc.save().fillColor(headerColor).rect(x0 + indicW, y0, saberesW, headerH).fill().restore()
   doc.lineWidth(0.75).strokeColor('#333333').rect(x0 + indicW, y0, saberesW, headerH).stroke()
-  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#111111').text('Saberes', x0 + indicW, y0 + 4, { width: saberesW, align: 'center' })
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor(headerTextColor).text('Saberes', x0 + indicW, y0 + 4, { width: saberesW, align: 'center' })
 
   let x = x0 + indicW
   for (const col of columns) {
     doc.save().fillColor(headerColor2).rect(x, y0 + headerH, colW, subHeaderH).fill().restore()
     doc.lineWidth(0.75).strokeColor('#333333').rect(x, y0 + headerH, colW, subHeaderH).stroke()
-    doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#111111').text(col.label, x + 4, y0 + headerH + 4, {
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(headerColor2TextColor).text(col.label, x + 4, y0 + headerH + 4, {
       width: colW - 8,
       align: 'center',
     })
@@ -159,12 +161,13 @@ function drawWeekMethodologyPerWeek(
   week: MicrocurricularWeek,
   phaseLabels: MicrocurricularTemplateConfig['phaseLabels'],
   headerColor2: string,
+  headerColor2TextColor: string,
 ) {
   const colW = fullWidth / 3
   drawRow(doc, x0, [
-    { text: 'Estrategias metodológicas desde el DUA', width: colW, bold: true, fill: headerColor2, align: 'center' },
-    { text: 'Recursos', width: colW, bold: true, fill: headerColor2, align: 'center' },
-    { text: 'Actividad Evaluativa / Técnicas e instrumentos de evaluación', width: colW, bold: true, fill: headerColor2, align: 'center' },
+    { text: 'Estrategias metodológicas desde el DUA', width: colW, bold: true, fill: headerColor2, align: 'center', textColor: headerColor2TextColor },
+    { text: 'Recursos', width: colW, bold: true, fill: headerColor2, align: 'center', textColor: headerColor2TextColor },
+    { text: 'Actividad Evaluativa / Técnicas e instrumentos de evaluación', width: colW, bold: true, fill: headerColor2, align: 'center', textColor: headerColor2TextColor },
   ])
   for (const key of PHASE_KEYS) {
     const moment = week.momentos[key] ?? {}
@@ -190,12 +193,13 @@ function drawWeekMethodologyRowsTable(
   weeks: MicrocurricularWeek[],
   phaseLabels: MicrocurricularTemplateConfig['phaseLabels'],
   headerColor2: string,
+  headerColor2TextColor: string,
 ) {
   const colW = fullWidth / 3
   drawRow(doc, x0, [
-    { text: 'Estrategias metodológicas desde el DUA', width: colW, bold: true, fill: headerColor2, align: 'center' },
-    { text: 'Recursos', width: colW, bold: true, fill: headerColor2, align: 'center' },
-    { text: 'Actividad Evaluativa / Técnicas e instrumentos de evaluación', width: colW, bold: true, fill: headerColor2, align: 'center' },
+    { text: 'Estrategias metodológicas desde el DUA', width: colW, bold: true, fill: headerColor2, align: 'center', textColor: headerColor2TextColor },
+    { text: 'Recursos', width: colW, bold: true, fill: headerColor2, align: 'center', textColor: headerColor2TextColor },
+    { text: 'Actividad Evaluativa / Técnicas e instrumentos de evaluación', width: colW, bold: true, fill: headerColor2, align: 'center', textColor: headerColor2TextColor },
   ])
   for (const week of weeks) {
     const weekLabel = `SEMANA ${week.weekNumber}${week.name ? ` — ${week.name}` : ''}`
@@ -410,10 +414,32 @@ export function buildMicrocurricularPdf(
     const x0 = doc.page.margins.left
     const fullWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right
     const half = fullWidth / 2
-    const { headerColor, headerColor2, phaseLabels, saberesOrder, weekLayout, sectionOrder, hiddenSections } = template
+    const {
+      topHeaderColor,
+      topHeaderTextColor,
+      headerColor,
+      headerTextColor,
+      headerColor2,
+      headerColor2TextColor,
+      phaseLabels,
+      saberesOrder,
+      weekLayout,
+      sectionOrder,
+      hiddenSections,
+    } = template
 
     const logo = resolveLogo(data.logoUrl)
-    if (template.watermarkEnabled) drawWatermark(doc, logo)
+    // Marca de agua: si el alcance es "all_pages", se redibuja en cada página
+    // nueva vía el evento 'pageAdded' de PDFKit (se dispara ANTES de que se
+    // agregue contenido a esa página, así que no tapa nada). "first_page_only"
+    // (default histórico) solo la dibuja una vez, antes del contenido de la
+    // página 1 — nunca se repite en páginas siguientes.
+    if (template.watermarkEnabled) {
+      drawWatermark(doc, logo, template.watermarkOpacity)
+      if (template.watermarkScope === 'all_pages') {
+        doc.on('pageAdded', () => drawWatermark(doc, logo, template.watermarkOpacity))
+      }
+    }
 
     // ── Encabezado con logo ──
     const logoW = logo ? 50 : 0
@@ -431,14 +457,14 @@ export function buildMicrocurricularPdf(
     doc.moveDown(0.5)
 
     drawRow(doc, x0, [
-      { text: data.institutionName.toUpperCase(), width: half, bold: true },
-      { text: `Año lectivo: ${data.yearName}`, width: half, bold: true, align: 'center' },
+      { text: data.institutionName.toUpperCase(), width: half, bold: true, fill: topHeaderColor, textColor: topHeaderTextColor },
+      { text: `Año lectivo: ${data.yearName}`, width: half, bold: true, align: 'center', fill: topHeaderColor, textColor: topHeaderTextColor },
     ])
-    drawSectionBand(doc, x0, fullWidth, 'Planificación Microcurricular', headerColor)
+    drawSectionBand(doc, x0, fullWidth, 'Planificación Microcurricular', headerColor, headerTextColor)
 
     const drawSection: Record<string, () => void> = {
       datos_informativos: () => {
-        drawSectionBand(doc, x0, fullWidth, SECTION_LABEL.datos_informativos, headerColor)
+        drawSectionBand(doc, x0, fullWidth, SECTION_LABEL.datos_informativos, headerColor, headerTextColor)
         drawRow(doc, x0, [
           { text: 'Docente:', width: fullWidth * 0.15, bold: true },
           { text: data.teacherName, width: fullWidth * 0.85 },
@@ -457,7 +483,7 @@ export function buildMicrocurricularPdf(
         ])
       },
       situacion_aprendizaje: () => {
-        drawSectionBand(doc, x0, fullWidth, SECTION_LABEL.situacion_aprendizaje, headerColor)
+        drawSectionBand(doc, x0, fullWidth, SECTION_LABEL.situacion_aprendizaje, headerColor, headerTextColor)
         drawRow(doc, x0, [
           { text: 'Título:', width: fullWidth * 0.18, bold: true },
           { text: data.situationTitle, width: fullWidth * 0.82 },
@@ -473,7 +499,7 @@ export function buildMicrocurricularPdf(
         // propio docente, mínimo 2 para contar como conexión interdisciplinar).
         const names = data.interdisciplinarySubjectNames?.length ? data.interdisciplinarySubjectNames : data.interdisciplinaryAreaNames
         if (names.length === 0) return
-        drawSectionBand(doc, x0, fullWidth, SECTION_LABEL.conexion_interdisciplinar, headerColor)
+        drawSectionBand(doc, x0, fullWidth, SECTION_LABEL.conexion_interdisciplinar, headerColor, headerTextColor)
         drawRow(doc, x0, [
           { text: 'Asignaturas:', width: fullWidth * 0.25, bold: true },
           { text: names.join(', '), width: fullWidth * 0.75 },
@@ -504,7 +530,7 @@ export function buildMicrocurricularPdf(
           const joinSaberes = (list: MicrocurricularWeek['saberes']) => list.map((s) => `${s.code}: ${s.description}`).join('\n')
 
           if (competencyTextsDelPeriodo.length) {
-            drawSectionBand(doc, x0, fullWidth, 'Competencias específicas del período', headerColor)
+            drawSectionBand(doc, x0, fullWidth, 'Competencias específicas del período', headerColor, headerTextColor)
             drawRow(doc, x0, [{ text: competencyTextsDelPeriodo.join('\n'), width: fullWidth }])
           }
           if (saberesDelPeriodo.size > 0) {
@@ -515,12 +541,14 @@ export function buildMicrocurricularPdf(
               indicadoresDelPeriodo.join('\n'),
               saberesOrder.map((t) => ({ label: SABER_LABEL[t], text: joinSaberes(bySaberType(t)) })),
               headerColor,
+              headerTextColor,
               headerColor2,
+              headerColor2TextColor,
             )
             doc.moveDown(0.4)
           }
 
-          drawSectionBand(doc, x0, fullWidth, 'SEMANAS', headerColor)
+          drawSectionBand(doc, x0, fullWidth, 'SEMANAS', headerColor, headerTextColor)
           for (const week of data.weeks) {
             drawCompetencyWeekHeader(doc, x0, fullWidth, week)
             drawCompetencyWeekTable(doc, x0, fullWidth, week)
@@ -530,9 +558,9 @@ export function buildMicrocurricularPdf(
         }
 
         if (weekLayout === 'rows_in_single_table') {
-          drawSectionBand(doc, x0, fullWidth, 'SEMANAS', headerColor)
+          drawSectionBand(doc, x0, fullWidth, 'SEMANAS', headerColor, headerTextColor)
           for (const week of data.weeks) {
-            drawSectionBand(doc, x0, fullWidth, 'Competencias específicas', headerColor)
+            drawSectionBand(doc, x0, fullWidth, 'Competencias específicas', headerColor, headerTextColor)
             drawRow(doc, x0, [{ text: week.competenciasEspecificas ?? '', width: fullWidth }])
             const bySaberType = (t: SaberType) => week.saberes.filter((s) => s.type === t)
             const joinSaberes = (list: MicrocurricularWeek['saberes']) => list.map((s) => `${s.code}: ${s.description}`).join('\n')
@@ -543,10 +571,12 @@ export function buildMicrocurricularPdf(
               week.indicadoresEvaluacion ?? '',
               saberesOrder.map((t) => ({ label: SABER_LABEL[t], text: joinSaberes(bySaberType(t)) })),
               headerColor,
+              headerTextColor,
               headerColor2,
+              headerColor2TextColor,
             )
           }
-          drawWeekMethodologyRowsTable(doc, x0, fullWidth, data.weeks, phaseLabels, headerColor2)
+          drawWeekMethodologyRowsTable(doc, x0, fullWidth, data.weeks, phaseLabels, headerColor2, headerColor2TextColor)
           doc.moveDown(0.4)
           return
         }
@@ -554,9 +584,9 @@ export function buildMicrocurricularPdf(
         for (const week of data.weeks) {
           ensureSpace(doc, 40)
           const weekLabel = `SEMANA ${week.weekNumber}${week.name ? ` — ${week.name}` : ''}`
-          drawSectionBand(doc, x0, fullWidth, weekLabel, headerColor)
+          drawSectionBand(doc, x0, fullWidth, weekLabel, headerColor, headerTextColor)
 
-          drawSectionBand(doc, x0, fullWidth, 'Competencias específicas', headerColor)
+          drawSectionBand(doc, x0, fullWidth, 'Competencias específicas', headerColor, headerTextColor)
           drawRow(doc, x0, [{ text: week.competenciasEspecificas ?? '', width: fullWidth }])
 
           const bySaberType = (t: SaberType) => week.saberes.filter((s) => s.type === t)
@@ -568,10 +598,12 @@ export function buildMicrocurricularPdf(
             week.indicadoresEvaluacion ?? '',
             saberesOrder.map((t) => ({ label: SABER_LABEL[t], text: joinSaberes(bySaberType(t)) })),
             headerColor,
+            headerTextColor,
             headerColor2,
+            headerColor2TextColor,
           )
 
-          drawWeekMethodologyPerWeek(doc, x0, fullWidth, week, phaseLabels, headerColor2)
+          drawWeekMethodologyPerWeek(doc, x0, fullWidth, week, phaseLabels, headerColor2, headerColor2TextColor)
           doc.moveDown(0.4)
         }
       },
@@ -589,7 +621,7 @@ export function buildMicrocurricularPdf(
     drawRow(
       doc,
       x0,
-      data.signatories.map((sig) => ({ text: sig.role.toUpperCase(), width: sigW, bold: true, fill: headerColor2, align: 'center' as const })),
+      data.signatories.map((sig) => ({ text: sig.role.toUpperCase(), width: sigW, bold: true, fill: headerColor2, textColor: headerColor2TextColor, align: 'center' as const })),
     )
     drawRow(
       doc,
