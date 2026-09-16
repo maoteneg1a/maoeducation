@@ -25,15 +25,36 @@ export interface DraftWeekResult {
   }
 }
 
+/** Una actividad numerada dentro de una fase — cada una con su propio código DUA (formato CNC/TIGA). */
+export interface CompetencyActivity {
+  text: string
+  duaCode: string
+}
+export interface CompetencyPhase {
+  activities: CompetencyActivity[]
+}
+/** Fases "Inicio/Desarrollo/Cierre" (nombres finales, sin necesidad de mapeo de labels como en destrezas) — recursos y evaluación consolidados UNA vez por semana, no repetidos por fase. */
+export interface CompetencyWeekMomentos {
+  fases: {
+    inicio?: CompetencyPhase
+    desarrollo?: CompetencyPhase
+    cierre?: CompetencyPhase
+  }
+  recursos: string[]
+  recursoLink?: { title: string; url: string }
+  evaluacion: {
+    evidencia: string
+    criterio: string
+    instrumento: string
+    instrumentoLink?: { title: string; url: string }
+  }
+}
+
 export interface DraftCompetencyWeekResult {
   indicadoresEvaluacion: string
   newSabers: DraftedSaber[]
   reusedSaberIds: string[]
-  momentos: {
-    anticipacion: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
-    construccionConocimiento: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
-    consolidacion: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
-  }
+  momentos: CompetencyWeekMomentos
   generationMode: 'AI_ENHANCED' | 'AI_FALLBACK'
   validationErrors: string[]
 }

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, ChevronRight, Check, Save, Sparkles, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Check, Save, Sparkles, Trash2, Plus, X } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { Card } from '@/shared/components/ui/card'
@@ -8,10 +8,10 @@ import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { cn } from '@/shared/lib/utils'
 import { useAiEnabled, useDraftWeek, useDraftCompetencyWeek } from '@/features/ai-assistant/hooks/useAiAssistant'
-import type { DraftCompetencyWeekResult, DraftWeekResult } from '@/features/ai-assistant/api/ai-assistant.api'
+import type { DraftCompetencyWeekResult, DraftWeekResult, CompetencyWeekMomentos as AiCompetencyWeekMomentos } from '@/features/ai-assistant/api/ai-assistant.api'
 import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { useUpdateWeek, useDeleteWeek } from '../hooks/usePlanning'
-import type { PlanningMomentos, PlanningWeek } from '../api/planning.api'
+import type { PlanningMomentos, CompetencyPlanningMomentos, PlanningWeek } from '../api/planning.api'
 import { SkillAndSaberSelector } from './SkillAndSaberSelector'
 import { CompetencyAndSaberSelector } from './CompetencyAndSaberSelector'
 import { CurricularInsertionSuggestions } from '@/features/curricular-insertions/components/CurricularInsertionSuggestions'
@@ -24,16 +24,26 @@ const REVIEW_TABS = [
   { key: 'assessment' as const, label: 'Evaluación' },
 ]
 
+// Terminología del docente: "Inicio / Desarrollo / Cierre" — nunca "Anticipación
+// / Construcción (del Conocimiento) / Consolidación". Las claves internas del
+// modelo por DESTREZAS (anticipacion/construccionConocimiento/consolidacion)
+// siguen igual en la BD/JSON — solo cambia la etiqueta que ve el docente.
 const MOMENT_KEYS = [
-  { key: 'anticipacion' as const, label: 'Anticipación' },
-  { key: 'construccionConocimiento' as const, label: 'Construcción del Conocimiento' },
-  { key: 'consolidacion' as const, label: 'Consolidación' },
+  { key: 'anticipacion' as const, label: 'Inicio' },
+  { key: 'construccionConocimiento' as const, label: 'Desarrollo' },
+  { key: 'consolidacion' as const, label: 'Cierre' },
+]
+
+// El modelo por COMPETENCIAS ya usa estas claves directamente (fases.inicio/desarrollo/cierre).
+const COMPETENCY_PHASES = [
+  { key: 'inicio' as const, label: 'Inicio' },
+  { key: 'desarrollo' as const, label: 'Desarrollo' },
+  { key: 'cierre' as const, label: 'Cierre' },
 ]
 
 const URL_PATTERN = /https?:\/\/\S+/
 
-/** El campo "recursos" es texto libre — cuando la IA embebió un link real (búsqueda
- * web o ficha generada), se muestra como enlace clicable debajo del texto. */
+/** El campo "recursos" (modelo destrezas, texto libre) — cuando la IA embebió un link real, se muestra como enlace clicable debajo del texto. */
 function ResourceLinkPreview({ text }: { text: string | undefined }) {
   const match = text?.match(URL_PATTERN)
   if (!match) return null
@@ -48,6 +58,29 @@ function ResourceLinkPreview({ text }: { text: string | undefined }) {
       Abrir recurso ↗
     </a>
   )
+}
+
+/** Link ya resuelto (modelo competencias) — objeto {title, url}, no texto embebido. */
+function NamedLink({ link, label }: { link: { title: string; url: string } | undefined; label: string }) {
+  if (!link) return null
+  return (
+    <a
+      href={link.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-1 inline-block text-xs font-medium text-primary underline hover:text-primary/80"
+    >
+      {label} ↗
+    </a>
+  )
+}
+
+function emptyCompetencyMomentos(): CompetencyPlanningMomentos {
+  return {
+    fases: { inicio: { activities: [] }, desarrollo: { activities: [] }, cierre: { activities: [] } },
+    recursos: [],
+    evaluacion: { evidencia: '', criterio: '', instrumento: '' },
+  }
 }
 
 interface WeekCardProps {
@@ -77,7 +110,10 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
   const [saberIds, setSaberIds] = React.useState<string[]>(week.saberIds)
   const [competencyIds, setCompetencyIds] = React.useState<string[]>(week.competencyIds)
   const [competencySaberIds, setCompetencySaberIds] = React.useState<string[]>(week.competencySaberIds)
-  const [momentos, setMomentos] = React.useState<PlanningMomentos>(week.momentos ?? {})
+  const [momentos, setMomentos] = React.useState<PlanningMomentos>(!isCompetencyModel ? (week.momentos as PlanningMomentos) ?? {} : {})
+  const [competencyMomentos, setCompetencyMomentos] = React.useState<CompetencyPlanningMomentos>(
+    isCompetencyModel ? ((week.momentos as CompetencyPlanningMomentos) ?? emptyCompetencyMomentos()) : emptyCompetencyMomentos(),
+  )
   const [lastGenerationMode, setLastGenerationMode] = React.useState<'AI_ENHANCED' | 'AI_FALLBACK' | null>(null)
 
   // Flujo "mínimo esfuerzo" (estilo TIGA, 3 etapas): 'select' (solo elegir destreza/
@@ -86,12 +122,17 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
   // 'editing' (tras aprobar, se aplican los valores generados a los campos editables
   // de siempre). Si la IA no está habilitada, se salta directo a 'editing' porque no
   // hay nada que generar ni revisar.
-  const hadContentAlready = !!(
-    week.indicadoresEvaluacion?.trim() ||
-    Object.values(week.momentos ?? {}).some(
-      (m) => m?.estrategiasDua?.trim() || m?.recursos?.trim() || m?.tecnica?.trim() || m?.instrumento?.trim(),
-    )
-  )
+  const hadContentAlready = isCompetencyModel
+    ? !!(
+        week.indicadoresEvaluacion?.trim() ||
+        COMPETENCY_PHASES.some((p) => ((week.momentos as CompetencyPlanningMomentos)?.fases?.[p.key]?.activities ?? []).length > 0)
+      )
+    : !!(
+        week.indicadoresEvaluacion?.trim() ||
+        Object.values((week.momentos as PlanningMomentos) ?? {}).some(
+          (m) => m?.estrategiasDua?.trim() || m?.recursos?.trim() || m?.tecnica?.trim() || m?.instrumento?.trim(),
+        )
+      )
   const [stage, setStage] = React.useState<Stage>(!aiEnabled || hadContentAlready ? 'editing' : 'select')
   const [pendingResult, setPendingResult] = React.useState<DraftWeekResult | DraftCompetencyWeekResult | null>(null)
   const [reviewTab, setReviewTab] = React.useState<(typeof REVIEW_TABS)[number]['key']>('summary')
@@ -129,7 +170,7 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
     if (isCompetencyModel) {
       const result = pendingResult as DraftCompetencyWeekResult
       setIndicadores(result.indicadoresEvaluacion)
-      setMomentos(result.momentos)
+      setCompetencyMomentos(result.momentos as unknown as CompetencyPlanningMomentos)
       setCompetencySaberIds((prev) => [
         ...new Set([...prev, ...result.reusedSaberIds, ...result.newSabers.map((s) => s.id)]),
       ])
@@ -162,6 +203,10 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
     setMomentos((prev) => ({ ...prev, [momentKey]: { ...prev[momentKey], [field]: value } }))
   }
 
+  const setPhaseActivities = (phaseKey: 'inicio' | 'desarrollo' | 'cierre', activities: { text: string; duaCode: string }[]) => {
+    setCompetencyMomentos((prev) => ({ ...prev, fases: { ...prev.fases, [phaseKey]: { activities } } }))
+  }
+
   const handleSave = () => {
     updateWeek.mutate({
       name: name || undefined,
@@ -171,7 +216,7 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
       saberIds,
       competencyIds,
       competencySaberIds,
-      momentos,
+      momentos: isCompetencyModel ? competencyMomentos : momentos,
     })
   }
 
@@ -233,7 +278,7 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
               <p className="text-sm text-muted-foreground">
                 {selectedCount === 0
                   ? `Selecciona al menos una ${isCompetencyModel ? 'competencia' : 'destreza'} arriba para generar el resto de la semana automáticamente.`
-                  : `Con ${selectedCount} ${isCompetencyModel ? 'competencia(s)' : 'destreza(s)'} seleccionada(s), la IA genera ${isCompetencyModel ? 'indicadores, saberes' : 'competencias específicas, indicadores, saberes'} y los 3 momentos DUA — tú solo revisas y ajustas.`}
+                  : `Con ${selectedCount} ${isCompetencyModel ? 'competencia(s)' : 'destreza(s)'} seleccionada(s), la IA genera ${isCompetencyModel ? 'indicadores, saberes' : 'competencias específicas, indicadores, saberes'} y las 3 fases (Inicio/Desarrollo/Cierre) — tú solo revisas y ajustas.`}
               </p>
               <Button type="button" size="lg" onClick={handleGenerateWithAi} disabled={selectedCount === 0} loading={isCompetencyModel ? draftCompetencyWeek.isPending : draftWeek.isPending}>
                 <Sparkles className="h-4 w-4" />
@@ -273,34 +318,43 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
               </div>
 
               <div className="min-h-24 rounded bg-white p-3 text-sm">
-                {reviewTab === 'summary' && (
-                  <div className="space-y-2">
-                    {!isCompetencyModel && (pendingResult as DraftWeekResult).competenciasEspecificas && (
-                      <p><span className="font-medium">Competencias específicas: </span>{(pendingResult as DraftWeekResult).competenciasEspecificas}</p>
-                    )}
-                    <p><span className="font-medium">Indicadores de evaluación: </span>{pendingResult.indicadoresEvaluacion}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {pendingResult.newSabers.length} saber(es) nuevo(s) propuesto(s), {pendingResult.reusedSaberIds.length} reusado(s) del banco.
-                    </p>
-                  </div>
-                )}
-                {reviewTab === 'methodology' && (
-                  <div className="space-y-2">
-                    {(['anticipacion', 'construccionConocimiento', 'consolidacion'] as const).map((key) => (
-                      <div key={key}>
-                        <p className="text-xs font-semibold uppercase text-muted-foreground">{MOMENT_KEYS.find((m) => m.key === key)?.label}</p>
-                        <p>{pendingResult.momentos[key]?.estrategiasDua}</p>
-                        <p className="text-xs text-muted-foreground">Recursos: {pendingResult.momentos[key]?.recursos}</p>
-                        <ResourceLinkPreview text={pendingResult.momentos[key]?.recursos} />
+                {isCompetencyModel ? (
+                  <CompetencyReviewTabContent
+                    reviewTab={reviewTab}
+                    result={pendingResult as DraftCompetencyWeekResult}
+                  />
+                ) : (
+                  <>
+                    {reviewTab === 'summary' && (
+                      <div className="space-y-2">
+                        {(pendingResult as DraftWeekResult).competenciasEspecificas && (
+                          <p><span className="font-medium">Competencias específicas: </span>{(pendingResult as DraftWeekResult).competenciasEspecificas}</p>
+                        )}
+                        <p><span className="font-medium">Indicadores de evaluación: </span>{pendingResult.indicadoresEvaluacion}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {pendingResult.newSabers.length} saber(es) nuevo(s) propuesto(s), {pendingResult.reusedSaberIds.length} reusado(s) del banco.
+                        </p>
                       </div>
-                    ))}
-                  </div>
-                )}
-                {reviewTab === 'assessment' && (
-                  <div className="space-y-1">
-                    <p><span className="font-medium">Técnica: </span>{pendingResult.momentos.consolidacion?.tecnica}</p>
-                    <p><span className="font-medium">Instrumento: </span>{pendingResult.momentos.consolidacion?.instrumento}</p>
-                  </div>
+                    )}
+                    {reviewTab === 'methodology' && (
+                      <div className="space-y-2">
+                        {(['anticipacion', 'construccionConocimiento', 'consolidacion'] as const).map((key) => (
+                          <div key={key}>
+                            <p className="text-xs font-semibold uppercase text-muted-foreground">{MOMENT_KEYS.find((m) => m.key === key)?.label}</p>
+                            <p>{(pendingResult as DraftWeekResult).momentos[key]?.estrategiasDua}</p>
+                            <p className="text-xs text-muted-foreground">Recursos: {(pendingResult as DraftWeekResult).momentos[key]?.recursos}</p>
+                            <ResourceLinkPreview text={(pendingResult as DraftWeekResult).momentos[key]?.recursos} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {reviewTab === 'assessment' && (
+                      <div className="space-y-1">
+                        <p><span className="font-medium">Técnica: </span>{(pendingResult as DraftWeekResult).momentos.consolidacion?.tecnica}</p>
+                        <p><span className="font-medium">Instrumento: </span>{(pendingResult as DraftWeekResult).momentos.consolidacion?.instrumento}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -321,8 +375,8 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
               <div>
                 <p className="text-xs text-muted-foreground">
                   {isCompetencyModel
-                    ? 'Genera indicadores, saberes y los 3 momentos DUA a partir de las competencias seleccionadas.'
-                    : 'Genera competencias, indicadores, saberes y los 3 momentos DUA a partir de las destrezas seleccionadas.'}
+                    ? 'Genera indicadores, saberes y las 3 fases (Inicio/Desarrollo/Cierre) a partir de las competencias seleccionadas.'
+                    : 'Genera competencias, indicadores, saberes y las 3 fases (Inicio/Desarrollo/Cierre) a partir de las destrezas seleccionadas.'}
                 </p>
               </div>
               <Button
@@ -364,53 +418,65 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
                 />
               </div>
 
-              <div className="space-y-3">
-                <Label>Momentos metodológicos</Label>
-                {MOMENT_KEYS.map(({ key, label }) => (
-                  <div key={key} className="rounded border p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{label}</p>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Estrategias DUA</Label>
-                        <textarea
-                          rows={2}
-                          value={momentos[key]?.estrategiasDua ?? ''}
-                          onChange={(e) => setMoment(key, 'estrategiasDua', e.target.value)}
-                          disabled={!isEditable}
-                          className="flex w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Recursos</Label>
-                        <textarea
-                          rows={2}
-                          value={momentos[key]?.recursos ?? ''}
-                          onChange={(e) => setMoment(key, 'recursos', e.target.value)}
-                          disabled={!isEditable}
-                          className="flex w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
-                        />
-                        <ResourceLinkPreview text={momentos[key]?.recursos} />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Técnica</Label>
-                        <Input
-                          value={momentos[key]?.tecnica ?? ''}
-                          onChange={(e) => setMoment(key, 'tecnica', e.target.value)}
-                          disabled={!isEditable}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Instrumento</Label>
-                        <Input
-                          value={momentos[key]?.instrumento ?? ''}
-                          onChange={(e) => setMoment(key, 'instrumento', e.target.value)}
-                          disabled={!isEditable}
-                        />
+              {isCompetencyModel ? (
+                <CompetencyMethodologyEditor
+                  momentos={competencyMomentos}
+                  isEditable={isEditable}
+                  onPhaseChange={setPhaseActivities}
+                  onResourcesChange={(recursos) => setCompetencyMomentos((prev) => ({ ...prev, recursos }))}
+                  onEvaluacionChange={(field, value) =>
+                    setCompetencyMomentos((prev) => ({ ...prev, evaluacion: { ...prev.evaluacion, [field]: value } }))
+                  }
+                />
+              ) : (
+                <div className="space-y-3">
+                  <Label>Momentos metodológicos</Label>
+                  {MOMENT_KEYS.map(({ key, label }) => (
+                    <div key={key} className="rounded border p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{label}</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Estrategias DUA</Label>
+                          <textarea
+                            rows={2}
+                            value={momentos[key]?.estrategiasDua ?? ''}
+                            onChange={(e) => setMoment(key, 'estrategiasDua', e.target.value)}
+                            disabled={!isEditable}
+                            className="flex w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Recursos</Label>
+                          <textarea
+                            rows={2}
+                            value={momentos[key]?.recursos ?? ''}
+                            onChange={(e) => setMoment(key, 'recursos', e.target.value)}
+                            disabled={!isEditable}
+                            className="flex w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
+                          />
+                          <ResourceLinkPreview text={momentos[key]?.recursos} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Técnica</Label>
+                          <Input
+                            value={momentos[key]?.tecnica ?? ''}
+                            onChange={(e) => setMoment(key, 'tecnica', e.target.value)}
+                            disabled={!isEditable}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Instrumento</Label>
+                          <Input
+                            value={momentos[key]?.instrumento ?? ''}
+                            onChange={(e) => setMoment(key, 'instrumento', e.target.value)}
+                            disabled={!isEditable}
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
 
@@ -438,3 +504,187 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
   )
 }
 
+/** Contenido de las 3 pestañas de revisión (Resumen/Metodología/Evaluación) para el modelo por competencias — solo lectura, calcado del formato final Inicio/Desarrollo/Cierre. */
+function CompetencyReviewTabContent({
+  reviewTab,
+  result,
+}: {
+  reviewTab: (typeof REVIEW_TABS)[number]['key']
+  result: DraftCompetencyWeekResult
+}) {
+  const m = result.momentos as unknown as AiCompetencyWeekMomentos
+  if (reviewTab === 'summary') {
+    return (
+      <div className="space-y-2">
+        <p><span className="font-medium">Indicadores de evaluación: </span>{result.indicadoresEvaluacion}</p>
+        <p className="text-xs text-muted-foreground">
+          {result.newSabers.length} saber(es) nuevo(s) propuesto(s), {result.reusedSaberIds.length} reusado(s) del banco.
+        </p>
+      </div>
+    )
+  }
+  if (reviewTab === 'methodology') {
+    return (
+      <div className="space-y-3">
+        {COMPETENCY_PHASES.map(({ key, label }) => (
+          <div key={key}>
+            <p className="text-xs font-semibold uppercase text-muted-foreground">{label}</p>
+            <ol className="ml-4 list-decimal space-y-1">
+              {(m.fases[key]?.activities ?? []).map((a, i) => (
+                <li key={i}>
+                  {a.text} <span className="text-xs font-mono text-muted-foreground">DUA: [{a.duaCode}]</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ))}
+        <div>
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Recursos</p>
+          <ul className="ml-4 list-disc">
+            {m.recursos.map((r, i) => (
+              <li key={i}>{r}</li>
+            ))}
+          </ul>
+          <NamedLink link={m.recursoLink} label="Abrir recurso" />
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-1">
+      <p><span className="font-medium">Evidencia: </span>{m.evaluacion.evidencia}</p>
+      <p><span className="font-medium">Criterio: </span>{m.evaluacion.criterio}</p>
+      <p><span className="font-medium">Instrumento: </span>{m.evaluacion.instrumento}</p>
+      <NamedLink link={m.evaluacion.instrumentoLink} label="Abrir instrumento" />
+    </div>
+  )
+}
+
+/** Editor manual del modelo por competencias — N actividades numeradas por fase (cada una con su código DUA), recursos en lista, y evaluación consolidada una vez por semana. */
+function CompetencyMethodologyEditor({
+  momentos,
+  isEditable,
+  onPhaseChange,
+  onResourcesChange,
+  onEvaluacionChange,
+}: {
+  momentos: CompetencyPlanningMomentos
+  isEditable: boolean
+  onPhaseChange: (phaseKey: 'inicio' | 'desarrollo' | 'cierre', activities: { text: string; duaCode: string }[]) => void
+  onResourcesChange: (recursos: string[]) => void
+  onEvaluacionChange: (field: 'evidencia' | 'criterio' | 'instrumento', value: string) => void
+}) {
+  const recursosText = (momentos.recursos ?? []).join('\n')
+
+  return (
+    <div className="space-y-3">
+      <Label>Metodología (Inicio / Desarrollo / Cierre)</Label>
+      {COMPETENCY_PHASES.map(({ key, label }) => {
+        const activities = momentos.fases[key]?.activities ?? []
+        return (
+          <div key={key} className="rounded border p-3">
+            <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{label}</p>
+            <div className="space-y-2">
+              {activities.map((activity, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="mt-2 text-xs text-muted-foreground">{i + 1}.</span>
+                  <div className="flex-1 space-y-1">
+                    <textarea
+                      rows={2}
+                      value={activity.text}
+                      onChange={(e) => {
+                        const next = [...activities]
+                        next[i] = { ...next[i], text: e.target.value }
+                        onPhaseChange(key, next)
+                      }}
+                      disabled={!isEditable}
+                      placeholder="Actividad..."
+                      className="flex w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
+                    />
+                    <Input
+                      value={activity.duaCode}
+                      onChange={(e) => {
+                        const next = [...activities]
+                        next[i] = { ...next[i], duaCode: e.target.value }
+                        onPhaseChange(key, next)
+                      }}
+                      disabled={!isEditable}
+                      placeholder="Código DUA (ej: I.3.1)"
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  {isEditable && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="mt-1 h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={() => onPhaseChange(key, activities.filter((_, idx) => idx !== i))}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              {isEditable && (
+                <button
+                  type="button"
+                  onClick={() => onPhaseChange(key, [...activities, { text: '', duaCode: '' }])}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Plus className="h-3 w-3" />
+                  Agregar actividad
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })}
+
+      <div className="rounded border p-3">
+        <Label className="text-xs">Recursos de la semana (uno por línea)</Label>
+        <textarea
+          rows={3}
+          value={recursosText}
+          onChange={(e) => onResourcesChange(e.target.value.split('\n').map((s) => s.trim()).filter(Boolean))}
+          disabled={!isEditable}
+          className="mt-1 flex w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
+        />
+        <NamedLink link={momentos.recursoLink} label="Abrir recurso" />
+      </div>
+
+      <div className="rounded border p-3">
+        <Label className="text-xs">Evaluación de la semana</Label>
+        <div className="mt-1 space-y-2">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Evidencia</Label>
+            <textarea
+              rows={2}
+              value={momentos.evaluacion?.evidencia ?? ''}
+              onChange={(e) => onEvaluacionChange('evidencia', e.target.value)}
+              disabled={!isEditable}
+              className="flex w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Criterio (código de indicador)</Label>
+            <Input
+              value={momentos.evaluacion?.criterio ?? ''}
+              onChange={(e) => onEvaluacionChange('criterio', e.target.value)}
+              disabled={!isEditable}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Instrumento</Label>
+            <Input
+              value={momentos.evaluacion?.instrumento ?? ''}
+              onChange={(e) => onEvaluacionChange('instrumento', e.target.value)}
+              disabled={!isEditable}
+            />
+            <NamedLink link={momentos.evaluacion?.instrumentoLink} label="Abrir instrumento" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,6 +1,16 @@
 import PDFDocument from 'pdfkit'
 import { resolveLogo, drawWatermark } from '../../../../shared/infrastructure/services/pdf-helpers'
-import { cellHeight, ensureSpace, drawRow, type Cell } from '../../../../shared/infrastructure/services/pdf-table-helpers'
+import {
+  cellHeight,
+  ensureSpace,
+  drawRow,
+  drawFlowRow,
+  drawBadge,
+  type Cell,
+  type FlowColumn,
+  type FlowBlock,
+} from '../../../../shared/infrastructure/services/pdf-table-helpers'
+import { getDuaColor, type CompetencyWeekMomentos } from '../../../../shared/domain/pedagogical-methodology'
 import type { MicrocurricularTemplateConfig, SaberType } from '../../../institution/application/dtos/institution.dto'
 
 export interface MicrocurricularSignatory {
@@ -29,6 +39,12 @@ export interface MicrocurricularWeek {
     construccionConocimiento?: MicrocurricularMoment
     consolidacion?: MicrocurricularMoment
   }
+  /** true si la semana se generó/editó bajo el modelo por COMPETENCIAS (CNC) — usa competencyMomentos y el layout de tabla única calcado de TIGA en vez de momentos/drawWeekMethodology*. */
+  isCompetencyModel?: boolean
+  competencyCodes?: string[]
+  indicatorCodesForWeek?: string[]
+  saberCodesForWeek?: string[]
+  competencyMomentos?: CompetencyWeekMomentos
 }
 
 export interface MicrocurricularPdfData {
@@ -42,7 +58,10 @@ export interface MicrocurricularPdfData {
   periodName: string
   situationTitle: string
   situationDescription: string | null
+  /** @deprecated sin UI que lo escriba — usa interdisciplinarySubjectNames. */
   interdisciplinaryAreaNames: string[]
+  /** Nombres de las materias (Subject) del propio docente con conexión interdisciplinar. */
+  interdisciplinarySubjectNames?: string[]
   weeks: MicrocurricularWeek[]
   signatories: MicrocurricularSignatory[]
 }
@@ -201,6 +220,181 @@ const SECTION_LABEL: Record<string, string> = {
   semanas: 'Semanas',
 }
 
+// ─── Tabla semanal por COMPETENCIAS — calcada EXACTAMENTE del formato TIGA
+// (competency_planning_word_template.py, con acuerdo explícito de reutilización):
+// UNA sola tabla de 3 columnas (ESTRATEGIAS | RECURSOS | EVALUACIÓN) por semana,
+// encabezado azul marino/texto blanco, subtítulos de fase en negro dentro de la
+// columna ESTRATEGIAS, cada actividad numerada con su propio badge de color DUA,
+// recursos en viñetas + link "ABRIR RECURSO", evaluación con Evidencia/Criterio/
+// Instrumento + link "ABRIR INSTRUMENTO". Nunca se repite Recursos/Evaluación por
+// fase — se consolidan una sola vez para toda la semana (pedido explícito del
+// usuario: "NO SE DEBE REPETIR TODO ESO").
+const COMPETENCY_TABLE_HEADER_FILL = '#1F4E78'
+const COMPETENCY_TABLE_HEADER_TEXT = '#FFFFFF'
+const LINK_COLOR = '#0563C1'
+const PHASE_LABELS_COMPETENCY: Record<'inicio' | 'desarrollo' | 'cierre', string> = {
+  inicio: 'INICIO',
+  desarrollo: 'DESARROLLO',
+  cierre: 'CIERRE',
+}
+
+function drawCompetencyWeekHeader(doc: Doc, x0: number, fullWidth: number, week: MicrocurricularWeek) {
+  ensureSpace(doc, 65)
+  const title = `SEMANA ${week.weekNumber}${week.name ? ` — ${week.name}` : ''}`
+  doc.font('Helvetica-Bold').fontSize(12).fillColor(COMPETENCY_TABLE_HEADER_FILL).text(title, x0, doc.y, { width: fullWidth })
+  doc.fillColor('#111111').font('Helvetica').fontSize(9)
+  doc.text(`Competencia(s): ${week.competencyCodes?.join(', ') || '—'}`, x0, doc.y, { width: fullWidth })
+  doc.text(`Indicador(es): ${week.indicatorCodesForWeek?.join(', ') || '—'}`, x0, doc.y, { width: fullWidth })
+  doc.text(`Saberes movilizados: ${week.saberCodesForWeek?.join(', ') || '—'}`, x0, doc.y, { width: fullWidth })
+  doc.moveDown(0.3)
+}
+
+function buildPhaseBlocks(
+  doc: Doc,
+  label: string,
+  activities: { text: string; duaCode: string }[],
+  width: number,
+): FlowBlock[] {
+  const blocks: FlowBlock[] = []
+  blocks.push({
+    height: 15,
+    draw: (d, x, y, w) => {
+      d.font('Helvetica-Bold').fontSize(9).fillColor('#111111').text(label, x + 4, y + 3, { width: w - 8 })
+    },
+  })
+  for (const [i, activity] of activities.entries()) {
+    const text = `${i + 1}. ${activity.text}`
+    const textHeight = doc.font('Helvetica').fontSize(8.5).heightOfString(text, { width: width - 8 })
+    const duaLineHeight = activity.duaCode ? 15 : 0
+    blocks.push({
+      height: textHeight + duaLineHeight + 6,
+      draw: (d, x, y, w) => {
+        d.font('Helvetica').fontSize(8.5).fillColor('#111111').text(text, x + 4, y + 2, { width: w - 8 })
+        if (activity.duaCode) {
+          const lineY = y + 2 + textHeight + 2
+          d.font('Helvetica-Bold').fontSize(7.5).fillColor('#111111').text('DUA: ', x + 4, lineY, { lineBreak: false })
+          const labelWidth = d.widthOfString('DUA: ')
+          drawBadge(d, x + 4 + labelWidth + 2, lineY - 1, activity.duaCode, { fill: getDuaColor(activity.duaCode) })
+        }
+      },
+    })
+  }
+  return blocks
+}
+
+function buildResourcesBlocks(
+  doc: Doc,
+  resources: string[],
+  link: { title: string; url: string } | undefined,
+  width: number,
+): FlowBlock[] {
+  const blocks: FlowBlock[] = []
+  const bulletText = resources.map((r) => `• ${r}`).join('\n')
+  const bulletHeight = doc.font('Helvetica').fontSize(8.5).heightOfString(bulletText || ' ', { width: width - 8 })
+  blocks.push({
+    height: bulletHeight + 6,
+    draw: (d, x, y, w) => {
+      d.font('Helvetica').fontSize(8.5).fillColor('#111111').text(bulletText, x + 4, y + 2, { width: w - 8 })
+    },
+  })
+  if (link) {
+    const titleHeight = doc.font('Helvetica-Bold').fontSize(8.5).heightOfString(link.title, { width: width - 8 })
+    blocks.push({
+      height: titleHeight + 18,
+      draw: (d, x, y, w) => {
+        d.font('Helvetica-Bold').fontSize(8.5).fillColor('#111111').text(link.title, x + 4, y + 2, { width: w - 8 })
+        d.font('Helvetica')
+          .fontSize(8.5)
+          .fillColor(LINK_COLOR)
+          .text('ABRIR RECURSO', x + 4, y + 2 + titleHeight + 3, { underline: true, link: link.url })
+        d.fillColor('#111111')
+      },
+    })
+  }
+  return blocks
+}
+
+function buildAssessmentBlocks(
+  doc: Doc,
+  evidencia: string,
+  criterio: string,
+  instrumento: string,
+  link: { title: string; url: string } | undefined,
+  width: number,
+): FlowBlock[] {
+  const blocks: FlowBlock[] = []
+  const addLabeled = (label: string, text: string) => {
+    const labelHeight = 12
+    const body = text || '—'
+    const textHeight = doc.font('Helvetica').fontSize(8.5).heightOfString(body, { width: width - 8 })
+    blocks.push({
+      height: labelHeight + textHeight + 6,
+      draw: (d, x, y, w) => {
+        d.font('Helvetica-Bold').fontSize(8.5).fillColor('#111111').text(label, x + 4, y + 2, { width: w - 8 })
+        d.font('Helvetica').fontSize(8.5).text(body, x + 4, y + 2 + labelHeight, { width: w - 8 })
+      },
+    })
+  }
+  addLabeled('Evidencia:', evidencia)
+  addLabeled('Criterio:', criterio)
+  addLabeled('Instrumento:', instrumento)
+  if (link) {
+    blocks.push({
+      height: 18,
+      draw: (d, x, y, w) => {
+        d.font('Helvetica')
+          .fontSize(8.5)
+          .fillColor(LINK_COLOR)
+          .text('ABRIR INSTRUMENTO', x + 4, y + 2, { underline: true, link: link.url, width: w - 8 })
+        d.fillColor('#111111')
+      },
+    })
+  }
+  return blocks
+}
+
+/** UNA sola tabla de 3 columnas por semana — Recursos/Evaluación consolidados una vez, nunca repetidos por fase. Salto de página mantiene los mismos anchos de columna (drawFlowRow). */
+function drawCompetencyWeekTable(doc: Doc, x0: number, fullWidth: number, week: MicrocurricularWeek) {
+  const m = week.competencyMomentos
+  if (!m) return
+
+  const estrategiasW = fullWidth * 0.55
+  const recursosW = fullWidth * 0.18
+  const evaluacionW = fullWidth - estrategiasW - recursosW
+
+  const drawHeader = (): number =>
+    drawRow(doc, x0, [
+      { text: 'ESTRATEGIAS', width: estrategiasW, bold: true, fill: COMPETENCY_TABLE_HEADER_FILL, align: 'center', textColor: COMPETENCY_TABLE_HEADER_TEXT },
+      { text: 'RECURSOS', width: recursosW, bold: true, fill: COMPETENCY_TABLE_HEADER_FILL, align: 'center', textColor: COMPETENCY_TABLE_HEADER_TEXT },
+      { text: 'EVALUACIÓN', width: evaluacionW, bold: true, fill: COMPETENCY_TABLE_HEADER_FILL, align: 'center', textColor: COMPETENCY_TABLE_HEADER_TEXT },
+    ])
+
+  ensureSpace(doc, 30)
+  drawHeader()
+
+  const estrategiasBlocks: FlowBlock[] = [
+    ...buildPhaseBlocks(doc, PHASE_LABELS_COMPETENCY.inicio, m.fases.inicio?.activities ?? [], estrategiasW),
+    ...buildPhaseBlocks(doc, PHASE_LABELS_COMPETENCY.desarrollo, m.fases.desarrollo?.activities ?? [], estrategiasW),
+    ...buildPhaseBlocks(doc, PHASE_LABELS_COMPETENCY.cierre, m.fases.cierre?.activities ?? [], estrategiasW),
+  ]
+  const recursosBlocks = buildResourcesBlocks(doc, m.recursos ?? [], m.recursoLink, recursosW)
+  const evaluacionBlocks = buildAssessmentBlocks(
+    doc,
+    m.evaluacion?.evidencia ?? '',
+    m.evaluacion?.criterio ?? '',
+    m.evaluacion?.instrumento ?? '',
+    m.evaluacion?.instrumentoLink,
+    evaluacionW,
+  )
+
+  const columns: FlowColumn[] = [
+    { x: x0, width: estrategiasW, blocks: estrategiasBlocks },
+    { x: x0 + estrategiasW, width: recursosW, blocks: recursosBlocks },
+    { x: x0 + estrategiasW + recursosW, width: evaluacionW, blocks: evaluacionBlocks },
+  ]
+  drawFlowRow(doc, columns, drawHeader)
+}
+
 /** Genera el PDF de "Planificación Microcurricular" según la plantilla configurada por la institución. */
 export function buildMicrocurricularPdf(
   data: MicrocurricularPdfData,
@@ -274,14 +468,32 @@ export function buildMicrocurricularPdf(
         ])
       },
       conexion_interdisciplinar: () => {
+        // interdisciplinaryAreaNames queda por compatibilidad (deprecado, sin UI que
+        // lo escriba) — interdisciplinarySubjectNames es el selector real (materias del
+        // propio docente, mínimo 2 para contar como conexión interdisciplinar).
+        const names = data.interdisciplinarySubjectNames?.length ? data.interdisciplinarySubjectNames : data.interdisciplinaryAreaNames
+        if (names.length === 0) return
         drawSectionBand(doc, x0, fullWidth, SECTION_LABEL.conexion_interdisciplinar, headerColor)
         drawRow(doc, x0, [
           { text: 'Asignaturas:', width: fullWidth * 0.25, bold: true },
-          { text: data.interdisciplinaryAreaNames.join(', '), width: fullWidth * 0.75 },
+          { text: names.join(', '), width: fullWidth * 0.75 },
         ])
         doc.moveDown(0.3)
       },
       semanas: () => {
+        // Modelo por COMPETENCIAS: SIEMPRE una sola tabla de 3 columnas por semana,
+        // calcada de TIGA — weekLayout (que solo tiene sentido para destrezas) se
+        // ignora aquí a propósito (ver comentario en DEFAULT_MICROCURRICULAR_TEMPLATE).
+        if (data.weeks.some((w) => w.isCompetencyModel)) {
+          drawSectionBand(doc, x0, fullWidth, 'SEMANAS', headerColor)
+          for (const week of data.weeks) {
+            drawCompetencyWeekHeader(doc, x0, fullWidth, week)
+            drawCompetencyWeekTable(doc, x0, fullWidth, week)
+            doc.moveDown(0.5)
+          }
+          return
+        }
+
         if (weekLayout === 'rows_in_single_table') {
           drawSectionBand(doc, x0, fullWidth, 'SEMANAS', headerColor)
           for (const week of data.weeks) {

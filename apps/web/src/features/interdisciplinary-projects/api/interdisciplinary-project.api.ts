@@ -49,11 +49,25 @@ export interface InterdisciplinaryProject {
   _count?: { contributions: number }
 }
 
+export interface EligibleSituation {
+  id: string
+  title: string
+  interdisciplinarySubjectIds: string[]
+  _count?: { weeks: number }
+}
+
 export const interdisciplinaryProjectApi = {
   listProjects: (params: { parallelId: string; academicPeriodId: string }) =>
     apiGet<InterdisciplinaryProject[]>('interdisciplinary-projects', params),
 
   getProject: (id: string) => apiGet<InterdisciplinaryProject>(`interdisciplinary-projects/${id}`),
+
+  listEligibleSituations: (params: { parallelId: string; academicPeriodId: string }) =>
+    apiGet<EligibleSituation[]>('interdisciplinary-projects/eligible-situations', params),
+
+  /** Genera y guarda TODO el proyecto (reto, contribuciones, semanas) a partir de una situación de aprendizaje. */
+  draftFromSituation: (situationId: string) =>
+    apiPost<InterdisciplinaryProject>('interdisciplinary-projects/draft', { situationId }),
 
   createProject: (data: {
     parallelId: string
