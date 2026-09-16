@@ -15,6 +15,10 @@ export interface AuthInstitutionDto {
   name: string
   branding: InstitutionBrandingDto
   modules: string[] | null
+  /** 'personal' para cuentas de profesor autoregistradas, null para instituciones normales. */
+  accountType: string | null
+  /** Para cuentas personales: si ya completó el wizard de /personal/setup. */
+  setupComplete: boolean
 }
 
 export interface AuthUserDto {

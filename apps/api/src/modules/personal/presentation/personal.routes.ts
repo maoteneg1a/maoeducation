@@ -13,6 +13,63 @@ import { sendVerificationEmail } from '../../../shared/infrastructure/services/e
 const userRepo = new PrismaAuthUserRepository()
 
 /**
+ * Subniveles MINEDUC válidos para el wizard de setup personal — mismo catálogo
+ * que usa el admin en Configuración > Niveles (ver SUBNIVEL_LABEL en
+ * apps/web/src/features/academic/pages/LevelsPage.tsx).
+ */
+const VALID_SUBNIVELES = ['inicial', 'preparatoria', 'elemental', 'media', 'superior', 'bgu']
+
+/**
+ * Match best-effort del nombre libre de materia que escribe el profesor contra
+ * los códigos oficiales de área (banco de destrezas y de competencias comparten
+ * los mismos códigos MINEDUC: M, LL, CN, CS, ECA, EF, EFL, EG...). Así, al crear
+ * la materia en el wizard, queda vinculada al área correcta sin que el profesor
+ * tenga que ir a Configuración > Materias a enlazarla manualmente — condición
+ * para que "planificación sea solo apretar botones".
+ */
+const SUBJECT_AREA_ALIASES: Array<{ code: string; keywords: string[] }> = [
+  { code: 'M', keywords: ['matematica', 'matemáticas', 'matematicas'] },
+  { code: 'LL', keywords: ['lengua y literatura', 'lenguaje', 'literatura', 'comunicacion'] },
+  { code: 'CN', keywords: ['ciencias naturales', 'naturales', 'biologia'] },
+  { code: 'CS', keywords: ['ciencias sociales', 'estudios sociales', 'sociales', 'historia'] },
+  { code: 'ECA', keywords: ['educacion cultural y artistica', 'artistica', 'arte', 'cultural'] },
+  { code: 'EF', keywords: ['educacion fisica', 'fisica'] },
+  { code: 'EFL', keywords: ['ingles', 'lengua extranjera'] },
+  { code: 'EG', keywords: ['emprendimiento', 'gestion'] },
+]
+
+function normalizeText(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+}
+
+function detectAreaCode(subjectName: string): string | null {
+  const normalized = normalizeText(subjectName)
+  for (const entry of SUBJECT_AREA_ALIASES) {
+    if (entry.keywords.some((kw) => normalized.includes(normalizeText(kw)))) return entry.code
+  }
+  return null
+}
+
+/** Busca el área (destrezas y/o competencias) que corresponde al nombre libre de una materia y arma los campos a enlazar en el create. */
+async function resolveSubjectAreas(institutionId: string, subjectName: string) {
+  const code = detectAreaCode(subjectName)
+  if (!code) return {}
+
+  const [curriculumArea, competencyArea] = await Promise.all([
+    prisma.curriculumArea.findFirst({ where: { institutionId, code }, select: { id: true } }),
+    prisma.competencyArea.findFirst({ where: { institutionId, code }, select: { id: true } }),
+  ])
+
+  return {
+    ...(curriculumArea ? { curriculumAreaId: curriculumArea.id } : {}),
+    ...(competencyArea ? { competencyAreaId: competencyArea.id } : {}),
+  }
+}
+
+/**
  * Módulos que recibe una cuenta personal de docente al registrarse.
  *
  * Los tres primeros son el grupo de planificación — la razón por la que un
@@ -286,6 +343,10 @@ export default async function personalRoutes(app: FastifyInstance) {
       // classroom-first
       parallelName?: string
       subjectNames?: string[]
+      // paso de competencias — fijan de una vez el modelo de planificación para
+      // que el profesor nunca tenga que tocar Configuración > Calificación.
+      subnivel?: string
+      planningModel?: 'destrezas' | 'competencias'
     }
   }>(
     '/personal/setup',
@@ -305,6 +366,8 @@ export default async function personalRoutes(app: FastifyInstance) {
             groups: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' } } } },
             parallelName: { type: 'string' },
             subjectNames: { type: 'array', items: { type: 'string' } },
+            subnivel: { type: 'string', enum: VALID_SUBNIVELES },
+            planningModel: { type: 'string', enum: ['destrezas', 'competencias'] },
           },
         },
       },
@@ -322,7 +385,7 @@ export default async function personalRoutes(app: FastifyInstance) {
         return reply.status(403).send({ message: 'Solo disponible para cuentas personales' })
       }
 
-      const { profile, yearName, yearStart, yearEnd, workspaceName } = req.body
+      const { profile, yearName, yearStart, yearEnd, workspaceName, subnivel, planningModel } = req.body
 
       // Update workspace name if provided
       if (workspaceName?.trim()) {
@@ -363,12 +426,18 @@ export default async function personalRoutes(app: FastifyInstance) {
         }
       }
 
-      // Get or create default level for personal accounts
+      // Get or create default level for personal accounts. El subnivel elegido
+      // en el wizard (paso Competencias) decide qué banco curricular (destrezas
+      // o competencias) le ofrece luego el selector de la planificación semanal
+      // — así el profesor nunca necesita ir a Configuración > Niveles a fijarlo.
+      const resolvedSubnivel = subnivel && VALID_SUBNIVELES.includes(subnivel) ? subnivel : 'media'
       let level = await prisma.level.findFirst({ where: { institutionId, code: 'PERSONAL' } })
       if (!level) {
         level = await prisma.level.create({
-          data: { institutionId, code: 'PERSONAL', name: 'Mis Cursos', sortOrder: 99 },
+          data: { institutionId, code: 'PERSONAL', name: 'Mis Cursos', sortOrder: 99, subnivel: resolvedSubnivel },
         })
+      } else if (subnivel && level.subnivel !== resolvedSubnivel) {
+        level = await prisma.level.update({ where: { id: level.id }, data: { subnivel: resolvedSubnivel } })
       }
 
       const assignmentIds: string[] = []
@@ -378,7 +447,7 @@ export default async function personalRoutes(app: FastifyInstance) {
       if (profile === 'subject-first' && req.body.subjectName && req.body.groups?.length) {
         // One subject, multiple parallels
         const subject = await prisma.subject.create({
-          data: { institutionId, name: req.body.subjectName },
+          data: { institutionId, name: req.body.subjectName, ...(await resolveSubjectAreas(institutionId, req.body.subjectName)) },
         })
         subjectIds.push(subject.id)
 
@@ -402,7 +471,7 @@ export default async function personalRoutes(app: FastifyInstance) {
 
         for (const sName of req.body.subjectNames) {
           const subject = await prisma.subject.create({
-            data: { institutionId, name: sName },
+            data: { institutionId, name: sName, ...(await resolveSubjectAreas(institutionId, sName)) },
           })
           subjectIds.push(subject.id)
 
@@ -413,11 +482,19 @@ export default async function personalRoutes(app: FastifyInstance) {
         }
       }
 
-      // Mark setup complete (preserve existing settings like branding)
+      // Mark setup complete (preserve existing settings like branding) y fija el
+      // modelo de planificación elegido en el wizard — así el profesor nunca
+      // tiene que tocar Configuración > Calificación para elegirlo.
       const currentSettings = (institution?.settings ?? {}) as Record<string, unknown>
       await prisma.institution.update({
         where: { id: institutionId },
-        data: { settings: { ...currentSettings, setupComplete: true } as unknown as Parameters<typeof prisma.institution.update>[0]['data']['settings'] },
+        data: {
+          settings: {
+            ...currentSettings,
+            setupComplete: true,
+            planningModel: planningModel ?? currentSettings.planningModel ?? 'destrezas',
+          } as unknown as Parameters<typeof prisma.institution.update>[0]['data']['settings'],
+        },
       })
 
       return reply.send({ yearId: year.id, parallelIds, subjectIds, assignmentIds })

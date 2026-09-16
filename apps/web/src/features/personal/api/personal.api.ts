@@ -18,6 +18,10 @@ export interface PersonalSetupDto {
   groups?: Array<{ name: string }>
   parallelName?: string
   subjectNames?: string[]
+  /** Subnivel MINEDUC — filtra qué competencias/destrezas se ofrecen luego al planificar. */
+  subnivel?: string
+  /** Modelo de planificación curricular a fijar de una vez para esta cuenta. */
+  planningModel?: 'destrezas' | 'competencias'
 }
 
 export interface BulkCreateStudentsDto {
