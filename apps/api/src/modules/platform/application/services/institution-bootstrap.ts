@@ -596,16 +596,27 @@ export const DEFAULT_AI_CONFIG = {
 // institución pide su propio look (colores, marca de agua, nombres de fase,
 // orden de saberes/secciones) — este default reproduce exactamente lo que ya
 // existía antes de hacerlo configurable, para no romper a nadie en el cambio.
+// Nombres de fase: "Inicio/Desarrollo/Cierre" — pedido explícito del usuario
+// ("NO USAMOS ANTICIPACION AHORA ES INICIO..."), calcado de la terminología de
+// TIGA (methodology_phase_labels.py). Las claves internas (anticipacion/
+// construccionConocimiento/consolidacion) NO cambian — son las que usa la BD y
+// el motor determinista — solo cambia lo que el docente VE. Como es un default
+// (fallback en extractMicrocurricularTemplate), instituciones que no hayan
+// personalizado su plantilla ven el cambio de inmediato sin migración.
 export const DEFAULT_MICROCURRICULAR_TEMPLATE = {
-  headerColor: '#e5e5e5',
-  headerColor2: '#f2f2f2',
+  headerColor: '#1F4E78',
+  headerColor2: '#D9EAF7',
   watermarkEnabled: false,
   phaseLabels: {
-    anticipacion: 'ANTICIPACIÓN',
-    construccionConocimiento: 'CONSTRUCCIÓN DEL CONOCIMIENTO',
-    consolidacion: 'CONSOLIDACIÓN',
+    anticipacion: 'INICIO',
+    construccionConocimiento: 'DESARROLLO',
+    consolidacion: 'CIERRE',
   },
   saberesOrder: ['declarativo', 'procedimental', 'actitudinal'],
+  // weekLayout solo aplica al modelo por DESTREZAS — el modelo por COMPETENCIAS
+  // siempre usa una sola tabla de 3 columnas por semana (formato CNC/TIGA fijo,
+  // ver drawCompetencyWeekTable en microcurricular-pdf.service.ts), sin importar
+  // esta opción.
   weekLayout: 'table_per_week',
   sectionOrder: ['datos_informativos', 'situacion_aprendizaje', 'conexion_interdisciplinar', 'semanas'],
   hiddenSections: [],

@@ -787,13 +787,28 @@ model LearningSituation {
   // por ambos modelos de planificación (opcional para destrezas, que no las pedía).
   startDate                DateTime? @map("start_date") @db.Date
   endDate                  DateTime? @map("end_date") @db.Date
-  // IDs de CurriculumArea con las que hay conexión interdisciplinar
+  // DEPRECADO — IDs de CurriculumArea. Nunca tuvo UI que lo escribiera (revisado
+  // en el código: 0 escrituras reales antes de este cambio). Se conserva la
+  // columna para no romper filas que pudieran existir, pero el selector nuevo de
+  // "Conexión interdisciplinar" usa interdisciplinarySubjectIds en su lugar.
   interdisciplinaryAreaIds String[]  @map("interdisciplinary_area_ids")
+  // IDs de Subject (materias) del propio docente con las que esta situación
+  // declara conexión interdisciplinar — pedido explícito del usuario: elegir
+  // entre SUS materias asignadas (CourseAssignment), no el catálogo completo de
+  // la institución. Mínimo 2 para contar como interdisciplinar (se valida en la
+  // UI/uso, no aquí — la persistencia acepta cualquier cantidad, incluida 0/1,
+  // para no bloquear guardados parciales mientras el docente decide).
+  interdisciplinarySubjectIds String[] @map("interdisciplinary_subject_ids")
   // Competencias del bloque (modelo CNC). Se eligen UNA vez al crear la situación
   // y de aquí las toma el generador de semanas — antes el docente tenía que
   // volver a elegirlas en el panel de IA aunque ya las hubiera indicado.
   competencyIds            String[]  @map("competency_ids")
-  // "borrador" | "enviado" | "revisado" | "aprobado"
+  // "borrador" | "listo" — SIN flujo de aprobación por terceros (pedido explícito
+  // del usuario: solo el docente decide, transición libre en ambos sentidos).
+  // Antes existían "enviado"/"revisado"/"aprobado" (flujo de 2 pasos director de
+  // área -> subdirección) — migrados a "listo" en 20261016000000_situation_status_simplify.
+  // reviewedBy/reviewedAt/approvedBy/approvedAt quedan en desuso (se conservan
+  // por histórico, ya no se escriben).
   status                   String    @default("borrador") @db.VarChar(20)
   createdBy                String    @map("created_by")
   reviewedBy               String?   @map("reviewed_by")

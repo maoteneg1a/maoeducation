@@ -81,11 +81,8 @@ export interface DraftCompetencyWeekResult {
   indicadoresEvaluacion: string
   newSabers: DraftedSaber[]
   reusedSaberIds: string[]
-  momentos: {
-    anticipacion: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
-    construccionConocimiento: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
-    consolidacion: { estrategiasDua: string; recursos: string; tecnica: string; instrumento: string }
-  }
+  /** Formato CNC/TIGA: fases Inicio/Desarrollo/Cierre con N actividades numeradas (cada una con su propio código DUA), y recursos/evaluación consolidados UNA vez por semana — ver CompetencyWeekMomentos. */
+  momentos: import('../../../../shared/domain/pedagogical-methodology').CompetencyWeekMomentos
   /** Transparencia con el docente: si vino de la IA validada o del motor de reglas de respaldo. */
   generationMode: 'AI_ENHANCED' | 'AI_FALLBACK'
   validationErrors: string[]
