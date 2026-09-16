@@ -638,6 +638,7 @@ export const DEFAULT_MICROCURRICULAR_TEMPLATE = {
   weekLayout: 'table_per_week',
   sectionOrder: ['datos_informativos', 'situacion_aprendizaje', 'conexion_interdisciplinar', 'semanas'],
   hiddenSections: [],
+  headerBannerUrl: null,
 } as const
 
 export interface BootstrapAdminInput {

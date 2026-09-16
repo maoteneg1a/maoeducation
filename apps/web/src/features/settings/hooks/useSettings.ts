@@ -109,6 +109,30 @@ export function useUpdateMicrocurricularTemplate() {
   })
 }
 
+export function useUploadHeaderBanner() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => settingsApi.uploadHeaderBanner(file),
+    onSuccess: ({ template }) => {
+      qc.setQueryData(settingsKeys.microcurricularTemplate, template)
+      toast.success('Banner de encabezado actualizado')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useRemoveHeaderBanner() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => settingsApi.removeHeaderBanner(),
+    onSuccess: ({ template }) => {
+      qc.setQueryData(settingsKeys.microcurricularTemplate, template)
+      toast.success('Banner de encabezado eliminado')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
 export function useAiConfig() {
   return useQuery({
     queryKey: settingsKeys.aiConfig,

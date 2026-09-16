@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -14,7 +14,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Eye } from 'lucide-react'
+import { GripVertical, Eye, Upload, X } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
@@ -22,7 +22,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/sha
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { PdfPreviewModal } from '@/shared/components/feedback/PdfPreviewModal'
 import { apiClient } from '@/shared/lib/api-client'
-import { useMicrocurricularTemplate, useUpdateMicrocurricularTemplate } from '../hooks/useSettings'
+import {
+  useMicrocurricularTemplate,
+  useUpdateMicrocurricularTemplate,
+  useUploadHeaderBanner,
+  useRemoveHeaderBanner,
+} from '../hooks/useSettings'
 import type { MicrocurricularTemplateConfig, SaberType } from '../api/settings.api'
 
 const SABER_LABEL: Record<SaberType, string> = {
@@ -111,9 +116,12 @@ function ColorPairRow({
 export function MicrocurricularTemplatePage() {
   const { data, isLoading } = useMicrocurricularTemplate()
   const update = useUpdateMicrocurricularTemplate()
+  const uploadBanner = useUploadHeaderBanner()
+  const removeBanner = useRemoveHeaderBanner()
   const [cfg, setCfg] = useState<MicrocurricularTemplateConfig | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const bannerInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (data) setCfg(structuredClone(data))
@@ -204,6 +212,67 @@ export function MicrocurricularTemplatePage() {
           <p className="max-w-2xl text-xs text-muted-foreground">
             Nota: la tabla semanal del modelo por Competencias (ESTRATEGIAS / RECURSOS / EVALUACIÓN) usa un azul
             marino fijo — es el formato oficial calcado del documento TIGA y no es configurable.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Banner de encabezado</CardTitle>
+          <CardDescription>
+            Sube una imagen ya diseñada (fondo, ondas, logo, caja de datos institucionales...) para usarla como
+            encabezado completo, a todo el ancho de la página. Reemplaza el bloque de logo + nombre de la
+            institución. Las bandas "Año lectivo" y "Planificación Microcurricular" se mantienen debajo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+            <div className="flex h-16 w-64 items-center justify-center overflow-hidden rounded-lg border bg-white p-1">
+              {cfg.headerBannerUrl ? (
+                <img src={cfg.headerBannerUrl} alt="Banner de encabezado" className="h-full w-full object-contain" />
+              ) : (
+                <span className="text-xs text-muted-foreground">Sin banner configurado</span>
+              )}
+            </div>
+            <input
+              ref={bannerInput}
+              type="file"
+              accept="image/png,image/jpeg,image/svg+xml,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  uploadBanner.mutate(file, {
+                    onSuccess: ({ template }) => setCfg(template),
+                  })
+                }
+                e.target.value = ''
+              }}
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                loading={uploadBanner.isPending}
+                onClick={() => bannerInput.current?.click()}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                {cfg.headerBannerUrl ? 'Reemplazar banner' : 'Subir banner'}
+              </Button>
+              {cfg.headerBannerUrl && (
+                <Button
+                  variant="ghost"
+                  loading={removeBanner.isPending}
+                  onClick={() => removeBanner.mutate(undefined, { onSuccess: ({ template }) => setCfg(template) })}
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Quitar
+                </Button>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            PNG, JPG, SVG o WebP, máx. 1 MB. Se dibuja a todo el ancho de página, respetando su proporción original
+            (no se deforma).
           </p>
         </CardContent>
       </Card>
