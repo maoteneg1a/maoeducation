@@ -54,18 +54,18 @@ export function drawHeader(
 }
 
 /**
- * Dibuja el logo como marca de agua centrada en la página actual, con
- * opacidad muy baja (7 %). Llamar antes o después del contenido — usa
- * posicionamiento absoluto y no altera el cursor.
+ * Dibuja el logo como marca de agua centrada en la página actual, con la
+ * opacidad indicada (0 a 1, configurable por institución). Llamar antes o
+ * después del contenido — usa posicionamiento absoluto y no altera el cursor.
  */
-export function drawWatermark(doc: Doc, logoSrc: Buffer | string | null): void {
-  if (!logoSrc) return
+export function drawWatermark(doc: Doc, logoSrc: Buffer | string | null, opacity: number): void {
+  if (!logoSrc || opacity <= 0) return
   const size = 180
   const x = (doc.page.width - size) / 2
   const y = (doc.page.height - size) / 2
   try {
     doc.save()
-    doc.opacity(0.07)
+    doc.opacity(opacity)
     doc.image(logoSrc, x, y, { width: size, height: size })
     doc.restore()
   } catch { /* logo inválido, se omite */ }
