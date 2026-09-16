@@ -56,10 +56,18 @@ export interface PhaseLabels {
   consolidacion: string
 }
 
+export type WatermarkScope = 'all_pages' | 'first_page_only'
+
 export interface MicrocurricularTemplateConfig {
+  topHeaderColor: string
+  topHeaderTextColor: string
   headerColor: string
+  headerTextColor: string
   headerColor2: string
+  headerColor2TextColor: string
   watermarkEnabled: boolean
+  watermarkOpacity: number
+  watermarkScope: WatermarkScope
   phaseLabels: PhaseLabels
   saberesOrder: SaberType[]
   weekLayout: WeekLayout

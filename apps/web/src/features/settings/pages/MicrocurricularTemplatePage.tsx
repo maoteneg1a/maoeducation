@@ -60,6 +60,54 @@ function SortableRow({ id, label, hidden, onToggleHidden }: { id: string; label:
   )
 }
 
+/** Un par fondo+texto editable (color picker + hex) con muestra de contraste en vivo. */
+function ColorPairRow({
+  title,
+  hint,
+  bgValue,
+  textValue,
+  onBgChange,
+  onTextChange,
+}: {
+  title: string
+  hint: string
+  bgValue: string
+  textValue: string
+  onBgChange: (v: string) => void
+  onTextChange: (v: string) => void
+}) {
+  return (
+    <div className="space-y-2">
+      <div>
+        <p className="text-sm font-medium">{title}</p>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="space-y-1.5">
+          <Label>Fondo</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={bgValue} onChange={(e) => onBgChange(e.target.value)} className="h-9 w-12 rounded border" />
+            <Input className="w-28" value={bgValue} onChange={(e) => onBgChange(e.target.value)} />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Texto</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={textValue} onChange={(e) => onTextChange(e.target.value)} className="h-9 w-12 rounded border" />
+            <Input className="w-28" value={textValue} onChange={(e) => onTextChange(e.target.value)} />
+          </div>
+        </div>
+        <div
+          className="flex h-9 min-w-32 items-center justify-center rounded border px-3 text-sm font-semibold"
+          style={{ backgroundColor: bgValue, color: textValue }}
+        >
+          Muestra
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function MicrocurricularTemplatePage() {
   const { data, isLoading } = useMicrocurricularTemplate()
   const update = useUpdateMicrocurricularTemplate()
@@ -120,34 +168,43 @@ export function MicrocurricularTemplatePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Colores</CardTitle>
-          <CardDescription>Color de fondo de las bandas de sección y de los sub-encabezados de tabla.</CardDescription>
+          <CardTitle>Colores de encabezados</CardTitle>
+          <CardDescription>
+            3 encabezados independientes: el superior (institución + año lectivo), las bandas de sección
+            (Datos informativos, Situación de aprendizaje, SEMANAS...) y los sub-encabezados de tabla
+            (Indicadores/Saberes, Estrategias/Recursos/Evaluación, pie de firmas). Cada uno tiene su propio
+            color de fondo y de texto.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="grid max-w-md grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label>Color principal (bandas de sección)</Label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={cfg.headerColor}
-                onChange={(e) => setCfg({ ...cfg, headerColor: e.target.value })}
-                className="h-9 w-12 rounded border"
-              />
-              <Input value={cfg.headerColor} onChange={(e) => setCfg({ ...cfg, headerColor: e.target.value })} />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Color secundario (sub-encabezados)</Label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={cfg.headerColor2}
-                onChange={(e) => setCfg({ ...cfg, headerColor2: e.target.value })}
-                className="h-9 w-12 rounded border"
-              />
-              <Input value={cfg.headerColor2} onChange={(e) => setCfg({ ...cfg, headerColor2: e.target.value })} />
-            </div>
-          </div>
+        <CardContent className="space-y-6">
+          <ColorPairRow
+            title="Encabezado superior"
+            hint="Nombre de la institución y año lectivo, arriba del documento."
+            bgValue={cfg.topHeaderColor}
+            textValue={cfg.topHeaderTextColor}
+            onBgChange={(v) => setCfg({ ...cfg, topHeaderColor: v })}
+            onTextChange={(v) => setCfg({ ...cfg, topHeaderTextColor: v })}
+          />
+          <ColorPairRow
+            title="Bandas de sección"
+            hint="Datos informativos, Situación de aprendizaje, Conexión interdisciplinar, SEMANAS, título Saberes."
+            bgValue={cfg.headerColor}
+            textValue={cfg.headerTextColor}
+            onBgChange={(v) => setCfg({ ...cfg, headerColor: v })}
+            onTextChange={(v) => setCfg({ ...cfg, headerTextColor: v })}
+          />
+          <ColorPairRow
+            title="Sub-encabezados de tabla"
+            hint="Indicadores de evaluación / D-P-A, Estrategias-Recursos-Evaluación, encabezado del pie de firmas."
+            bgValue={cfg.headerColor2}
+            textValue={cfg.headerColor2TextColor}
+            onBgChange={(v) => setCfg({ ...cfg, headerColor2: v })}
+            onTextChange={(v) => setCfg({ ...cfg, headerColor2TextColor: v })}
+          />
+          <p className="max-w-2xl text-xs text-muted-foreground">
+            Nota: la tabla semanal del modelo por Competencias (ESTRATEGIAS / RECURSOS / EVALUACIÓN) usa un azul
+            marino fijo — es el formato oficial calcado del documento TIGA y no es configurable.
+          </p>
         </CardContent>
       </Card>
 
@@ -156,7 +213,7 @@ export function MicrocurricularTemplatePage() {
           <CardTitle>Marca de agua</CardTitle>
           <CardDescription>Usa el logo institucional (Configuración → Marca) como marca de agua de fondo.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -166,6 +223,49 @@ export function MicrocurricularTemplatePage() {
             />
             Mostrar marca de agua en el PDF
           </label>
+
+          {cfg.watermarkEnabled && (
+            <div className="max-w-md space-y-4 border-l pl-4">
+              <div className="space-y-1.5">
+                <Label>Opacidad: {Math.round(cfg.watermarkOpacity * 100)}%</Label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={Math.round(cfg.watermarkOpacity * 100)}
+                  onChange={(e) => setCfg({ ...cfg, watermarkOpacity: Number(e.target.value) / 100 })}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Alcance</Label>
+                <label className="flex items-start gap-2 rounded-md border p-3 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    className="mt-0.5 h-4 w-4"
+                    checked={cfg.watermarkScope === 'first_page_only'}
+                    onChange={() => setCfg({ ...cfg, watermarkScope: 'first_page_only' })}
+                  />
+                  <span>
+                    <span className="font-medium">Solo la primera página</span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 rounded-md border p-3 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    className="mt-0.5 h-4 w-4"
+                    checked={cfg.watermarkScope === 'all_pages'}
+                    onChange={() => setCfg({ ...cfg, watermarkScope: 'all_pages' })}
+                  />
+                  <span>
+                    <span className="font-medium">Todas las páginas</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

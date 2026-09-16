@@ -29,7 +29,7 @@ export function buildActaPdf(data: ActaPdfData): Promise<Buffer> {
     doc.on('error', reject)
 
     const logo = resolveLogo(data.logoUrl)
-    drawWatermark(doc, logo)
+    drawWatermark(doc, logo, 0.07)
     drawHeader(doc, logo, data.institutionName, 'ACTA DE COMPROMISO')
 
 

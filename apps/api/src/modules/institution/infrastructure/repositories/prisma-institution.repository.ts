@@ -58,9 +58,15 @@ function extractMicrocurricularTemplate(settings: unknown): MicrocurricularTempl
   const templates = (s.documentTemplates ?? {}) as Record<string, unknown>
   const t = (templates.microcurricular ?? {}) as Partial<MicrocurricularTemplateConfig>
   return {
+    topHeaderColor: t.topHeaderColor ?? DEFAULT_MICROCURRICULAR_TEMPLATE.topHeaderColor,
+    topHeaderTextColor: t.topHeaderTextColor ?? DEFAULT_MICROCURRICULAR_TEMPLATE.topHeaderTextColor,
     headerColor: t.headerColor ?? DEFAULT_MICROCURRICULAR_TEMPLATE.headerColor,
+    headerTextColor: t.headerTextColor ?? DEFAULT_MICROCURRICULAR_TEMPLATE.headerTextColor,
     headerColor2: t.headerColor2 ?? DEFAULT_MICROCURRICULAR_TEMPLATE.headerColor2,
+    headerColor2TextColor: t.headerColor2TextColor ?? DEFAULT_MICROCURRICULAR_TEMPLATE.headerColor2TextColor,
     watermarkEnabled: t.watermarkEnabled ?? DEFAULT_MICROCURRICULAR_TEMPLATE.watermarkEnabled,
+    watermarkOpacity: t.watermarkOpacity ?? DEFAULT_MICROCURRICULAR_TEMPLATE.watermarkOpacity,
+    watermarkScope: t.watermarkScope ?? DEFAULT_MICROCURRICULAR_TEMPLATE.watermarkScope,
     phaseLabels: { ...DEFAULT_MICROCURRICULAR_TEMPLATE.phaseLabels, ...(t.phaseLabels ?? {}) },
     saberesOrder:
       t.saberesOrder && t.saberesOrder.length === 3
@@ -200,6 +206,9 @@ export class PrismaInstitutionRepository {
     if (dto.saberesOrder && dto.saberesOrder.length !== 3) {
       throw new BadRequestError('saberesOrder debe incluir exactamente los 3 tipos de saberes')
     }
+    if (dto.watermarkOpacity !== undefined && (dto.watermarkOpacity < 0 || dto.watermarkOpacity > 1)) {
+      throw new BadRequestError('watermarkOpacity debe estar entre 0 y 1')
+    }
     const inst = await prisma.institution.findUnique({
       where: { id: institutionId },
       select: { settings: true },
@@ -210,9 +219,15 @@ export class PrismaInstitutionRepository {
     const currentTemplates = (currentSettings.documentTemplates ?? {}) as Record<string, unknown>
     const current = extractMicrocurricularTemplate(inst.settings)
     const next: MicrocurricularTemplateConfig = {
+      topHeaderColor: dto.topHeaderColor ?? current.topHeaderColor,
+      topHeaderTextColor: dto.topHeaderTextColor ?? current.topHeaderTextColor,
       headerColor: dto.headerColor ?? current.headerColor,
+      headerTextColor: dto.headerTextColor ?? current.headerTextColor,
       headerColor2: dto.headerColor2 ?? current.headerColor2,
+      headerColor2TextColor: dto.headerColor2TextColor ?? current.headerColor2TextColor,
       watermarkEnabled: dto.watermarkEnabled ?? current.watermarkEnabled,
+      watermarkOpacity: dto.watermarkOpacity ?? current.watermarkOpacity,
+      watermarkScope: dto.watermarkScope ?? current.watermarkScope,
       phaseLabels: { ...current.phaseLabels, ...(dto.phaseLabels ?? {}) },
       saberesOrder: dto.saberesOrder ?? current.saberesOrder,
       weekLayout: dto.weekLayout ?? current.weekLayout,
