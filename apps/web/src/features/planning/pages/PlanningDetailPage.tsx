@@ -15,8 +15,6 @@ import { DynamicForm } from '@/shared/components/form/DynamicForm'
 import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { usePeriods } from '@/features/academic/hooks/useAcademic'
 import { useCompetenciesForSubject } from '@/features/competency-curriculum/hooks/useCompetencyCurriculum'
-import { SkillReinforcementPanel } from '@/features/pedagogic-recovery/components/SkillReinforcementPanel'
-import { ReinforcementPlansList } from '@/features/pedagogic-recovery/components/ReinforcementPlansList'
 import { cn } from '@/shared/lib/utils'
 import {
   usePlan,
@@ -182,7 +180,6 @@ export function PlanningDetailPage() {
   }, [plan?.id])
 
   const { data: periods = [] } = usePeriods(plan?.courseAssignment?.academicYearId ?? '')
-  const activePeriod = periods.find((p) => p.isActive) ?? periods[0]
 
   const [newTitle, setNewTitle] = React.useState('')
   const [newPeriodId, setNewPeriodId] = React.useState('')
@@ -248,16 +245,8 @@ export function PlanningDetailPage() {
         </div>
       </div>
 
-      {activePeriod && (
-        <>
-          <SkillReinforcementPanel courseAssignmentId={plan.courseAssignmentId} academicPeriodId={activePeriod.id} />
-          <ReinforcementPlansList
-            courseAssignmentId={plan.courseAssignmentId}
-            academicPeriodId={activePeriod.id}
-            parallelId={plan.courseAssignment?.parallel.id}
-          />
-        </>
-      )}
+      {/* Refuerzo/adaptaciones se muestra solo en su propia sección (Refuerzo y
+          Adaptaciones), no aquí — mezclaba conceptos con la planificación. */}
 
       <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
         {isCompetencyModel ? (
