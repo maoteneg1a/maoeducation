@@ -1,5 +1,5 @@
 import PDFDocument from 'pdfkit'
-import { resolveLogo } from '../../../../shared/infrastructure/services/pdf-helpers'
+import { resolveLogo, drawLeftLogoHeader } from '../../../../shared/infrastructure/services/pdf-helpers'
 
 export interface ProjectWeekEntryData {
   weekNumber: number
@@ -98,16 +98,7 @@ export function buildInterdisciplinaryProjectPdf(data: InterdisciplinaryProjectP
     const fullWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right
 
     const logo = resolveLogo(data.logoUrl)
-    const logoW = logo ? 50 : 0
-    if (logo) {
-      try {
-        doc.image(logo, x0, doc.y, { width: 40 })
-      } catch { /* logo inválido, se omite */ }
-    }
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(14)
-      .text(data.institutionName.toUpperCase(), x0 + logoW, doc.y, { width: fullWidth - logoW, align: 'center' })
+    drawLeftLogoHeader(doc, logo, data.institutionName, x0, fullWidth)
     doc.moveDown(0.4)
     doc.moveTo(x0, doc.y).lineTo(x0 + fullWidth, doc.y).lineWidth(1.5).strokeColor('#333333').stroke()
     doc.moveDown(0.5)
