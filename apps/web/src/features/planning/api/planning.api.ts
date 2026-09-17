@@ -151,6 +151,42 @@ export interface PlanningWeek {
   createdAt: string
 }
 
+// ─── Distribución de competencias/saberes por semana ──────────────────────
+
+export interface DistributionSaber {
+  id: string
+  type: 'declarativo' | 'procedimental' | 'actitudinal'
+  code: string
+  description: string
+}
+
+export interface SuggestedWeekDistribution {
+  weekNumber: number
+  competencyId: string
+  competencyCode: string
+  competencyText: string
+  saberIds: string[]
+  sabers: DistributionSaber[]
+}
+
+export interface SuggestDistributionResult {
+  weeks: SuggestedWeekDistribution[]
+  calendarWeeks: number
+  coverageWarning?: string
+  weeksCountWarning?: string
+}
+
+export interface ConfirmDistributionWeekInput {
+  weekNumber: number
+  competencyId: string
+  saberIds: string[]
+}
+
+export interface ConfirmDistributionResult {
+  situation: LearningSituation
+  weeks: PlanningWeek[]
+}
+
 export const planningApi = {
   // Plantillas (PCA)
   listTemplates: (type?: PlanningTemplateType) =>
@@ -259,4 +295,22 @@ export const planningApi = {
   listPlannedCompetencies: (courseAssignmentId: string, academicPeriodId: string) =>
     apiGet<Competency[]>('planning/planned-competencies', { courseAssignmentId, academicPeriodId }),
 
+  // Distribución de competencias/saberes por semana — reemplaza la elección
+  // manual de situación: el docente elige periodo + N semanas, ve la
+  // sugerencia, la edita si quiere, y confirma.
+  suggestDistribution: (courseAssignmentId: string, academicPeriodId: string, data: { weeksCount: number }) =>
+    apiPost<SuggestDistributionResult>(
+      `planning/course-assignments/${courseAssignmentId}/periods/${academicPeriodId}/suggest-distribution`,
+      data,
+    ),
+
+  confirmDistribution: (
+    courseAssignmentId: string,
+    academicPeriodId: string,
+    data: { weeksCount: number; weeks: ConfirmDistributionWeekInput[] },
+  ) =>
+    apiPost<ConfirmDistributionResult>(
+      `planning/course-assignments/${courseAssignmentId}/periods/${academicPeriodId}/confirm-distribution`,
+      data,
+    ),
 }

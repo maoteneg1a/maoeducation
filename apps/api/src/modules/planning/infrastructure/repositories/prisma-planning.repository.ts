@@ -2,17 +2,28 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { ConflictError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import { buildSituationTitle } from '../../domain/situation-title'
+import { distributeCompetencyWeeks } from '../../domain/competency-week-distribution'
 import type {
+  ConfirmDistributionDto,
+  ConfirmDistributionWeekDto,
   CreatePlanDto,
   CreateSituationDto,
   CreateTemplateDto,
   CreateWeekDto,
   PlanningTemplateType,
+  SuggestDistributionDto,
+  SuggestDistributionResult,
   UpdatePlanDto,
   UpdateSituationDto,
   UpdateTemplateDto,
   UpdateWeekDto,
 } from '../../application/dtos/planning.dto'
+
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000
+
+function calendarWeeksBetween(startDate: Date, endDate: Date): number {
+  return Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / MS_PER_WEEK))
+}
 
 export class PrismaPlanningRepository {
   // ─── Plantillas (solo PCA) ──────────────────────────────────────────────
@@ -500,5 +511,161 @@ export class PrismaPlanningRepository {
         { role: 'Aprobado por: Subdirección', name: null, date: null },
       ],
     }
+  }
+
+  // ─── Distribución de competencias/saberes por semana ───────────────────
+  // Reemplaza la elección manual de "situación de aprendizaje": el docente ya
+  // eligió materia+grado (CourseAssignment) y aquí solo elige periodo + número
+  // de semanas — el sistema sugiere la distribución, el docente la confirma o
+  // edita, y SOLO entonces se genera el resto (ver draftSituationBlock).
+
+  private async resolveAssignmentForDistribution(courseAssignmentId: string, institutionId: string) {
+    const assignment = await prisma.courseAssignment.findFirst({
+      where: { id: courseAssignmentId, institutionId },
+      include: { subject: true, parallel: { include: { level: true } } },
+    })
+    if (!assignment) throw new NotFoundError('Asignación de curso no encontrada')
+    if (!assignment.subject.competencyAreaId) {
+      throw new ConflictError('Esta materia no tiene área de competencias vinculada')
+    }
+    const subnivel = assignment.parallel.level.subnivel
+    if (!subnivel) throw new ConflictError('El grado de esta asignación no tiene subnivel configurado')
+    return { assignment, competencyAreaId: assignment.subject.competencyAreaId, subnivel }
+  }
+
+  /** Competencias del área+subnivel de la asignación, excluyendo las ya usadas en OTRAS situaciones (otros periodos) del mismo plan — progresión real a través del año. */
+  private async availableCompetenciesForDistribution(
+    courseAssignmentId: string,
+    academicPeriodId: string,
+    competencyAreaId: string,
+    subnivel: string,
+  ) {
+    const plan = await prisma.curriculumPlan.findUnique({ where: { courseAssignmentId } })
+    const usedElsewhere = plan
+      ? await prisma.learningSituation.findMany({
+          where: { planId: plan.id, academicPeriodId: { not: academicPeriodId } },
+          select: { competencyIds: true },
+        })
+      : []
+    const usedCompetencyIds = new Set(usedElsewhere.flatMap((s) => s.competencyIds))
+
+    const competencies = await prisma.competency.findMany({
+      where: { areaId: competencyAreaId, subnivel, isActive: true, id: { notIn: [...usedCompetencyIds] } },
+      orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+      include: { sabers: { where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] } },
+    })
+    return competencies.map((c) => ({
+      id: c.id,
+      code: c.code,
+      text: c.text,
+      sabers: c.sabers.map((s) => ({ id: s.id, type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description })),
+    }))
+  }
+
+  async suggestDistribution(
+    institutionId: string,
+    courseAssignmentId: string,
+    academicPeriodId: string,
+    dto: SuggestDistributionDto,
+  ): Promise<SuggestDistributionResult> {
+    if (dto.weeksCount < 2) throw new ConflictError('Un periodo académico debe tener al menos 2 semanas')
+
+    const period = await prisma.academicPeriod.findFirst({ where: { id: academicPeriodId } })
+    if (!period) throw new NotFoundError('Periodo académico no encontrado')
+
+    const { competencyAreaId, subnivel } = await this.resolveAssignmentForDistribution(courseAssignmentId, institutionId)
+    const competencies = await this.availableCompetenciesForDistribution(courseAssignmentId, academicPeriodId, competencyAreaId, subnivel)
+
+    const calendarWeeks = calendarWeeksBetween(period.startDate, period.endDate)
+    const { weeks, coverageWarning } = distributeCompetencyWeeks(competencies, dto.weeksCount)
+
+    return {
+      weeks,
+      calendarWeeks,
+      coverageWarning,
+      weeksCountWarning:
+        Math.abs(dto.weeksCount - calendarWeeks) > 2
+          ? `El periodo "${period.name}" tiene aproximadamente ${calendarWeeks} semanas en el calendario — revisa si ${dto.weeksCount} es el número correcto.`
+          : undefined,
+    }
+  }
+
+  async confirmDistribution(
+    institutionId: string,
+    actorId: string,
+    courseAssignmentId: string,
+    academicPeriodId: string,
+    dto: ConfirmDistributionDto,
+  ) {
+    if (dto.weeksCount < 2) throw new ConflictError('Un periodo académico debe tener al menos 2 semanas')
+    if (dto.weeks.length === 0) throw new ConflictError('La distribución no puede estar vacía')
+
+    await this.resolveAssignmentForDistribution(courseAssignmentId, institutionId)
+
+    const period = await prisma.academicPeriod.findFirst({ where: { id: academicPeriodId } })
+    if (!period) throw new NotFoundError('Periodo académico no encontrado')
+
+    let plan = await prisma.curriculumPlan.findUnique({ where: { courseAssignmentId } })
+    if (!plan) {
+      const templateId = (await this.getDefaultTemplate(institutionId, 'pca')).id
+      plan = await prisma.curriculumPlan.create({
+        data: { institutionId, courseAssignmentId, templateId, createdBy: actorId },
+      })
+    }
+
+    const competencyIds = [...new Set(dto.weeks.map((w) => w.competencyId))]
+
+    // Como máximo UNA situación por plan+periodo — si ya existe (ej. el docente
+    // vuelve a confirmar una distribución editada), se reutiliza en vez de
+    // duplicar (mismo contrato implícito que multigrade-week-generator.ensureSituation).
+    let situation = await prisma.learningSituation.findFirst({ where: { planId: plan.id, academicPeriodId } })
+    if (situation) {
+      situation = await prisma.learningSituation.update({
+        where: { id: situation.id },
+        data: { competencyIds },
+      })
+    } else {
+      const anchorCompetency = await prisma.competency.findFirst({
+        where: { id: { in: competencyIds } },
+        orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+        select: { code: true, text: true },
+      })
+      const title = anchorCompetency ? buildSituationTitle(anchorCompetency.code, anchorCompetency.text) : period.name
+      situation = await prisma.learningSituation.create({
+        data: {
+          institutionId,
+          planId: plan.id,
+          academicPeriodId,
+          title,
+          startDate: period.startDate,
+          endDate: period.endDate,
+          interdisciplinaryAreaIds: [],
+          interdisciplinarySubjectIds: [],
+          competencyIds,
+          createdBy: actorId,
+        },
+      })
+    }
+
+    const weeks = await Promise.all(
+      dto.weeks.map((w: ConfirmDistributionWeekDto) =>
+        prisma.planningWeek.upsert({
+          where: { situationId_weekNumber: { situationId: situation!.id, weekNumber: w.weekNumber } },
+          create: {
+            institutionId,
+            situationId: situation!.id,
+            weekNumber: w.weekNumber,
+            competencyIds: [w.competencyId],
+            competencySaberIds: w.saberIds,
+          },
+          update: {
+            competencyIds: [w.competencyId],
+            competencySaberIds: w.saberIds,
+          },
+        }),
+      ),
+    )
+
+    return { situation, weeks }
   }
 }
