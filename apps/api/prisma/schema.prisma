@@ -575,6 +575,12 @@ model CompetencySaber {
   description  String
   isActive     Boolean  @default(true) @map("is_active")
   sortOrder    Int      @default(0) @map("sort_order")
+  // Códigos de Level.code (ej. ["5B","6B"]) a los que aplica este saber DENTRO
+  // del subnivel de su competencia — granularidad TIGA por grado individual.
+  // Retrocompatible: [] (default) = aplica a TODOS los grados del subnivel de
+  // la competencia (comportamiento histórico, sin filtro). Solo se activa el
+  // filtro por grado cuando un importador llena este array explícitamente.
+  gradeCodes   String[] @map("grade_codes") @default([])
   createdAt    DateTime @default(now()) @map("created_at")
 
   competency Competency @relation(fields: [competencyId], references: [id])
