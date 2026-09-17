@@ -95,6 +95,15 @@ export interface DraftCompetencyWeekDto {
     commonPurpose: string
     gradeLabel: string
   }
+  /**
+   * OPCIONAL — si el docente ya filtró/seleccionó manualmente qué saberes de
+   * la competencia principal quiere usar en esta semana (ej. la IA propuso 5
+   * y el docente dejó solo 2), esos ids tienen prioridad ABSOLUTA sobre la
+   * distribución automática (selectSabersForWeek): se usan exactamente esos,
+   * sin que el motor de reparto por semana los reemplace. Sin este campo, se
+   * mantiene el comportamiento de siempre (reparto automático).
+   */
+  selectedSaberIds?: string[]
 }
 
 export interface DraftCompetencyWeekResult {
