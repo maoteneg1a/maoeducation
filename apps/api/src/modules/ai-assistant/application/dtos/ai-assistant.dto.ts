@@ -82,6 +82,19 @@ export interface DraftCompetencyWeekDto {
    * una sola semana). Sin este dato se asume semana 1 de un bloque de 1.
    */
   weekNumber?: number
+  /**
+   * OPCIONAL — solo lo llena multigrade-week-generator.service.ts. Si viene,
+   * el prompt le pide a la IA conectar explícitamente la primera actividad de
+   * "Inicio" con la experiencia común multigrado (sin alterar el resto del
+   * flujo/validación de una semana individual normal, que sigue igual cuando
+   * este campo no viene — ver draftCompetencyWeek).
+   */
+  multigradeSharedExperience?: {
+    title: string
+    context: string
+    commonPurpose: string
+    gradeLabel: string
+  }
 }
 
 export interface DraftCompetencyWeekResult {

@@ -2,9 +2,11 @@ import { FastifyInstance } from 'fastify'
 import { PrismaPlanningRepository } from '../infrastructure/repositories/prisma-planning.repository'
 import { PrismaInstitutionRepository } from '../../institution/infrastructure/repositories/prisma-institution.repository'
 import { buildMicrocurricularPdf } from '../application/services/microcurricular-pdf.service'
+import { buildMultigradePdf, type MultigradeGradeColumn } from '../application/services/multigrade-pdf.service'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import { getPlannedSkillIds, getPlannedCompetencyIds } from '../../../shared/infrastructure/services/planned-curriculum.service'
+import { NotFoundError } from '../../../shared/domain/errors/app.errors'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import type {
   CreatePlanDto,
@@ -216,6 +218,93 @@ export default async function planningRoutes(app: FastifyInstance) {
       return reply
         .header('Content-Type', 'application/pdf')
         .header('Content-Disposition', `inline; filename="planificacion-${slug}.pdf"`)
+        .send(pdf)
+    },
+  )
+
+  // ─── PDF (Planificación Microcurricular MULTIGRADO) ─────────────────────
+  // Una semana multigrado ya generada (ver /ai-assistant/draft-multigrade-week):
+  // experiencia común + una columna por grado participante, en vez de la tabla
+  // de 3 columnas de una sola materia.
+  app.get<{ Params: { groupId: string; weekNumber: string } }>(
+    '/planning/multigrade-groups/:groupId/weeks/:weekNumber/pdf',
+    { preHandler: [requirePermission('planning', 'read', 'own')] },
+    async (req, reply) => {
+      const weekNumber = Number(req.params.weekNumber)
+      const group = await prisma.multigradeGroup.findFirst({
+        where: { id: req.params.groupId, institutionId: req.user.institutionId },
+        include: {
+          teacher: { include: { profile: true } },
+          academicYear: true,
+          members: {
+            include: {
+              courseAssignment: { include: { subject: true, parallel: { include: { level: true } } } },
+            },
+          },
+        },
+      })
+      if (!group) throw new NotFoundError('Aula multigrado no encontrada')
+
+      const experience = await prisma.multigradeSharedExperience.findFirst({
+        where: { groupId: group.id, weekNumber },
+        include: { academicPeriod: true },
+      })
+      if (!experience) throw new NotFoundError('No hay experiencia común generada para esa semana todavía')
+
+      const gradeColumns: MultigradeGradeColumn[] = []
+      for (const member of group.members) {
+        const situation = await prisma.learningSituation.findFirst({
+          where: { plan: { courseAssignmentId: member.courseAssignmentId }, academicPeriodId: experience.academicPeriodId },
+          include: { weeks: { where: { weekNumber } } },
+        })
+        const week = situation?.weeks[0]
+        if (!week || !week.momentos) continue
+
+        const [competencies, indicators, sabers] = await Promise.all([
+          week.competencyIds.length ? prisma.competency.findMany({ where: { id: { in: week.competencyIds } } }) : [],
+          week.competencyIndicatorIds.length
+            ? prisma.competencyIndicator.findMany({ where: { id: { in: week.competencyIndicatorIds } } })
+            : [],
+          week.competencySaberIds.length
+            ? prisma.competencySaber.findMany({ where: { id: { in: week.competencySaberIds } } })
+            : [],
+        ])
+
+        gradeColumns.push({
+          gradeCode: member.gradeCode,
+          gradeLabel: member.courseAssignment.parallel.level.name,
+          subjectName: member.courseAssignment.subject.name,
+          competencyCodes: competencies.map((c) => c.code),
+          indicatorCodes: indicators.map((i) => i.code).length ? indicators.map((i) => i.code) : week.indicadoresEvaluacion ? [week.indicadoresEvaluacion] : [],
+          saberCodes: sabers.map((s) => s.code),
+          momentos: week.momentos as unknown as import('../../../shared/domain/pedagogical-methodology').CompetencyWeekMomentos,
+        })
+      }
+      if (gradeColumns.length === 0) {
+        throw new NotFoundError('Ningún grado tiene esa semana generada todavía')
+      }
+
+      const template = await institutionRepo.getMicrocurricularTemplate(req.user.institutionId)
+      const teacherProfile = group.teacher.profile
+      const pdf = await buildMultigradePdf(
+        {
+          institutionName: (await prisma.institution.findUnique({ where: { id: req.user.institutionId } }))?.name ?? '',
+          yearName: group.academicYear.name,
+          teacherName: teacherProfile ? `${teacherProfile.firstName} ${teacherProfile.lastName}` : '',
+          periodName: experience.academicPeriod.name,
+          groupName: group.name,
+          weekNumber,
+          experienceTitle: experience.title,
+          experienceContext: experience.context,
+          experienceCommonPurpose: experience.commonPurpose,
+          grades: gradeColumns,
+        },
+        template,
+      )
+
+      return reply
+        .header('Content-Type', 'application/pdf')
+        .header('Content-Disposition', `inline; filename="planificacion-multigrado-semana-${weekNumber}.pdf"`)
         .send(pdf)
     },
   )
