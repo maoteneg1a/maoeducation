@@ -4,8 +4,14 @@ import { randomBytes } from 'crypto'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { tokenService } from '../../../shared/infrastructure/services/token.service'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
-import { ConflictError, NotFoundError, UnauthorizedError } from '../../../shared/domain/errors/app.errors'
+import { BadRequestError, ConflictError, NotFoundError, UnauthorizedError } from '../../../shared/domain/errors/app.errors'
 import { bootstrapInstitution } from '../../platform/application/services/institution-bootstrap'
+import {
+  MultigradeDomainError,
+  MULTIGRADE_GRADE_NAME,
+  MULTIGRADE_GRADE_SORT_ORDER,
+  resolveMultigradeSelections,
+} from '../../../shared/domain/multigrade'
 import { buildAuthInstitution } from '../../auth/application/services/auth-institution.mapper'
 import { PrismaAuthUserRepository } from '../../auth/infrastructure/repositories/prisma-auth-user.repository'
 import { sendVerificationEmail } from '../../../shared/infrastructure/services/email.service'
@@ -325,7 +331,7 @@ export default async function personalRoutes(app: FastifyInstance) {
   // ─── Setup ────────────────────────────────────────────────────────────────
   app.post<{
     Body: {
-      profile: 'subject-first' | 'classroom-first'
+      profile: 'subject-first' | 'classroom-first' | 'multigrade'
       yearName: string
       yearStart: string
       yearEnd: string
@@ -336,6 +342,12 @@ export default async function personalRoutes(app: FastifyInstance) {
       // classroom-first — un solo grupo, varias materias (elegidas del catálogo oficial)
       parallelName?: string
       subjectAreaIds?: string[]
+      // multigrado — selección explícita grado+materia (unidocente/pluridocente), calcado
+      // de las reglas TIGA Multigrado v1.0 (ver shared/domain/multigrade.ts). Mínimo 2
+      // selecciones; 8vo-10mo EGB requiere allowSuperiorExtension=true explícito; BGU rechazado.
+      multigradeName?: string
+      multigradeSelections?: Array<{ gradeCode: string; subjectAreaId: string }>
+      allowSuperiorExtension?: boolean
       // paso de competencias — fijan de una vez el modelo de planificación para
       // que el profesor nunca tenga que tocar Configuración > Calificación.
       subnivel?: string
@@ -350,7 +362,7 @@ export default async function personalRoutes(app: FastifyInstance) {
           type: 'object',
           required: ['profile', 'yearName', 'yearStart', 'yearEnd'],
           properties: {
-            profile: { type: 'string', enum: ['subject-first', 'classroom-first'] },
+            profile: { type: 'string', enum: ['subject-first', 'classroom-first', 'multigrade'] },
             yearName: { type: 'string', minLength: 1 },
             yearStart: { type: 'string' },
             yearEnd: { type: 'string' },
@@ -359,6 +371,16 @@ export default async function personalRoutes(app: FastifyInstance) {
             groups: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' } } } },
             parallelName: { type: 'string' },
             subjectAreaIds: { type: 'array', items: { type: 'string' } },
+            multigradeName: { type: 'string' },
+            multigradeSelections: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['gradeCode', 'subjectAreaId'],
+                properties: { gradeCode: { type: 'string' }, subjectAreaId: { type: 'string' } },
+              },
+            },
+            allowSuperiorExtension: { type: 'boolean' },
             subnivel: { type: 'string', enum: VALID_SUBNIVELES },
             planningModel: { type: 'string', enum: ['destrezas', 'competencias'] },
           },
@@ -378,7 +400,32 @@ export default async function personalRoutes(app: FastifyInstance) {
         return reply.status(403).send({ message: 'Solo disponible para cuentas personales' })
       }
 
-      const { profile, yearName, yearStart, yearEnd, workspaceName, subnivel, planningModel } = req.body
+      const { profile, yearName, yearStart, yearEnd, workspaceName, subnivel } = req.body
+      // Multigrado SIEMPRE usa el modelo por COMPETENCIAS (CNC): es el único banco
+      // que cubre el subnivel "preparatoria" (1ro EGB reutiliza su currículo integrado,
+      // ver shared/domain/multigrade.ts) y es el formato ya calcado de TIGA
+      // (Inicio/Desarrollo/Cierre con actividades numeradas + DUA) que el generador
+      // multigrado necesita — nunca se le pregunta al docente, se decide aquí.
+      const planningModel: 'destrezas' | 'competencias' | undefined =
+        profile === 'multigrade' ? 'competencias' : req.body.planningModel
+
+      // Multigrado: valida TODAS las selecciones grado+materia ANTES de escribir nada
+      // en la base — all-or-nothing, calcado del orquestador de TIGA (si una sola
+      // selección es inválida — BGU, fuera de rango, o 8vo-10mo sin confirmar la
+      // extensión superior — se rechaza la lista completa con 400 explícito, sin
+      // dejar creado ningún Level/Parallel/CourseAssignment a medias).
+      let resolvedMultigradeSelections: ReturnType<typeof resolveMultigradeSelections> = []
+      if (profile === 'multigrade') {
+        try {
+          resolvedMultigradeSelections = resolveMultigradeSelections(
+            req.body.multigradeSelections ?? [],
+            req.body.allowSuperiorExtension === true,
+          )
+        } catch (error) {
+          if (error instanceof MultigradeDomainError) throw new BadRequestError(error.message)
+          throw error
+        }
+      }
 
       // Update workspace name if provided
       if (workspaceName?.trim()) {
@@ -438,19 +485,26 @@ export default async function personalRoutes(app: FastifyInstance) {
       // en el wizard (paso Competencias) decide qué banco curricular (destrezas
       // o competencias) le ofrece luego el selector de la planificación semanal
       // — así el profesor nunca necesita ir a Configuración > Niveles a fijarlo.
+      // Multigrado NO usa este nivel único "PERSONAL": cada grado necesita SU
+      // PROPIO Level con el subnivel correcto (1B=preparatoria, 2B-4B=elemental,
+      // 5B-7B=media, 8B-10B=superior) — se resuelve en la rama multigrado abajo.
       const resolvedSubnivel = subnivel && VALID_SUBNIVELES.includes(subnivel) ? subnivel : 'media'
-      let level = await prisma.level.findFirst({ where: { institutionId, code: 'PERSONAL' } })
-      if (!level) {
-        level = await prisma.level.create({
-          data: { institutionId, code: 'PERSONAL', name: 'Mis Cursos', sortOrder: 99, subnivel: resolvedSubnivel },
-        })
-      } else if (subnivel && level.subnivel !== resolvedSubnivel) {
-        level = await prisma.level.update({ where: { id: level.id }, data: { subnivel: resolvedSubnivel } })
+      let level: Awaited<ReturnType<typeof prisma.level.findFirst>> = null
+      if (profile !== 'multigrade') {
+        level = await prisma.level.findFirst({ where: { institutionId, code: 'PERSONAL' } })
+        if (!level) {
+          level = await prisma.level.create({
+            data: { institutionId, code: 'PERSONAL', name: 'Mis Cursos', sortOrder: 99, subnivel: resolvedSubnivel },
+          })
+        } else if (subnivel && level.subnivel !== resolvedSubnivel) {
+          level = await prisma.level.update({ where: { id: level.id }, data: { subnivel: resolvedSubnivel } })
+        }
       }
 
       const assignmentIds: string[] = []
       const subjectIds: string[] = []
       const parallelIds: string[] = []
+      let multigradeGroupId: string | null = null
       const resolvedPlanningModel: 'destrezas' | 'competencias' =
         planningModel ?? ((settings.planningModel as 'destrezas' | 'competencias' | undefined) ?? 'destrezas')
 
@@ -484,7 +538,9 @@ export default async function personalRoutes(app: FastifyInstance) {
 
         for (const g of req.body.groups) {
           const parallel = await prisma.parallel.create({
-            data: { institutionId, name: g.name, levelId: level.id, academicYearId: year.id },
+            // level siempre existe aquí: solo es null en la rama 'multigrade' (que
+            // usa su propio Level por grado más abajo, nunca este bloque).
+            data: { institutionId, name: g.name, levelId: level!.id, academicYearId: year.id },
           })
           parallelIds.push(parallel.id)
 
@@ -496,7 +552,7 @@ export default async function personalRoutes(app: FastifyInstance) {
       } else if (profile === 'classroom-first' && req.body.parallelName && req.body.subjectAreaIds?.length) {
         // One parallel, multiple subjects (cada una del catálogo oficial)
         const parallel = await prisma.parallel.create({
-          data: { institutionId, name: req.body.parallelName, levelId: level.id, academicYearId: year.id },
+          data: { institutionId, name: req.body.parallelName, levelId: level!.id, academicYearId: year.id },
         })
         parallelIds.push(parallel.id)
 
@@ -508,6 +564,85 @@ export default async function personalRoutes(app: FastifyInstance) {
             data: { institutionId, subjectId: subject.id, parallelId: parallel.id, teacherId, academicYearId: year.id },
           })
           assignmentIds.push(assignment.id)
+        }
+      } else if (profile === 'multigrade') {
+        // Unidocente/pluridocente: N selecciones explícitas grado+materia, ya
+        // validadas all-or-nothing arriba (resolvedMultigradeSelections). Deja
+        // TODO listo de una sola pasada — Level por grado (ya existe desde
+        // bootstrapInstitution vía DEFAULT_LEVELS, se reusa; nunca se duplica),
+        // UN Parallel por grado (aunque tenga varias materias), y UN
+        // CourseAssignment por combinación grado×materia — el profesor nunca
+        // pasa por Configuración > Niveles ni por Configuración > Calificación.
+        const group = await prisma.multigradeGroup.create({
+          data: {
+            institutionId,
+            teacherId,
+            academicYearId: year.id,
+            name: req.body.multigradeName?.trim() || 'Aula multigrado',
+            allowSuperiorExtension: req.body.allowSuperiorExtension === true,
+            createdBy: teacherId,
+          },
+        })
+        multigradeGroupId = group.id
+
+        const parallelIdByGrade = new Map<string, string>()
+
+        for (const selection of resolvedMultigradeSelections) {
+          let gradeLevel = await prisma.level.findFirst({ where: { institutionId, code: selection.gradeCode } })
+          if (!gradeLevel) {
+            gradeLevel = await prisma.level.create({
+              data: {
+                institutionId,
+                code: selection.gradeCode,
+                name: MULTIGRADE_GRADE_NAME[selection.gradeCode] ?? selection.gradeCode,
+                sortOrder: MULTIGRADE_GRADE_SORT_ORDER[selection.gradeCode] ?? 50,
+                subnivel: selection.subnivel,
+              },
+            })
+          } else if (gradeLevel.subnivel !== selection.subnivel) {
+            gradeLevel = await prisma.level.update({ where: { id: gradeLevel.id }, data: { subnivel: selection.subnivel } })
+          }
+
+          let parallelId = parallelIdByGrade.get(selection.gradeCode)
+          if (!parallelId) {
+            const parallelName = MULTIGRADE_GRADE_NAME[selection.gradeCode] ?? selection.gradeCode
+            const existingParallel = await prisma.parallel.findFirst({
+              where: { levelId: gradeLevel.id, academicYearId: year.id, name: parallelName },
+            })
+            const parallel =
+              existingParallel ??
+              (await prisma.parallel.create({
+                data: { institutionId, name: parallelName, levelId: gradeLevel.id, academicYearId: year.id },
+              }))
+            parallelId = parallel.id
+            parallelIdByGrade.set(selection.gradeCode, parallelId)
+            parallelIds.push(parallelId)
+          }
+
+          const subject = await getOrCreateSubjectForArea(selection.subjectAreaId)
+          subjectIds.push(subject.id)
+
+          const existingAssignment = await prisma.courseAssignment.findFirst({
+            where: { subjectId: subject.id, parallelId, academicYearId: year.id },
+          })
+          const assignment =
+            existingAssignment ??
+            (await prisma.courseAssignment.create({
+              data: { institutionId, subjectId: subject.id, parallelId, teacherId, academicYearId: year.id },
+            }))
+          assignmentIds.push(assignment.id)
+
+          await prisma.multigradeGroupMember.upsert({
+            where: { courseAssignmentId: assignment.id },
+            create: {
+              groupId: group.id,
+              gradeCode: selection.gradeCode,
+              courseAssignmentId: assignment.id,
+              parallelId,
+              subjectId: subject.id,
+            },
+            update: { groupId: group.id },
+          })
         }
       }
 
@@ -526,7 +661,7 @@ export default async function personalRoutes(app: FastifyInstance) {
         },
       })
 
-      return reply.send({ yearId: year.id, parallelIds, subjectIds, assignmentIds })
+      return reply.send({ yearId: year.id, parallelIds, subjectIds, assignmentIds, multigradeGroupId })
     },
   )
 }

@@ -9,7 +9,7 @@ export interface PersonalRegisterDto {
 }
 
 export interface PersonalSetupDto {
-  profile: 'subject-first' | 'classroom-first'
+  profile: 'subject-first' | 'classroom-first' | 'multigrade'
   yearName: string
   yearStart: string
   yearEnd: string
@@ -20,6 +20,11 @@ export interface PersonalSetupDto {
   parallelName?: string
   /** classroom-first: varias materias, elegidas del catálogo oficial de áreas (destrezas o competencias). */
   subjectAreaIds?: string[]
+  /** multigrade: selección explícita grado+materia (unidocente/pluridocente) — mínimo 2. */
+  multigradeName?: string
+  multigradeSelections?: Array<{ gradeCode: string; subjectAreaId: string }>
+  /** Confirmación explícita para incluir grados de 8vo-10mo EGB (extensión superior). */
+  allowSuperiorExtension?: boolean
   /** Subnivel MINEDUC — filtra qué competencias/destrezas se ofrecen luego al planificar. */
   subnivel?: string
   /** Modelo de planificación curricular a fijar de una vez para esta cuenta. */
@@ -56,6 +61,7 @@ export const personalApi = {
       parallelIds: string[]
       subjectIds: string[]
       assignmentIds: string[]
+      multigradeGroupId: string | null
     }>(),
 
   bulkCreateStudents: (dto: BulkCreateStudentsDto) =>

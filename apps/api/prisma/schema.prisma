@@ -64,6 +64,8 @@ model Institution {
   planningWeeks             PlanningWeek[]
   reinforcementPlans        ReinforcementPlan[]
   interdisciplinaryProjects InterdisciplinaryProject[]
+  multigradeGroups          MultigradeGroup[]
+  multigradeSharedExperiences MultigradeSharedExperience[]
   subscription              Subscription?
   subscriptionPayments      SubscriptionPayment[]
 
@@ -87,6 +89,7 @@ model User {
 
   // Relaciones como actor
   teacherAssignments    CourseAssignment[]     @relation("TeacherAssignments")
+  multigradeGroupsAsTeacher MultigradeGroup[]  @relation("MultigradeGroupTeacher")
   createdActivities     Activity[]             @relation("ActivityCreator")
   recordedGrades        Grade[]                @relation("GradeRecorder")
   recordedAttendance    AttendanceRecord[]     @relation("AttendanceRecorder")
@@ -142,6 +145,8 @@ model User {
   createdInterdisciplinaryProjects   InterdisciplinaryProject[]         @relation("InterdisciplinaryProjectCreator")
   studentPromotions                  PromotionDecision[]                @relation("StudentPromotion")
   decidedPromotions                  PromotionDecision[]                @relation("PromotionDecider")
+  createdMultigradeGroups            MultigradeGroup[]                  @relation("MultigradeGroupCreator")
+  createdMultigradeExperiences       MultigradeSharedExperience[]        @relation("MultigradeExperienceCreator")
 
   // Planificación curricular (PCA/PUD)
   createdCurriculumPlans     CurriculumPlan[]    @relation("CurriculumPlanCreator")
@@ -282,6 +287,7 @@ model AcademicYear {
   courseAssignments  CourseAssignment[]
   subjectRecoveries  SubjectRecovery[]
   promotionDecisions PromotionDecision[]
+  multigradeGroups   MultigradeGroup[]
 
   @@unique([institutionId, name])
   @@map("academic_years")
@@ -322,6 +328,7 @@ model AcademicPeriod {
   learningSituations        LearningSituation[]
   reinforcementPlans        ReinforcementPlan[]
   interdisciplinaryProjects InterdisciplinaryProject[]
+  multigradeSharedExperiences MultigradeSharedExperience[]
 
   @@unique([academicYearId, periodNumber])
   @@map("academic_periods")
@@ -369,6 +376,7 @@ model Parallel {
   courseAssignments         CourseAssignment[]
   attendanceRecords         AttendanceRecord[]
   interdisciplinaryProjects InterdisciplinaryProject[]
+  multigradeGroupMembers    MultigradeGroupMember[]
 
   @@unique([levelId, academicYearId, name])
   @@map("parallels")
@@ -400,6 +408,7 @@ model Subject {
   curriculumArea    CurriculumArea?    @relation(fields: [curriculumAreaId], references: [id])
   competencyArea    CompetencyArea?    @relation(fields: [competencyAreaId], references: [id])
   courseAssignments CourseAssignment[]
+  multigradeGroupMembers MultigradeGroupMember[]
 
   @@unique([institutionId, code])
   @@map("subjects")
@@ -724,6 +733,7 @@ model CourseAssignment {
   curriculumPlans                CurriculumPlan[]
   reinforcementPlans             ReinforcementPlan[]
   interdisciplinaryContributions InterdisciplinaryContribution[]
+  multigradeGroupMember          MultigradeGroupMember?
 
   @@unique([subjectId, parallelId, academicYearId])
   @@map("course_assignments")
@@ -872,14 +882,105 @@ model PlanningWeek {
   competencySaberIds      String[]  @map("competency_saber_ids")
   // { anticipacion: {estrategiasDua, recursos, tecnica, instrumento}, construccionConocimiento: {...}, consolidacion: {...} }
   momentos                Json      @default("{}")
+  // Multigrado: si esta semana pertenece a un bloque multigrado, apunta a la
+  // experiencia común que la conecta con las semanas equivalentes de los otros
+  // grados participantes (mismo weekNumber-de-bloque, cada uno con SU PROPIO
+  // PlanningWeek — nunca se mezcla contenido curricular entre grados, solo se
+  // conectan por esta referencia). Null para toda semana no-multigrado.
+  multigradeExperienceId  String?   @map("multigrade_experience_id")
   createdAt               DateTime  @default(now()) @map("created_at")
   updatedAt               DateTime  @updatedAt @map("updated_at")
 
-  institution Institution       @relation(fields: [institutionId], references: [id])
-  situation   LearningSituation @relation(fields: [situationId], references: [id])
+  institution Institution                 @relation(fields: [institutionId], references: [id])
+  situation   LearningSituation           @relation(fields: [situationId], references: [id])
+  experience  MultigradeSharedExperience? @relation(fields: [multigradeExperienceId], references: [id])
 
   @@unique([situationId, weekNumber])
   @@map("planning_weeks")
+}
+
+// ============================================================
+// MULTIGRADO (unidocente/pluridocente) — calcado de las reglas de negocio
+// TIGA Multigrado v1.0: selección explícita grado+materia (nunca "todos los
+// grados con todas las materias" implícito), BGU prohibido, 8vo-10mo EGB
+// requiere extensión superior explícita, cada grado conserva su propio
+// currículo/competencia/indicador/saberes independientes.
+// ============================================================
+
+// El "aula multigrado" que arma el wizard: agrupa los CourseAssignment (uno
+// por grado×materia) que un mismo docente dicta a la vez en el mismo salón.
+// No reemplaza CourseAssignment/Parallel — es una capa de agrupación para que
+// el generador y el PDF sepan qué asignaciones deben coordinarse entre sí.
+model MultigradeGroup {
+  id                     String   @id @default(uuid())
+  institutionId          String   @map("institution_id")
+  teacherId              String   @map("teacher_id")
+  academicYearId         String   @map("academic_year_id")
+  name                   String   @db.VarChar(150)
+  // Confirmación explícita del docente para incluir grados de 8vo-10mo EGB —
+  // sin esto, el wizard rechaza esas selecciones (MULTIGRADO-v1.0-FREEZE.md).
+  allowSuperiorExtension Boolean  @default(false) @map("allow_superior_extension")
+  createdBy              String   @map("created_by")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  institution        Institution                  @relation(fields: [institutionId], references: [id])
+  teacher            User                         @relation("MultigradeGroupTeacher", fields: [teacherId], references: [id])
+  academicYear       AcademicYear                 @relation(fields: [academicYearId], references: [id])
+  creator            User                         @relation("MultigradeGroupCreator", fields: [createdBy], references: [id])
+  members            MultigradeGroupMember[]
+  sharedExperiences  MultigradeSharedExperience[]
+
+  @@map("multigrade_groups")
+}
+
+// Una fila por selección grado+materia explícita del docente — vínculo directo
+// al CourseAssignment real ya creado (Parallel del grado + Subject elegida del
+// catálogo). gradeCode usa la misma convención que Level.code (ej. "2B", "8B").
+model MultigradeGroupMember {
+  id                 String   @id @default(uuid())
+  groupId            String   @map("group_id")
+  gradeCode          String   @db.VarChar(20) @map("grade_code")
+  courseAssignmentId String   @unique @map("course_assignment_id")
+  parallelId         String   @map("parallel_id")
+  subjectId          String   @map("subject_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  group            MultigradeGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  courseAssignment CourseAssignment @relation(fields: [courseAssignmentId], references: [id])
+  parallel         Parallel         @relation(fields: [parallelId], references: [id])
+  subject          Subject          @relation(fields: [subjectId], references: [id])
+
+  @@map("multigrade_group_members")
+}
+
+// La "experiencia común" de una semana de bloque multigrado: título/contexto/
+// propósito compartido que se plantea igual para toda el aula a la vez —
+// NUNCA es un currículo común (cada grado sigue con su propia competencia,
+// indicador y saberes en su propio PlanningWeek). weekNumber es relativo al
+// bloque (1..N), igual para todas las semanas equivalentes de cada grado.
+model MultigradeSharedExperience {
+  id                    String   @id @default(uuid())
+  institutionId         String   @map("institution_id")
+  groupId               String   @map("group_id")
+  academicPeriodId      String   @map("academic_period_id")
+  weekNumber            Int      @map("week_number")
+  title                 String   @db.VarChar(200)
+  context               String
+  commonPurpose         String   @map("common_purpose")
+  // Códigos de grado (Level.code) que participan efectivamente en esta semana —
+  // mínimo 2 (MINIMUM_SELECTIONS_REQUIRED de TIGA), normalmente = todos los del grupo.
+  participantGradeCodes String[] @map("participant_grade_codes")
+  createdBy             String   @map("created_by")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  institution    Institution     @relation(fields: [institutionId], references: [id])
+  group          MultigradeGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  academicPeriod AcademicPeriod  @relation(fields: [academicPeriodId], references: [id])
+  creator        User            @relation("MultigradeExperienceCreator", fields: [createdBy], references: [id])
+  weeks          PlanningWeek[]
+
+  @@unique([groupId, academicPeriodId, weekNumber])
+  @@map("multigrade_shared_experiences")
 }
 
 // ============================================================
