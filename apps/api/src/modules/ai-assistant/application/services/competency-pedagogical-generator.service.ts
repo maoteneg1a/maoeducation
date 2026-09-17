@@ -422,9 +422,18 @@ export async function draftCompetencyWeek(
   // los saberes de la competencia a cada semana es imposible de cubrir (ej. 17
   // saberes en 1 semana), así que cada semana recibe solo el subconjunto que
   // le corresponde según su posición en el bloque.
+  //
+  // EXCEPCIÓN: si el docente ya seleccionó manualmente qué saberes quiere para
+  // esta semana (dto.selectedSaberIds — ej. la IA propuso 5 y el docente dejó
+  // solo 2), esa selección manda sobre el reparto automático. "Regenerar solo
+  // actividades" debe respetar exactamente lo que el docente ya filtró, no
+  // volver a decidir por su cuenta.
   const totalWeeksInBlock = Math.max(situation.weeks.length, 1)
   const currentWeekNumber = dto.weekNumber ?? 1
-  const primarySabersForWeek = selectSabersForWeek(primary.sabers, currentWeekNumber, totalWeeksInBlock)
+  const selectedSaberIdSet = dto.selectedSaberIds?.length ? new Set(dto.selectedSaberIds) : null
+  const primarySabersForWeek = selectedSaberIdSet
+    ? primary.sabers.filter((s) => selectedSaberIdSet.has(s.id))
+    : selectSabersForWeek(primary.sabers, currentWeekNumber, totalWeeksInBlock)
 
   // Carga horaria oficial (períodos semanales) determina cuántas actividades
   // numeradas trae cada fase — calcado de _weekly_phase_counts() en TIGA.
@@ -469,11 +478,16 @@ export async function draftCompetencyWeek(
   const competenciesBlock = competencies
     .map((c) => {
       const indicators = c.indicators.map((i) => `    - [${i.code}] ${i.text}`).join('\n') || '    (sin indicadores)'
-      const sabersForWeek = selectSabersForWeek(c.sabers, currentWeekNumber, totalWeeksInBlock)
+      const sabersForWeek = selectedSaberIdSet
+        ? c.sabers.filter((s) => selectedSaberIdSet.has(s.id))
+        : selectSabersForWeek(c.sabers, currentWeekNumber, totalWeeksInBlock)
       const sabers = sabersForWeek.length
         ? sabersForWeek.map((s) => `      - [${s.id}] (${s.type}) ${s.code}: ${s.description}`).join('\n')
         : '      (sin saberes — propone nuevos)'
-      return `- ${c.code}: ${c.text}\n  Indicadores:\n${indicators}\n  Saberes de ESTA semana (reusa por id — es un subconjunto ya repartido entre las ${totalWeeksInBlock} semanas del bloque, no todos los que tiene la competencia):\n${sabers}`
+      const sabersNote = selectedSaberIdSet
+        ? 'Saberes seleccionados manualmente por el docente (usa EXACTAMENTE estos, no agregues otros de la competencia)'
+        : `Saberes de ESTA semana (reusa por id — es un subconjunto ya repartido entre las ${totalWeeksInBlock} semanas del bloque, no todos los que tiene la competencia)`
+      return `- ${c.code}: ${c.text}\n  Indicadores:\n${indicators}\n  ${sabersNote}:\n${sabers}`
     })
     .join('\n\n')
 

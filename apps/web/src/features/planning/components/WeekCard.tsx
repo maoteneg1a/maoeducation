@@ -238,7 +238,16 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
   // siempre devuelve todo junto), pero solo aplica el campo `momentos`.
   const handleRegenerateActivitiesOnly = () => {
     draftCompetencyWeek.mutate(
-      { situationId, competencyIds, weekName: name || undefined, weekNumber: week.weekNumber },
+      {
+        situationId,
+        competencyIds,
+        weekName: name || undefined,
+        weekNumber: week.weekNumber,
+        // El docente ya filtró/ajustó manualmente qué saberes quiere (ej. la
+        // IA propuso 5, dejó solo 2) — esa selección manda sobre lo que la IA
+        // proponga de nuevo, no debe reemplazarse en cada regeneración.
+        selectedSaberIds: competencySaberIds.length ? competencySaberIds : undefined,
+      },
       { onSuccess: (result) => setCompetencyMomentos(result.momentos as unknown as CompetencyPlanningMomentos) },
     )
   }
