@@ -43,8 +43,14 @@ export interface BulkCreateStudentsDto {
 }
 
 export const personalApi = {
+  // 90s: bootstrapInstitution siembra centenares de filas (catálogo curricular
+  // completo, DUA, evaluación, año lectivo...) en una sola transacción — el
+  // backend ya le da 60s de margen a esa transacción, pero el timeout default
+  // de 30s del cliente cortaba la conexión antes de que el servidor terminara
+  // en producción (latencia de red real, no local). Mismo patrón que ya se
+  // corrigió para los endpoints de generación con IA.
   register: (dto: PersonalRegisterDto) =>
-    apiClient.post('personal/register', { json: dto }).json<{ message: string }>(),
+    apiClient.post('personal/register', { json: dto, timeout: 90000 }).json<{ message: string }>(),
 
   login: (dto: { email: string; password: string }) =>
     apiClient.post('personal/login', { json: dto }).json<{ accessToken: string; user: unknown }>(),
@@ -55,8 +61,11 @@ export const personalApi = {
   resendVerification: (email: string) =>
     apiClient.post('personal/resend-verification', { json: { email } }).json<{ message: string }>(),
 
+  // 90s: crea año lectivo+períodos, niveles, paralelos, materias y
+  // asignaciones (más grupo/experiencia multigrado si aplica) en una sola
+  // pasada — mismo riesgo de timeout que register().
   setup: (dto: PersonalSetupDto) =>
-    apiClient.post('personal/setup', { json: dto }).json<{
+    apiClient.post('personal/setup', { json: dto, timeout: 90000 }).json<{
       yearId: string
       parallelIds: string[]
       subjectIds: string[]
