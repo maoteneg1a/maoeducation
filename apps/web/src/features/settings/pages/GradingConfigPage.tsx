@@ -10,11 +10,10 @@ import {
   useAiConfig,
   useGradingConfig,
   usePlanningModel,
-  useUpdateAiConfig,
   useUpdateGradingConfig,
   useUpdatePlanningModel,
 } from '../hooks/useSettings'
-import type { AiConfig, BehaviorLevel, GradingConfig, PlanningModel, QualitativeLevel } from '../api/settings.api'
+import type { BehaviorLevel, GradingConfig, PlanningModel, QualitativeLevel } from '../api/settings.api'
 
 export function GradingConfigPage() {
   const { data, isLoading } = useGradingConfig()
@@ -234,14 +233,12 @@ function PlanningModelConfigCard() {
   )
 }
 
+// Solo lectura: el admin de institución ya no puede cambiar esto — lo
+// gestiona el superadministrador de plataforma (ver PUT
+// /platform/institutions/:id/ai-config). PUT /institution/ai-config ahora
+// rechaza escritura (403), así que aquí no se ofrece ningún control editable.
 function AiAssistantConfigCard() {
-  const { data } = useAiConfig()
-  const update = useUpdateAiConfig()
-  const [ai, setAi] = useState<AiConfig | null>(null)
-
-  useEffect(() => {
-    if (data) setAi(data)
-  }, [data])
+  const { data: ai } = useAiConfig()
 
   if (!ai) return null
 
@@ -256,28 +253,18 @@ function AiAssistantConfigCard() {
           Genera competencias, indicadores, saberes y estrategias DUA por semana, para que el docente escriba lo mínimo.
         </CardDescription>
       </CardHeader>
-      <CardContent className="max-w-md space-y-4">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="h-4 w-4"
-            checked={ai.enabled}
-            onChange={(e) => setAi({ ...ai, enabled: e.target.checked })}
-          />
-          Habilitar asistente IA para los docentes
-        </label>
+      <CardContent className="max-w-md space-y-3">
+        <p className="text-sm">
+          Estado: <span className="font-medium">{ai.enabled ? 'Habilitado' : 'Deshabilitado'}</span>
+        </p>
         {ai.enabled && (
-          <div className="space-y-1.5">
-            <Label>Tope mensual de tokens (0 = sin tope)</Label>
-            <Input
-              type="number"
-              min={0}
-              value={ai.monthlyTokenCap}
-              onChange={(e) => setAi({ ...ai, monthlyTokenCap: Number(e.target.value) })}
-            />
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Tope mensual de tokens: {ai.monthlyTokenCap === 0 ? 'sin tope' : ai.monthlyTokenCap}
+          </p>
         )}
-        <Button onClick={() => update.mutate(ai)} loading={update.isPending}>Guardar</Button>
+        <p className="text-xs text-muted-foreground">
+          Esta configuración la gestiona el superadministrador de la plataforma — contacta soporte para cambios.
+        </p>
       </CardContent>
     </Card>
   )

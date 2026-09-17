@@ -4,7 +4,6 @@ import { getErrorMessage } from '@/shared/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 import {
   settingsApi,
-  type AiConfig,
   type GradingConfig,
   type InstitutionSettings,
   type MicrocurricularTemplateConfig,
@@ -137,18 +136,6 @@ export function useAiConfig() {
   return useQuery({
     queryKey: settingsKeys.aiConfig,
     queryFn: settingsApi.getAiConfig,
-  })
-}
-
-export function useUpdateAiConfig() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (data: Partial<AiConfig>) => settingsApi.updateAiConfig(data),
-    onSuccess: (config) => {
-      qc.setQueryData(settingsKeys.aiConfig, config)
-      toast.success('Configuración del asistente IA guardada')
-    },
-    onError: (err) => toast.error(getErrorMessage(err)),
   })
 }
 

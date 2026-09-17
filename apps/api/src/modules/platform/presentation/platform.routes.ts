@@ -4,6 +4,10 @@ import { tokenService } from '../../../shared/infrastructure/services/token.serv
 import { platformAuthMiddleware } from '../../../shared/infrastructure/middleware/platform-auth.middleware'
 import { UnauthorizedError } from '../../../shared/domain/errors/app.errors'
 import { PrismaPlatformRepository } from '../infrastructure/repositories/prisma-platform.repository'
+import { PrismaInstitutionRepository } from '../../institution/infrastructure/repositories/prisma-institution.repository'
+import { PrismaAcademicRepository } from '../../academic/infrastructure/repositories/prisma-academic.repository'
+import { PrismaCurriculumRepository } from '../../curriculum/infrastructure/repositories/prisma-curriculum.repository'
+import { PrismaCompetencyCurriculumRepository } from '../../competency-curriculum/infrastructure/repositories/prisma-competency-curriculum.repository'
 import { PlatformLoginUseCase } from '../application/use-cases/platform-login.use-case'
 import { PlatformRefreshUseCase } from '../application/use-cases/platform-refresh.use-case'
 import { CreateInstitutionUseCase } from '../application/use-cases/create-institution.use-case'
@@ -19,8 +23,14 @@ import {
   UpdateInstitutionAdminBody,
 } from './validators/platform.schema'
 import { seedTestData } from '../application/services/seed-test-data.service'
+import type { UpdateAiConfigDto } from '../../institution/application/dtos/institution.dto'
+import type { CreateSubjectDto, UpdateSubjectDto } from '../../academic/application/dtos/academic.dto'
 
 const repo = new PrismaPlatformRepository()
+const institutionRepo = new PrismaInstitutionRepository()
+const academicRepo = new PrismaAcademicRepository()
+const curriculumRepo = new PrismaCurriculumRepository()
+const competencyCurriculumRepo = new PrismaCompetencyCurriculumRepository()
 const loginUseCase = new PlatformLoginUseCase(repo, tokenService)
 const refreshUseCase = new PlatformRefreshUseCase(repo, tokenService)
 const createInstitution = new CreateInstitutionUseCase(repo)
@@ -190,6 +200,73 @@ export default async function platformRoutes(app: FastifyInstance) {
       return reply.send(await seedTestData(req.params.id))
     },
   )
+
+  // ----- Configuración de IA por institución (protegido) -----
+  // Único lugar donde se puede escribir aiConfig — el endpoint equivalente del
+  // admin de institución (PUT /institution/ai-config) ahora rechaza escritura.
+  app.get<{ Params: { id: string } }>(
+    '/platform/institutions/:id/ai-config',
+    protectedOpts,
+    async (req, reply) => {
+      return reply.send(await institutionRepo.getAiConfig(req.params.id))
+    },
+  )
+
+  app.put<{ Params: { id: string }; Body: UpdateAiConfigDto }>(
+    '/platform/institutions/:id/ai-config',
+    protectedOpts,
+    async (req, reply) => {
+      return reply.send(await institutionRepo.updateAiConfig(req.params.id, req.body))
+    },
+  )
+
+  // ----- Materias de una institución (protegido) -----
+  // Crear/editar/activar materias es control de plataforma — el admin de
+  // institución solo lee (GET /academic/subjects) para asignar profesores.
+  app.get<{ Params: { id: string } }>(
+    '/platform/institutions/:id/subjects',
+    protectedOpts,
+    async (req, reply) => {
+      return reply.send(await academicRepo.listSubjects(req.params.id))
+    },
+  )
+
+  app.post<{ Params: { id: string }; Body: CreateSubjectDto }>(
+    '/platform/institutions/:id/subjects',
+    protectedOpts,
+    async (req, reply) => {
+      const subject = await academicRepo.createSubject(req.params.id, req.body)
+      return reply.status(201).send(subject)
+    },
+  )
+
+  app.patch<{ Params: { id: string; subjectId: string }; Body: UpdateSubjectDto }>(
+    '/platform/institutions/:id/subjects/:subjectId',
+    protectedOpts,
+    async (req, reply) => {
+      const subject = await academicRepo.updateSubject(req.params.subjectId, req.params.id, req.body)
+      return reply.send(subject)
+    },
+  )
+
+  app.patch<{ Params: { id: string; subjectId: string } }>(
+    '/platform/institutions/:id/subjects/:subjectId/toggle',
+    protectedOpts,
+    async (req, reply) => {
+      const subject = await academicRepo.toggleSubject(req.params.subjectId, req.params.id)
+      return reply.send(subject)
+    },
+  )
+
+  // Catálogos globales (destrezas/competencias) — para poblar el selector de
+  // área al crear/editar una materia desde este panel.
+  app.get('/platform/curriculum-areas', protectedOpts, async (_req, reply) => {
+    return reply.send(await curriculumRepo.listAreas())
+  })
+
+  app.get('/platform/competency-areas', protectedOpts, async (_req, reply) => {
+    return reply.send(await competencyCurriculumRepo.listAreas())
+  })
 
   // ----- Admins de una institución (protegido) -----
   app.get<{ Params: { id: string } }>(

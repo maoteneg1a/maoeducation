@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/shared/lib/utils'
 import { usePlatformAuthStore } from '@/store/platformAuth.store'
+import type { AiConfig } from '@/features/settings/api/settings.api'
+import type { Subject } from '@/features/academic/api/academic.api'
 import {
   platformApi,
   type CreateAdminPayload,
@@ -18,6 +20,8 @@ import {
 export const platformKeys = {
   institutions: ['platform-institutions'] as const,
   admins: (institutionId: string) => ['platform-institution-admins', institutionId] as const,
+  aiConfig: (institutionId: string) => ['platform-institution-ai-config', institutionId] as const,
+  subjects: (institutionId: string) => ['platform-institution-subjects', institutionId] as const,
 }
 
 export function usePlatformLogin() {
@@ -135,6 +139,87 @@ export function useInstitutionModules(institution: Institution | null) {
   const settings = institution?.settings as Record<string, unknown> | undefined
   const modules = settings?.modules as string[] | undefined
   return modules ?? null
+}
+
+// ─── Configuración de IA por institución ───────────────────────────────────
+// Único lugar que puede escribir esto — la institución solo lee (GET
+// /institution/ai-config), ver institution.routes.ts.
+
+export function useInstitutionAiConfig(institutionId: string) {
+  return useQuery({
+    queryKey: platformKeys.aiConfig(institutionId),
+    queryFn: () => platformApi.getInstitutionAiConfig(institutionId),
+    enabled: !!institutionId,
+  })
+}
+
+export function useUpdateInstitutionAiConfig(institutionId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Partial<AiConfig>) => platformApi.updateInstitutionAiConfig(institutionId, data),
+    onSuccess: (config) => {
+      qc.setQueryData(platformKeys.aiConfig(institutionId), config)
+      toast.success('Configuración de IA actualizada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+// ─── Materias por institución ───────────────────────────────────────────────
+// Crear/editar/activar materias es control de plataforma — el catálogo de
+// cada institución se gestiona desde aquí, no desde /academic/subjects.
+
+export function useInstitutionSubjects(institutionId: string) {
+  return useQuery({
+    queryKey: platformKeys.subjects(institutionId),
+    queryFn: () => platformApi.getInstitutionSubjects(institutionId),
+    enabled: !!institutionId,
+  })
+}
+
+export function useCreateInstitutionSubject(institutionId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Partial<Subject>) => platformApi.createInstitutionSubject(institutionId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: platformKeys.subjects(institutionId) })
+      toast.success('Materia creada correctamente')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useUpdateInstitutionSubject(institutionId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ subjectId, data }: { subjectId: string; data: Partial<Subject> }) =>
+      platformApi.updateInstitutionSubject(institutionId, subjectId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: platformKeys.subjects(institutionId) })
+      toast.success('Materia actualizada correctamente')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useToggleInstitutionSubject(institutionId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (subjectId: string) => platformApi.toggleInstitutionSubject(institutionId, subjectId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: platformKeys.subjects(institutionId) })
+      toast.success('Estado de la materia actualizado')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function usePlatformCurriculumAreas() {
+  return useQuery({ queryKey: ['platform-curriculum-areas'], queryFn: platformApi.getCurriculumAreas })
+}
+
+export function usePlatformCompetencyAreas() {
+  return useQuery({ queryKey: ['platform-competency-areas'], queryFn: platformApi.getCompetencyAreas })
 }
 
 // ─── Suscripciones ──────────────────────────────────────────────────────────
