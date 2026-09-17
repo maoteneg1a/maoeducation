@@ -82,7 +82,7 @@ function fmtDate(d: Date | null): string {
 type Doc = InstanceType<typeof PDFDocument>
 
 /** Título de sección con banda de ancho completo — fondo y texto configurables por institución. */
-function drawSectionBand(doc: Doc, x0: number, width: number, text: string, color: string, textColor: string) {
+export function drawSectionBand(doc: Doc, x0: number, width: number, text: string, color: string, textColor: string) {
   drawRow(doc, x0, [{ text, width, bold: true, fill: color, align: 'center', textColor }])
 }
 
@@ -233,10 +233,12 @@ const SECTION_LABEL: Record<string, string> = {
 // Instrumento + link "ABRIR INSTRUMENTO". Nunca se repite Recursos/Evaluación por
 // fase — se consolidan una sola vez para toda la semana (pedido explícito del
 // usuario: "NO SE DEBE REPETIR TODO ESO").
-const COMPETENCY_TABLE_HEADER_FILL = '#1F4E78'
-const COMPETENCY_TABLE_HEADER_TEXT = '#FFFFFF'
-const LINK_COLOR = '#0563C1'
-const PHASE_LABELS_COMPETENCY: Record<'inicio' | 'desarrollo' | 'cierre', string> = {
+// Exportados (no solo `const` locales) para que multigrade-pdf.service.ts pueda
+// pintar exactamente la misma paleta/tipografía sin duplicarla.
+export const COMPETENCY_TABLE_HEADER_FILL = '#1F4E78'
+export const COMPETENCY_TABLE_HEADER_TEXT = '#FFFFFF'
+export const LINK_COLOR = '#0563C1'
+export const PHASE_LABELS_COMPETENCY: Record<'inicio' | 'desarrollo' | 'cierre', string> = {
   inicio: 'INICIO',
   desarrollo: 'DESARROLLO',
   cierre: 'CIERRE',
@@ -253,7 +255,7 @@ function drawCompetencyWeekHeader(doc: Doc, x0: number, fullWidth: number, week:
   doc.moveDown(0.3)
 }
 
-function buildPhaseBlocks(
+export function buildPhaseBlocks(
   doc: Doc,
   label: string,
   activities: { text: string; duaCode: string }[],
@@ -286,7 +288,7 @@ function buildPhaseBlocks(
   return blocks
 }
 
-function buildResourcesBlocks(
+export function buildResourcesBlocks(
   doc: Doc,
   resources: string[],
   link: { title: string; url: string } | undefined,
@@ -318,7 +320,7 @@ function buildResourcesBlocks(
   return blocks
 }
 
-function buildAssessmentBlocks(
+export function buildAssessmentBlocks(
   doc: Doc,
   evidencia: string,
   criterio: string,
