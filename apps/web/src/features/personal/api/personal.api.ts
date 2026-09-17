@@ -25,8 +25,13 @@ export interface PersonalSetupDto {
   multigradeSelections?: Array<{ gradeCode: string; subjectAreaId: string }>
   /** Confirmación explícita para incluir grados de 8vo-10mo EGB (extensión superior). */
   allowSuperiorExtension?: boolean
-  /** Subnivel MINEDUC — filtra qué competencias/destrezas se ofrecen luego al planificar. */
-  subnivel?: string
+  /**
+   * subject-first/classroom-first: grado REAL (ej. "6B") — deriva el subnivel y
+   * decide qué competencias/destrezas/saberes por grado (CompetencySaber.gradeCodes)
+   * se ofrecen luego al planificar. Multigrado NO usa este campo (ya captura su
+   * propio grado por fila en multigradeSelections).
+   */
+  gradeCode?: string
   /** Modelo de planificación curricular a fijar de una vez para esta cuenta. */
   planningModel?: 'destrezas' | 'competencias'
 }

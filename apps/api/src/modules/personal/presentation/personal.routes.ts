@@ -12,18 +12,12 @@ import {
   MULTIGRADE_GRADE_SORT_ORDER,
   resolveMultigradeSelections,
 } from '../../../shared/domain/multigrade'
+import { findGradeByCode } from '../../../shared/domain/grade-catalog'
 import { buildAuthInstitution } from '../../auth/application/services/auth-institution.mapper'
 import { PrismaAuthUserRepository } from '../../auth/infrastructure/repositories/prisma-auth-user.repository'
 import { sendVerificationEmail } from '../../../shared/infrastructure/services/email.service'
 
 const userRepo = new PrismaAuthUserRepository()
-
-/**
- * Subniveles MINEDUC válidos para el wizard de setup personal — mismo catálogo
- * que usa el admin en Configuración > Niveles (ver SUBNIVEL_LABEL en
- * apps/web/src/features/academic/pages/LevelsPage.tsx).
- */
-const VALID_SUBNIVELES = ['inicial', 'preparatoria', 'elemental', 'media', 'superior', 'bgu']
 
 /**
  * El wizard nunca deja escribir el nombre de una materia a mano: el profesor
@@ -348,9 +342,14 @@ export default async function personalRoutes(app: FastifyInstance) {
       multigradeName?: string
       multigradeSelections?: Array<{ gradeCode: string; subjectAreaId: string }>
       allowSuperiorExtension?: boolean
-      // paso de competencias — fijan de una vez el modelo de planificación para
-      // que el profesor nunca tenga que tocar Configuración > Calificación.
-      subnivel?: string
+      // subject-first/classroom-first — grado REAL que enseña el docente (ej. "6B") —
+      // resuelve un Level real del catálogo (GRADE_CATALOG/DEFAULT_LEVELS), nunca el
+      // código sintético "PERSONAL" (bug real: sin grado real, el filtro de
+      // CompetencySaber.gradeCodes nunca encuentra coincidencia y bloquea la
+      // generación de planificación). El subnivel se DERIVA de este grado, no se
+      // pregunta por separado. Multigrado ya captura su propio grado por fila
+      // (multigradeSelections) y no usa este campo.
+      gradeCode?: string
       planningModel?: 'destrezas' | 'competencias'
     }
   }>(
@@ -381,7 +380,7 @@ export default async function personalRoutes(app: FastifyInstance) {
               },
             },
             allowSuperiorExtension: { type: 'boolean' },
-            subnivel: { type: 'string', enum: VALID_SUBNIVELES },
+            gradeCode: { type: 'string' },
             planningModel: { type: 'string', enum: ['destrezas', 'competencias'] },
           },
         },
@@ -400,7 +399,7 @@ export default async function personalRoutes(app: FastifyInstance) {
         return reply.status(403).send({ message: 'Solo disponible para cuentas personales' })
       }
 
-      const { profile, yearName, yearStart, yearEnd, workspaceName, subnivel } = req.body
+      const { profile, yearName, yearStart, yearEnd, workspaceName, gradeCode } = req.body
       // Multigrado SIEMPRE usa el modelo por COMPETENCIAS (CNC): es el único banco
       // que cubre el subnivel "preparatoria" (1ro EGB reutiliza su currículo integrado,
       // ver shared/domain/multigrade.ts) y es el formato ya calcado de TIGA
@@ -481,23 +480,30 @@ export default async function personalRoutes(app: FastifyInstance) {
         }
       }
 
-      // Get or create default level for personal accounts. El subnivel elegido
-      // en el wizard (paso Competencias) decide qué banco curricular (destrezas
-      // o competencias) le ofrece luego el selector de la planificación semanal
-      // — así el profesor nunca necesita ir a Configuración > Niveles a fijarlo.
-      // Multigrado NO usa este nivel único "PERSONAL": cada grado necesita SU
-      // PROPIO Level con el subnivel correcto (1B=preparatoria, 2B-4B=elemental,
-      // 5B-7B=media, 8B-10B=superior) — se resuelve en la rama multigrado abajo.
-      const resolvedSubnivel = subnivel && VALID_SUBNIVELES.includes(subnivel) ? subnivel : 'media'
+      // Get or create the REAL grade level for personal accounts (ej. "6B") —
+      // bootstrapInstitution (en /personal/register) ya crea los 13 Levels
+      // reales del catálogo (DEFAULT_LEVELS/GRADE_CATALOG) por institución, así
+      // que normalmente esto solo los encuentra; el create() es solo defensivo.
+      // NUNCA usar un código sintético como "PERSONAL": el filtro de
+      // CompetencySaber.gradeCodes (saberes distintos por grado dentro de un
+      // mismo subnivel compartido, ej. 5°/6°/7° de "media") depende de que
+      // Level.code sea un grado real — con "PERSONAL" nunca coincide con nada
+      // y bloquea la generación de planificación por completo (bug real
+      // encontrado en producción). Multigrado NO usa este bloque: cada grado
+      // necesita SU PROPIO Level y se resuelve en la rama multigrado abajo.
       let level: Awaited<ReturnType<typeof prisma.level.findFirst>> = null
       if (profile !== 'multigrade') {
-        level = await prisma.level.findFirst({ where: { institutionId, code: 'PERSONAL' } })
+        const grade = gradeCode ? findGradeByCode(gradeCode) : null
+        if (!grade) {
+          throw new BadRequestError('Selecciona un grado válido antes de continuar')
+        }
+        level = await prisma.level.findFirst({ where: { institutionId, code: grade.code } })
         if (!level) {
           level = await prisma.level.create({
-            data: { institutionId, code: 'PERSONAL', name: 'Mis Cursos', sortOrder: 99, subnivel: resolvedSubnivel },
+            data: { institutionId, code: grade.code, name: grade.name, sortOrder: grade.sortOrder, subnivel: grade.subnivel },
           })
-        } else if (subnivel && level.subnivel !== resolvedSubnivel) {
-          level = await prisma.level.update({ where: { id: level.id }, data: { subnivel: resolvedSubnivel } })
+        } else if (level.subnivel !== grade.subnivel) {
+          level = await prisma.level.update({ where: { id: level.id }, data: { subnivel: grade.subnivel } })
         }
       }
 
