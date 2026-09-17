@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
+import { ForbiddenError } from '../../../shared/domain/errors/app.errors'
 import { PrismaInstitutionRepository } from '../infrastructure/repositories/prisma-institution.repository'
 import { buildMicrocurricularPdf } from '../../planning/application/services/microcurricular-pdf.service'
 import type {
@@ -152,12 +153,16 @@ export default async function institutionRoutes(app: FastifyInstance) {
     return reply.send(await repo.getAiConfig(req.user.institutionId))
   })
 
-  // PUT /institution/ai-config — solo admin
+  // PUT /institution/ai-config — ya NO editable por el admin de la institución.
+  // El control de IA (habilitar, modelo, tope de tokens) lo gestiona el
+  // superadministrador de plataforma vía PUT /platform/institutions/:id/ai-config
+  // (mismo repo/lógica, ver platform.routes.ts) — decisión de costo/riesgo que
+  // no debe quedar en manos de cada institución.
   app.put<{ Body: UpdateAiConfigDto }>(
     '/institution/ai-config',
     { preHandler: [requirePermission('academic_config', 'manage')] },
-    async (req, reply) => {
-      return reply.send(await repo.updateAiConfig(req.user.institutionId, req.body))
+    async () => {
+      throw new ForbiddenError('Esta configuración ahora la gestiona el superadministrador de la plataforma')
     },
   )
 

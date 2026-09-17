@@ -1,6 +1,8 @@
 import { platformApiClient, platformGet, platformPost, platformPatch, platformPut } from '@/shared/lib/platform-api-client'
 import type { PlatformAdmin } from '@/store/platformAuth.store'
 import type { AuthUser } from '@/store/auth.store'
+import type { AiConfig } from '@/features/settings/api/settings.api'
+import type { Subject } from '@/features/academic/api/academic.api'
 
 export interface PlatformLoginPayload {
   email: string
@@ -130,6 +132,21 @@ export const platformApi = {
 
   updateInstitutionModules: (id: string, modules: string[]) =>
     platformPatch<{ id: string; modules: string[] }>(`platform/institutions/${id}/modules`, { modules }),
+
+  getInstitutionAiConfig: (id: string) => platformGet<AiConfig>(`platform/institutions/${id}/ai-config`),
+  updateInstitutionAiConfig: (id: string, data: Partial<AiConfig>) =>
+    platformPut<AiConfig>(`platform/institutions/${id}/ai-config`, data),
+
+  getInstitutionSubjects: (id: string) => platformGet<Subject[]>(`platform/institutions/${id}/subjects`),
+  createInstitutionSubject: (id: string, data: Partial<Subject>) =>
+    platformPost<Subject>(`platform/institutions/${id}/subjects`, data),
+  updateInstitutionSubject: (id: string, subjectId: string, data: Partial<Subject>) =>
+    platformPatch<Subject>(`platform/institutions/${id}/subjects/${subjectId}`, data),
+  toggleInstitutionSubject: (id: string, subjectId: string) =>
+    platformPatch<Subject>(`platform/institutions/${id}/subjects/${subjectId}/toggle`),
+
+  getCurriculumAreas: () => platformGet<{ id: string; name: string }[]>('platform/curriculum-areas'),
+  getCompetencyAreas: () => platformGet<{ id: string; name: string }[]>('platform/competency-areas'),
 
   getLeads: () => platformGet<Lead[]>('leads'),
   updateLeadStatus: (id: string, status: string) =>

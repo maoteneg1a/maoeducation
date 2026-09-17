@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Users, LayoutGrid, Sparkles } from 'lucide-react'
+import { Plus, Users, LayoutGrid, Sparkles, Settings } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
@@ -32,6 +32,7 @@ import {
 } from '../hooks/usePlatform'
 import type { Institution } from '../api/platform.api'
 import { ALL_MODULES, MODULE_GROUPS, MODULE_LABELS, PERSONAL_DEFAULT_MODULES, type ModuleKey } from '@/shared/lib/modules'
+import { InstitutionConfigDialog } from '../components/InstitutionConfigDialog'
 
 const schema = z.object({
   name: z.string().min(2, 'Mínimo 2 caracteres'),
@@ -57,6 +58,7 @@ export function InstitutionsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [modulesInstitution, setModulesInstitution] = useState<Institution | null>(null)
   const [selectedModules, setSelectedModules] = useState<string[]>([])
+  const [configInstitution, setConfigInstitution] = useState<Institution | null>(null)
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -195,6 +197,14 @@ export function InstitutionsPage() {
           >
             <LayoutGrid className="mr-1.5 h-4 w-4" />
             Módulos
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConfigInstitution(row.original)}
+          >
+            <Settings className="mr-1.5 h-4 w-4" />
+            Config
           </Button>
           <Button
             variant="outline"
@@ -410,6 +420,8 @@ export function InstitutionsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <InstitutionConfigDialog institution={configInstitution} onClose={() => setConfigInstitution(null)} />
     </div>
   )
 }

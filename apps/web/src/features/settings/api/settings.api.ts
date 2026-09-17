@@ -112,8 +112,11 @@ export const settingsApi = {
       .delete('institution/document-templates/microcurricular/header-banner')
       .json<{ template: MicrocurricularTemplateConfig }>(),
 
+  // Solo lectura — el admin de institución ya no puede editar esto (lo
+  // gestiona el superadministrador de plataforma, ver PUT
+  // /platform/institutions/:id/ai-config). PUT /institution/ai-config rechaza
+  // escritura ahora.
   getAiConfig: () => apiGet<AiConfig>('institution/ai-config'),
-  updateAiConfig: (data: Partial<AiConfig>) => apiPut<AiConfig>('institution/ai-config', data),
 
   getPlanningModel: () => apiGet<{ planningModel: PlanningModel }>('institution/planning-model'),
   updatePlanningModel: (planningModel: PlanningModel) =>
