@@ -42,10 +42,10 @@ async function resolveSubjectAreaLinks(
   areaId: string,
 ): Promise<{ name: string; curriculumAreaId?: string; competencyAreaId?: string }> {
   if (planningModel === 'competencias') {
-    const competencyArea = await prisma.competencyArea.findFirst({ where: { id: areaId, institutionId } })
-    if (!competencyArea) throw new NotFoundError('Área de competencias no encontrada en el catálogo de la institución')
+    const competencyArea = await prisma.competencyArea.findFirst({ where: { id: areaId } })
+    if (!competencyArea) throw new NotFoundError('Área de competencias no encontrada en el catálogo')
     const curriculumArea = await prisma.curriculumArea.findFirst({
-      where: { institutionId, code: competencyArea.code },
+      where: { code: competencyArea.code },
       select: { id: true },
     })
     return {
@@ -55,10 +55,10 @@ async function resolveSubjectAreaLinks(
     }
   }
 
-  const curriculumArea = await prisma.curriculumArea.findFirst({ where: { id: areaId, institutionId } })
-  if (!curriculumArea) throw new NotFoundError('Área curricular no encontrada en el catálogo de la institución')
+  const curriculumArea = await prisma.curriculumArea.findFirst({ where: { id: areaId } })
+  if (!curriculumArea) throw new NotFoundError('Área curricular no encontrada en el catálogo')
   const competencyArea = await prisma.competencyArea.findFirst({
-    where: { institutionId, code: curriculumArea.code },
+    where: { code: curriculumArea.code },
     select: { id: true },
   })
   return {

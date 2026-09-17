@@ -8,30 +8,32 @@ import type {
 } from '../../application/dtos/curriculum.dto'
 
 export class PrismaCurriculumRepository {
-  listAreas(institutionId: string) {
+  /** CurriculumArea es GLOBAL (catálogo oficial MINEDUC, una sola copia compartida) — no filtra por institución. */
+  listAreas() {
     return prisma.curriculumArea.findMany({
-      where: { institutionId, isActive: true },
+      where: { isActive: true },
       orderBy: { name: 'asc' },
     })
   }
 
   async listCriteria(areaId: string, institutionId: string, subnivel: string) {
-    const area = await prisma.curriculumArea.findFirst({ where: { id: areaId, institutionId } })
+    const area = await prisma.curriculumArea.findFirst({ where: { id: areaId } })
     if (!area) throw new NotFoundError('Área curricular no encontrada')
 
     return prisma.curriculumCriterion.findMany({
       where: { areaId, subnivel },
       orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
       include: {
+        // Destrezas oficiales (institutionId null) + las personalizadas de ESTA institución.
         skills: {
-          where: { isActive: true },
+          where: { isActive: true, OR: [{ institutionId: null }, { institutionId }] },
           orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
         },
       },
     })
   }
 
-  /** Destrezas disponibles para una asignatura (via su área vinculada) + subnivel — para el selector del PUD. */
+  /** Destrezas disponibles para una asignatura (via su área vinculada) + subnivel — oficiales + personalizadas de esta institución. */
   async listSkillsForSubject(subjectId: string, institutionId: string, subnivel: string) {
     const subject = await prisma.subject.findFirst({ where: { id: subjectId, institutionId } })
     if (!subject) throw new NotFoundError('Materia no encontrada')
@@ -41,6 +43,7 @@ export class PrismaCurriculumRepository {
       where: {
         isActive: true,
         criterion: { areaId: subject.curriculumAreaId, subnivel },
+        OR: [{ institutionId: null }, { institutionId }],
       },
       include: { criterion: true },
       orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
@@ -48,9 +51,7 @@ export class PrismaCurriculumRepository {
   }
 
   async createCustomSkill(institutionId: string, dto: CreateCustomSkillDto) {
-    const criterion = await prisma.curriculumCriterion.findFirst({
-      where: { id: dto.criterionId, area: { institutionId } },
-    })
+    const criterion = await prisma.curriculumCriterion.findFirst({ where: { id: dto.criterionId } })
     if (!criterion) throw new NotFoundError('Criterio de evaluación no encontrado')
 
     return prisma.curriculumSkill.create({
@@ -62,14 +63,14 @@ export class PrismaCurriculumRepository {
         competencyTags: dto.competencyTags ?? [],
         insercionTags: dto.insercionTags ?? [],
         isCustom: true,
+        institutionId,
       },
     })
   }
 
+  /** Solo se pueden editar destrezas PROPIAS de la institución (isCustom) — el banco oficial es de solo lectura por tenant. */
   async updateSkill(id: string, institutionId: string, dto: UpdateSkillDto) {
-    const skill = await prisma.curriculumSkill.findFirst({
-      where: { id, criterion: { area: { institutionId } } },
-    })
+    const skill = await prisma.curriculumSkill.findFirst({ where: { id, institutionId } })
     if (!skill) throw new NotFoundError('Destreza no encontrada')
 
     return prisma.curriculumSkill.update({
@@ -87,7 +88,7 @@ export class PrismaCurriculumRepository {
   // ─── Saberes (declarativo/procedimental/actitudinal) ────────────────────
   async listSaberesForSkill(skillId: string, institutionId: string) {
     const skill = await prisma.curriculumSkill.findFirst({
-      where: { id: skillId, criterion: { area: { institutionId } } },
+      where: { id: skillId, OR: [{ institutionId: null }, { institutionId }] },
     })
     if (!skill) throw new NotFoundError('Destreza no encontrada')
 
@@ -97,10 +98,9 @@ export class PrismaCurriculumRepository {
     })
   }
 
+  /** Solo se pueden agregar saberes a destrezas PROPIAS de la institución (isCustom) — el banco oficial no se modifica por tenant. */
   async createSaber(institutionId: string, dto: CreateSaberDto) {
-    const skill = await prisma.curriculumSkill.findFirst({
-      where: { id: dto.skillId, criterion: { area: { institutionId } } },
-    })
+    const skill = await prisma.curriculumSkill.findFirst({ where: { id: dto.skillId, institutionId } })
     if (!skill) throw new NotFoundError('Destreza no encontrada')
 
     return prisma.curriculumSaber.create({
@@ -110,7 +110,7 @@ export class PrismaCurriculumRepository {
 
   async updateSaber(id: string, institutionId: string, dto: UpdateSaberDto) {
     const saber = await prisma.curriculumSaber.findFirst({
-      where: { id, skill: { criterion: { area: { institutionId } } } },
+      where: { id, skill: { institutionId } },
     })
     if (!saber) throw new NotFoundError('Saber no encontrado')
 

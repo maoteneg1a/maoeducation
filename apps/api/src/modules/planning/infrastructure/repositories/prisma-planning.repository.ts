@@ -188,7 +188,7 @@ export class PrismaPlanningRepository {
     let title = dto.title?.trim()
     if (!title && competencyIds.length) {
       const competency = await prisma.competency.findFirst({
-        where: { id: { in: competencyIds }, area: { institutionId } },
+        where: { id: { in: competencyIds } },
         orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
         select: { code: true, text: true },
       })

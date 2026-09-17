@@ -17,7 +17,7 @@ export default async function curriculumRoutes(app: FastifyInstance) {
   app.get(
     '/curriculum/areas',
     { preHandler: [requirePermission('curriculum', 'read', 'all')] },
-    async (req, reply) => reply.send(await repo.listAreas(req.user.institutionId)),
+    async (_req, reply) => reply.send(await repo.listAreas()),
   )
 
   app.get<{ Params: { areaId: string }; Querystring: { subnivel: string } }>(

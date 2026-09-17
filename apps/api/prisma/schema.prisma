@@ -25,49 +25,49 @@ model Institution {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  users                     User[]
-  roles                     Role[]
-  levels                    Level[]
-  subjects                  Subject[]
-  academicYears             AcademicYear[]
-  parallels                 Parallel[]
-  activityTypes             ActivityType[]
-  courseAssignments         CourseAssignment[]
-  studentEnrollments        StudentEnrollment[]
-  activities                Activity[]
-  grades                    Grade[]
-  attendanceRecords         AttendanceRecord[]
-  absenceJustifications     AbsenceJustification[]
-  disciplinaryIncidents     DisciplinaryIncident[]
-  incidentTypes             IncidentType[]
-  incidentEvents            IncidentEvent[]
-  incidentCommitments       IncidentCommitment[]
-  incidentAttachments       IncidentAttachment[]
-  parentMeetings            ParentMeeting[]
-  anamnesisTemplates        AnamnesisTemplate[]
-  anamnesisRecords          AnamnesisRecord[]
-  behaviorGrades            BehaviorGrade[]
-  subjectRecoveries         SubjectRecovery[]
-  pedagogicRecoveries       PedagogicRecovery[]
-  promotionDecisions        PromotionDecision[]
-  messageThreads            MessageThread[]
-  scheduleEntries           ScheduleEntry[]
-  reportTemplates           ReportTemplate[]
-  auditLogs                 AuditLog[]
-  insumos                   Insumo[]
-  tasks                     Task[]
-  curriculumAreas           CurriculumArea[]
-  competencyAreas           CompetencyArea[]
-  planningTemplates         PlanningTemplate[]
-  curriculumPlans           CurriculumPlan[]
-  learningSituations        LearningSituation[]
-  planningWeeks             PlanningWeek[]
-  reinforcementPlans        ReinforcementPlan[]
-  interdisciplinaryProjects InterdisciplinaryProject[]
-  multigradeGroups          MultigradeGroup[]
+  users                       User[]
+  roles                       Role[]
+  levels                      Level[]
+  subjects                    Subject[]
+  academicYears               AcademicYear[]
+  parallels                   Parallel[]
+  activityTypes               ActivityType[]
+  courseAssignments           CourseAssignment[]
+  studentEnrollments          StudentEnrollment[]
+  activities                  Activity[]
+  grades                      Grade[]
+  attendanceRecords           AttendanceRecord[]
+  absenceJustifications       AbsenceJustification[]
+  disciplinaryIncidents       DisciplinaryIncident[]
+  incidentTypes               IncidentType[]
+  incidentEvents              IncidentEvent[]
+  incidentCommitments         IncidentCommitment[]
+  incidentAttachments         IncidentAttachment[]
+  parentMeetings              ParentMeeting[]
+  anamnesisTemplates          AnamnesisTemplate[]
+  anamnesisRecords            AnamnesisRecord[]
+  behaviorGrades              BehaviorGrade[]
+  subjectRecoveries           SubjectRecovery[]
+  pedagogicRecoveries         PedagogicRecovery[]
+  promotionDecisions          PromotionDecision[]
+  messageThreads              MessageThread[]
+  scheduleEntries             ScheduleEntry[]
+  reportTemplates             ReportTemplate[]
+  auditLogs                   AuditLog[]
+  insumos                     Insumo[]
+  tasks                       Task[]
+  customCurriculumSkills      CurriculumSkill[]
+  customCompetencies          Competency[]
+  planningTemplates           PlanningTemplate[]
+  curriculumPlans             CurriculumPlan[]
+  learningSituations          LearningSituation[]
+  planningWeeks               PlanningWeek[]
+  reinforcementPlans          ReinforcementPlan[]
+  interdisciplinaryProjects   InterdisciplinaryProject[]
+  multigradeGroups            MultigradeGroup[]
   multigradeSharedExperiences MultigradeSharedExperience[]
-  subscription              Subscription?
-  subscriptionPayments      SubscriptionPayment[]
+  subscription                Subscription?
+  subscriptionPayments        SubscriptionPayment[]
 
   @@map("institutions")
 }
@@ -88,20 +88,20 @@ model User {
   userRoles   UserRole[]
 
   // Relaciones como actor
-  teacherAssignments    CourseAssignment[]     @relation("TeacherAssignments")
-  multigradeGroupsAsTeacher MultigradeGroup[]  @relation("MultigradeGroupTeacher")
-  createdActivities     Activity[]             @relation("ActivityCreator")
-  recordedGrades        Grade[]                @relation("GradeRecorder")
-  recordedAttendance    AttendanceRecord[]     @relation("AttendanceRecorder")
-  reportedIncidents     DisciplinaryIncident[] @relation("IncidentReporter")
-  createdJustifications AbsenceJustification[] @relation("JustificationCreator")
-  sentMessages          Message[]              @relation("MessageSender")
-  messageRecipients     MessageRecipient[]
-  createdThreads        MessageThread[]        @relation("ThreadCreator")
-  createdInsumos        Insumo[]               @relation("InsumoCreator")
-  createdTasks          Task[]                 @relation("TaskCreator")
-  uploadedAttachments   TaskAttachment[]       @relation("AttachmentUploader")
-  uploadedReceipts      SubscriptionPayment[]  @relation("SubscriptionPaymentUploader")
+  teacherAssignments        CourseAssignment[]     @relation("TeacherAssignments")
+  multigradeGroupsAsTeacher MultigradeGroup[]      @relation("MultigradeGroupTeacher")
+  createdActivities         Activity[]             @relation("ActivityCreator")
+  recordedGrades            Grade[]                @relation("GradeRecorder")
+  recordedAttendance        AttendanceRecord[]     @relation("AttendanceRecorder")
+  reportedIncidents         DisciplinaryIncident[] @relation("IncidentReporter")
+  createdJustifications     AbsenceJustification[] @relation("JustificationCreator")
+  sentMessages              Message[]              @relation("MessageSender")
+  messageRecipients         MessageRecipient[]
+  createdThreads            MessageThread[]        @relation("ThreadCreator")
+  createdInsumos            Insumo[]               @relation("InsumoCreator")
+  createdTasks              Task[]                 @relation("TaskCreator")
+  uploadedAttachments       TaskAttachment[]       @relation("AttachmentUploader")
+  uploadedReceipts          SubscriptionPayment[]  @relation("SubscriptionPaymentUploader")
 
   // Relaciones como alumno
   studentEnrollments    StudentEnrollment[]    @relation("StudentEnrollments")
@@ -146,7 +146,7 @@ model User {
   studentPromotions                  PromotionDecision[]                @relation("StudentPromotion")
   decidedPromotions                  PromotionDecision[]                @relation("PromotionDecider")
   createdMultigradeGroups            MultigradeGroup[]                  @relation("MultigradeGroupCreator")
-  createdMultigradeExperiences       MultigradeSharedExperience[]        @relation("MultigradeExperienceCreator")
+  createdMultigradeExperiences       MultigradeSharedExperience[]       @relation("MultigradeExperienceCreator")
 
   // Planificación curricular (PCA/PUD)
   createdCurriculumPlans     CurriculumPlan[]    @relation("CurriculumPlanCreator")
@@ -319,15 +319,15 @@ model AcademicPeriod {
   isActive       Boolean  @default(false) @map("is_active")
   isClosed       Boolean  @default(false) @map("is_closed")
 
-  academicYear              AcademicYear               @relation(fields: [academicYearId], references: [id])
-  scheme                    AcademicPeriodScheme       @relation(fields: [schemeId], references: [id])
-  activities                Activity[]
-  insumos                   Insumo[]
-  behaviorGrades            BehaviorGrade[]
-  pedagogicRecoveries       PedagogicRecovery[]
-  learningSituations        LearningSituation[]
-  reinforcementPlans        ReinforcementPlan[]
-  interdisciplinaryProjects InterdisciplinaryProject[]
+  academicYear                AcademicYear                 @relation(fields: [academicYearId], references: [id])
+  scheme                      AcademicPeriodScheme         @relation(fields: [schemeId], references: [id])
+  activities                  Activity[]
+  insumos                     Insumo[]
+  behaviorGrades              BehaviorGrade[]
+  pedagogicRecoveries         PedagogicRecovery[]
+  learningSituations          LearningSituation[]
+  reinforcementPlans          ReinforcementPlan[]
+  interdisciplinaryProjects   InterdisciplinaryProject[]
   multigradeSharedExperiences MultigradeSharedExperience[]
 
   @@unique([academicYearId, periodNumber])
@@ -404,10 +404,10 @@ model Subject {
   workloadCode     String?  @map("workload_code") @db.VarChar(30)
   createdAt        DateTime @default(now()) @map("created_at")
 
-  institution       Institution        @relation(fields: [institutionId], references: [id])
-  curriculumArea    CurriculumArea?    @relation(fields: [curriculumAreaId], references: [id])
-  competencyArea    CompetencyArea?    @relation(fields: [competencyAreaId], references: [id])
-  courseAssignments CourseAssignment[]
+  institution            Institution             @relation(fields: [institutionId], references: [id])
+  curriculumArea         CurriculumArea?         @relation(fields: [curriculumAreaId], references: [id])
+  competencyArea         CompetencyArea?         @relation(fields: [competencyAreaId], references: [id])
+  courseAssignments      CourseAssignment[]
   multigradeGroupMembers MultigradeGroupMember[]
 
   @@unique([institutionId, code])
@@ -423,19 +423,20 @@ model Subject {
 // Seedeado por institución desde DEFAULT_CURRICULUM (institution-bootstrap.ts),
 // editable/ampliable por institución (isCustom = true para lo que agreguen).
 
+// Global — una sola copia compartida por todas las instituciones (catálogo
+// oficial MINEDUC, idéntico para cualquier escuela ecuatoriana). Sembrado una
+// vez por scripts/seed-global-curriculum-catalog.ts, nunca por institución.
 model CurriculumArea {
-  id            String   @id @default(uuid())
-  institutionId String   @map("institution_id")
-  code          String   @db.VarChar(20) // ej: "LL", "MAT", "CCNN"
-  name          String   @db.VarChar(150) // ej: "Lengua y Literatura"
-  isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at")
+  id        String   @id @default(uuid())
+  code      String   @db.VarChar(20) // ej: "LL", "MAT", "CCNN"
+  name      String   @db.VarChar(150) // ej: "Lengua y Literatura"
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  institution Institution           @relation(fields: [institutionId], references: [id])
-  criteria    CurriculumCriterion[]
-  subjects    Subject[]
+  criteria CurriculumCriterion[]
+  subjects Subject[]
 
-  @@unique([institutionId, code])
+  @@unique([code])
   @@map("curriculum_areas")
 }
 
@@ -468,11 +469,16 @@ model CurriculumSkill {
   profileRefs    String[] @map("profile_refs") // refs al Perfil de Salida: J.1, I.2, S.4...
   // true = agregada por la institución (no viene del banco oficial seedeado)
   isCustom       Boolean  @default(false) @map("is_custom")
+  // null = destreza oficial MINEDUC (global, visible para todas las
+  // instituciones). Con valor = destreza personalizada (isCustom=true) de
+  // ESA institución únicamente — no visible para las demás.
+  institutionId  String?  @map("institution_id")
   isActive       Boolean  @default(true) @map("is_active")
   sortOrder      Int      @default(0) @map("sort_order")
   createdAt      DateTime @default(now()) @map("created_at")
 
   criterion               CurriculumCriterion      @relation(fields: [criterionId], references: [id])
+  institution             Institution?             @relation(fields: [institutionId], references: [id])
   activities              Activity[]
   PedagogicRecovery       PedagogicRecovery[]
   sabers                  CurriculumSaber[]
@@ -513,19 +519,18 @@ model CurriculumSaber {
 // Institution.settings.planningModel decide cuál de los dos bancos usa cada
 // institución (ver extractPlanningModel en institution.repository).
 
+// Global — una sola copia compartida (mismo criterio que CurriculumArea).
 model CompetencyArea {
-  id            String   @id @default(uuid())
-  institutionId String   @map("institution_id")
-  code          String   @db.VarChar(20)
-  name          String   @db.VarChar(150)
-  isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at")
+  id        String   @id @default(uuid())
+  code      String   @db.VarChar(20)
+  name      String   @db.VarChar(150)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  institution  Institution  @relation(fields: [institutionId], references: [id])
   competencies Competency[]
   subjects     Subject[]
 
-  @@unique([institutionId, code])
+  @@unique([code])
   @@map("competency_areas")
 }
 
@@ -539,11 +544,15 @@ model Competency {
   // Códigos de KeyCompetency (catálogo fijo global) que esta competencia desarrolla
   keyCompetencyCodes String[] @map("key_competency_codes")
   isCustom           Boolean  @default(false) @map("is_custom")
+  // null = competencia oficial MINEDUC (global). Con valor = competencia
+  // personalizada (isCustom=true) de ESA institución únicamente.
+  institutionId      String?  @map("institution_id")
   isActive           Boolean  @default(true) @map("is_active")
   sortOrder          Int      @default(0) @map("sort_order")
   createdAt          DateTime @default(now()) @map("created_at")
 
   area                    CompetencyArea           @relation(fields: [areaId], references: [id])
+  institution             Institution?             @relation(fields: [institutionId], references: [id])
   indicators              CompetencyIndicator[]
   sabers                  CompetencySaber[]
   reinforcementPlanSkills ReinforcementPlanSkill[]
@@ -580,7 +589,7 @@ model CompetencySaber {
   // Retrocompatible: [] (default) = aplica a TODOS los grados del subnivel de
   // la competencia (comportamiento histórico, sin filtro). Solo se activa el
   // filtro por grado cuando un importador llena este array explícitamente.
-  gradeCodes   String[] @map("grade_codes") @default([])
+  gradeCodes   String[] @default([]) @map("grade_codes")
   createdAt    DateTime @default(now()) @map("created_at")
 
   competency Competency @relation(fields: [competencyId], references: [id])
@@ -929,12 +938,12 @@ model MultigradeGroup {
   createdBy              String   @map("created_by")
   createdAt              DateTime @default(now()) @map("created_at")
 
-  institution        Institution                  @relation(fields: [institutionId], references: [id])
-  teacher            User                         @relation("MultigradeGroupTeacher", fields: [teacherId], references: [id])
-  academicYear       AcademicYear                 @relation(fields: [academicYearId], references: [id])
-  creator            User                         @relation("MultigradeGroupCreator", fields: [createdBy], references: [id])
-  members            MultigradeGroupMember[]
-  sharedExperiences  MultigradeSharedExperience[]
+  institution       Institution                  @relation(fields: [institutionId], references: [id])
+  teacher           User                         @relation("MultigradeGroupTeacher", fields: [teacherId], references: [id])
+  academicYear      AcademicYear                 @relation(fields: [academicYearId], references: [id])
+  creator           User                         @relation("MultigradeGroupCreator", fields: [createdBy], references: [id])
+  members           MultigradeGroupMember[]
+  sharedExperiences MultigradeSharedExperience[]
 
   @@map("multigrade_groups")
 }
@@ -945,7 +954,7 @@ model MultigradeGroup {
 model MultigradeGroupMember {
   id                 String   @id @default(uuid())
   groupId            String   @map("group_id")
-  gradeCode          String   @db.VarChar(20) @map("grade_code")
+  gradeCode          String   @map("grade_code") @db.VarChar(20)
   courseAssignmentId String   @unique @map("course_assignment_id")
   parallelId         String   @map("parallel_id")
   subjectId          String   @map("subject_id")

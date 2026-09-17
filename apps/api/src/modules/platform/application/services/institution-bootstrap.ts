@@ -820,80 +820,11 @@ export async function bootstrapInstitution(
     },
   })
 
-  // 7c-bis. Banco curricular MINEDUC (Currículo Priorizado con Énfasis en Competencias)
-  const defaultCurriculum = loadDefaultCurriculum()
-  for (const area of defaultCurriculum) {
-    const createdArea = await tx.curriculumArea.create({
-      data: { institutionId: inst.id, code: area.code, name: area.name },
-    })
-    for (const [subnivel, criteria] of Object.entries(area.subniveles)) {
-      for (const criterion of criteria) {
-        const createdCriterion = await tx.curriculumCriterion.create({
-          data: {
-            areaId: createdArea.id,
-            subnivel,
-            code: criterion.code,
-            description: criterion.description,
-          },
-        })
-        if (criterion.skills.length) {
-          await tx.curriculumSkill.createMany({
-            data: criterion.skills.map((skill) => ({
-              criterionId: createdCriterion.id,
-              code: skill.code,
-              description: skill.description,
-              indicatorText: skill.indicatorText,
-              profileRefs: skill.profileRefs,
-              competencyTags: [] as string[],
-              insercionTags: [] as string[],
-            })),
-          })
-        }
-      }
-    }
-  }
-
-  // 7c-quater. Banco curricular por COMPETENCIAS (CNC-MINEDUC) — modelo
-  // alternativo al de destrezas, se siembra siempre; solo se usa si la
-  // institución activa planningModel = "competencias" desde Configuración.
-  const defaultCompetencies = loadDefaultCompetencies()
-  for (const area of defaultCompetencies) {
-    const createdArea = await tx.competencyArea.create({
-      data: { institutionId: inst.id, code: area.code, name: area.name },
-    })
-    for (const [subnivel, competencies] of Object.entries(area.subniveles)) {
-      for (const competency of competencies) {
-        const createdCompetency = await tx.competency.create({
-          data: {
-            areaId: createdArea.id,
-            subnivel,
-            code: competency.code,
-            text: competency.text,
-            keyCompetencyCodes: competency.keyCompetencyCodes,
-          },
-        })
-        if (competency.indicators.length) {
-          await tx.competencyIndicator.createMany({
-            data: competency.indicators.map((ind) => ({
-              competencyId: createdCompetency.id,
-              code: ind.code,
-              text: ind.text,
-            })),
-          })
-        }
-        if (competency.sabers.length) {
-          await tx.competencySaber.createMany({
-            data: competency.sabers.map((saber) => ({
-              competencyId: createdCompetency.id,
-              type: saber.type,
-              code: saber.code,
-              description: saber.description,
-            })),
-          })
-        }
-      }
-    }
-  }
+  // 7c-bis/quater. El banco curricular MINEDUC (destrezas y competencias) ya
+  // NO se siembra por institución — es GLOBAL, una sola copia compartida por
+  // todas (ver scripts/seed-global-curriculum-catalog.ts, corrido una vez a
+  // nivel de plataforma). Antes esto insertaba ~7,000 filas idénticas en cada
+  // registro nuevo (costo real de cómputo/almacenamiento y riesgo de timeout).
 
   // 7d. Materias cualitativas por defecto (libreta)
   await tx.subject.createMany({
