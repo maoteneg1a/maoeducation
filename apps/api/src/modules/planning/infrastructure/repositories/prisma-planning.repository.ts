@@ -3,6 +3,7 @@ import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { ConflictError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import { buildSituationTitle } from '../../domain/situation-title'
 import { distributeCompetencyWeeks } from '../../domain/competency-week-distribution'
+import { findGradeByCode } from '../../../../shared/domain/grade-catalog'
 import type {
   ConfirmDistributionDto,
   ConfirmDistributionWeekDto,
@@ -568,12 +569,19 @@ export class PrismaPlanningRepository {
       orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
       include: { sabers: { where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] } },
     })
+    // Red de seguridad: si el Level.code de la asignación no es un grado real
+    // reconocido (ej. instituciones antiguas creadas antes del fix del wizard,
+    // con el código sintético "PERSONAL") el filtro de gradeCodes NUNCA
+    // coincidiría con nada y dejaría al docente sin ninguna sugerencia — se
+    // ignora el filtro por grado (comportamiento histórico) en vez de bloquear
+    // silenciosamente. El fix real es que el wizard ya no crea Levels así.
+    const isRealGrade = findGradeByCode(gradeCode) !== null
     return competencies.map((c) => ({
       id: c.id,
       code: c.code,
       text: c.text,
       sabers: c.sabers
-        .filter((s) => s.gradeCodes.length === 0 || s.gradeCodes.includes(gradeCode))
+        .filter((s) => !isRealGrade || s.gradeCodes.length === 0 || s.gradeCodes.includes(gradeCode))
         .map((s) => ({ id: s.id, type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description })),
     }))
   }

@@ -12,7 +12,6 @@ import { useCurriculumAreas } from '@/features/curriculum/hooks/useCurriculum'
 import { useCompetencyAreas } from '@/features/competency-curriculum/hooks/useCompetencyCurriculum'
 
 type TeachingProfile = 'subject-first' | 'classroom-first' | 'multigrade'
-type Subnivel = 'inicial' | 'preparatoria' | 'elemental' | 'media' | 'superior' | 'bgu'
 type PlanningModel = 'destrezas' | 'competencias'
 
 interface MultigradeRow {
@@ -40,8 +39,12 @@ interface WizardState {
   workspaceName: string
   // students
   students: ParsedStudent[]
-  // currículo — filtra qué competencias/destrezas se ofrecen luego al planificar
-  subnivel: Subnivel | null
+  // currículo — grado REAL que enseña (deriva el subnivel; ver GRADE_OPTIONS) —
+  // decide qué banco curricular (destrezas/competencias) y qué saberes por
+  // grado (CompetencySaber.gradeCodes) se ofrecen luego al planificar. NUNCA
+  // enviar un nivel sintético como "PERSONAL" al backend — sin un grado real
+  // el motor de planificación no encuentra saberes disponibles.
+  gradeCode: string | null
   planningModel: PlanningModel
 }
 
@@ -51,13 +54,26 @@ const STEPS = ['Perfil', 'Currículo', 'Mis clases', 'Año escolar', 'Estudiante
 // y se salta automáticamente (ver goNext/goBack).
 const MULTIGRADE_STEPS = ['Perfil', 'Mis grados', 'Año escolar', 'Estudiantes', 'Tu aula']
 
-const SUBNIVEL_OPTIONS: Array<{ value: Subnivel; label: string; hint: string }> = [
-  { value: 'inicial', label: 'Inicial', hint: 'Maternal / 3 a 5 años' },
-  { value: 'preparatoria', label: 'Preparatoria', hint: '1ro de Básica' },
-  { value: 'elemental', label: 'Elemental', hint: '2do a 4to de Básica' },
-  { value: 'media', label: 'Media', hint: '5to a 7mo de Básica' },
-  { value: 'superior', label: 'Superior', hint: '8vo a 10mo de Básica' },
-  { value: 'bgu', label: 'Bachillerato', hint: '1ro a 3ro BGU' },
+// Grado REAL que enseña el docente (subject-first/classroom-first) — mismo
+// catálogo que GRADE_CATALOG (apps/api/src/shared/domain/grade-catalog.ts),
+// incluyendo Inicial y BGU (a diferencia de MULTIGRADE_GRADE_OPTIONS abajo,
+// que excluye BGU por regla de negocio de multigrado, no de este flujo). El
+// subnivel ya no se pregunta por separado — se deriva de este grado.
+const GRADE_OPTIONS: Array<{ value: string; label: string; hint: string }> = [
+  { value: 'INICIAL', label: 'Inicial', hint: 'Maternal / 3 a 5 años' },
+  { value: '1B', label: '1ro de Básica', hint: 'Preparatoria' },
+  { value: '2B', label: '2do de Básica', hint: 'Elemental' },
+  { value: '3B', label: '3ro de Básica', hint: 'Elemental' },
+  { value: '4B', label: '4to de Básica', hint: 'Elemental' },
+  { value: '5B', label: '5to de Básica', hint: 'Media' },
+  { value: '6B', label: '6to de Básica', hint: 'Media' },
+  { value: '7B', label: '7mo de Básica', hint: 'Media' },
+  { value: '8B', label: '8vo de Básica', hint: 'Superior' },
+  { value: '9B', label: '9no de Básica', hint: 'Superior' },
+  { value: '10B', label: '10mo de Básica', hint: 'Superior' },
+  { value: '1BGU', label: '1ro de Bachillerato', hint: 'BGU' },
+  { value: '2BGU', label: '2do de Bachillerato', hint: 'BGU' },
+  { value: '3BGU', label: '3ro de Bachillerato', hint: 'BGU' },
 ]
 
 // Mismo catálogo de grados EGB que DEFAULT_LEVELS (institution-bootstrap.ts) —
@@ -108,7 +124,7 @@ export function PersonalSetupPage() {
     yearEnd: `${new Date().getFullYear() + 1}-07-31`,
     workspaceName: '',
     students: [],
-    subnivel: null,
+    gradeCode: null,
     planningModel: 'destrezas',
   })
   const setInstitution = useAuthStore((s) => s.setInstitution)
@@ -159,7 +175,7 @@ export function PersonalSetupPage() {
       yearStart: state.yearStart,
       yearEnd: state.yearEnd,
       workspaceName: state.workspaceName || undefined,
-      subnivel: state.profile === 'multigrade' ? undefined : (state.subnivel ?? undefined),
+      gradeCode: state.profile === 'multigrade' ? undefined : (state.gradeCode ?? undefined),
       planningModel: state.profile === 'multigrade' ? 'competencias' : state.planningModel,
       ...(state.profile === 'subject-first'
         ? {
@@ -210,7 +226,7 @@ export function PersonalSetupPage() {
 
   const canNext = () => {
     if (stepLabel === 'Perfil') return state.profile !== null
-    if (stepLabel === 'Currículo') return state.subnivel !== null
+    if (stepLabel === 'Currículo') return state.gradeCode !== null
     if (stepLabel === 'Mis clases') {
       if (state.profile === 'subject-first') return !!state.subjectAreaId && state.groups.some((g) => g.trim())
       return state.parallelName.trim() && state.subjectAreaIds.length > 0
@@ -300,23 +316,23 @@ export function PersonalSetupPage() {
           </div>
         )}
 
-        {/* Step — Currículo (subnivel + modelo de planificación) — no aplica a multigrado */}
+        {/* Step — Currículo (grado real + modelo de planificación) — no aplica a multigrado */}
         {stepLabel === 'Currículo' && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>¿En qué subnivel enseñas?</Label>
+              <Label>¿Qué grado enseñas?</Label>
               <p className="text-xs text-gray-500">
-                Con esto filtramos las competencias y destrezas oficiales que verás al planificar —
-                para que luego solo tengas que elegir de una lista y generar con IA, sin buscar nada.
+                Con esto filtramos las competencias, destrezas y saberes oficiales exactos de tu grado
+                que verás al planificar — para que luego solo tengas que elegir de una lista y generar con IA, sin buscar nada.
               </p>
-              <div className="grid grid-cols-2 gap-2">
-                {SUBNIVEL_OPTIONS.map((opt) => (
+              <div className="grid grid-cols-3 gap-2">
+                {GRADE_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => set('subnivel', opt.value)}
+                    onClick={() => set('gradeCode', opt.value)}
                     className={`flex flex-col items-start gap-0.5 p-3 rounded-lg border-2 text-left transition-all ${
-                      state.subnivel === opt.value
+                      state.gradeCode === opt.value
                         ? 'border-blue-500 bg-blue-50'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
