@@ -10,8 +10,6 @@ import {
   DEFAULT_ANAMNESIS_SCHEMA,
   DEFAULT_QUALITATIVE_SUBJECTS,
   DEFAULT_PCA_SCHEMA,
-  loadDefaultCurriculum,
-  loadDefaultCompetencies,
   loadKeyCompetencies,
   loadDuaCatalog,
   loadAssessmentCatalog,
@@ -75,94 +73,10 @@ async function main() {
   }
   console.log(`✓ Activity types: ${activityTypes.length} tipos creados`)
 
-  // 4b. Banco curricular MINEDUC (Currículo Priorizado con Énfasis en Competencias)
-  const existingAreas = await prisma.curriculumArea.count({ where: { institutionId: institution.id } })
-  if (existingAreas === 0) {
-    const defaultCurriculum = loadDefaultCurriculum()
-    let criteriaCount = 0
-    let skillsCount = 0
-    for (const area of defaultCurriculum) {
-      const createdArea = await prisma.curriculumArea.create({
-        data: { institutionId: institution.id, code: area.code, name: area.name },
-      })
-      for (const [subnivel, criteria] of Object.entries(area.subniveles)) {
-        for (const criterion of criteria) {
-          criteriaCount++
-          const createdCriterion = await prisma.curriculumCriterion.create({
-            data: {
-              areaId: createdArea.id,
-              subnivel,
-              code: criterion.code,
-              description: criterion.description,
-            },
-          })
-          if (criterion.skills.length) {
-            skillsCount += criterion.skills.length
-            await prisma.curriculumSkill.createMany({
-              data: criterion.skills.map((skill) => ({
-                criterionId: createdCriterion.id,
-                code: skill.code,
-                description: skill.description,
-                indicatorText: skill.indicatorText,
-                profileRefs: skill.profileRefs,
-              })),
-            })
-          }
-        }
-      }
-    }
-    console.log(`✓ Banco curricular: ${defaultCurriculum.length} áreas, ${criteriaCount} criterios, ${skillsCount} destrezas`)
-  } else {
-    console.log('✓ Banco curricular: ya existía, se omite')
-  }
-
-  // 4b-bis. Banco curricular por COMPETENCIAS (CNC-MINEDUC) — modelo alternativo, configurable
-  const existingCompetencyAreas = await prisma.competencyArea.count({ where: { institutionId: institution.id } })
-  if (existingCompetencyAreas === 0) {
-    const defaultCompetencies = loadDefaultCompetencies()
-    let competenciesCount = 0
-    for (const area of defaultCompetencies) {
-      const createdArea = await prisma.competencyArea.create({
-        data: { institutionId: institution.id, code: area.code, name: area.name },
-      })
-      for (const [subnivel, competencies] of Object.entries(area.subniveles)) {
-        for (const competency of competencies) {
-          competenciesCount++
-          const createdCompetency = await prisma.competency.create({
-            data: {
-              areaId: createdArea.id,
-              subnivel,
-              code: competency.code,
-              text: competency.text,
-              keyCompetencyCodes: competency.keyCompetencyCodes,
-            },
-          })
-          if (competency.indicators.length) {
-            await prisma.competencyIndicator.createMany({
-              data: competency.indicators.map((ind) => ({
-                competencyId: createdCompetency.id,
-                code: ind.code,
-                text: ind.text,
-              })),
-            })
-          }
-          if (competency.sabers.length) {
-            await prisma.competencySaber.createMany({
-              data: competency.sabers.map((saber) => ({
-                competencyId: createdCompetency.id,
-                type: saber.type,
-                code: saber.code,
-                description: saber.description,
-              })),
-            })
-          }
-        }
-      }
-    }
-    console.log(`✓ Banco por competencias: ${defaultCompetencies.length} áreas, ${competenciesCount} competencias`)
-  } else {
-    console.log('✓ Banco por competencias: ya existía, se omite')
-  }
+  // 4b/4b-bis. Banco curricular MINEDUC (destrezas y competencias) — GLOBAL,
+  // ya NO se siembra por institución (ver scripts/seed-global-curriculum-catalog.ts,
+  // corrido una vez a nivel de plataforma).
+  console.log('✓ Banco curricular (destrezas + competencias): global, sembrado por scripts/seed-global-curriculum-catalog.ts')
 
   // 4b-ter. Catálogos globales (no por institución): competencias clave, DUA, evaluación, inserciones
   const existingKeyCompetencies = await prisma.keyCompetency.count()
