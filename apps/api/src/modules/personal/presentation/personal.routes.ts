@@ -605,7 +605,10 @@ export default async function personalRoutes(app: FastifyInstance) {
 
           let parallelId = parallelIdByGrade.get(selection.gradeCode)
           if (!parallelId) {
-            const parallelName = MULTIGRADE_GRADE_NAME[selection.gradeCode] ?? selection.gradeCode
+            // Parallel.name es VarChar(10) — "1ro de Básica" (MULTIGRADE_GRADE_NAME)
+            // no cabe ahí; el grado ya vive en Level.name, así que el paralelo de
+            // multigrado (uno por grado, sección única) se llama simplemente "A".
+            const parallelName = 'A'
             const existingParallel = await prisma.parallel.findFirst({
               where: { levelId: gradeLevel.id, academicYearId: year.id, name: parallelName },
             })

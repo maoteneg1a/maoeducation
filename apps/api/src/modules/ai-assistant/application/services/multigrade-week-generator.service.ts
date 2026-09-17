@@ -112,6 +112,8 @@ async function ensureSituation(
       title,
       startDate: period.startDate,
       endDate: period.endDate,
+      interdisciplinaryAreaIds: [],
+      interdisciplinarySubjectIds: [],
       competencyIds: [competency.id],
       createdBy: actorId,
     },
