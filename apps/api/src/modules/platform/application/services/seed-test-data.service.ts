@@ -81,7 +81,7 @@ export async function seedTestData(institutionId: string): Promise<SeedResult> {
   }
 
   async function upsertSubjectAndAssignment(opts: { subjectCode: string; subjectName: string; areaCode: string; teacherId: string }) {
-    const area = await prisma.curriculumArea.findFirst({ where: { institutionId, code: opts.areaCode } })
+    const area = await prisma.curriculumArea.findFirst({ where: { code: opts.areaCode } })
     let subject = await prisma.subject.findFirst({ where: { institutionId, code: opts.subjectCode } })
     if (!subject) {
       subject = await prisma.subject.create({

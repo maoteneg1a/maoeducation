@@ -169,9 +169,7 @@ interface SubjectReport {
 async function main() {
   console.log('Importador de granularidad por grado (fuente: TIGA)')
   console.log(`TIGA_DATA_DIR = ${TIGA_DATA_DIR}\n`)
-
-  const institutions = await prisma.institution.findMany({ select: { id: true, name: true } })
-  console.log(`Instituciones encontradas: ${institutions.length} (${institutions.map((i) => i.name).join(', ')})\n`)
+  console.log('Catálogo curricular GLOBAL — se etiqueta una sola copia, no por institución.\n')
 
   const reports: SubjectReport[] = []
 
@@ -198,31 +196,29 @@ async function main() {
     let written = 0
     const noMatchSamples: string[] = []
 
-    for (const inst of institutions) {
-      const competencies = await prisma.competency.findMany({
-        where: { area: { institutionId: inst.id } },
-        include: { sabers: true },
-      })
+    const competencies = await prisma.competency.findMany({
+      where: { institutionId: null },
+      include: { sabers: true },
+    })
 
-      for (const [tigaCompetencyCode, saberMap] of gradeMap) {
-        const owning = competencies.find((c) => normalizeCompetencyCode(c.code) === normalizeCompetencyCode(tigaCompetencyCode))
-        if (!owning) continue
+    for (const [tigaCompetencyCode, saberMap] of gradeMap) {
+      const owning = competencies.find((c) => normalizeCompetencyCode(c.code) === normalizeCompetencyCode(tigaCompetencyCode))
+      if (!owning) continue
 
-        for (const [saberCode, grades] of saberMap) {
-          const saber = owning.sabers.find((s) => s.code === saberCode)
-          if (!saber) {
-            noMatch++
-            if (noMatchSamples.length < 15) noMatchSamples.push(`${inst.name}: ${tigaCompetencyCode} / ${saberCode}`)
-            continue
-          }
-          const gradeCodes = [...grades].sort()
-          const current = [...saber.gradeCodes].sort()
-          if (JSON.stringify(current) !== JSON.stringify(gradeCodes)) {
-            await prisma.competencySaber.update({ where: { id: saber.id }, data: { gradeCodes } })
-            written++
-          }
-          labeled++
+      for (const [saberCode, grades] of saberMap) {
+        const saber = owning.sabers.find((s) => s.code === saberCode)
+        if (!saber) {
+          noMatch++
+          if (noMatchSamples.length < 15) noMatchSamples.push(`${tigaCompetencyCode} / ${saberCode}`)
+          continue
         }
+        const gradeCodes = [...grades].sort()
+        const current = [...saber.gradeCodes].sort()
+        if (JSON.stringify(current) !== JSON.stringify(gradeCodes)) {
+          await prisma.competencySaber.update({ where: { id: saber.id }, data: { gradeCodes } })
+          written++
+        }
+        labeled++
       }
     }
 
