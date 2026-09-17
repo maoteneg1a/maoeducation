@@ -9,11 +9,13 @@ import { getPlannedSkillIds, getPlannedCompetencyIds } from '../../../shared/inf
 import { NotFoundError } from '../../../shared/domain/errors/app.errors'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import type {
+  ConfirmDistributionDto,
   CreatePlanDto,
   CreateSituationDto,
   CreateTemplateDto,
   CreateWeekDto,
   PlanningTemplateType,
+  SuggestDistributionDto,
   UpdatePlanDto,
   UpdateSituationDto,
   UpdateTemplateDto,
@@ -162,6 +164,37 @@ export default async function planningRoutes(app: FastifyInstance) {
     '/planning/weeks/:id',
     { preHandler: [requirePermission('planning', 'write', 'own')] },
     async (req, reply) => reply.send(await repo.deleteWeek(req.params.id, req.user.institutionId)),
+  )
+
+  // ─── Distribución de competencias/saberes por semana ────────────────────
+  // Reemplaza la elección manual de "situación de aprendizaje": el docente
+  // elige periodo + número de semanas, ve la sugerencia automática, la edita
+  // si quiere, y confirma — solo entonces se crea/actualiza la situación y
+  // las semanas (el docente nunca ve el concepto de "situación").
+  app.post<{ Params: { courseAssignmentId: string; academicPeriodId: string }; Body: SuggestDistributionDto }>(
+    '/planning/course-assignments/:courseAssignmentId/periods/:academicPeriodId/suggest-distribution',
+    { preHandler: [requirePermission('planning', 'write', 'own')] },
+    async (req, reply) =>
+      reply.send(
+        await repo.suggestDistribution(req.user.institutionId, req.params.courseAssignmentId, req.params.academicPeriodId, req.body),
+      ),
+  )
+
+  app.post<{ Params: { courseAssignmentId: string; academicPeriodId: string }; Body: ConfirmDistributionDto }>(
+    '/planning/course-assignments/:courseAssignmentId/periods/:academicPeriodId/confirm-distribution',
+    { preHandler: [requirePermission('planning', 'write', 'own')] },
+    async (req, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repo.confirmDistribution(
+            req.user.institutionId,
+            req.user.sub,
+            req.params.courseAssignmentId,
+            req.params.academicPeriodId,
+            req.body,
+          ),
+        ),
   )
 
   // ─── Destrezas planificadas (motor central: lo único disponible para el

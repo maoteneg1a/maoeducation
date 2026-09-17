@@ -157,3 +157,38 @@ export interface UpdateWeekDto {
   competencySaberIds?: string[]
   momentos?: WeekMomentos
 }
+
+// ─── Distribución de competencias/saberes por semana (reemplaza la elección
+// manual de "situación de aprendizaje" — el docente ya no ve ese concepto,
+// solo confirma o edita la sugerencia automática antes de generar) ─────────
+
+export interface SuggestDistributionDto {
+  weeksCount: number
+}
+
+export interface SuggestedWeekDistribution {
+  weekNumber: number
+  competencyId: string
+  competencyCode: string
+  competencyText: string
+  saberIds: string[]
+  sabers: { id: string; type: 'declarativo' | 'procedimental' | 'actitudinal'; code: string; description: string }[]
+}
+
+export interface SuggestDistributionResult {
+  weeks: SuggestedWeekDistribution[]
+  calendarWeeks: number
+  coverageWarning?: string
+  weeksCountWarning?: string
+}
+
+export interface ConfirmDistributionWeekDto {
+  weekNumber: number
+  competencyId: string
+  saberIds: string[]
+}
+
+export interface ConfirmDistributionDto {
+  weeksCount: number
+  weeks: ConfirmDistributionWeekDto[]
+}

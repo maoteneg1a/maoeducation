@@ -207,3 +207,35 @@ export function usePlannedCompetencies(courseAssignmentId: string | undefined, a
     enabled: !!courseAssignmentId && !!academicPeriodId,
   })
 }
+
+// ─── Distribución de competencias/saberes por semana ───────────────────────
+
+export function useSuggestDistribution() {
+  return useMutation({
+    mutationFn: (vars: { courseAssignmentId: string; academicPeriodId: string; weeksCount: number }) =>
+      planningApi.suggestDistribution(vars.courseAssignmentId, vars.academicPeriodId, { weeksCount: vars.weeksCount }),
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useConfirmDistribution() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: {
+      courseAssignmentId: string
+      academicPeriodId: string
+      weeksCount: number
+      weeks: Parameters<typeof planningApi.confirmDistribution>[2]['weeks']
+    }) =>
+      planningApi.confirmDistribution(vars.courseAssignmentId, vars.academicPeriodId, {
+        weeksCount: vars.weeksCount,
+        weeks: vars.weeks,
+      }),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ['planning-plans'] })
+      qc.invalidateQueries({ queryKey: ['planning-weeks', result.situation.id] })
+      toast.success('Distribución confirmada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}

@@ -73,9 +73,31 @@ export async function draftSituationBlock(
 
   const existingWeeks = await prisma.planningWeek.findMany({
     where: { situationId: dto.situationId },
-    select: { id: true, weekNumber: true, competenciasEspecificas: true, indicadoresEvaluacion: true },
+    select: {
+      id: true,
+      weekNumber: true,
+      competenciasEspecificas: true,
+      indicadoresEvaluacion: true,
+      competencySaberIds: true,
+      competencyIds: true,
+    },
     orderBy: { weekNumber: 'asc' },
   })
+  // Si la semana ya trae competencySaberIds (fijados por confirm-distribution
+  // ANTES de llamar aquí), esa selección manda sobre el reparto automático de
+  // draftCompetencyWeek — mismo mecanismo que "regenerar solo actividades"
+  // (selectedSaberIds), pero aplicado también a la primera generación. La
+  // competencia de ESA semana también viene fijada (puede no ser la primera
+  // de dto.competencyIds si el bloque cicló entre varias competencias) — sin
+  // esto, draftCompetencyWeek ancla el fallback a competencies[0] y el
+  // filtro de selectedSaberIds no encuentra coincidencia en semanas que
+  // pertenecen a una competencia distinta.
+  const preselectedSaberIdsByNumber = new Map(
+    existingWeeks.filter((w) => w.competencySaberIds.length > 0).map((w) => [w.weekNumber, w.competencySaberIds]),
+  )
+  const preselectedCompetencyIdsByNumber = new Map(
+    existingWeeks.filter((w) => w.competencyIds.length > 0).map((w) => [w.weekNumber, w.competencyIds]),
+  )
   const existingNumbers = new Set(existingWeeks.map((w) => w.weekNumber))
   const reusableEmpty = existingWeeks.filter(isEmptyWeek)
   const highestNumber = existingNumbers.size ? Math.max(...existingNumbers) : 0
@@ -115,9 +137,11 @@ export async function draftSituationBlock(
         const result = isCompetencyModel
           ? await draftCompetencyWeek(institutionId, actorId, {
               situationId: dto.situationId,
-              competencyIds: dto.competencyIds!,
+              competencyIds: preselectedCompetencyIdsByNumber.get(slot.weekNumber) ?? dto.competencyIds!,
               weekName: undefined,
               rotationSeed: index,
+              weekNumber: slot.weekNumber,
+              selectedSaberIds: preselectedSaberIdsByNumber.get(slot.weekNumber),
             })
           : await draftWeek(institutionId, actorId, {
               situationId: dto.situationId,
