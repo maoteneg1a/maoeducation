@@ -530,15 +530,29 @@ export class PrismaPlanningRepository {
     }
     const subnivel = assignment.parallel.level.subnivel
     if (!subnivel) throw new ConflictError('El grado de esta asignación no tiene subnivel configurado')
-    return { assignment, competencyAreaId: assignment.subject.competencyAreaId, subnivel }
+    return { assignment, competencyAreaId: assignment.subject.competencyAreaId, subnivel, gradeCode: assignment.parallel.level.code }
   }
 
-  /** Competencias del área+subnivel de la asignación, excluyendo las ya usadas en OTRAS situaciones (otros periodos) del mismo plan — progresión real a través del año. */
+  /**
+   * Competencias del área+subnivel de la asignación, excluyendo las ya usadas
+   * en OTRAS situaciones (otros periodos) del mismo plan — progresión real a
+   * través del año.
+   *
+   * Filtro por grado (granularidad TIGA): dentro de un subnivel (ej. "media"
+   * = 5°,6°,7° de Básica) una misma competencia puede compartirse entre
+   * grados con un subconjunto DISTINTO de saberes por grado (ver
+   * `CompetencySaber.gradeCodes`, poblado por
+   * `scripts/import-tiga-grade-granularity.ts`). Un saber con `gradeCodes`
+   * vacío aplica a TODOS los grados del subnivel (retrocompatible); un saber
+   * con `gradeCodes` no vacío solo se incluye si `gradeCode` (el grado real
+   * de la asignación) está en esa lista.
+   */
   private async availableCompetenciesForDistribution(
     courseAssignmentId: string,
     academicPeriodId: string,
     competencyAreaId: string,
     subnivel: string,
+    gradeCode: string,
   ) {
     const plan = await prisma.curriculumPlan.findUnique({ where: { courseAssignmentId } })
     const usedElsewhere = plan
@@ -558,7 +572,9 @@ export class PrismaPlanningRepository {
       id: c.id,
       code: c.code,
       text: c.text,
-      sabers: c.sabers.map((s) => ({ id: s.id, type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description })),
+      sabers: c.sabers
+        .filter((s) => s.gradeCodes.length === 0 || s.gradeCodes.includes(gradeCode))
+        .map((s) => ({ id: s.id, type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description })),
     }))
   }
 
@@ -573,8 +589,8 @@ export class PrismaPlanningRepository {
     const period = await prisma.academicPeriod.findFirst({ where: { id: academicPeriodId } })
     if (!period) throw new NotFoundError('Periodo académico no encontrado')
 
-    const { competencyAreaId, subnivel } = await this.resolveAssignmentForDistribution(courseAssignmentId, institutionId)
-    const competencies = await this.availableCompetenciesForDistribution(courseAssignmentId, academicPeriodId, competencyAreaId, subnivel)
+    const { competencyAreaId, subnivel, gradeCode } = await this.resolveAssignmentForDistribution(courseAssignmentId, institutionId)
+    const competencies = await this.availableCompetenciesForDistribution(courseAssignmentId, academicPeriodId, competencyAreaId, subnivel, gradeCode)
 
     const calendarWeeks = calendarWeeksBetween(period.startDate, period.endDate)
     const { weeks, coverageWarning } = distributeCompetencyWeeks(competencies, dto.weeksCount)
