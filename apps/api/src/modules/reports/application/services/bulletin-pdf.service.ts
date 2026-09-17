@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import PDFDocument from 'pdfkit'
+import { getImageSize } from '../../../../shared/infrastructure/services/pdf-helpers'
 
 interface PeriodGrade {
   periodId: string
@@ -103,15 +104,27 @@ export function buildBulletinPdf(data: BulletinPdfData): Promise<Buffer> {
     let y = doc.page.margins.top
 
     // ── Encabezado ──
+    // El logo se dibujaba en la misma Y que el título (y + 2), quedando
+    // superpuestos — ambos centrados en el mismo punto horizontal. Se calcula
+    // la altura real que ocupará el logo dentro de la caja `fit` (36x36; con
+    // `fit`, PDFKit escala por el lado más restrictivo, así que la altura
+    // real puede ser menor a 36 si el aspect ratio no es cuadrado) y el
+    // título arranca debajo, nunca en el mismo renglón.
     const logo = resolveLogo(data.logoUrl)
+    let logoBottom = y
     if (logo) {
       try {
-        doc.image(logo, doc.page.width / 2 - 18, y, { fit: [36, 36] })
+        const boxSize = 36
+        const { width: naturalW, height: naturalH } = getImageSize(doc, logo)
+        const scale = Math.min(boxSize / naturalW, boxSize / naturalH)
+        const logoH = naturalH * scale
+        doc.image(logo, doc.page.width / 2 - 18, y, { fit: [boxSize, boxSize] })
+        logoBottom = y + logoH + 4
       } catch {
         /* ignore */
       }
     }
-    doc.font('Helvetica-Bold').fontSize(13).text(data.institutionName.toUpperCase(), left, y + 2, {
+    doc.font('Helvetica-Bold').fontSize(13).text(data.institutionName.toUpperCase(), left, logoBottom, {
       width: pageW,
       align: 'center',
     })

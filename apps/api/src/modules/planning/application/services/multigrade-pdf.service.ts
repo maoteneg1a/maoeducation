@@ -1,5 +1,5 @@
 import PDFDocument from 'pdfkit'
-import { resolveLogo, drawWatermark } from '../../../../shared/infrastructure/services/pdf-helpers'
+import { resolveLogo, drawWatermark, drawLeftLogoHeader } from '../../../../shared/infrastructure/services/pdf-helpers'
 import { ensureSpace, drawRow, drawFlowRow, type FlowColumn } from '../../../../shared/infrastructure/services/pdf-table-helpers'
 import type { CompetencyWeekMomentos } from '../../../../shared/domain/pedagogical-methodology'
 import type { MicrocurricularTemplateConfig } from '../../../institution/application/dtos/institution.dto'
@@ -70,13 +70,7 @@ export function buildMultigradePdf(data: MultigradePdfData, template: Microcurri
     }
 
     // ── Encabezado (mismo layout de microcurricular-pdf.service.ts) ──
-    const logoW = logo ? 50 : 0
-    if (logo) {
-      try {
-        doc.image(logo, x0, doc.y, { width: 40 })
-      } catch { /* logo inválido, se omite */ }
-    }
-    doc.font('Helvetica-Bold').fontSize(15).text(data.institutionName.toUpperCase(), x0 + logoW, doc.y, { width: fullWidth - logoW, align: 'center' })
+    drawLeftLogoHeader(doc, logo, data.institutionName, x0, fullWidth)
     doc.moveDown(0.4)
     doc.moveTo(x0, doc.y).lineTo(x0 + fullWidth, doc.y).lineWidth(1.5).strokeColor('#333333').stroke()
     doc.moveDown(0.5)

@@ -43,8 +43,19 @@ export function drawHeader(
 
   if (logoSrc) {
     try {
-      doc.image(logoSrc, pageW / 2 - 24, doc.y, { width: 48 })
-      doc.moveDown(3)
+      const logoW = 48
+      const logoY = doc.y
+      // El logo se dibuja con posicionamiento absoluto y NO avanza el cursor
+      // — antes se asumía una altura fija (moveDown(3)) que no cubre logos con
+      // proporción distinta a la asumida (ej. escudos más altos que anchos),
+      // dejando el título superpuesto sobre la parte baja del logo. Se calcula
+      // la altura real vía getImageSize (mismo aspect ratio que usa doc.image
+      // al recibir solo `width`) y se posiciona el cursor exactamente donde
+      // termina el logo, con un margen de separación fijo.
+      const { width: naturalW, height: naturalH } = getImageSize(doc, logoSrc)
+      const logoH = naturalW > 0 ? (logoW * naturalH) / naturalW : logoW
+      doc.image(logoSrc, pageW / 2 - logoW / 2, logoY, { width: logoW })
+      doc.y = logoY + logoH + 10
     } catch { /* logo inválido, se omite */ }
   }
 
@@ -93,4 +104,45 @@ export function drawWatermark(doc: Doc, logoSrc: Buffer | string | null, opacity
     doc.image(logoSrc, x, y, { width: w })
     doc.restore()
   } catch { /* logo inválido, se omite */ }
+}
+
+/**
+ * Encabezado con logo a la izquierda y el nombre de la institución centrado
+ * en el resto del ancho — usado por los PDFs de refuerzo pedagógico y de
+ * proyecto interdisciplinario. Devuelve el cursor Y en el punto donde el
+ * contenido siguiente puede empezar sin solaparse con el logo.
+ *
+ * Antes cada servicio dibujaba el logo con `width` fijo y avanzaba el cursor
+ * con el `doc.y` de ANTES de dibujar el logo (el texto se posiciona junto al
+ * logo, no debajo, así que en teoría no se solapan entre sí) — pero nada
+ * verificaba que la línea divisoria/contenido siguiente, que sí usa
+ * `doc.moveDown()` desde ese mismo punto, quedara por debajo del logo si este
+ * es más alto que el texto (logos no cuadrados, ej. escudos verticales).
+ */
+export function drawLeftLogoHeader(
+  doc: Doc,
+  logoSrc: Buffer | string | null,
+  institutionName: string,
+  x0: number,
+  fullWidth: number,
+): void {
+  const logoW = logoSrc ? 40 : 0
+  const startY = doc.y
+  let logoBottom = startY
+  if (logoSrc) {
+    try {
+      const { width: naturalW, height: naturalH } = getImageSize(doc, logoSrc)
+      const logoH = naturalW > 0 ? (logoW * naturalH) / naturalW : logoW
+      doc.image(logoSrc, x0, startY, { width: logoW })
+      logoBottom = startY + logoH
+    } catch { /* logo inválido, se omite */ }
+  }
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(14)
+    .text(institutionName.toUpperCase(), x0 + logoW + (logoSrc ? 10 : 0), startY, { width: fullWidth - logoW, align: 'center' })
+  // El cursor queda en el mayor de: donde terminó el texto del nombre, o
+  // donde termina el logo (si es más alto) — así el contenido siguiente
+  // (línea divisoria, etc.) nunca arranca por encima del logo.
+  doc.y = Math.max(doc.y, logoBottom)
 }
