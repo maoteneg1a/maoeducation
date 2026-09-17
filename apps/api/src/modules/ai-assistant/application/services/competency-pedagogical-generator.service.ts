@@ -488,12 +488,22 @@ export async function draftCompetencyWeek(
     ? `Carga horaria: ${workload.weeklyPeriods} períodos/semana. Número de actividades numeradas que DEBES generar por fase: Inicio ${phaseCounts.anticipation}, Desarrollo ${phaseCounts.construction}, Cierre ${phaseCounts.consolidation}. Respeta este número exacto — ni más ni menos. NUNCA menos de 2 actividades en ninguna fase, sin excepción.`
     : 'Carga horaria no configurada para este grado+materia — genera exactamente 2 actividades en Inicio, 2 en Desarrollo y 2 en Cierre (densidad estándar). NUNCA menos de 2 actividades en ninguna fase, sin excepción.'
 
+  // Multigrado (ver multigrade-week-generator.service.ts): la experiencia común ya
+  // fue generada UNA vez para toda el aula — aquí solo se le pide a la IA conectar
+  // la PRIMERA actividad de Inicio con ella, sin alterar el currículo propio de este
+  // grado (misma competencia/indicador/saberes de siempre, nunca se inventa nada
+  // común). Ausente en el flujo normal de una sola materia (dto sin este campo).
+  const sharedExperienceLine = dto.multigradeSharedExperience
+    ? `\nCONTEXTO MULTIGRADO — este grado comparte salón con otros grados a la vez. Ya existe una EXPERIENCIA COMÚN planteada para toda el aula:\nTítulo: "${dto.multigradeSharedExperience.title}"\nContexto: ${dto.multigradeSharedExperience.context}\nPropósito común: ${dto.multigradeSharedExperience.commonPurpose}\nLa PRIMERA actividad de Inicio (ANTICIPATION[0]) DEBE partir explícitamente de esta situación común (menciónala con palabras propias, adaptada al nivel de "${dto.multigradeSharedExperience.gradeLabel}"), y el resto de actividades de Inicio/Desarrollo/Cierre siguen el currículo propio de este grado (nunca inventes contenido común nuevo fuera de la experiencia dada).\n`
+    : ''
+
   const systemPrompt = `Eres un asistente pedagógico que ayuda a docentes ecuatorianos a redactar la planificación microcurricular semanal (PUD) por COMPETENCIAS, siguiendo el Currículo Nacional por Competencias (CNC) del MINEDUC.
 
 Asignatura: ${situation.plan.courseAssignment.subject.name}
 Grado/Curso: ${situation.plan.courseAssignment.parallel.level.name}
 Trimestre: ${situation.academicPeriod.name}
 ${densityLine}
+${sharedExperienceLine}
 
 Competencias seleccionadas por el docente:
 

@@ -5,6 +5,7 @@ import { draftWeek } from '../application/services/planning-ai.service'
 import { draftProject } from '../application/services/project-ai.service'
 import { draftCompetencyWeek } from '../application/services/competency-pedagogical-generator.service'
 import { draftSituationBlock, type DraftSituationBlockDto } from '../application/services/draft-situation-block.service'
+import { draftMultigradeWeek, type DraftMultigradeWeekDto } from '../application/services/multigrade-week-generator.service'
 import type { DraftCompetencyWeekDto, DraftProjectDto, DraftWeekDto } from '../application/dtos/ai-assistant.dto'
 
 export default async function aiAssistantRoutes(app: FastifyInstance) {
@@ -50,6 +51,19 @@ export default async function aiAssistantRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const result = await draftProject(req.user.institutionId, req.user.sub, req.body)
       return reply.send(result)
+    },
+  )
+
+  // Multigrado (unidocente/pluridocente): genera y GUARDA de una sola vez la
+  // experiencia común de la semana MÁS la semana completa (Inicio/Desarrollo/
+  // Cierre) de cada grado participante — cero configuración manual, ver
+  // multigrade-week-generator.service.ts.
+  app.post<{ Body: DraftMultigradeWeekDto }>(
+    '/ai-assistant/draft-multigrade-week',
+    { preHandler: [requirePermission('planning', 'write', 'own')] },
+    async (req, reply) => {
+      const result = await draftMultigradeWeek(req.user.institutionId, req.user.sub, req.body)
+      return reply.status(201).send(result)
     },
   )
 }
