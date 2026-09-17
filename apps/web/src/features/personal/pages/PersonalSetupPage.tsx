@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { Plus, Trash2, BookOpen, School, ChevronRight, ChevronLeft, Check, SkipForward } from 'lucide-react'
+import { Plus, Trash2, BookOpen, School, Users, ChevronRight, ChevronLeft, Check, SkipForward } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
@@ -11,9 +11,14 @@ import { useAuthStore } from '@/store/auth.store'
 import { useCurriculumAreas } from '@/features/curriculum/hooks/useCurriculum'
 import { useCompetencyAreas } from '@/features/competency-curriculum/hooks/useCompetencyCurriculum'
 
-type TeachingProfile = 'subject-first' | 'classroom-first'
+type TeachingProfile = 'subject-first' | 'classroom-first' | 'multigrade'
 type Subnivel = 'inicial' | 'preparatoria' | 'elemental' | 'media' | 'superior' | 'bgu'
 type PlanningModel = 'destrezas' | 'competencias'
+
+interface MultigradeRow {
+  gradeCode: string
+  subjectAreaId: string
+}
 
 interface WizardState {
   profile: TeachingProfile | null
@@ -23,6 +28,10 @@ interface WizardState {
   // classroom-first — un solo grupo, varias materias del catálogo oficial de áreas
   parallelName: string
   subjectAreaIds: string[]
+  // multigrade — unidocente/pluridocente: N selecciones explícitas grado+materia
+  multigradeName: string
+  multigradeRows: MultigradeRow[]
+  allowSuperiorExtension: boolean
   // year
   yearName: string
   yearStart: string
@@ -37,6 +46,10 @@ interface WizardState {
 }
 
 const STEPS = ['Perfil', 'Currículo', 'Mis clases', 'Año escolar', 'Estudiantes', 'Tu aula']
+// Multigrado ya fija su propio subnivel por fila (grado -> subnivel, resuelto en el
+// backend) y siempre usa el modelo por Competencias — el paso "Currículo" no aplica
+// y se salta automáticamente (ver goNext/goBack).
+const MULTIGRADE_STEPS = ['Perfil', 'Mis grados', 'Año escolar', 'Estudiantes', 'Tu aula']
 
 const SUBNIVEL_OPTIONS: Array<{ value: Subnivel; label: string; hint: string }> = [
   { value: 'inicial', label: 'Inicial', hint: 'Maternal / 3 a 5 años' },
@@ -45,6 +58,21 @@ const SUBNIVEL_OPTIONS: Array<{ value: Subnivel; label: string; hint: string }> 
   { value: 'media', label: 'Media', hint: '5to a 7mo de Básica' },
   { value: 'superior', label: 'Superior', hint: '8vo a 10mo de Básica' },
   { value: 'bgu', label: 'Bachillerato', hint: '1ro a 3ro BGU' },
+]
+
+// Mismo catálogo de grados EGB que DEFAULT_LEVELS (institution-bootstrap.ts) —
+// BGU deliberadamente excluido (TIGA Multigrado v1.0: "BGU no está permitido").
+const MULTIGRADE_GRADE_OPTIONS: Array<{ value: string; label: string; superior: boolean }> = [
+  { value: '1B', label: '1ro de Básica', superior: false },
+  { value: '2B', label: '2do de Básica', superior: false },
+  { value: '3B', label: '3ro de Básica', superior: false },
+  { value: '4B', label: '4to de Básica', superior: false },
+  { value: '5B', label: '5to de Básica', superior: false },
+  { value: '6B', label: '6to de Básica', superior: false },
+  { value: '7B', label: '7mo de Básica', superior: false },
+  { value: '8B', label: '8vo de Básica', superior: true },
+  { value: '9B', label: '9no de Básica', superior: true },
+  { value: '10B', label: '10mo de Básica', superior: true },
 ]
 
 function StepIndicator({ current, total }: { current: number; total: number }) {
@@ -72,6 +100,9 @@ export function PersonalSetupPage() {
     groups: [''],
     parallelName: '',
     subjectAreaIds: [],
+    multigradeName: '',
+    multigradeRows: [{ gradeCode: '', subjectAreaId: '' }, { gradeCode: '', subjectAreaId: '' }],
+    allowSuperiorExtension: false,
     yearName: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
     yearStart: `${new Date().getFullYear()}-09-01`,
     yearEnd: `${new Date().getFullYear() + 1}-07-31`,
@@ -82,12 +113,31 @@ export function PersonalSetupPage() {
   })
   const setInstitution = useAuthStore((s) => s.setInstitution)
 
+  // Multigrado siempre planifica con el modelo por Competencias (CNC) — es el
+  // único banco que cubre "preparatoria" (1ro EGB reutiliza su currículo
+  // integrado) y el formato que necesita el generador multigrado. El paso
+  // "Currículo" del wizard normal no aplica: el flujo usa MULTIGRADE_STEPS.
+  const steps = state.profile === 'multigrade' ? MULTIGRADE_STEPS : STEPS
+  const stepLabel = steps[step]
+
   // Catálogo real de áreas MINEDUC de la institución — el docente elige de
   // aquí, nunca escribe el nombre de la materia a mano. Se usa el banco que
-  // corresponda al planningModel elegido en el paso anterior del wizard.
+  // corresponda al planningModel elegido en el paso anterior del wizard
+  // (multigrado siempre usa el de competencias).
   const { data: curriculumAreas = [] } = useCurriculumAreas()
   const { data: competencyAreas = [] } = useCompetencyAreas()
-  const catalogAreas = state.planningModel === 'competencias' ? competencyAreas : curriculumAreas
+  const effectivePlanningModel = state.profile === 'multigrade' ? 'competencias' : state.planningModel
+  const catalogAreas = effectivePlanningModel === 'competencias' ? competencyAreas : curriculumAreas
+
+  const hasSuperiorGradeSelected = state.multigradeRows.some(
+    (r) => MULTIGRADE_GRADE_OPTIONS.find((g) => g.value === r.gradeCode)?.superior,
+  )
+
+  function setMultigradeRow(index: number, patch: Partial<MultigradeRow>) {
+    const next = [...state.multigradeRows]
+    next[index] = { ...next[index], ...patch }
+    set('multigradeRows', next)
+  }
 
   const setupMutation = useMutation({
     mutationFn: (dto: PersonalSetupDto) => personalApi.setup(dto),
@@ -109,17 +159,25 @@ export function PersonalSetupPage() {
       yearStart: state.yearStart,
       yearEnd: state.yearEnd,
       workspaceName: state.workspaceName || undefined,
-      subnivel: state.subnivel ?? undefined,
-      planningModel: state.planningModel,
+      subnivel: state.profile === 'multigrade' ? undefined : (state.subnivel ?? undefined),
+      planningModel: state.profile === 'multigrade' ? 'competencias' : state.planningModel,
       ...(state.profile === 'subject-first'
         ? {
             subjectAreaId: state.subjectAreaId ?? undefined,
             groups: state.groups.filter(Boolean).map((name) => ({ name })),
           }
-        : {
-            parallelName: state.parallelName,
-            subjectAreaIds: state.subjectAreaIds,
-          }),
+        : state.profile === 'classroom-first'
+          ? {
+              parallelName: state.parallelName,
+              subjectAreaIds: state.subjectAreaIds,
+            }
+          : {
+              multigradeName: state.multigradeName || undefined,
+              multigradeSelections: state.multigradeRows
+                .filter((r) => r.gradeCode && r.subjectAreaId)
+                .map((r) => ({ gradeCode: r.gradeCode, subjectAreaId: r.subjectAreaId })),
+              allowSuperiorExtension: state.allowSuperiorExtension,
+            }),
     }
 
     const setup = await setupMutation.mutateAsync(dto) as {
@@ -127,6 +185,7 @@ export function PersonalSetupPage() {
       parallelIds: string[]
       subjectIds: string[]
       assignmentIds: string[]
+      multigradeGroupId: string | null
     }
 
     if (state.students.length > 0 && setup.parallelIds[0]) {
@@ -150,13 +209,19 @@ export function PersonalSetupPage() {
     setState((s) => ({ ...s, [key]: value }))
 
   const canNext = () => {
-    if (step === 0) return state.profile !== null
-    if (step === 1) return state.subnivel !== null
-    if (step === 2) {
+    if (stepLabel === 'Perfil') return state.profile !== null
+    if (stepLabel === 'Currículo') return state.subnivel !== null
+    if (stepLabel === 'Mis clases') {
       if (state.profile === 'subject-first') return !!state.subjectAreaId && state.groups.some((g) => g.trim())
       return state.parallelName.trim() && state.subjectAreaIds.length > 0
     }
-    if (step === 3) return state.yearName.trim() && state.yearStart && state.yearEnd
+    if (stepLabel === 'Mis grados') {
+      const filled = state.multigradeRows.filter((r) => r.gradeCode && r.subjectAreaId)
+      if (filled.length < 2) return false
+      if (hasSuperiorGradeSelected && !state.allowSuperiorExtension) return false
+      return true
+    }
+    if (stepLabel === 'Año escolar') return state.yearName.trim() && state.yearStart && state.yearEnd
     return true
   }
 
@@ -167,60 +232,76 @@ export function PersonalSetupPage() {
       <div className="w-full max-w-lg bg-white rounded-2xl shadow-sm border p-8 space-y-6">
         {/* Header */}
         <div className="space-y-3">
-          <StepIndicator current={step} total={STEPS.length} />
+          <StepIndicator current={step} total={steps.length} />
           <div>
             <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">
-              Paso {step + 1} de {STEPS.length} — {STEPS[step]}
+              Paso {step + 1} de {steps.length} — {stepLabel}
             </p>
             <h1 className="text-xl font-bold text-gray-900 mt-0.5">
-              {step === 0 && `Hola, ${user?.fullName?.split(' ')[0] ?? 'profe'} 👋`}
-              {step === 1 && 'Currículo que usas'}
-              {step === 2 && 'Configura tus clases'}
-              {step === 3 && 'Año escolar'}
-              {step === 4 && 'Agrega a tus estudiantes'}
-              {step === 5 && 'Personaliza tu aula'}
+              {stepLabel === 'Perfil' && `Hola, ${user?.fullName?.split(' ')[0] ?? 'profe'} 👋`}
+              {stepLabel === 'Currículo' && 'Currículo que usas'}
+              {stepLabel === 'Mis clases' && 'Configura tus clases'}
+              {stepLabel === 'Mis grados' && 'Configura tu aula multigrado'}
+              {stepLabel === 'Año escolar' && 'Año escolar'}
+              {stepLabel === 'Estudiantes' && 'Agrega a tus estudiantes'}
+              {stepLabel === 'Tu aula' && 'Personaliza tu aula'}
             </h1>
           </div>
         </div>
 
-        {/* Step 0 — Perfil */}
-        {step === 0 && (
-          <div className="grid grid-cols-2 gap-3">
+        {/* Step — Perfil */}
+        {stepLabel === 'Perfil' && (
+          <div className="grid grid-cols-3 gap-3">
             <button
               type="button"
               onClick={() => set('profile', 'subject-first')}
-              className={`flex flex-col items-center gap-3 p-5 rounded-xl border-2 transition-all text-left ${
+              className={`flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
                 state.profile === 'subject-first'
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:border-gray-300'
               }`}
             >
-              <BookOpen className={`w-8 h-8 ${state.profile === 'subject-first' ? 'text-blue-600' : 'text-gray-400'}`} />
+              <BookOpen className={`w-7 h-7 ${state.profile === 'subject-first' ? 'text-blue-600' : 'text-gray-400'}`} />
               <div>
                 <p className="font-semibold text-sm text-gray-900">Profe de materia</p>
-                <p className="text-xs text-gray-500 mt-0.5">Enseño Matemáticas, Inglés u otra materia a varios grupos</p>
+                <p className="text-xs text-gray-500 mt-0.5">Enseño una materia a varios grupos</p>
               </div>
             </button>
             <button
               type="button"
               onClick={() => set('profile', 'classroom-first')}
-              className={`flex flex-col items-center gap-3 p-5 rounded-xl border-2 transition-all text-left ${
+              className={`flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
                 state.profile === 'classroom-first'
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:border-gray-300'
               }`}
             >
-              <School className={`w-8 h-8 ${state.profile === 'classroom-first' ? 'text-blue-600' : 'text-gray-400'}`} />
+              <School className={`w-7 h-7 ${state.profile === 'classroom-first' ? 'text-blue-600' : 'text-gray-400'}`} />
               <div>
                 <p className="font-semibold text-sm text-gray-900">Profe de aula</p>
-                <p className="text-xs text-gray-500 mt-0.5">Soy responsable de un grado y enseño varias materias</p>
+                <p className="text-xs text-gray-500 mt-0.5">Un grado, varias materias</p>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => set('profile', 'multigrade')}
+              className={`flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
+                state.profile === 'multigrade'
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <Users className={`w-7 h-7 ${state.profile === 'multigrade' ? 'text-blue-600' : 'text-gray-400'}`} />
+              <div>
+                <p className="font-semibold text-sm text-gray-900">Profe multigrado</p>
+                <p className="text-xs text-gray-500 mt-0.5">Varios grados a la vez (unidocente/pluridocente)</p>
               </div>
             </button>
           </div>
         )}
 
-        {/* Step 1 — Currículo (subnivel + modelo de planificación) */}
-        {step === 1 && (
+        {/* Step — Currículo (subnivel + modelo de planificación) — no aplica a multigrado */}
+        {stepLabel === 'Currículo' && (
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>¿En qué subnivel enseñas?</Label>
@@ -281,8 +362,8 @@ export function PersonalSetupPage() {
           </div>
         )}
 
-        {/* Step 2 — Clases */}
-        {step === 2 && state.profile === 'subject-first' && (
+        {/* Step — Clases */}
+        {stepLabel === 'Mis clases' && state.profile === 'subject-first' && (
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>¿Qué materia enseñas?</Label>
@@ -345,7 +426,7 @@ export function PersonalSetupPage() {
           </div>
         )}
 
-        {step === 2 && state.profile === 'classroom-first' && (
+        {stepLabel === 'Mis clases' && state.profile === 'classroom-first' && (
           <div className="space-y-4">
             <div className="space-y-1">
               <Label>¿Cuál es tu grado o aula?</Label>
@@ -397,8 +478,94 @@ export function PersonalSetupPage() {
           </div>
         )}
 
-        {/* Step 3 — Año escolar */}
-        {step === 3 && (
+        {/* Step — Mis grados (multigrado: selección explícita grado + materia) */}
+        {stepLabel === 'Mis grados' && (
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>¿Cómo se llama tu aula multigrado?</Label>
+              <Input
+                placeholder="ej. Escuela unidocente"
+                value={state.multigradeName}
+                onChange={(e) => set('multigradeName', e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Grados y materias que dictas a la vez</Label>
+              <p className="text-xs text-gray-500">
+                Elige cada grado y su materia del catálogo oficial — cada combinación crea
+                automáticamente su propio grupo y asignación, ya vinculada a su currículo. Mínimo 2.
+              </p>
+              <div className="space-y-2">
+                {state.multigradeRows.map((row, i) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <select
+                      value={row.gradeCode}
+                      onChange={(e) => setMultigradeRow(i, { gradeCode: e.target.value })}
+                      className="flex-1 h-9 rounded-md border border-gray-200 px-2 text-sm text-gray-700"
+                    >
+                      <option value="">Grado…</option>
+                      {MULTIGRADE_GRADE_OPTIONS.map((g) => (
+                        <option key={g.value} value={g.value}>
+                          {g.label}
+                          {g.superior ? ' (extensión superior)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={row.subjectAreaId}
+                      onChange={(e) => setMultigradeRow(i, { subjectAreaId: e.target.value })}
+                      className="flex-1 h-9 rounded-md border border-gray-200 px-2 text-sm text-gray-700"
+                    >
+                      <option value="">Materia…</option>
+                      {catalogAreas.map((area) => (
+                        <option key={area.id} value={area.id}>
+                          {area.name}
+                        </option>
+                      ))}
+                    </select>
+                    {state.multigradeRows.length > 2 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 text-gray-400"
+                        onClick={() => set('multigradeRows', state.multigradeRows.filter((_, j) => j !== i))}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-blue-600 hover:text-blue-700 px-0"
+                onClick={() => set('multigradeRows', [...state.multigradeRows, { gradeCode: '', subjectAreaId: '' }])}
+              >
+                <Plus className="w-4 h-4 mr-1" /> Agregar grado + materia
+              </Button>
+            </div>
+            {hasSuperiorGradeSelected && (
+              <label className="flex items-start gap-2 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-900">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={state.allowSuperiorExtension}
+                  onChange={(e) => set('allowSuperiorExtension', e.target.checked)}
+                />
+                <span>
+                  Confirmo la <strong>extensión superior</strong>: incluyo grados de 8vo a 10mo de Básica en mi aula
+                  multigrado (fuera de la prioridad estándar 1ro-7mo).
+                </span>
+              </label>
+            )}
+          </div>
+        )}
+
+        {/* Step — Año escolar */}
+        {stepLabel === 'Año escolar' && (
           <div className="space-y-4">
             <div className="space-y-1">
               <Label>Nombre del año escolar</Label>
@@ -432,8 +599,8 @@ export function PersonalSetupPage() {
           </div>
         )}
 
-        {/* Step 4 — Estudiantes */}
-        {step === 4 && (
+        {/* Step — Estudiantes */}
+        {stepLabel === 'Estudiantes' && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
               Sube tu lista en Excel o agrega estudiantes manualmente desde el panel más tarde.
@@ -442,8 +609,8 @@ export function PersonalSetupPage() {
           </div>
         )}
 
-        {/* Step 5 — Workspace */}
-        {step === 5 && (
+        {/* Step — Workspace */}
+        {stepLabel === 'Tu aula' && (
           <div className="space-y-4">
             <div className="space-y-1">
               <Label>¿Cómo se llama tu aula o academia?</Label>
@@ -481,7 +648,7 @@ export function PersonalSetupPage() {
           </Button>
 
           <div className="flex gap-2">
-            {step === 4 && (
+            {stepLabel === 'Estudiantes' && (
               <Button
                 type="button"
                 variant="ghost"
@@ -493,7 +660,7 @@ export function PersonalSetupPage() {
               </Button>
             )}
 
-            {step < STEPS.length - 1 ? (
+            {step < steps.length - 1 ? (
               <Button
                 type="button"
                 onClick={() => setStep((s) => s + 1)}
