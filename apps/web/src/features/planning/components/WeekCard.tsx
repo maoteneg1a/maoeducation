@@ -332,15 +332,21 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
           </div>
 
           {isCompetencyModel ? (
-            <CompetencyAndSaberSelector
-              subjectId={subjectId}
-              subnivel={subnivel}
-              competencyIds={competencyIds}
-              saberIds={competencySaberIds}
-              onCompetencyIdsChange={setCompetencyIds}
-              onSaberIdsChange={setCompetencySaberIds}
-              isEditable={isEditable}
-            />
+            <div className="space-y-3 rounded-md border bg-muted/20 p-3">
+              <div>
+                <p className="text-sm font-semibold">Qué lleva esta semana</p>
+                <p className="text-xs text-muted-foreground">Elige o cambia la competencia y los saberes — esto decide qué genera la IA abajo, no el contenido en sí.</p>
+              </div>
+              <CompetencyAndSaberSelector
+                subjectId={subjectId}
+                subnivel={subnivel}
+                competencyIds={competencyIds}
+                saberIds={competencySaberIds}
+                onCompetencyIdsChange={setCompetencyIds}
+                onSaberIdsChange={setCompetencySaberIds}
+                isEditable={isEditable}
+              />
+            </div>
           ) : (
             <SkillAndSaberSelector
               subjectId={subjectId}
@@ -687,9 +693,90 @@ function CompetencyMethodologyEditor({
 }) {
   const recursosText = (momentos.recursos ?? []).join('\n')
 
+  // Layout de 3 columnas calcado del PDF de Planificación Microcurricular
+  // (Estrategias ~55% / Recursos ~18% / Evaluación ~27%, ver
+  // microcurricular-pdf.service.ts drawCompetencyWeekTable) — mismo contenido
+  // y handlers de siempre, solo reorganizado visualmente para que la edición
+  // se parezca al documento final. Colapsa a una sola columna en pantallas
+  // angostas (3 columnas apretadas no son legibles en móvil).
   return (
     <div className="space-y-3">
-      <Label>Metodología (Inicio / Desarrollo / Cierre)</Label>
+      <Label>Contenido de la semana</Label>
+      <div className="grid gap-3 lg:grid-cols-[55fr_18fr_27fr]">
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Estrategias</p>
+          <CompetencyPhasesColumn momentos={momentos} isEditable={isEditable} onPhaseChange={onPhaseChange} />
+        </div>
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Recursos</p>
+          <div className="rounded border p-3">
+            <Label className="text-xs">Recursos de la semana (uno por línea)</Label>
+            <textarea
+              rows={3}
+              value={recursosText}
+              onChange={(e) => onResourcesChange(e.target.value.split('\n').map((s) => s.trim()).filter(Boolean))}
+              disabled={!isEditable}
+              className="mt-1 flex w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
+            />
+            <EditableNamedLink link={momentos.recursoLink} label="Abrir recurso" isEditable={isEditable} onChange={onRecursoLinkChange} />
+          </div>
+        </div>
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Evaluación</p>
+          <div className="rounded border p-3">
+            <Label className="text-xs">Evaluación de la semana</Label>
+            <div className="mt-1 space-y-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Evidencia</Label>
+                <textarea
+                  rows={2}
+                  value={momentos.evaluacion?.evidencia ?? ''}
+                  onChange={(e) => onEvaluacionChange('evidencia', e.target.value)}
+                  disabled={!isEditable}
+                  className="flex w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Criterio (código de indicador)</Label>
+                <Input
+                  value={momentos.evaluacion?.criterio ?? ''}
+                  onChange={(e) => onEvaluacionChange('criterio', e.target.value)}
+                  disabled={!isEditable}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Instrumento</Label>
+                <Input
+                  value={momentos.evaluacion?.instrumento ?? ''}
+                  onChange={(e) => onEvaluacionChange('instrumento', e.target.value)}
+                  disabled={!isEditable}
+                />
+                <EditableNamedLink
+                  link={momentos.evaluacion?.instrumentoLink}
+                  label="Abrir instrumento"
+                  isEditable={isEditable}
+                  onChange={onInstrumentoLinkChange}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CompetencyPhasesColumn({
+  momentos,
+  isEditable,
+  onPhaseChange,
+}: {
+  momentos: CompetencyPlanningMomentos
+  isEditable: boolean
+  onPhaseChange: (phaseKey: 'inicio' | 'desarrollo' | 'cierre', activities: { text: string; duaCode: string }[]) => void
+}) {
+  return (
+    <>
       {COMPETENCY_PHASES.map(({ key, label }) => {
         const activities = momentos.fases[key]?.activities ?? []
         return (
@@ -751,56 +838,6 @@ function CompetencyMethodologyEditor({
           </div>
         )
       })}
-
-      <div className="rounded border p-3">
-        <Label className="text-xs">Recursos de la semana (uno por línea)</Label>
-        <textarea
-          rows={3}
-          value={recursosText}
-          onChange={(e) => onResourcesChange(e.target.value.split('\n').map((s) => s.trim()).filter(Boolean))}
-          disabled={!isEditable}
-          className="mt-1 flex w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
-        />
-        <EditableNamedLink link={momentos.recursoLink} label="Abrir recurso" isEditable={isEditable} onChange={onRecursoLinkChange} />
-      </div>
-
-      <div className="rounded border p-3">
-        <Label className="text-xs">Evaluación de la semana</Label>
-        <div className="mt-1 space-y-2">
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Evidencia</Label>
-            <textarea
-              rows={2}
-              value={momentos.evaluacion?.evidencia ?? ''}
-              onChange={(e) => onEvaluacionChange('evidencia', e.target.value)}
-              disabled={!isEditable}
-              className="flex w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none disabled:opacity-60"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Criterio (código de indicador)</Label>
-            <Input
-              value={momentos.evaluacion?.criterio ?? ''}
-              onChange={(e) => onEvaluacionChange('criterio', e.target.value)}
-              disabled={!isEditable}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Instrumento</Label>
-            <Input
-              value={momentos.evaluacion?.instrumento ?? ''}
-              onChange={(e) => onEvaluacionChange('instrumento', e.target.value)}
-              disabled={!isEditable}
-            />
-            <EditableNamedLink
-              link={momentos.evaluacion?.instrumentoLink}
-              label="Abrir instrumento"
-              isEditable={isEditable}
-              onChange={onInstrumentoLinkChange}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
+    </>
   )
 }
