@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Sparkles, Download, Users } from 'lucide-react'
+import { ArrowLeft, Sparkles, Download, Users, Pencil } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { Card } from '@/shared/components/ui/card'
@@ -227,9 +227,16 @@ function SubjectBlockCard({
               <p className="text-sm text-muted-foreground">{lastResult.commonPurpose}</p>
               <div className="flex flex-wrap gap-2 pt-1">
                 {lastResult.grades.map((g) => (
-                  <Badge key={g.courseAssignmentId} variant={g.validationErrors.length > 0 ? 'warning' : 'success'}>
-                    {g.gradeCode}
-                  </Badge>
+                  <Link
+                    key={g.courseAssignmentId}
+                    to={`/planning/situations/${g.situationId}`}
+                    className="inline-flex items-center gap-1"
+                  >
+                    <Badge variant={g.validationErrors.length > 0 ? 'warning' : 'success'}>
+                      <Pencil className="h-3 w-3 mr-1" />
+                      {g.gradeCode} — Revisar
+                    </Badge>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -247,11 +254,27 @@ function SubjectBlockCard({
               <Card key={exp.id} className="p-4">
                 <p className="font-medium">Semana {exp.weekNumber}</p>
                 <p className="text-xs text-muted-foreground mt-1">{exp.title}</p>
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {exp.situationsByGrade.map((s) => {
+                    const member = block.members.find((m) => m.courseAssignmentId === s.courseAssignmentId)
+                    if (!s.situationId || !member) return null
+                    return (
+                      <Link
+                        key={s.courseAssignmentId}
+                        to={`/planning/situations/${s.situationId}`}
+                        className="inline-flex items-center gap-1 rounded border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-primary/50"
+                      >
+                        <Pencil className="h-3 w-3" />
+                        Revisar {member.gradeName}
+                      </Link>
+                    )
+                  })}
+                </div>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="mt-3"
+                  className="mt-2"
                   loading={downloadingWeek === exp.weekNumber}
                   onClick={() => handleDownload(exp.weekNumber)}
                 >

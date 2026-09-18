@@ -308,6 +308,23 @@ export default async function planningRoutes(app: FastifyInstance) {
         select: { id: true, subjectId: true, academicPeriodId: true, weekNumber: true, title: true, createdAt: true },
       })
 
+      // Cada miembro ya tiene su propia LearningSituation individual, generada
+      // por draftMultigradeWeek con el mismo modelo del flujo normal (ver
+      // multigrade-week-generator.service.ts: ensurePlan/ensureSituation) —
+      // se resuelve aquí para que la UI pueda enlazar directo a
+      // /planning/situations/:id y reusar el mismo WeekCard de edición, en vez
+      // de dejar el contenido generado sin ninguna forma de revisarlo/editarlo.
+      const situations = await prisma.learningSituation.findMany({
+        where: {
+          academicPeriodId: { in: [...new Set(experiences.map((e) => e.academicPeriodId))] },
+          plan: { courseAssignmentId: { in: group.members.map((m) => m.courseAssignmentId) } },
+        },
+        select: { id: true, academicPeriodId: true, plan: { select: { courseAssignmentId: true } } },
+      })
+      const situationIdByAssignmentAndPeriod = new Map(
+        situations.map((s) => [`${s.plan.courseAssignmentId}::${s.academicPeriodId}`, s.id]),
+      )
+
       // La experiencia común se genera POR MATERIA (nunca mezclando materias
       // distintas de un mismo bloque, decisión de producto — ver comentario
       // en schema.prisma MultigradeSharedExperience.subjectId) — se agrupan
@@ -333,7 +350,17 @@ export default async function planningRoutes(app: FastifyInstance) {
         })),
         experiences: experiences
           .filter((e) => e.subjectId === block.subjectId)
-          .map((e) => ({ id: e.id, academicPeriodId: e.academicPeriodId, weekNumber: e.weekNumber, title: e.title, createdAt: e.createdAt })),
+          .map((e) => ({
+            id: e.id,
+            academicPeriodId: e.academicPeriodId,
+            weekNumber: e.weekNumber,
+            title: e.title,
+            createdAt: e.createdAt,
+            situationsByGrade: block.members.map((m) => ({
+              courseAssignmentId: m.courseAssignmentId,
+              situationId: situationIdByAssignmentAndPeriod.get(`${m.courseAssignmentId}::${e.academicPeriodId}`) ?? null,
+            })),
+          })),
       }))
 
       return reply.send({
