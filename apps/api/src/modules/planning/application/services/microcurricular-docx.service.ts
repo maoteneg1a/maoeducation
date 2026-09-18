@@ -13,6 +13,7 @@ import {
   AlignmentType,
   VerticalAlign,
   ShadingType,
+  TableLayoutType,
 } from 'docx'
 import { resolveLogo } from '../../../../shared/infrastructure/services/pdf-helpers'
 import { getDuaColor, type CompetencyWeekMomentos } from '../../../../shared/domain/pedagogical-methodology'
@@ -44,6 +45,7 @@ function hex(color: string): string {
 function bandRow(text: string, fill: string, textColor: string): Table {
   return new Table({
     width: { size: PAGE_WIDTH_TWIPS, type: WidthType.DXA },
+    layout: TableLayoutType.FIXED,
     rows: [
       new TableRow({
         children: [
@@ -93,8 +95,18 @@ function row(cols: LabeledCol[]): TableRow {
   })
 }
 
+/**
+ * `layout: TableLayoutType.FIXED` es obligatorio en ambas tablas de este archivo
+ * (aquí y en `bandRow`) — sin él, Word usa layout AUTOFIT y recalcula el ancho
+ * real de cada columna según su contenido, ignorando por completo los anchos
+ * en twips que le pasamos. Con columnas muy desiguales (ej. "Estrategias" con
+ * párrafos largos vs. "Recursos"/"Evaluación" con texto corto, tal como la
+ * tabla semanal real) Word colapsaba las columnas cortas a un ancho casi nulo
+ * — texto envuelto letra por letra (bug real reportado, confirmado
+ * inspeccionando `<w:tblLayout>` ausente en el XML del .docx generado).
+ */
 function table(rows: TableRow[]): Table {
-  return new Table({ width: { size: PAGE_WIDTH_TWIPS, type: WidthType.DXA }, rows })
+  return new Table({ width: { size: PAGE_WIDTH_TWIPS, type: WidthType.DXA }, layout: TableLayoutType.FIXED, rows })
 }
 
 /** Logo institucional como imagen embebida — mide el tamaño real con PDFKit (ya dependencia del proyecto, mismo patrón que pdf-helpers.getImageSize) para escalar proporcionalmente sin deformar, igual criterio que el PDF. */
