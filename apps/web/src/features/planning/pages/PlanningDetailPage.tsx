@@ -148,7 +148,12 @@ export function PlanningDetailPage() {
 
         {isCompetencyModel ? (
           plan.courseAssignment?.academicYearId && (
-            <DistributionWizard courseAssignmentId={plan.courseAssignmentId} academicYearId={plan.courseAssignment.academicYearId} />
+            <DistributionWizard
+              courseAssignmentId={plan.courseAssignmentId}
+              academicYearId={plan.courseAssignment.academicYearId}
+              subjectId={plan.courseAssignment.subject.id}
+              subnivel={plan.courseAssignment.parallel.level.subnivel ?? undefined}
+            />
           )
         ) : (
           <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
