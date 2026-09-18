@@ -355,7 +355,18 @@ function saberesTable(
   const colW = Math.round((PAGE_WIDTH_TWIPS - indicW) / columns.length)
   const indicCell = new TableCell({
     width: { size: indicW, type: WidthType.DXA },
-    rowSpan: 2,
+    // La tabla dibuja 3 filas (header "Saberes"+"Indicadores" / sub-header
+    // D-P-A / contenido) — `rowSpan` DEBE cubrirlas las 3, no solo las 2
+    // primeras. `docx` propaga la celda `vMerge` a EXACTAMENTE `rowSpan`
+    // filas (ver `TableRow.addCellToColumnIndex`, llamado desde `Table`
+    // rowIndex por rowIndex mientras rowIndex < rowSpan): con `rowSpan: 2`
+    // (bug real, confirmado inspeccionando el `<w:tbl>` de un .docx generado
+    // — la 3ª fila queda con una `<w:tc>` menos que columnas tiene el
+    // `tblGrid`, desalineando cada celda de esa fila una posición a la
+    // izquierda) la 3ª fila (el CONTENIDO real de Indicadores/Saberes) nunca
+    // recibe su celda `vMerge=continue`, exactamente el "columnas mal
+    // formadas / desalineadas" reportado con capturas reales.
+    rowSpan: 3,
     shading: { fill: hex(headerColor2), type: ShadingType.CLEAR },
     children: [
       new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Indicadores de evaluación', bold: true, color: hex(headerColor2TextColor) })] }),

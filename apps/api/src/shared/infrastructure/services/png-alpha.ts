@@ -37,13 +37,44 @@ function channelsForColorType(colorType: number): number | null {
       return 1 // grayscale
     case 2:
       return 3 // RGB
+    case 3:
+      return 1 // paleta — 1 byte de índice por pixel, resuelto contra PLTE/tRNS después de defiltrar
     case 4:
       return 2 // grayscale + alpha
     case 6:
       return 4 // RGBA
     default:
-      return null // 3 = paleta, no soportado
+      return null
   }
+}
+
+/**
+ * Expande scanlines de índices de paleta (colorType 3, 1 byte/pixel) a RGBA
+ * (4 bytes/pixel) resolviendo cada índice contra `PLTE` (color) y `tRNS`
+ * (alfa por índice, si el chunk existe — si no, todo opaco). Este es el caso
+ * REAL más probable detrás del bug reportado ("marca de agua con fondo negro
+ * sólido, opaca, tapando la tabla"): escudos/logos institucionales exportados
+ * como PNG indexado son comunes (paletas de pocos colores), y ANTES de este
+ * fix `decodePng` lanzaba `unsupported colorType 3` para cualquiera de ellos
+ * — `applyPngWashout` atrapaba esa excepción y devolvía el buffer ORIGINAL
+ * sin aclarar, así que `buildWatermarkImage` embebía el logo real, a opacidad
+ * completa, con el fondo que sea que tenga la paleta en su índice de fondo
+ * (frecuentemente negro) — exactamente la imagen opaca de fondo negro tapando
+ * contenido que describen las 3 capturas reales.
+ */
+function expandPaletteToRgba(indices: Buffer, plte: Buffer, trns: Buffer | null): Buffer {
+  const paletteSize = Math.floor(plte.length / 3)
+  const rgba = Buffer.alloc(indices.length * 4)
+  for (let i = 0; i < indices.length; i++) {
+    const idx = indices[i]
+    const safeIdx = idx < paletteSize ? idx : 0
+    const p = safeIdx * 3
+    rgba[i * 4] = plte[p]
+    rgba[i * 4 + 1] = plte[p + 1]
+    rgba[i * 4 + 2] = plte[p + 2]
+    rgba[i * 4 + 3] = trns && idx < trns.length ? trns[idx] : 255
+  }
+  return rgba
 }
 
 function paethPredictor(a: number, b: number, c: number): number {
@@ -66,6 +97,8 @@ function decodePng(buffer: Buffer): DecodedPng {
   let bitDepth = 0
   let colorType = 0
   let interlace = 0
+  let plte: Buffer | null = null
+  let trns: Buffer | null = null
   const idatChunks: Buffer[] = []
 
   while (offset < buffer.length) {
@@ -80,6 +113,10 @@ function decodePng(buffer: Buffer): DecodedPng {
       bitDepth = data.readUInt8(8)
       colorType = data.readUInt8(9)
       interlace = data.readUInt8(12)
+    } else if (type === 'PLTE') {
+      plte = Buffer.from(data)
+    } else if (type === 'tRNS') {
+      trns = Buffer.from(data)
     } else if (type === 'IDAT') {
       idatChunks.push(data)
     } else if (type === 'IEND') {
@@ -93,6 +130,7 @@ function decodePng(buffer: Buffer): DecodedPng {
   if (interlace !== 0) throw new Error('interlaced PNG not supported')
   const channels = channelsForColorType(colorType)
   if (channels === null) throw new Error(`unsupported colorType ${colorType}`)
+  if (colorType === 3 && !plte) throw new Error('paletted PNG without PLTE')
   if (idatChunks.length === 0) throw new Error('no IDAT data')
 
   const compressed = Buffer.concat(idatChunks)
@@ -138,6 +176,23 @@ function decodePng(buffer: Buffer): DecodedPng {
     }
     raw.copy(prevRow, 0, outRowOffset, outRowOffset + stride)
     pos = rowStart + stride
+  }
+
+  // colorType 3 (paleta): `raw` en este punto son ÍNDICES de paleta (1
+  // byte/pixel), no colores — el washout de más abajo asume que cada byte de
+  // `raw` es directamente un canal de color/alfa (0-255 aclarable hacia
+  // blanco). Sin esta expansión, "aclarar" un índice de paleta no aclara
+  // nada visualmente (el índice se re-mapea a un color totalmente distinto o
+  // fuera de rango de la paleta) y, más grave: el índice de fondo transparente
+  // de un logo (tRNS) se pierde del todo, así que el color de paleta en ESE
+  // índice (frecuentemente negro, color de "relleno" habitual al exportar
+  // logos con fondo transparente) queda opaco — la causa raíz más probable
+  // del bug reportado ("marca de agua con fondo negro sólido tapando la
+  // tabla"). Se expande aquí a RGBA real (colorType 6) para que el resto del
+  // pipeline (washout + encode) opere sobre colores/alfa reales.
+  if (colorType === 3) {
+    const rgba = expandPaletteToRgba(raw, plte as Buffer, trns)
+    return { width, height, bitDepth, colorType: 6, bpp: 4, raw: rgba }
   }
 
   return { width, height, bitDepth, colorType, bpp, raw }
@@ -186,25 +241,62 @@ function encodePng(decoded: DecodedPng): Buffer {
 /**
  * Aclara (washout) los canales de color de un PNG hacia blanco, proporcional a
  * `opacity` (0 = blanco total/invisible, 1 = sin cambios) — misma técnica que
- * usa Word nativamente para sus marcas de agua. El canal alfa (si existe) se
- * preserva sin tocar. Si el PNG usa un formato no soportado (paleta,
- * bitDepth≠8, interlace) o el buffer no es un PNG válido, devuelve el buffer
- * original sin modificar — mismo criterio de "mejor esfuerzo" que el resto de
- * este servicio ante logos/assets con formatos inesperados.
+ * usa Word nativamente para sus marcas de agua. Si el PNG usa un formato no
+ * soportado (bitDepth≠8, interlace) o el buffer no es un PNG válido, devuelve
+ * el buffer original sin modificar — mismo criterio de "mejor esfuerzo" que el
+ * resto de este servicio ante logos/assets con formatos inesperados.
+ *
+ * CASO CON CANAL ALFA (colorType 4/6, o paleta con tRNS ya expandida a RGBA
+ * por `decodePng`): antes de este fix, el alfa se preservaba "sin tocar" en
+ * el PNG de salida, asumiendo que el renderer que abre el .docx compone esa
+ * transparencia contra el fondo de la página igual que Python/Pillow (con lo
+ * que se verificó el PR anterior). El bug real reportado con 3 capturas de
+ * producción (marca de agua con FONDO NEGRO SÓLIDO, opaca, en primer plano,
+ * tapando la celda "Grado/Curso") muestra que eso no es cierto para el motor
+ * de renderizado real: los píxeles con alfa=0 de un logo con fondo
+ * "transparente" (RGB de relleno frecuentemente (0,0,0), un artefacto común
+ * de exportación) terminan pintados con su color de relleno a opacidad total
+ * en vez de mostrarse en blanco/transparente — el canal alfa se pierde o se
+ * interpreta mal más adelante en el pipeline (Word/convertidor), no aquí.
+ *
+ * El fix: en vez de confiar en que algo más adelante respete el alfa,
+ * COMPONEMOS aquí mismo cada píxel contra blanco usando su propio alfa como
+ * parte de la opacidad final (`visibility = (alpha/255) * opacity`) y
+ * devolvemos un PNG SIEMPRE opaco (sin canal alfa) — un píxel totalmente
+ * transparente (alfa=0) queda blanco puro sin importar su RGB original, y uno
+ * parcialmente transparente se aclara proporcionalmente más. Así el resultado
+ * es correcto sin depender de que el visor final soporte alfa en absoluto.
  */
 export function applyPngWashout(buffer: Buffer, opacity: number): Buffer {
   const clamped = Math.max(0, Math.min(1, opacity))
   if (clamped >= 1) return buffer
   try {
     const decoded = decodePng(buffer)
-    const colorChannels = decoded.colorType === 4 || decoded.colorType === 6 ? decoded.bpp - 1 : decoded.bpp
+    const hasAlpha = decoded.colorType === 4 || decoded.colorType === 6
+    const colorChannels = hasAlpha ? decoded.bpp - 1 : decoded.bpp
     const raw = decoded.raw
-    for (let i = 0; i < raw.length; i += decoded.bpp) {
+
+    if (!hasAlpha) {
+      for (let i = 0; i < raw.length; i += decoded.bpp) {
+        for (let c = 0; c < colorChannels; c++) {
+          raw[i + c] = Math.round(raw[i + c] * clamped + 255 * (1 - clamped))
+        }
+      }
+      return encodePng(decoded)
+    }
+
+    const outBpp = colorChannels
+    const pixelCount = raw.length / decoded.bpp
+    const outRaw = Buffer.alloc(pixelCount * outBpp)
+    for (let i = 0, o = 0; i < raw.length; i += decoded.bpp, o += outBpp) {
+      const alpha = raw[i + colorChannels] / 255
+      const visibility = alpha * clamped
       for (let c = 0; c < colorChannels; c++) {
-        raw[i + c] = Math.round(raw[i + c] * clamped + 255 * (1 - clamped))
+        outRaw[o + c] = Math.round(raw[i + c] * visibility + 255 * (1 - visibility))
       }
     }
-    return encodePng(decoded)
+    const outColorType = colorChannels === 1 ? 0 : 2 // grayscale u RGB, siempre sin alfa (salida opaca)
+    return encodePng({ width: decoded.width, height: decoded.height, bitDepth: decoded.bitDepth, colorType: outColorType, bpp: outBpp, raw: outRaw })
   } catch {
     return buffer
   }
