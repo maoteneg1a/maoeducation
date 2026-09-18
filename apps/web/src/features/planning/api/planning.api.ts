@@ -354,6 +354,8 @@ export interface MultigradeSharedExperienceInfo {
   weekNumber: number
   title: string
   createdAt: string
+  /** LearningSituation individual de cada grado para esta semana — permite enlazar a /planning/situations/:id (mismo WeekCard de edición del flujo normal). null si el grado no tiene situación creada todavía. */
+  situationsByGrade: { courseAssignmentId: string; situationId: string | null }[]
 }
 
 /** La experiencia común se genera POR MATERIA — un bloque = un subjectId + sus miembros/semanas propias, independiente de los demás. */

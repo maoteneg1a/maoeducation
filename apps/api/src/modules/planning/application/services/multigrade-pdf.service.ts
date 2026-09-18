@@ -133,12 +133,22 @@ export function buildMultigradePdf(data: MultigradePdfData, template: Microcurri
 
     const columns: FlowColumn[] = data.grades.map((g, i) => {
       const m = g.momentos
+      // Alturas medidas con heightOfString (mismo patrón que buildPhaseBlocks
+      // más abajo) — el texto de "Indicador(es)" es de longitud VARIABLE por
+      // grado (algunos indicadores son mucho más largos que otros), así que
+      // una altura fija aquí desincroniza el avance de Y entre bloques y el
+      // siguiente bloque (INICIO) termina dibujándose encima de este texto
+      // todavía desbordando — bug real reportado con captura.
+      const competencyText = `Competencia(s): ${g.competencyCodes.join(', ') || '—'}`
+      const indicatorText = `Indicador(es): ${g.indicatorCodes.join(', ') || '—'}`
+      const competencyHeight = doc.font('Helvetica-Bold').fontSize(8).heightOfString(competencyText, { width: colWidth - 8 })
+      const indicatorHeight = doc.font('Helvetica-Bold').fontSize(8).heightOfString(indicatorText, { width: colWidth - 8 })
       const blocks = [
         {
-          height: 30,
+          height: competencyHeight + indicatorHeight + 8,
           draw: (d: Doc, x: number, y: number, w: number) => {
-            d.font('Helvetica-Bold').fontSize(8).fillColor('#111111').text(`Competencia(s): ${g.competencyCodes.join(', ') || '—'}`, x + 4, y + 2, { width: w - 8 })
-            d.font('Helvetica-Bold').fontSize(8).text(`Indicador(es): ${g.indicatorCodes.join(', ') || '—'}`, x + 4, y + 14, { width: w - 8 })
+            d.font('Helvetica-Bold').fontSize(8).fillColor('#111111').text(competencyText, x + 4, y + 2, { width: w - 8 })
+            d.font('Helvetica-Bold').fontSize(8).text(indicatorText, x + 4, y + 2 + competencyHeight + 2, { width: w - 8 })
           },
         },
         ...buildPhaseBlocks(doc, PHASE_LABELS_COMPETENCY.inicio, m.fases.inicio?.activities ?? [], colWidth),
