@@ -153,6 +153,7 @@ export function PlanningDetailPage() {
               academicYearId={plan.courseAssignment.academicYearId}
               subjectId={plan.courseAssignment.subject.id}
               subnivel={plan.courseAssignment.parallel.level.subnivel ?? undefined}
+              gradeCode={plan.courseAssignment.parallel.level.code}
             />
           )
         ) : (

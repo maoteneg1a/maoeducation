@@ -50,8 +50,9 @@ export const competencyCurriculumApi = {
   listCompetenciesForSubject: (subjectId: string, subnivel: string) =>
     apiGet<Competency[]>(`competency-curriculum/subjects/${subjectId}/competencies`, { subnivel }),
 
-  listSaberesForCompetency: (competencyId: string) =>
-    apiGet<CompetencySaber[]>(`competency-curriculum/competencies/${competencyId}/saberes`),
+  /** `gradeCode` opcional filtra por granularidad TIGA (saberes distintos por grado dentro de un subnivel compartido). */
+  listSaberesForCompetency: (competencyId: string, gradeCode?: string) =>
+    apiGet<CompetencySaber[]>(`competency-curriculum/competencies/${competencyId}/saberes`, { gradeCode }),
 
   listKeyCompetencies: () => apiGet<KeyCompetency[]>('competency-curriculum/key-competencies'),
 
