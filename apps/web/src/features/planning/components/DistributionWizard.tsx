@@ -29,6 +29,8 @@ interface DistributionWizardProps {
   academicYearId: string
   subjectId: string | undefined
   subnivel: string | undefined
+  /** Level.code real (ej. "6B") — filtra los saberes al reemplazar competencia por granularidad TIGA (ver CompetencySaber.gradeCodes). */
+  gradeCode: string | undefined
 }
 
 /**
@@ -39,7 +41,7 @@ interface DistributionWizardProps {
  * sugerida de una semana por otra del banco), y confirma — solo entonces se
  * genera el resto de la planificación (actividades, recursos, evaluación).
  */
-export function DistributionWizard({ courseAssignmentId, academicYearId, subjectId, subnivel }: DistributionWizardProps) {
+export function DistributionWizard({ courseAssignmentId, academicYearId, subjectId, subnivel, gradeCode }: DistributionWizardProps) {
   const navigate = useNavigate()
   const aiEnabled = useAiEnabled()
   const { data: periods = [] } = usePeriods(academicYearId)
@@ -223,6 +225,7 @@ export function DistributionWizard({ courseAssignmentId, academicYearId, subject
                   <CompetencyReplacePicker
                     bank={competencyBank}
                     currentCompetencyId={week.competencyId}
+                    gradeCode={gradeCode}
                     onPick={(competencyId, code, text, sabers) => replaceWeekCompetency(week.weekNumber, competencyId, code, text, sabers)}
                     onCancel={() => setChangingWeekNumber(null)}
                   />
@@ -266,16 +269,18 @@ export function DistributionWizard({ courseAssignmentId, academicYearId, subject
 function CompetencyReplacePicker({
   bank,
   currentCompetencyId,
+  gradeCode,
   onPick,
   onCancel,
 }: {
   bank: { id: string; code: string; text: string }[]
   currentCompetencyId: string
+  gradeCode: string | undefined
   onPick: (competencyId: string, code: string, text: string, sabers: DistributionSaber[]) => void
   onCancel: () => void
 }) {
   const [pendingId, setPendingId] = React.useState('')
-  const { data: sabers = [], isFetching } = useSaberesForCompetency(pendingId || undefined)
+  const { data: sabers = [], isFetching } = useSaberesForCompetency(pendingId || undefined, gradeCode)
 
   React.useEffect(() => {
     if (pendingId && !isFetching) {

@@ -54,7 +54,7 @@ export interface CurriculumPlan {
     id: string
     academicYearId: string
     subject: { id: string; name: string }
-    parallel: { id: string; name: string; level: { id: string; name: string; subnivel: string | null } }
+    parallel: { id: string; name: string; level: { id: string; name: string; code: string; subnivel: string | null } }
   }
   template?: PlanningTemplate
   situations?: LearningSituation[]
