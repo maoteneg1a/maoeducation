@@ -86,7 +86,18 @@ export function drawFlowRow(doc: Doc, columns: FlowColumn[], drawHeaderBand: () 
       const col = columns[i]
       while (cursors[i] < col.blocks.length) {
         const block = col.blocks[cursors[i]]
-        if (colYs[i] + block.height > bottom() && colYs[i] > startY) break
+        // Nunca fuerces un bloque que no cabe en el espacio restante de la
+        // página actual — ni siquiera el primero del chunk. Forzarlo (como
+        // hacía antes esta condición cuando colYs[i] == startY) deja que
+        // PDFKit pagine el texto POR SU CUENTA a mitad de `d.text()`, algo
+        // invisible para este algoritmo: el borde/cursor de drawFlowRow queda
+        // atado a la página vieja mientras el texto real sigue en la nueva,
+        // produciendo texto huérfano sin borde + un hueco enorme antes de que
+        // la tabla retome. Si NINGÚN bloque cupo en esta página, se corta
+        // (abajo, `pending`) y el bloque se dibuja recién en la página nueva
+        // — ahí sí se fuerza si hace falta (rama `!progressed`), pero con
+        // espacio completo de página, no con lo que quedaba de la anterior.
+        if (colYs[i] + block.height > bottom()) break
         block.draw(doc, col.x, colYs[i], col.width)
         colYs[i] += block.height
         cursors[i]++
