@@ -46,6 +46,9 @@ function bandRow(text: string, fill: string, textColor: string): Table {
   return new Table({
     width: { size: PAGE_WIDTH_TWIPS, type: WidthType.DXA },
     layout: TableLayoutType.FIXED,
+    // ver comentario de columnWidths en table() — mismo motivo, una sola
+    // columna a ancho completo.
+    columnWidths: [PAGE_WIDTH_TWIPS],
     rows: [
       new TableRow({
         children: [
@@ -96,17 +99,17 @@ function row(cols: LabeledCol[]): TableRow {
 }
 
 /**
- * `layout: TableLayoutType.FIXED` es obligatorio en ambas tablas de este archivo
- * (aquí y en `bandRow`) — sin él, Word usa layout AUTOFIT y recalcula el ancho
- * real de cada columna según su contenido, ignorando por completo los anchos
- * en twips que le pasamos. Con columnas muy desiguales (ej. "Estrategias" con
- * párrafos largos vs. "Recursos"/"Evaluación" con texto corto, tal como la
- * tabla semanal real) Word colapsaba las columnas cortas a un ancho casi nulo
- * — texto envuelto letra por letra (bug real reportado, confirmado
- * inspeccionando `<w:tblLayout>` ausente en el XML del .docx generado).
+ * `columnWidths` es OBLIGATORIO junto con `layout: FIXED` — sin él, la librería
+ * `docx` genera `<w:tblGrid>` con anchos default de 100 twips por columna, y
+ * con layout fijo Word usa ESA grilla (no el `width` de cada `TableCell`) para
+ * el ancho real de renderizado — bug real reportado y confirmado
+ * inspeccionando el XML de un .docx generado en producción: `<w:tblGrid>
+ * <w:gridCol w:w="100"/><w:gridCol w:w="100"/></w:tblGrid>` con `tcW` correcto
+ * pero ignorado, colapsando el texto letra por letra igual que el bug anterior
+ * (layout AUTOFIT) que este mismo layout FIXED debía prevenir.
  */
-function table(rows: TableRow[]): Table {
-  return new Table({ width: { size: PAGE_WIDTH_TWIPS, type: WidthType.DXA }, layout: TableLayoutType.FIXED, rows })
+function table(rows: TableRow[], columnWidths: number[]): Table {
+  return new Table({ width: { size: PAGE_WIDTH_TWIPS, type: WidthType.DXA }, layout: TableLayoutType.FIXED, columnWidths, rows })
 }
 
 /** Logo institucional como imagen embebida — mide el tamaño real con PDFKit (ya dependencia del proyecto, mismo patrón que pdf-helpers.getImageSize) para escalar proporcionalmente sin deformar, igual criterio que el PDF. */
@@ -202,7 +205,7 @@ function competencyWeekSection(week: MicrocurricularWeek, headerFill: string, he
           new TableCell({ width: { size: evaluacionW, type: WidthType.DXA }, children: evaluacionParas }),
         ],
       }),
-    ]),
+    ], [estrategiasW, recursosW, evaluacionW]),
   )
   return parts
 }
@@ -241,11 +244,14 @@ function saberesTable(
       }),
   )
   const contentCells = columns.map((c) => new TableCell({ width: { size: colW, type: WidthType.DXA }, children: [new Paragraph({ text: c.text || '—' })] }))
-  return table([
-    new TableRow({ children: [indicCell, saberesHeaderCell] }),
-    new TableRow({ children: subHeaderCells }),
-    new TableRow({ children: contentCells }),
-  ])
+  return table(
+    [
+      new TableRow({ children: [indicCell, saberesHeaderCell] }),
+      new TableRow({ children: subHeaderCells }),
+      new TableRow({ children: contentCells }),
+    ],
+    [indicW, ...columns.map(() => colW)],
+  )
 }
 
 /** Genera el Word de "Planificación Microcurricular" — mismos datos y misma plantilla que buildMicrocurricularPdf (microcurricular-pdf.service.ts), estructura de secciones/tablas/colores equivalente. Word maneja sus propios saltos de página de forma nativa (no replica el motor FlowBlock/drawFlowRow, exclusivo de PDFKit). */
@@ -262,67 +268,95 @@ export async function buildMicrocurricularDocx(data: MicrocurricularPdfData, tem
 
   const half = Math.round(PAGE_WIDTH_TWIPS / 2)
   children.push(
-    table([
-      row([
-        { text: data.institutionName.toUpperCase(), width: half, bold: true, fill: topHeaderColor, textColor: topHeaderTextColor },
-        { text: `Año lectivo: ${data.yearName}`, width: half, bold: true, fill: topHeaderColor, textColor: topHeaderTextColor, align: AlignmentType.CENTER },
-      ]),
-    ]),
+    table(
+      [
+        row([
+          { text: data.institutionName.toUpperCase(), width: half, bold: true, fill: topHeaderColor, textColor: topHeaderTextColor },
+          { text: `Año lectivo: ${data.yearName}`, width: half, bold: true, fill: topHeaderColor, textColor: topHeaderTextColor, align: AlignmentType.CENTER },
+        ]),
+      ],
+      [half, half],
+    ),
   )
   children.push(bandRow('Planificación Microcurricular', headerColor, headerTextColor))
 
   const drawSection: Record<string, () => (Paragraph | Table)[]> = {
     datos_informativos: () => [
       bandRow('Datos informativos:', headerColor, headerTextColor),
-      table([
-        row([
-          { text: 'Docente:', width: Math.round(PAGE_WIDTH_TWIPS * 0.15), bold: true },
-          { text: data.teacherName, width: Math.round(PAGE_WIDTH_TWIPS * 0.85) },
-        ]),
-      ]),
-      table([
-        row([
-          { text: 'Asignatura:', width: Math.round(PAGE_WIDTH_TWIPS * 0.13), bold: true },
-          { text: data.subjectName, width: Math.round(PAGE_WIDTH_TWIPS * 0.32) },
-          { text: 'Grado/Curso:', width: Math.round(PAGE_WIDTH_TWIPS * 0.13), bold: true },
-          { text: data.levelName, width: Math.round(PAGE_WIDTH_TWIPS * 0.22) },
-          { text: 'Paralelo:', width: Math.round(PAGE_WIDTH_TWIPS * 0.08), bold: true },
-          { text: data.parallelName, width: Math.round(PAGE_WIDTH_TWIPS * 0.12) },
-        ]),
-      ]),
-      table([
-        row([
-          { text: 'Trimestre:', width: Math.round(PAGE_WIDTH_TWIPS * 0.15), bold: true },
-          { text: data.periodName.toUpperCase(), width: Math.round(PAGE_WIDTH_TWIPS * 0.85) },
-        ]),
-      ]),
+      table(
+        [
+          row([
+            { text: 'Docente:', width: Math.round(PAGE_WIDTH_TWIPS * 0.15), bold: true },
+            { text: data.teacherName, width: Math.round(PAGE_WIDTH_TWIPS * 0.85) },
+          ]),
+        ],
+        [Math.round(PAGE_WIDTH_TWIPS * 0.15), Math.round(PAGE_WIDTH_TWIPS * 0.85)],
+      ),
+      table(
+        [
+          row([
+            { text: 'Asignatura:', width: Math.round(PAGE_WIDTH_TWIPS * 0.13), bold: true },
+            { text: data.subjectName, width: Math.round(PAGE_WIDTH_TWIPS * 0.32) },
+            { text: 'Grado/Curso:', width: Math.round(PAGE_WIDTH_TWIPS * 0.13), bold: true },
+            { text: data.levelName, width: Math.round(PAGE_WIDTH_TWIPS * 0.22) },
+            { text: 'Paralelo:', width: Math.round(PAGE_WIDTH_TWIPS * 0.08), bold: true },
+            { text: data.parallelName, width: Math.round(PAGE_WIDTH_TWIPS * 0.12) },
+          ]),
+        ],
+        [
+          Math.round(PAGE_WIDTH_TWIPS * 0.13),
+          Math.round(PAGE_WIDTH_TWIPS * 0.32),
+          Math.round(PAGE_WIDTH_TWIPS * 0.13),
+          Math.round(PAGE_WIDTH_TWIPS * 0.22),
+          Math.round(PAGE_WIDTH_TWIPS * 0.08),
+          Math.round(PAGE_WIDTH_TWIPS * 0.12),
+        ],
+      ),
+      table(
+        [
+          row([
+            { text: 'Trimestre:', width: Math.round(PAGE_WIDTH_TWIPS * 0.15), bold: true },
+            { text: data.periodName.toUpperCase(), width: Math.round(PAGE_WIDTH_TWIPS * 0.85) },
+          ]),
+        ],
+        [Math.round(PAGE_WIDTH_TWIPS * 0.15), Math.round(PAGE_WIDTH_TWIPS * 0.85)],
+      ),
     ],
     situacion_aprendizaje: () => [
       bandRow('Situación de aprendizaje', headerColor, headerTextColor),
-      table([
-        row([
-          { text: 'Título:', width: Math.round(PAGE_WIDTH_TWIPS * 0.18), bold: true },
-          { text: data.situationTitle, width: Math.round(PAGE_WIDTH_TWIPS * 0.82) },
-        ]),
-      ]),
-      table([
-        row([
-          { text: 'Descripción:', width: Math.round(PAGE_WIDTH_TWIPS * 0.18), bold: true },
-          { text: data.situationDescription ?? '', width: Math.round(PAGE_WIDTH_TWIPS * 0.82) },
-        ]),
-      ]),
+      table(
+        [
+          row([
+            { text: 'Título:', width: Math.round(PAGE_WIDTH_TWIPS * 0.18), bold: true },
+            { text: data.situationTitle, width: Math.round(PAGE_WIDTH_TWIPS * 0.82) },
+          ]),
+        ],
+        [Math.round(PAGE_WIDTH_TWIPS * 0.18), Math.round(PAGE_WIDTH_TWIPS * 0.82)],
+      ),
+      table(
+        [
+          row([
+            { text: 'Descripción:', width: Math.round(PAGE_WIDTH_TWIPS * 0.18), bold: true },
+            { text: data.situationDescription ?? '', width: Math.round(PAGE_WIDTH_TWIPS * 0.82) },
+          ]),
+        ],
+        [Math.round(PAGE_WIDTH_TWIPS * 0.18), Math.round(PAGE_WIDTH_TWIPS * 0.82)],
+      ),
     ],
     conexion_interdisciplinar: () => {
       const names = data.interdisciplinarySubjectNames?.length ? data.interdisciplinarySubjectNames : data.interdisciplinaryAreaNames
       if (names.length === 0) return []
       return [
         bandRow('Conexión interdisciplinar', headerColor, headerTextColor),
-        table([
-          row([
-            { text: 'Asignaturas:', width: Math.round(PAGE_WIDTH_TWIPS * 0.25), bold: true },
-            { text: names.join(', '), width: Math.round(PAGE_WIDTH_TWIPS * 0.75) },
-          ]),
-        ]),
+        table(
+          [
+            row([
+              { text: 'Asignaturas:', width: Math.round(PAGE_WIDTH_TWIPS * 0.25), bold: true },
+              { text: names.join(', '), width: Math.round(PAGE_WIDTH_TWIPS * 0.75) },
+            ]),
+          ],
+          [Math.round(PAGE_WIDTH_TWIPS * 0.25), Math.round(PAGE_WIDTH_TWIPS * 0.75)],
+        ),
       ]
     },
     semanas: () => {
@@ -337,7 +371,7 @@ export async function buildMicrocurricularDocx(data: MicrocurricularPdfData, tem
 
         if (competencyTextsDelPeriodo.length) {
           out.push(bandRow('Competencias específicas del período', headerColor, headerTextColor))
-          out.push(table([row([{ text: competencyTextsDelPeriodo.join('\n'), width: PAGE_WIDTH_TWIPS }])]))
+          out.push(table([row([{ text: competencyTextsDelPeriodo.join('\n'), width: PAGE_WIDTH_TWIPS }])], [PAGE_WIDTH_TWIPS]))
         }
         if (saberesDelPeriodo.size > 0) {
           out.push(
@@ -365,7 +399,7 @@ export async function buildMicrocurricularDocx(data: MicrocurricularPdfData, tem
         const weekLabel = `SEMANA ${week.weekNumber}${week.name ? ` — ${week.name}` : ''}`
         out.push(bandRow(weekLabel, headerColor, headerTextColor))
         out.push(bandRow('Competencias específicas', headerColor, headerTextColor))
-        out.push(table([row([{ text: week.competenciasEspecificas ?? '', width: PAGE_WIDTH_TWIPS }])]))
+        out.push(table([row([{ text: week.competenciasEspecificas ?? '', width: PAGE_WIDTH_TWIPS }])], [PAGE_WIDTH_TWIPS]))
         const bySaberType = (t: SaberType) => week.saberes.filter((s) => s.type === t)
         const joinSaberes = (list: MicrocurricularWeek['saberes']) => list.map((s) => `${s.code}: ${s.description}`).join('\n')
         out.push(
@@ -397,7 +431,7 @@ export async function buildMicrocurricularDocx(data: MicrocurricularPdfData, tem
             ]),
           )
         }
-        out.push(table(rows))
+        out.push(table(rows, [colW, colW, colW]))
       }
       return out
     },
@@ -413,12 +447,15 @@ export async function buildMicrocurricularDocx(data: MicrocurricularPdfData, tem
   if (data.signatories.length > 0) {
     const sigW = Math.round(PAGE_WIDTH_TWIPS / data.signatories.length)
     children.push(
-      table([
-        row(data.signatories.map((s) => ({ text: s.role.toUpperCase(), width: sigW, bold: true, fill: headerColor2, textColor: headerColor2TextColor, align: AlignmentType.CENTER }))),
-        row(data.signatories.map((s) => ({ text: `Nombres: ${s.name ?? '_______________'}`, width: sigW }))),
-        row(data.signatories.map(() => ({ text: 'Firma: _______________', width: sigW }))),
-        row(data.signatories.map((s) => ({ text: `Fecha: ${fmtDate(s.date)}`, width: sigW }))),
-      ]),
+      table(
+        [
+          row(data.signatories.map((s) => ({ text: s.role.toUpperCase(), width: sigW, bold: true, fill: headerColor2, textColor: headerColor2TextColor, align: AlignmentType.CENTER }))),
+          row(data.signatories.map((s) => ({ text: `Nombres: ${s.name ?? '_______________'}`, width: sigW }))),
+          row(data.signatories.map(() => ({ text: 'Firma: _______________', width: sigW }))),
+          row(data.signatories.map((s) => ({ text: `Fecha: ${fmtDate(s.date)}`, width: sigW }))),
+        ],
+        data.signatories.map(() => sigW),
+      ),
     )
   }
 
