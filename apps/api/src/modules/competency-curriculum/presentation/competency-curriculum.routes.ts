@@ -31,10 +31,10 @@ export default async function competencyCurriculumRoutes(app: FastifyInstance) {
       ),
   )
 
-  app.get<{ Params: { competencyId: string } }>(
+  app.get<{ Params: { competencyId: string }; Querystring: { gradeCode?: string } }>(
     '/competency-curriculum/competencies/:competencyId/saberes',
     { preHandler: [requirePermission('curriculum', 'read', 'all')] },
-    async (req, reply) => reply.send(await repo.listSaberesForCompetency(req.params.competencyId)),
+    async (req, reply) => reply.send(await repo.listSaberesForCompetency(req.params.competencyId, req.query.gradeCode)),
   )
 
   app.get(
