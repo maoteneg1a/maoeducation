@@ -23,6 +23,7 @@ import {
   useWeeks,
   useCreateWeek,
 } from '../hooks/usePlanning'
+import { planningApi } from '../api/planning.api'
 import type { SituationStatus } from '../api/planning.api'
 
 // Sin flujo de aprobación por terceros (pedido explícito del usuario) — solo
@@ -53,6 +54,7 @@ export function PlanningSituationPage() {
   const createWeek = useCreateWeek(id!)
 
   const [pdfPreviewOpen, setPdfPreviewOpen] = React.useState(false)
+  const [downloadingDocx, setDownloadingDocx] = React.useState(false)
 
   const [title, setTitle] = React.useState('')
   const [description, setDescription] = React.useState('')
@@ -100,6 +102,22 @@ export function PlanningSituationPage() {
           <Button variant="outline" size="sm" onClick={() => setPdfPreviewOpen(true)}>
             <Download className="h-4 w-4" />
             PDF
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            loading={downloadingDocx}
+            onClick={async () => {
+              setDownloadingDocx(true)
+              try {
+                await planningApi.downloadMicrocurricularDocx(situation.id)
+              } finally {
+                setDownloadingDocx(false)
+              }
+            }}
+          >
+            <Download className="h-4 w-4" />
+            Word
           </Button>
         </div>
       </div>

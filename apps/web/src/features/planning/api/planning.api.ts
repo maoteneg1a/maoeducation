@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost, apiPut } from '@/shared/lib/api-client'
+import { apiClient, apiDelete, apiGet, apiPost, apiPut } from '@/shared/lib/api-client'
 import type { CurriculumSkill } from '@/features/curriculum/api/curriculum.api'
 import type { Competency } from '@/features/competency-curriculum/api/competency-curriculum.api'
 
@@ -313,4 +313,15 @@ export const planningApi = {
       `planning/course-assignments/${courseAssignmentId}/periods/${academicPeriodId}/confirm-distribution`,
       data,
     ),
+
+  /** Descarga directa (sin preview, a diferencia del PDF) — mismo patrón que downloadBulletinPdf en reports.api.ts. */
+  downloadMicrocurricularDocx: async (situationId: string) => {
+    const blob = await apiClient.get(`planning/situations/${situationId}/docx`).blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'planificacion.docx'
+    a.click()
+    URL.revokeObjectURL(url)
+  },
 }
