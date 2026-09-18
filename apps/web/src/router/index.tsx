@@ -278,6 +278,13 @@ export const router = createBrowserRouter([
               })),
           },
           {
+            path: 'multigrade/:groupId',
+            lazy: () =>
+              import('@/features/planning/pages/MultigradeGroupPage').then((m) => ({
+                Component: m.MultigradeGroupPage,
+              })),
+          },
+          {
             path: ':id',
             lazy: () =>
               import('@/features/planning/pages/PlanningDetailPage').then((m) => ({

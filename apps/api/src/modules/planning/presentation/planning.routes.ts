@@ -284,6 +284,48 @@ export default async function planningRoutes(app: FastifyInstance) {
     },
   )
 
+  // ─── Aula multigrado (grupo, miembros, semanas ya generadas) ─────────────
+  // El groupId lo obtiene el frontend de GET /personal/classes
+  // (multigradeGroupId, PR #66) — una cuenta personal tiene como máximo un
+  // grupo, no hace falta un endpoint de "listar mis grupos".
+  app.get<{ Params: { groupId: string } }>(
+    '/planning/multigrade-groups/:groupId',
+    { preHandler: [requirePermission('planning', 'read', 'own')] },
+    async (req, reply) => {
+      const group = await prisma.multigradeGroup.findFirst({
+        where: { id: req.params.groupId, institutionId: req.user.institutionId },
+        include: {
+          members: {
+            include: { courseAssignment: { include: { subject: true, parallel: { include: { level: true } } } } },
+          },
+        },
+      })
+      if (!group) throw new NotFoundError('Aula multigrado no encontrada')
+
+      const experiences = await prisma.multigradeSharedExperience.findMany({
+        where: { groupId: group.id },
+        orderBy: { weekNumber: 'asc' },
+        select: { id: true, academicPeriodId: true, weekNumber: true, title: true, createdAt: true },
+      })
+
+      return reply.send({
+        id: group.id,
+        name: group.name,
+        academicYearId: group.academicYearId,
+        allowSuperiorExtension: group.allowSuperiorExtension,
+        members: group.members.map((m) => ({
+          courseAssignmentId: m.courseAssignmentId,
+          gradeCode: m.gradeCode,
+          gradeName: m.courseAssignment.parallel.level.name,
+          subjectId: m.subjectId,
+          subjectName: m.courseAssignment.subject.name,
+          parallelId: m.parallelId,
+        })),
+        experiences,
+      })
+    },
+  )
+
   // ─── PDF (Planificación Microcurricular MULTIGRADO) ─────────────────────
   // Una semana multigrado ya generada (ver /ai-assistant/draft-multigrade-week):
   // experiencia común + una columna por grado participante, en vez de la tabla
