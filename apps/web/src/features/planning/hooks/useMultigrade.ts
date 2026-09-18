@@ -12,6 +12,13 @@ export function useMultigradeGroup(groupId: string | undefined) {
   })
 }
 
+export function useSuggestMultigradeWeek() {
+  return useMutation({
+    mutationFn: aiAssistantApi.suggestMultigradeWeek,
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
 export function useDraftMultigradeWeek() {
   const qc = useQueryClient()
   return useMutation({

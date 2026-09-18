@@ -123,9 +123,29 @@ export const aiAssistantApi = {
   draftProject: (data: { projectId: string; prompt?: string }) =>
     apiClient.post('ai-assistant/draft-project', { json: data, timeout: 120000 }).json<DraftProjectResult>(),
 
-  /** Genera y guarda UNA experiencia común multigrado + la semana completa de cada grado participante. */
-  draftMultigradeWeek: (data: { groupId: string; academicPeriodId: string; weekNumber: number }) =>
-    apiClient.post('ai-assistant/draft-multigrade-week', { json: data, timeout: 180000 }).json<DraftMultigradeWeekResult>(),
+  /** Paso de revisión — resuelve, SIN guardar nada, la competencia+saberes sugeridos por grado de un bloque de materia. */
+  suggestMultigradeWeek: (data: { groupId: string; subjectId: string; academicPeriodId: string; weekNumber: number }) =>
+    apiClient.post('ai-assistant/suggest-multigrade-week', { json: data, timeout: 30000 }).json<SuggestedMultigradeGrade[]>(),
+
+  /** Genera y guarda UNA experiencia común multigrado (de UNA materia) + la semana completa de cada grado participante. */
+  draftMultigradeWeek: (data: {
+    groupId: string
+    subjectId: string
+    academicPeriodId: string
+    weekNumber: number
+    grades?: { courseAssignmentId: string; competencyId: string; saberIds: string[] }[]
+  }) => apiClient.post('ai-assistant/draft-multigrade-week', { json: data, timeout: 180000 }).json<DraftMultigradeWeekResult>(),
+}
+
+export interface SuggestedMultigradeGrade {
+  courseAssignmentId: string
+  gradeCode: string
+  gradeLabel: string
+  competencyId: string
+  competencyCode: string
+  competencyText: string
+  sabers: { id: string; type: 'declarativo' | 'procedimental' | 'actitudinal'; code: string; description: string }[]
+  saberIds: string[]
 }
 
 export interface DraftedMultigradeGrade {

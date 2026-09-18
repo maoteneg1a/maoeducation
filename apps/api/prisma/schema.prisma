@@ -409,6 +409,7 @@ model Subject {
   competencyArea         CompetencyArea?         @relation(fields: [competencyAreaId], references: [id])
   courseAssignments      CourseAssignment[]
   multigradeGroupMembers MultigradeGroupMember[]
+  multigradeSharedExperiences MultigradeSharedExperience[]
 
   @@unique([institutionId, code])
   @@map("subjects")
@@ -977,24 +978,32 @@ model MultigradeSharedExperience {
   id                    String   @id @default(uuid())
   institutionId         String   @map("institution_id")
   groupId               String   @map("group_id")
+  // La experiencia común se genera POR MATERIA dentro del aula multigrado
+  // (ej. "2do+3ro CCNN" y "2do+3ro EESS" son dos experiencias independientes,
+  // no una sola que las mezcle) — divergencia deliberada de producto sobre
+  // TIGA v1.0, que sí permite mezclar materias en un solo bloque (confirmado
+  // contra multigrade_planning_orchestrator.py: no agrupa por subject_code).
+  subjectId             String   @map("subject_id")
   academicPeriodId      String   @map("academic_period_id")
   weekNumber            Int      @map("week_number")
   title                 String   @db.VarChar(200)
   context               String
   commonPurpose         String   @map("common_purpose")
   // Códigos de grado (Level.code) que participan efectivamente en esta semana —
-  // mínimo 2 (MINIMUM_SELECTIONS_REQUIRED de TIGA), normalmente = todos los del grupo.
+  // mínimo 2 (MINIMUM_SELECTIONS_REQUIRED de TIGA), normalmente = todos los
+  // miembros del grupo que comparten esta materia.
   participantGradeCodes String[] @map("participant_grade_codes")
   createdBy             String   @map("created_by")
   createdAt             DateTime @default(now()) @map("created_at")
 
   institution    Institution     @relation(fields: [institutionId], references: [id])
   group          MultigradeGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  subject        Subject         @relation(fields: [subjectId], references: [id])
   academicPeriod AcademicPeriod  @relation(fields: [academicPeriodId], references: [id])
   creator        User            @relation("MultigradeExperienceCreator", fields: [createdBy], references: [id])
   weeks          PlanningWeek[]
 
-  @@unique([groupId, academicPeriodId, weekNumber])
+  @@unique([groupId, subjectId, academicPeriodId, weekNumber])
   @@map("multigrade_shared_experiences")
 }
 
