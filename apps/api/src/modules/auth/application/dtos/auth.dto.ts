@@ -19,6 +19,8 @@ export interface AuthInstitutionDto {
   accountType: string | null
   /** Para cuentas personales: si ya completó el wizard de /personal/setup. */
   setupComplete: boolean
+  /** Para cuentas personales: si planifica en modo multigrado (switch en /settings/mis-grados). */
+  multigradeEnabled: boolean
 }
 
 export interface AuthUserDto {

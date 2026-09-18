@@ -10,6 +10,7 @@ import { ExcelStudentUpload, ParsedStudent } from '../components/ExcelStudentUpl
 import { useAuthStore } from '@/store/auth.store'
 import { useCurriculumAreas } from '@/features/curriculum/hooks/useCurriculum'
 import { useCompetencyAreas } from '@/features/competency-curriculum/hooks/useCompetencyCurriculum'
+import { GRADE_OPTIONS, MULTIGRADE_GRADE_OPTIONS } from '../lib/grade-options'
 
 type TeachingProfile = 'subject-first' | 'classroom-first' | 'multigrade'
 type PlanningModel = 'destrezas' | 'competencias'
@@ -53,43 +54,6 @@ const STEPS = ['Perfil', 'Currículo', 'Mis clases', 'Año escolar', 'Estudiante
 // backend) y siempre usa el modelo por Competencias — el paso "Currículo" no aplica
 // y se salta automáticamente (ver goNext/goBack).
 const MULTIGRADE_STEPS = ['Perfil', 'Mis grados', 'Año escolar', 'Estudiantes', 'Tu aula']
-
-// Grado REAL que enseña el docente (subject-first/classroom-first) — mismo
-// catálogo que GRADE_CATALOG (apps/api/src/shared/domain/grade-catalog.ts),
-// incluyendo Inicial y BGU (a diferencia de MULTIGRADE_GRADE_OPTIONS abajo,
-// que excluye BGU por regla de negocio de multigrado, no de este flujo). El
-// subnivel ya no se pregunta por separado — se deriva de este grado.
-const GRADE_OPTIONS: Array<{ value: string; label: string; hint: string }> = [
-  { value: 'INICIAL', label: 'Inicial', hint: 'Maternal / 3 a 5 años' },
-  { value: '1B', label: '1ro de Básica', hint: 'Preparatoria' },
-  { value: '2B', label: '2do de Básica', hint: 'Elemental' },
-  { value: '3B', label: '3ro de Básica', hint: 'Elemental' },
-  { value: '4B', label: '4to de Básica', hint: 'Elemental' },
-  { value: '5B', label: '5to de Básica', hint: 'Media' },
-  { value: '6B', label: '6to de Básica', hint: 'Media' },
-  { value: '7B', label: '7mo de Básica', hint: 'Media' },
-  { value: '8B', label: '8vo de Básica', hint: 'Superior' },
-  { value: '9B', label: '9no de Básica', hint: 'Superior' },
-  { value: '10B', label: '10mo de Básica', hint: 'Superior' },
-  { value: '1BGU', label: '1ro de Bachillerato', hint: 'BGU' },
-  { value: '2BGU', label: '2do de Bachillerato', hint: 'BGU' },
-  { value: '3BGU', label: '3ro de Bachillerato', hint: 'BGU' },
-]
-
-// Mismo catálogo de grados EGB que DEFAULT_LEVELS (institution-bootstrap.ts) —
-// BGU deliberadamente excluido (TIGA Multigrado v1.0: "BGU no está permitido").
-const MULTIGRADE_GRADE_OPTIONS: Array<{ value: string; label: string; superior: boolean }> = [
-  { value: '1B', label: '1ro de Básica', superior: false },
-  { value: '2B', label: '2do de Básica', superior: false },
-  { value: '3B', label: '3ro de Básica', superior: false },
-  { value: '4B', label: '4to de Básica', superior: false },
-  { value: '5B', label: '5to de Básica', superior: false },
-  { value: '6B', label: '6to de Básica', superior: false },
-  { value: '7B', label: '7mo de Básica', superior: false },
-  { value: '8B', label: '8vo de Básica', superior: true },
-  { value: '9B', label: '9no de Básica', superior: true },
-  { value: '10B', label: '10mo de Básica', superior: true },
-]
 
 function StepIndicator({ current, total }: { current: number; total: number }) {
   return (
