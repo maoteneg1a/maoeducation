@@ -415,7 +415,18 @@ export async function buildMicrocurricularDocx(data: MicrocurricularPdfData, tem
       {
         properties: {
           page: {
-            size: { orientation: 'landscape' as const },
+            // width/height en su orden NATURAL portrait (A4: 210mm×297mm ≈
+            // 11906×16838 twips, ancho < alto) — la librería `docx` los
+            // INTERCAMBIA ella misma internamente cuando `orientation:
+            // 'landscape'` está presente. Pasarlos ya intercambiados a mano
+            // (como se hizo antes) hace que la librería los intercambie DE
+            // NUEVO, dejando la página en portrait real con el flag
+            // "landscape" puesto encima — bug real confirmado inspeccionando
+            // el <w:pgSz> del .docx generado (w="11906" h="16838", exactamente
+            // al revés de lo esperado), causa de que las celdas con ancho
+            // absoluto en twips (calculadas para una página ancha) colapsaran
+            // a una letra por línea al no caber en la página angosta real.
+            size: { orientation: 'landscape' as const, width: 11906, height: 16838 },
             margin: { top: MARGIN_TWIPS, bottom: MARGIN_TWIPS, left: MARGIN_TWIPS, right: MARGIN_TWIPS },
           },
         },
