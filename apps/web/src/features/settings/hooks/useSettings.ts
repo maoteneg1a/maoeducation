@@ -31,6 +31,7 @@ function syncStore(settings: InstitutionSettings) {
     modules: current?.modules ?? null,
     accountType: current?.accountType ?? null,
     setupComplete: current?.setupComplete ?? true,
+    multigradeEnabled: current?.multigradeEnabled ?? false,
   })
 }
 

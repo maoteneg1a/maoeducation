@@ -36,6 +36,44 @@ export interface PersonalSetupDto {
   planningModel?: 'destrezas' | 'competencias'
 }
 
+export interface PersonalClassSelection {
+  gradeCode: string
+  subjectAreaId: string
+}
+
+export interface PersonalClassRow {
+  gradeCode: string
+  gradeName: string
+  subnivel: string | null
+  courseAssignmentId: string
+  subjectId: string
+  subjectName: string
+  subjectAreaId: string | null
+  isMultigradeMember: boolean
+  hasDependentData: boolean
+}
+
+export interface PersonalClassesState {
+  yearId: string
+  planningModel: 'destrezas' | 'competencias'
+  multigradeEnabled: boolean
+  allowSuperiorExtension: boolean
+  multigradeGroupId: string | null
+  rows: PersonalClassRow[]
+}
+
+export interface SavePersonalClassesDto {
+  selections: PersonalClassSelection[]
+  multigradeEnabled: boolean
+  allowSuperiorExtension?: boolean
+}
+
+export interface SavePersonalClassesResult {
+  rows: PersonalClassRow[]
+  multigradeGroupId: string | null
+  blocked: Array<{ gradeCode: string; subjectName: string; reason: string }>
+}
+
 export interface BulkCreateStudentsDto {
   students: Array<{
     firstName: string
@@ -84,4 +122,12 @@ export const personalApi = {
       skipped: number
       results: Array<{ firstName: string; lastName: string; dni: string; status: string; reason?: string }>
     }>(),
+
+  getClasses: () => apiClient.get('personal/classes').json<PersonalClassesState>(),
+
+  // 90s: puede crear/borrar varios Levels/Parallels/Subjects/CourseAssignments
+  // y armar/desarmar el MultigradeGroup en una sola transacción — mismo riesgo
+  // de timeout que setup().
+  saveClasses: (dto: SavePersonalClassesDto) =>
+    apiClient.put('personal/classes', { json: dto, timeout: 90000 }).json<SavePersonalClassesResult>(),
 }

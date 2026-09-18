@@ -19,5 +19,6 @@ export function buildAuthInstitution(institution: {
     modules: (settings.modules as string[] | undefined) ?? null,
     accountType: (settings.accountType as string | undefined) ?? null,
     setupComplete: (settings.setupComplete as boolean | undefined) ?? true,
+    multigradeEnabled: settings.multigradeEnabled === true,
   }
 }

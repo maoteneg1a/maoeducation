@@ -18,7 +18,7 @@ interface NavItem {
   path: string
   permission?: string
   module?: string
-  children?: Array<{ label: string; path: string; hideForPersonal?: boolean }>
+  children?: Array<{ label: string; path: string; hideForPersonal?: boolean; showOnlyForPersonal?: boolean }>
 }
 
 interface NavSection {
@@ -118,6 +118,11 @@ const NAV_SECTIONS: NavSection[] = [
           { label: 'Insumos por paralelo', path: '/academic/insumo-setup', hideForPersonal: true },
           { label: 'Calificación y Asistente IA', path: '/settings/calificacion' },
           { label: 'Formato de Planificación', path: '/settings/formato-planificacion' },
+          // Único punto de edición post-onboarding de grados/materias +
+          // modo multigrado para cuentas personales — reemplaza al wizard
+          // de /personal/setup una vez completado. No aplica a instituciones
+          // normales, que ya administran esto desde Niveles/Asignaciones.
+          { label: 'Mis grados y materias', path: '/settings/mis-grados', showOnlyForPersonal: true },
         ],
       },
       {
@@ -287,7 +292,9 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         .filter(isVisible)
         .map((item) => ({
           ...item,
-          children: item.children?.filter((c) => !isPersonalAccount || !c.hideForPersonal),
+          children: item.children?.filter(
+            (c) => (!isPersonalAccount || !c.hideForPersonal) && (isPersonalAccount || !c.showOnlyForPersonal),
+          ),
         })),
     }))
     .filter((section) => section.items.length > 0)

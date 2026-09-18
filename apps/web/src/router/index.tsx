@@ -523,6 +523,25 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      // ---- Settings / Mis grados y materias (solo cuentas personales) ----
+      // Reemplaza al wizard de /personal/setup como único punto de edición
+      // post-onboarding — PersonalStructureGuard sigue bloqueando las
+      // pantallas normales de estructura académica (niveles/materias/
+      // paralelos/asignaciones), esta es la vía dedicada para cuentas
+      // personales en su lugar.
+      {
+        path: 'settings/mis-grados',
+        element: <PermissionGuard permission="academic_config:manage" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/settings/pages/PersonalClassesPage').then((m) => ({
+                Component: m.PersonalClassesPage,
+              })),
+          },
+        ],
+      },
       // ---- Settings / Anamnesis template ----
       {
         path: 'settings/anamnesis',

@@ -6,61 +6,22 @@ import { tokenService } from '../../../shared/infrastructure/services/token.serv
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { BadRequestError, ConflictError, NotFoundError, UnauthorizedError } from '../../../shared/domain/errors/app.errors'
 import { bootstrapInstitution } from '../../platform/application/services/institution-bootstrap'
-import {
-  MultigradeDomainError,
-  MULTIGRADE_GRADE_NAME,
-  MULTIGRADE_GRADE_SORT_ORDER,
-  resolveMultigradeSelections,
-} from '../../../shared/domain/multigrade'
+import { MultigradeDomainError, resolveMultigradeSelections } from '../../../shared/domain/multigrade'
 import { findGradeByCode } from '../../../shared/domain/grade-catalog'
 import { buildAuthInstitution } from '../../auth/application/services/auth-institution.mapper'
 import { PrismaAuthUserRepository } from '../../auth/infrastructure/repositories/prisma-auth-user.repository'
 import { sendVerificationEmail } from '../../../shared/infrastructure/services/email.service'
+import {
+  ensureLevelForGrade,
+  ensureParallelA,
+  getOrCreateSubjectForArea,
+  listPersonalClasses,
+  reconcilePersonalClasses,
+  type PersonalClassSelection,
+  type PlanningModel,
+} from '../application/services/personal-structure.service'
 
 const userRepo = new PrismaAuthUserRepository()
-
-/**
- * El wizard nunca deja escribir el nombre de una materia a mano: el profesor
- * elige de un catálogo oficial (banco de destrezas o de competencias, según
- * el planningModel del paso "Currículo") y aquí resolvemos el/los área(s)
- * seleccionadas contra ese catálogo real de la institución — sin heurística
- * de texto de ningún tipo. El código MINEDUC (M, LL, CN, CS, ECA, EF, EFL,
- * EG...) es compartido entre ambos bancos, así que además de vincular el área
- * del modelo elegido, intentamos enlazar también la equivalente del otro
- * banco por code exacto — no por keywords — para que si el profesor cambia
- * de planningModel más adelante la materia ya quede enlazada en ambos.
- */
-async function resolveSubjectAreaLinks(
-  institutionId: string,
-  planningModel: 'destrezas' | 'competencias',
-  areaId: string,
-): Promise<{ name: string; curriculumAreaId?: string; competencyAreaId?: string }> {
-  if (planningModel === 'competencias') {
-    const competencyArea = await prisma.competencyArea.findFirst({ where: { id: areaId } })
-    if (!competencyArea) throw new NotFoundError('Área de competencias no encontrada en el catálogo')
-    const curriculumArea = await prisma.curriculumArea.findFirst({
-      where: { code: competencyArea.code },
-      select: { id: true },
-    })
-    return {
-      name: competencyArea.name,
-      competencyAreaId: competencyArea.id,
-      ...(curriculumArea ? { curriculumAreaId: curriculumArea.id } : {}),
-    }
-  }
-
-  const curriculumArea = await prisma.curriculumArea.findFirst({ where: { id: areaId } })
-  if (!curriculumArea) throw new NotFoundError('Área curricular no encontrada en el catálogo')
-  const competencyArea = await prisma.competencyArea.findFirst({
-    where: { code: curriculumArea.code },
-    select: { id: true },
-  })
-  return {
-    name: curriculumArea.name,
-    curriculumAreaId: curriculumArea.id,
-    ...(competencyArea ? { competencyAreaId: competencyArea.id } : {}),
-  }
-}
 
 /**
  * Módulos que recibe una cuenta personal de docente al registrarse.
@@ -491,55 +452,24 @@ export default async function personalRoutes(app: FastifyInstance) {
       // y bloquea la generación de planificación por completo (bug real
       // encontrado en producción). Multigrado NO usa este bloque: cada grado
       // necesita SU PROPIO Level y se resuelve en la rama multigrado abajo.
-      let level: Awaited<ReturnType<typeof prisma.level.findFirst>> = null
+      let level: Awaited<ReturnType<typeof ensureLevelForGrade>> | null = null
       if (profile !== 'multigrade') {
-        const grade = gradeCode ? findGradeByCode(gradeCode) : null
-        if (!grade) {
+        if (!gradeCode || !findGradeByCode(gradeCode)) {
           throw new BadRequestError('Selecciona un grado válido antes de continuar')
         }
-        level = await prisma.level.findFirst({ where: { institutionId, code: grade.code } })
-        if (!level) {
-          level = await prisma.level.create({
-            data: { institutionId, code: grade.code, name: grade.name, sortOrder: grade.sortOrder, subnivel: grade.subnivel },
-          })
-        } else if (level.subnivel !== grade.subnivel) {
-          level = await prisma.level.update({ where: { id: level.id }, data: { subnivel: grade.subnivel } })
-        }
+        level = await ensureLevelForGrade(institutionId, gradeCode)
       }
 
       const assignmentIds: string[] = []
       const subjectIds: string[] = []
       const parallelIds: string[] = []
       let multigradeGroupId: string | null = null
-      const resolvedPlanningModel: 'destrezas' | 'competencias' =
-        planningModel ?? ((settings.planningModel as 'destrezas' | 'competencias' | undefined) ?? 'destrezas')
-
-      // Reusa una materia existente con el mismo área en vez de duplicarla si el
-      // profesor ya la había creado antes (ej. reintenta el wizard, o eligió la
-      // misma área en ambos perfiles) — el catálogo de áreas es fijo por
-      // institución, así que dos Subjects con la misma área serían redundantes.
-      async function getOrCreateSubjectForArea(areaId: string) {
-        const { name, curriculumAreaId, competencyAreaId } = await resolveSubjectAreaLinks(
-          institutionId,
-          resolvedPlanningModel,
-          areaId,
-        )
-        const existing = await prisma.subject.findFirst({
-          where: {
-            institutionId,
-            ...(curriculumAreaId ? { curriculumAreaId } : {}),
-            ...(competencyAreaId ? { competencyAreaId } : {}),
-          },
-        })
-        if (existing) return existing
-        return prisma.subject.create({
-          data: { institutionId, name, curriculumAreaId, competencyAreaId },
-        })
-      }
+      const resolvedPlanningModel: PlanningModel =
+        planningModel ?? ((settings.planningModel as PlanningModel | undefined) ?? 'destrezas')
 
       if (profile === 'subject-first' && req.body.subjectAreaId && req.body.groups?.length) {
         // One subject (del catálogo oficial), multiple parallels
-        const subject = await getOrCreateSubjectForArea(req.body.subjectAreaId)
+        const subject = await getOrCreateSubjectForArea(institutionId, resolvedPlanningModel, req.body.subjectAreaId)
         subjectIds.push(subject.id)
 
         for (const g of req.body.groups) {
@@ -563,7 +493,7 @@ export default async function personalRoutes(app: FastifyInstance) {
         parallelIds.push(parallel.id)
 
         for (const areaId of req.body.subjectAreaIds) {
-          const subject = await getOrCreateSubjectForArea(areaId)
+          const subject = await getOrCreateSubjectForArea(institutionId, resolvedPlanningModel, areaId)
           subjectIds.push(subject.id)
 
           const assignment = await prisma.courseAssignment.create({
@@ -594,41 +524,17 @@ export default async function personalRoutes(app: FastifyInstance) {
         const parallelIdByGrade = new Map<string, string>()
 
         for (const selection of resolvedMultigradeSelections) {
-          let gradeLevel = await prisma.level.findFirst({ where: { institutionId, code: selection.gradeCode } })
-          if (!gradeLevel) {
-            gradeLevel = await prisma.level.create({
-              data: {
-                institutionId,
-                code: selection.gradeCode,
-                name: MULTIGRADE_GRADE_NAME[selection.gradeCode] ?? selection.gradeCode,
-                sortOrder: MULTIGRADE_GRADE_SORT_ORDER[selection.gradeCode] ?? 50,
-                subnivel: selection.subnivel,
-              },
-            })
-          } else if (gradeLevel.subnivel !== selection.subnivel) {
-            gradeLevel = await prisma.level.update({ where: { id: gradeLevel.id }, data: { subnivel: selection.subnivel } })
-          }
+          const gradeLevel = await ensureLevelForGrade(institutionId, selection.gradeCode)
 
           let parallelId = parallelIdByGrade.get(selection.gradeCode)
           if (!parallelId) {
-            // Parallel.name es VarChar(10) — "1ro de Básica" (MULTIGRADE_GRADE_NAME)
-            // no cabe ahí; el grado ya vive en Level.name, así que el paralelo de
-            // multigrado (uno por grado, sección única) se llama simplemente "A".
-            const parallelName = 'A'
-            const existingParallel = await prisma.parallel.findFirst({
-              where: { levelId: gradeLevel.id, academicYearId: year.id, name: parallelName },
-            })
-            const parallel =
-              existingParallel ??
-              (await prisma.parallel.create({
-                data: { institutionId, name: parallelName, levelId: gradeLevel.id, academicYearId: year.id },
-              }))
+            const parallel = await ensureParallelA(institutionId, gradeLevel.id, year.id)
             parallelId = parallel.id
             parallelIdByGrade.set(selection.gradeCode, parallelId)
             parallelIds.push(parallelId)
           }
 
-          const subject = await getOrCreateSubjectForArea(selection.subjectAreaId)
+          const subject = await getOrCreateSubjectForArea(institutionId, resolvedPlanningModel, selection.subjectAreaId)
           subjectIds.push(subject.id)
 
           const existingAssignment = await prisma.courseAssignment.findFirst({
@@ -671,6 +577,78 @@ export default async function personalRoutes(app: FastifyInstance) {
       })
 
       return reply.send({ yearId: year.id, parallelIds, subjectIds, assignmentIds, multigradeGroupId })
+    },
+  )
+
+  // ─── Edición post-onboarding: grados/materias + modo multigrado ──────────
+  // El wizard de /personal/setup solo corre una vez; estos dos endpoints
+  // permiten corregir después (agregar/quitar grado+materia, prender/apagar
+  // multigrado) sin tener que rehacer la cuenta desde cero.
+
+  app.get('/personal/classes', { preHandler: [authMiddleware] }, async (req, reply) => {
+    const institutionId = req.user.institutionId
+    const institution = await prisma.institution.findUnique({ where: { id: institutionId }, select: { settings: true } })
+    const settings = (institution?.settings ?? {}) as Record<string, unknown>
+    if (settings.accountType !== 'personal') {
+      return reply.status(403).send({ message: 'Solo disponible para cuentas personales' })
+    }
+    const state = await listPersonalClasses(institutionId)
+    return reply.send(state)
+  })
+
+  app.put<{
+    Body: {
+      selections: PersonalClassSelection[]
+      multigradeEnabled: boolean
+      allowSuperiorExtension?: boolean
+    }
+  }>(
+    '/personal/classes',
+    {
+      preHandler: [authMiddleware],
+      schema: {
+        body: {
+          type: 'object',
+          required: ['selections', 'multigradeEnabled'],
+          properties: {
+            selections: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['gradeCode', 'subjectAreaId'],
+                properties: { gradeCode: { type: 'string' }, subjectAreaId: { type: 'string' } },
+              },
+            },
+            multigradeEnabled: { type: 'boolean' },
+            allowSuperiorExtension: { type: 'boolean' },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      const institutionId = req.user.institutionId
+      const teacherId = req.user.sub
+      const institution = await prisma.institution.findUnique({ where: { id: institutionId }, select: { settings: true } })
+      const settings = (institution?.settings ?? {}) as Record<string, unknown>
+      if (settings.accountType !== 'personal') {
+        return reply.status(403).send({ message: 'Solo disponible para cuentas personales' })
+      }
+
+      try {
+        const result = await reconcilePersonalClasses(
+          institutionId,
+          teacherId,
+          req.body.selections,
+          req.body.multigradeEnabled,
+          req.body.allowSuperiorExtension ?? false,
+        )
+        return reply.send(result)
+      } catch (error) {
+        if (error instanceof MultigradeDomainError) {
+          return reply.status(400).send({ message: error.message, code: error.code, gradeCode: error.gradeCode })
+        }
+        throw error
+      }
     },
   )
 }
