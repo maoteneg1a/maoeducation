@@ -38159,5 +38159,1446 @@
         }
       ]
     }
+  },
+  {
+    "code": "BIOLOGY",
+    "name": "Biología",
+    "subniveles": {
+      "bgu": [
+        {
+          "code": "CE.CN.B.5.1",
+          "text": "Construir modelos explicativos sobre la evolución prebiótica, la formación de las primeras estructuras biológicas y el origen de la vida en la Tierra primitiva, fundamentados en el conocimiento e importancia de bioelementos y biomoléculas inorgánicas y orgánicas, a partir de la argumentación y la discusión de las teorías de la biología actual frente a aquellas interpretaciones del origen de la vida que no se sustentan en el método científico, demostrando pensamiento crítico y honestidad intelectual.",
+          "keyCompetencyCodes": [
+            "CMCT",
+            "CC",
+            "CCICC",
+            "CECA"
+          ],
+          "indicators": [
+            {
+              "code": "I.CN.B.5.1.1",
+              "text": "Explica de manera fundamentada la validez de las pruebas científicas sobre el origen de la vida y de las condiciones de la Tierra primitiva, diferenciándolas de explicaciones pseudocientíficas mediante criterios del método científico."
+            },
+            {
+              "code": "I.CN.B.5.1.2",
+              "text": "Explica cómo el conocimiento de los bioelementos y las biomoléculas inorgánicas (agua, sales minerales) y biomoléculas orgánicas (carbohidratos, lípidos, proteínas (enzimas), ácidos nucleicos) fundamenta la comprensión de la evolución prebiótica, la formación de las primeras estructuras biológicas y así como su importancia en los seres vivos."
+            },
+            {
+              "code": "I.CN.B.5.1.3",
+              "text": "Argumenta la hipótesis del ARN y la aparición de la primera célula."
+            }
+          ],
+          "sabers": [
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.1",
+              "description": "Método y pruebas científicas sobre el origen de la vida."
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.2",
+              "description": "Condiciones de la Tierra primitiva y composición de su atmósfera versus la atmósfera actual"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.3",
+              "description": "Tipos de bioelementos."
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.4",
+              "description": "Biomoléculas inorgánicas: Propiedades del agua y sales minerales."
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.5",
+              "description": "Biomoléculas orgánicas: Enlaces, estructuras, relaciones y funciones de los azúcares, lípidos, proteínas (enzimas) y ácidos nucleicos."
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.6",
+              "description": "Autoorganización y replicación: El mundo del ARN y la primera célula."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.1",
+              "description": "Diferenciar entre la composición de la atmósfera primitiva y la actual, infiriendo la importancia de la atmósfera reductora."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.16",
+              "description": "Diseñar investigaciones experimentales sobre el valor nutricional de los distintos alimentos desde el conocimiento de las biomoléculas."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.2",
+              "description": "Establecer la importancia para la vida de los bioelementos, y biomoléculas inorgánicas."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.21",
+              "description": "Seleccionar fuentes confiables sobre experimentos clave relacionados con el origen de la vida, las biomoléculas y replicación del ARN, extrayendo conclusiones fundamentadas en el método científico."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.3",
+              "description": "Reconocer los monómeros y polímeros correspondientes a cada biomolécula orgánica, así como sus enlaces, estructuras y funciones."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.4",
+              "description": "Experimentar con materiales sencillos para detectar la presencia de biomoléculas."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.5",
+              "description": "Establecer relación entre cada biomolécula y su función en los seres vivos."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.6",
+              "description": "Construir explicaciones coherentes sobre los pasos propuestos para el ensamblado de la primera célula a partir del conocimiento del ARN."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.1.a.1",
+              "description": "Cuestionar cómo pudo surgir la vida."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.1.a.2",
+              "description": "Comprender cómo las moléculas se ensamblan en estructuras más complejas, valorando la organización de la materia viva."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.1.a.3",
+              "description": "Asimilar que los bioelementos constituyen las biomoléculas que forman parte del ser humano y de los alimentos que ingerimos, demostrando responsabilidad en la adopción de estilos de vida saludables."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.1.a.9",
+              "description": "Posicionar el método científico ante las pseudociencias."
+            }
+          ]
+        },
+        {
+          "code": "CE.CN.B.5.2",
+          "text": "Predecir las consecuencias de las alteraciones genéticas, cromosómicas y epigenéticas con base en la comprensión del concepto de flujo de información del ADN a las proteínas, así como de los mecanismos de regulación epigenética, demostrando empatía ante las diferencias de los seres humanos.",
+          "keyCompetencyCodes": [
+            "CMCT",
+            "CC",
+            "CD",
+            "CCICC",
+            "CSE"
+          ],
+          "indicators": [
+            {
+              "code": "I.CN.B.5.2.1",
+              "text": "Explica la naturaleza química del ADN, a partir de su organización en cromosomas y genes, así como la propiedad de perpetuarse en el tiempo de acuerdo con su capacidad replicativa."
+            },
+            {
+              "code": "I.CN.B.5.2.2",
+              "text": "Predice las consecuencias básicas de alteraciones genéticas (mutaciones), aberraciones cromosómicas y epigenéticas y su relación con patologías conocidas (incluyendo enfermedades raras), basándose en la comprensión del flujo de información del ADN a las proteínas y de los mecanismos de regulación epigenética."
+            }
+          ],
+          "sabers": [
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.10",
+              "description": "Aberración cromosómica"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.11",
+              "description": "Epigenética y enfermedades raras"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.7",
+              "description": "Estructura y replicación del ADN"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.8",
+              "description": "Cromosoma y gen"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.9",
+              "description": "Mutación: causas y consecuencias"
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.10",
+              "description": "Establecer el impacto a nivel fenotípico de los cambios en la estructura o número de cromosomas (enfermedades raras)."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.11",
+              "description": "Explicar que los cambios en los patrones de lectura de los genes también acarrean problemas sin alterar la propia secuencia de ADN."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.23",
+              "description": "Seleccionar fuentes confiables sobre experimentos clave en genética, mutaciones y aberraciones cromosómicas, extrayendo conclusiones fundamentadas."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.7",
+              "description": "Aplicar el conocimiento del código genético para entender la relación entre el ADN, el ARN y las proteínas."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.8",
+              "description": "Diferenciar entre alteración cromosómica y génica."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.9",
+              "description": "Establecer la relación entre los cambios en los genes y las patologías a través de cambios en las proteínas que codifican."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.1.a.10",
+              "description": "Valorar el papel de la mujer en la ciencia, reconociendo contribuciones fundamentales como las de Rosalind Franklin en la estructura del ADN, Martha Chase en la demostración del ADN como material genético y Nettie Stevens en el descubrimiento de los cromosomas sexuales."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.1.a.12",
+              "description": "Actuar con empatía ante las personas que presentan afectaciones a su salud o desarrollo debido a mutaciones, aberraciones cromosómicas o epigenéticas, a partir del conocimiento adquirido."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.1.a.4",
+              "description": "Apreciar el papel del ADN como la molécula portadora de la herencia."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.10",
+              "description": "Valorar la investigación en enfermedades que afectan a países en desarrollo."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.9",
+              "description": "Reconocer la importancia del estudio de las enfermedades raras."
+            }
+          ]
+        },
+        {
+          "code": "CE.CN.B.5.3",
+          "text": "Comprender la teoría celular, el origen evolutivo de las células eucariotas y el conocimiento sobre los microorganismos y las formas acelulares, así como la organización de las células procariotas y eucariotas que determina su clasificación taxonómica, además de la interpretación de cómo las alteraciones metabólicas y de las estructuras celulares (incluyendo las membranas biológicas) afectan la salud humana demostrando compromiso responsable en la prevención de enfermedades.",
+          "keyCompetencyCodes": [
+            "CMCT",
+            "CC",
+            "CD",
+            "CIT",
+            "CCICC"
+          ],
+          "indicators": [
+            {
+              "code": "I.CN.B.5.3.1",
+              "text": "Explica el enfoque de la teoría celular, así como las estructuras y funciones principales de células eucariotas (animales y vegetales) y procariotas (importancia de las bacterias y medidas para conservar la salud)."
+            },
+            {
+              "code": "I.CN.B.5.3.2",
+              "text": "Compara células eucariotas y procariotas, describiendo sus diferencias clave y clasificando los organismos según su tipo celular en los dominios y reinos correspondientes."
+            },
+            {
+              "code": "I.CN.B.5.3.3",
+              "text": "Explica los procesos metabólicos fundamentales (respiración celular, fotosíntesis, fermentación) y su importancia para la vida."
+            },
+            {
+              "code": "I.CN.B.5.3.4",
+              "text": "Relaciona las alteraciones básicas de estructuras celulares o procesos metabólicos con sus posibles efectos en la salud humana, utilizando ejemplos de patologías comunes, así como el papel de la industria farmacéutica."
+            },
+            {
+              "code": "I.CN.B.5.3.5",
+              "text": "Explica la teoría de la endosimbiosis y su relación con las mitocondrias y cloroplastos, reconociendo el papel de los aportes científicos como el de Lyn Margulis."
+            },
+            {
+              "code": "I.CN.B.5.3.6",
+              "text": "Argumenta por qué los virus y priones son formas acelulares, así como las medidas para evitar enfermedades causadas por estas."
+            },
+            {
+              "code": "I.CN.B.5.3.7",
+              "text": "Relaciona la importancia de la membrana celular en el proceso de ósmosis y su influencia en funciones vitales."
+            }
+          ],
+          "sabers": [
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.1",
+              "description": "Célula y Teoría celular"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.10",
+              "description": "Fotosíntesis: cloroplasto"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.11",
+              "description": "Fermentación."
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.12",
+              "description": "Respiración celular: mitocondria."
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.13",
+              "description": "Microorganismos y formas acelulares (virus y priones)."
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.2",
+              "description": "Tipos de célula y su evolución: procariotas (bacterias) y eucariotas (animales y vegetales)"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.3",
+              "description": "Estructura y función de las membranas biológicas: importancia de la ósmosis"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.4",
+              "description": "Estructura y función del citoesqueleto"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.5",
+              "description": "Estructura y función de los orgánulos"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.6",
+              "description": "El núcleo celular"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.7",
+              "description": "Dominios y reinos de la vida"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.8",
+              "description": "Teoría endosimbiótica"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.9",
+              "description": "Metabolismo: anabolismo y catabolismo"
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.1",
+              "description": "Conectar las características de mitocondrias y cloroplastos con las de bacterias para justificar su origen endosimbiótico."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.12",
+              "description": "Argumentar si los virus y los priones son formas de vida, estableciendo medidas para conservar la salud."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.15",
+              "description": "Seleccionar fuentes confiables sobre experimentos clave en biología celular y procesos metabólicos, extrayendo conclusiones basadas en evidencia."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.17",
+              "description": "Construir modelos de los tipos de células eucariotas identificando su estructura, función del citoesqueleto, los orgánulos y del núcleo celular, así como sus posibles alteraciones."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.2",
+              "description": "Establecer las diferencias y semejanzas existentes, a partir de su estructura y función, entre las células procariotas y eucariotas; célula animal y la vegetal"
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.3",
+              "description": "Clasificar los organismos en dominios y reinos"
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.4",
+              "description": "Observar al microscopio óptico muestras de diversas células."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.5",
+              "description": "Experimentar con membranas biológicas para visualizar el proceso de ósmosis y sus implicaciones en la hidratación celular."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.6",
+              "description": "Vincular la función de las enzimas con los procesos metabólicos celulares, relacionándolos con ejemplos cercanos de la vida cotidiana, así como sus alteraciones y efectos en la salud humana."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.7",
+              "description": "Conectar la relación circular entre la fotosíntesis, la respiración celular y el principio de conservación de la energía."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.2.a.1",
+              "description": "Evaluar la solidez de la Teoría endosimbiótica."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.2.a.10",
+              "description": "Recomendar medidas para conservar su salud a partir del conocimiento de los microorganismos, las formas acelulares, las alteraciones de los procesos metabólicos y las alteraciones de los orgánulos celulares que pueden ser prevenibles."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.2.a.2",
+              "description": "Reconocer que las bacterias llevan más tiempo que nosotros sobre el planeta y que existen algunas beneficiosas."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.2.a.3",
+              "description": "Apreciar la Teoría celular como una teoría central y unificadora en la biología y que da respuesta de qué estamos hechos los seres vivos."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.2.a.4",
+              "description": "Destacar la importancia de la fotosíntesis en el mantenimiento de la vida."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.2.a.5",
+              "description": "Valorar el uso que hemos hecho los humanos del proceso de fermentación."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.2.a.8",
+              "description": "Valorar el papel de la mujer en la ciencia, reconociendo contribuciones como la de Lynn Margulis en la teoría endosimbiótica y otras científicas en biología celular."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.11",
+              "description": "Discutir, desde un punto de vista ético, el papel de la industria farmacéutica en el desarrollo, producción y acceso a tratamientos para enfermedades metabólicas."
+            }
+          ]
+        },
+        {
+          "code": "CE.CN.B.5.4",
+          "text": "Modelar los fenómenos de transmisión hereditaria utilizando los principios de las leyes de Mendel, las definiciones de alelo, genotipo, fenotipo y del ciclo celular, explicando cómo la variabilidad genética, generada por la meiosis, sustenta la diversidad biológica y la evolución de las especies, y la comprensión de la fecundación In Vitro, así como las aplicaciones de la genética con actitud crítica y responsable.",
+          "keyCompetencyCodes": [
+            "CMCT",
+            "CC",
+            "CIT",
+            "CCICC",
+            "CSE",
+            "CECA"
+          ],
+          "indicators": [
+            {
+              "code": "I.CN.B.5.4.1",
+              "text": "Resuelve problemas de genética y de herencia ligada al sexo a partir de la comprensión de conceptos básicos como alelo, genotipo, fenotipo, leyes de Mendel."
+            },
+            {
+              "code": "I.CN.B.5.4.2",
+              "text": "Explica la importancia de cómo los principios de la herencia mendeliana y el ciclo celular (mitosis) sustentan científicamente los mecanismos de perpetuación de las especies y la generación de variabilidad genética (meiosis)."
+            },
+            {
+              "code": "I.CN.B.5.4.3",
+              "text": "Argumenta la importancia de la variabilidad genética como motor clave en la evolución de la vida y las aplicaciones de la genética en diversos campos."
+            },
+            {
+              "code": "I.CN.B.5.4.4",
+              "text": "Explica la importancia de la diversidad genética en las poblaciones humanas, así como los riesgos de discriminación basada en características genéticas."
+            },
+            {
+              "code": "I.CN.B.5.4.5",
+              "text": "Relaciona las alteraciones en el ciclo celular con el desarrollo y progresión del cáncer, así como las aplicaciones de la genética, a partir de las investigaciones en este campo."
+            },
+            {
+              "code": "I.CN.B.5.4.6",
+              "text": "Explica cómo el conocimiento de la meiosis y la fecundación In Vitro ha permitido el desarrollo de técnicas de reproducción asistida, reconociendo su impacto positivo en la vida de las personas, así como la importancia de las contribuciones científicas como la de Jean Purdy."
+            }
+          ],
+          "sabers": [
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.12",
+              "description": "Alelo"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.13",
+              "description": "Genotipo y fenotipo"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.14",
+              "description": "Leyes de Mendel"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.15",
+              "description": "Cromosomas sexuales y herencia ligada al sexo."
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.16",
+              "description": "Genética de poblaciones y diversidad genética"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.17",
+              "description": "Equilibrio Hardy-Weinberg"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.18",
+              "description": "Variabilidad genética y perpetuación de especies"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.19",
+              "description": "Aplicaciones de la genética en medicina, conservación y agricultura"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.14",
+              "description": "Ciclo celular y sus fases"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.15",
+              "description": "Control del ciclo celular: proliferación celular (controlada y descontrolada) y muerte celular programada"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.16",
+              "description": "Mitosis, meiosis: Consecuencias biológicas"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.2.d.17",
+              "description": "La Fecundación In Vitro"
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.15",
+              "description": "Relacionar los principios de la genética de poblaciones con la evolución, la variabilidad genética y la perpetuación de especies."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.22",
+              "description": "Resolver problemas de genética aplicando las leyes de Mendel."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.24",
+              "description": "Resolver problemas de herencia ligada al sexo"
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.10",
+              "description": "Resolver problemas relacionados con la ploidía y el número de cromosomas y cromátidas."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.11",
+              "description": "Diferenciar entre mitosis y meiosis."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.13",
+              "description": "Indagar en las investigaciones sobre el ciclo celular para el estudio del cáncer y las enfermedades neurodegenerativas."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.14",
+              "description": "Establecer cómo los avances en la investigación de la meiosis y la fecundación ha mejorado la vida de las personas que no pueden tener hijos."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.16",
+              "description": "Seleccionar fuentes confiables sobre las aplicaciones de la genética, estableciendo conclusiones basadas en evidencia."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.8",
+              "description": "Hacer modelos de la mitosis y la meiosis."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.2.p.9",
+              "description": "Hacer preparaciones al microscopio óptico para visualizar las fases de la mitosis y de la meiosis."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.1.a.11",
+              "description": "Apreciar la relevancia de la genética de poblaciones en campos como la conservación de especies, la medicina y la agricultura."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.1.a.13",
+              "description": "Demostrar empatía y respeto hacia las personas con enfermedades ligadas al sexo, cáncer o con alteraciones cromosómicas."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.1.a.14",
+              "description": "Tomar conciencia de la importancia de la diversidad genética como fuente económica en el presente y futuro de la humanidad."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.1.a.5",
+              "description": "Reconocer la importancia de las Leyes de Mendel como base de la herencia."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.2.a.6",
+              "description": "Valorar la investigación en el ciclo celular para el estudio del cáncer y las enfermedades neurodegenerativas."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.2.a.7",
+              "description": "Reconocer que los avances en la investigación de la meiosis y la fecundación In Vitro han mejorado la vida de las personas que no pueden tener hijos."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.2.a.9",
+              "description": "Valorar el papel de la mujer en la ciencia, reconociendo contribuciones como la de Jean Purdy en la fecundación in vitro."
+            }
+          ]
+        },
+        {
+          "code": "CE.CN.B.5.5",
+          "text": "Generar iniciativas responsables para promover la salud integral del ser humano, de manera individual y colectiva, a partir del análisis de los efectos de enfermedades y desórdenes asociados a estilos de vida, enfocándose en los sistemas fundamentales para el mantenimiento de la vida: digestivo, respiratorio, circulatorio y excretor, su organización y funcionamiento al compararlos con otros animales, reconociendo su estructura y función.",
+          "keyCompetencyCodes": [
+            "CMCT",
+            "CC",
+            "CD",
+            "CIT",
+            "CCICC",
+            "CSE"
+          ],
+          "indicators": [
+            {
+              "code": "I.CN.B.5.5.1",
+              "text": "Explica que en los organismos multicelulares la forma y función de las células y los tejidos determinan la organización de órganos, aparatos y sistemas, demostrando respeto por los seres vivos."
+            },
+            {
+              "code": "I.CN.B.5.5.2",
+              "text": "Establece semejanzas y diferencias estructurales y funcionales entre los tejidos, órganos, aparatos, sistemas de diferentes especies animales a lo largo de la escala evolutiva, valorando la complejidad biológica."
+            },
+            {
+              "code": "I.CN.B.5.5.3",
+              "text": "Establece la relación entre estilos de vida saludable y la aparición o prevención de enfermedades y desórdenes que afectan a los sistemas fundamentales de mantenimiento (digestivo, respiratorio, circulatorio y excretor) a partir de medidas concretas relacionadas con estilos de vida saludables."
+            },
+            {
+              "code": "I.CN.B.5.5.4",
+              "text": "Infiere el rol que cumplen los microorganismos en el tracto digestivo, así como la influencia de la contaminación en los sistemas del cuerpo humano."
+            }
+          ],
+          "sabers": [
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.1",
+              "description": "Tejido, órgano y aparato/sistema"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.2",
+              "description": "Tipos de tejidos animales y sus células"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.3",
+              "description": "Aparatos y sistemas de los animales"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.4",
+              "description": "Evolución y clasificación de los animales a partir de su complejidad biológica"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.5",
+              "description": "Componentes y funciones de los sistemas humanos: digestivo, excretor, respiratorio y circulatorio"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.6",
+              "description": "Enfermedades y medidas de cuidado de los sistemas humanos: digestivo, excretor, respiratorio y circulatorio."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.1",
+              "description": "Usar muñecos clásticos y modelos anatómicos para el estudio de órganos y aparatos."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.13",
+              "description": "Indagar acerca de las enfermedades nutricionales y desórdenes alimenticios más comunes que afectan a la población (intolerancias, anorexia, bulimia, obesidad) así como la importancia del microbiota."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.14",
+              "description": "Indagar en diversas fuentes sobre las enfermedades causadas por el consumo de tabaco y la exposición a contaminantes ambientales sobre el sistema respiratorio."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.2",
+              "description": "Comparar la complejidad de los sistemas de los animales invertebrados y vertebrados."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.20",
+              "description": "Seleccionar fuentes confiables sobre investigaciones en fisiología animal, para identificar cómo funcionan los sistemas del cuerpo humano, planteando conclusiones aplicables en lo cotidiano y su bienestar."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.23",
+              "description": "Proponer acciones relacionadas con hábitos de vida saludables como medida de prevención de enfermedades de los sistemas digestivo, excretor, respiratorio y circulatorio."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.3",
+              "description": "Observar preparaciones de los diferentes órganos de los distintos sistemas al microscopio óptico."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.4",
+              "description": "Distinguir los distintos tipos de tejidos y las células que componen los órganos."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.1",
+              "description": "Tomar conciencia de la importancia de los hábitos saludables de alimentación, ejercicio físico y sueño para el mantenimiento de los sistemas del cuerpo humano."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.2",
+              "description": "Valorar el papel de todos los microorganismos que viven en simbiosis con el ser humano en el tracto digestivo."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.3",
+              "description": "Reflexionar sobre el problema de la contaminación atmosférica, agua, suelo y el deterioro de los sistemas del cuerpo humano."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.4",
+              "description": "Desarrollar una actitud de respeto a los seres vivos, a partir del reconocimiento de sus niveles de organización jerárquica."
+            }
+          ]
+        },
+        {
+          "code": "CE.CN.B.5.6",
+          "text": "Plantear estrategias de prevención de enfermedades y toma de decisiones sobre la salud biológica y mental, basadas en una comprensión integral de los sistemas de control (incluido su funcionamiento y evolución), regulación, defensa y reproducción del organismo humano (nervioso, endocrino, inmunológico y reproductor), demostrando responsabilidad por la salud individual y colectiva.",
+          "keyCompetencyCodes": [
+            "CMCT",
+            "CC",
+            "CD",
+            "CCICC",
+            "CSE"
+          ],
+          "indicators": [
+            {
+              "code": "I.CN.B.5.6.1",
+              "text": "Explica los componentes y cómo funcionan los sistemas nervioso, endocrino, inmunológico (inmunidad innata y adquirida) y reproductor (diferencias entre los sistemas femeninos y masculinos) para trabajar coordinadamente a partir del conocimiento de su evolución y su importancia para el bienestar del ser humano."
+            },
+            {
+              "code": "I.CN.B.5.6.2",
+              "text": "Establece la relación entre estilos de vida y la aparición o prevención de enfermedades y desórdenes que afectan a los sistemas de control, regulación, defensa y reproducción (nervioso, endocrino, inmunológico y reproductor), proponiendo medidas concretas para su cuidado."
+            },
+            {
+              "code": "I.CN.B.5.6.3",
+              "text": "Argumenta los beneficios de las vacunas para la salud pública y su relación con la ingeniería genética, valorando su importancia."
+            },
+            {
+              "code": "I.CN.B.5.6.4",
+              "text": "Sustenta la importancia de la salud biológica y mental como componente fundamental del bienestar integral, proponiendo medidas básicas de cuidado."
+            }
+          ],
+          "sabers": [
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.10",
+              "description": "Diferencias entre los sistemas femeninos y masculinos."
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.7",
+              "description": "Función (individual y conjunta) y evolución de los sistemas: nervioso, endocrino, inmunológico y reproductor."
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.8",
+              "description": "Componentes de los sistemas humanos: nervioso, endocrino, inmunológico y reproductor."
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.9",
+              "description": "Vacuna y su importancia"
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.17",
+              "description": "Indagar la relación entre la ingeniería génica y las vacunas."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.15",
+              "description": "Indagar en diversas fuentes sobre los efectos nocivos en el sistema nervioso ocasionados por el consumo de alcohol y otras drogas."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.16",
+              "description": "Indagar acerca de las enfermedades relacionadas con el sistema inmunitario más frecuentes en la población (alergias y enfermedades autoinmunes)."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.17",
+              "description": "Indagar acerca de las anomalías relacionadas con el sistema reproductor más frecuentes y sus consecuencias para la población humana."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.21",
+              "description": "Proponer medidas concretas para el cuidado de los sistemas nervioso, endocrino, inmunológico y reproductor."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.6",
+              "description": "Relacionar la neurociencia básica y salud mental."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.7",
+              "description": "Ejemplificar la relación existente entre los sistemas nervioso, endocrino, inmunológico y reproductor a partir de sus funciones y evolución."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.8",
+              "description": "Diferenciar inmunidad innata e inmunidad adaptativa."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.12",
+              "description": "Reconocer la importancia de la salud biológica y mental en niños/as, adolescentes, jóvenes, personas adultas y mayores, a través del planteamiento de medidas básicas de cuidado."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.13",
+              "description": "Compartir la importancia del sistema inmunitario en la salud global y de otros sistemas."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.14",
+              "description": "Reconocer la importancia desde un punto de vista científico de las vacunas para salvar vidas humanas, descartando los discursos de las pseudociencias."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.15",
+              "description": "Valorar el papel de la mujer en la ciencia, reconociendo contribuciones como la de Lady Mary Montagu en la introducción de la variolación."
+            }
+          ]
+        },
+        {
+          "code": "CE.CN.B.5.7",
+          "text": "Tomar decisiones informadas y constructivas que impactan positivamente en su proyecto de vida personal y social basándose en la comprensión de los procesos biológicos (fecundación, desarrollo embrionario y fetal, parto e interrupción del embarazo) y la comprensión de lo que representa la sexualidad para el establecimiento de estrategias responsables de autocuidado y prevención en salud sexual y reproductiva.",
+          "keyCompetencyCodes": [
+            "CMCT",
+            "CC",
+            "CD",
+            "CIT",
+            "CCICC",
+            "CSE"
+          ],
+          "indicators": [
+            {
+              "code": "I.CN.B.5.7.1",
+              "text": "Describe los procesos biológicos de la fecundación, el desarrollo embrionario y fetal, el parto y la interrupción del embarazo, reconociendo su importancia y las repercusiones para la vida de las personas."
+            },
+            {
+              "code": "I.CN.B.5.7.2",
+              "text": "Argumenta los riesgos de una maternidad/paternidad prematura, según su proyecto de vida, partiendo del análisis crítico y reflexivo de la sexualidad, salud sexual y reproductiva y sus implicaciones."
+            },
+            {
+              "code": "I.CN.B.5.7.3",
+              "text": "Explica la relevancia de la planificación familiar y la prevención de enfermedades de transmisión sexual en el contexto del desarrollo individual y social."
+            },
+            {
+              "code": "I.CN.B.5.7.4",
+              "text": "Detalla la relación entre la función de las hormonas con la sexualidad, el crecimiento del cuerpo, el proceso reproductivo, el embarazo, así como su importancia."
+            }
+          ],
+          "sabers": [
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.11",
+              "description": "Fecundación, embarazo, desarrollo y parto"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.12",
+              "description": "Interrupción del embarazo: causas y consecuencias"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.13",
+              "description": "El papel del sistema neuroendocrino en el proceso reproductivo"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.14",
+              "description": "Crecimiento y etapas del desarrollo humano"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.15",
+              "description": "La sexualidad"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.16",
+              "description": "Rol de las hormonas en la sexualidad"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.17",
+              "description": "Salud sexual"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.18",
+              "description": "Métodos anticonceptivos"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.19",
+              "description": "Enfermedades de transmisión sexual"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.3.d.20",
+              "description": "Proyecto de vida"
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.10",
+              "description": "Reconocer el papel de la placenta como órgano mixto entre la madre y el hijo."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.11",
+              "description": "Analizar las consecuencias del bipedismo y el parto en la mujer."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.12",
+              "description": "Analizar las consecuencias de los cambios hormonales producidos durante el embarazo en la mujer."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.18",
+              "description": "Indagar acerca de las enfermedades de transmisión sexual más frecuentes en la población, proponiendo medidas preventivas."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.19",
+              "description": "Relacionar la salud sexual y reproductiva (métodos anticonceptivos) con las implicaciones en el proyecto de vida."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.22",
+              "description": "Indagar sobre las hormonas sexuales y las hormonas del crecimiento y sus efectos en el cuerpo humano."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.24",
+              "description": "Seleccionar fuentes confiables sobre investigaciones relacionadas con la fecundación, embarazo, desarrollo, parto, interrupción del embarazo, sexualidad, salud sexual, planteando conclusiones aplicables para su bienestar en el marco de su proyecto de vida."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.9",
+              "description": "Explicar de forma integral la función de la reproducción humana."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.16",
+              "description": "Valorar el papel de la mujer en la ciencia, reconociendo contribuciones como la de Metrodora, pionera en medicina ginecológica y Eugenia del Pino en el estudio del desarrollo embrionario."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.17",
+              "description": "Valorar la importancia de comprender la relación entre hormonas, sexualidad y crecimiento."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.5",
+              "description": "Reconocer la reproducción humana como una decisión personal basada en el respeto, priorizando el papel de la mujer y en el marco del proyecto de vida personal."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.6",
+              "description": "Argumentar las implicaciones biológicas, sociales y éticas de los procesos reproductivos y la interrupción del embarazo con fundamentación científica."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.7",
+              "description": "Analizar críticamente los mitos, estereotipos y prejuicios asociados con la sexualidad."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.3.a.8",
+              "description": "Reconocer que la salud sexual, reproductiva y afectiva son componentes esenciales del bienestar general y del desarrollo personal."
+            }
+          ]
+        },
+        {
+          "code": "CE.CN.B.5.8",
+          "text": "Promover la conservación y uso responsable de los recursos naturales del país, reconociendo el valor de la biodiversidad, y sus servicios ecosistémicos para el bienestar humano, proponiendo acciones de desarrollo sostenible apropiadas para el contexto local, con actitud crítica y considerando las actividades antrópicas que amenazan su estabilidad.",
+          "keyCompetencyCodes": [
+            "CMCT",
+            "CC",
+            "CD",
+            "CIT",
+            "CCICC",
+            "CSE"
+          ],
+          "indicators": [
+            {
+              "code": "I.CN.B.5.8.1",
+              "text": "Explica el valor de la biodiversidad, la megadiversidad, los recursos naturales, en los ecosistemas del Ecuador y el impacto de las actividades humanas, a partir del conocimiento de la importancia de la ecología y de la tipología de los ecosistemas existentes en el país."
+            },
+            {
+              "code": "I.CN.B.5.8.2",
+              "text": "Describe los principales servicios ecosistémicos y el impacto de su alteración en los sistemas globales."
+            },
+            {
+              "code": "I.CN.B.5.8.3",
+              "text": "Propone acciones sencillas de conservación para su entorno local, considerando la importancia de equilibrar las necesidades humanas con la protección ambiental en el marco del desarrollo sostenible y problemáticas actuales como el crecimiento poblacional."
+            }
+          ],
+          "sabers": [
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.5.d.1",
+              "description": "Ecología: definición e importancia"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.5.d.10",
+              "description": "Desarrollo sostenible: definición e importancia"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.5.d.11",
+              "description": "Crecimiento poblacional"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.5.d.12",
+              "description": "Recursos naturales"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.5.d.2",
+              "description": "Ecosistemas y biomas: tipos"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.5.d.3",
+              "description": "Biodiversidad y megadiversidad"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.5.d.4",
+              "description": "Factores de la megadiversidad y principales ecosistemas de Ecuador (Litoral, Interandina, Amazonía, Insular)"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.5.d.5",
+              "description": "Servicio ecosistémico: abastecimiento, reguladores, de sostenimiento y culturales"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.5.d.6",
+              "description": "Sistemas globales: definición e importancia."
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.5.d.7",
+              "description": "Principales actividades humanas con impacto global (cambio climático, deforestación, sobreexplotación, especies introducidas e invasoras)"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.5.d.8",
+              "description": "Pérdida y conservación de la biodiversidad"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.5.d.9",
+              "description": "Estrategias para la conservación de la biodiversidad: in situ y ex situ"
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.5.p.1",
+              "description": "Explicar la importancia de la biodiversidad para el equilibrio de los ecosistemas, la sociedad y el planeta poniendo ejemplos concretos."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.5.p.10",
+              "description": "Descubrir maneras de vivir con un estilo sostenible desde el punto de vista ecológico y financiero."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.5.p.12",
+              "description": "Seleccionar fuentes confiables sobre la ecología, estudios ecológicos y de conservación de la biodiversidad, planteando conclusiones para la sostenibilidad ambiental."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.5.p.2",
+              "description": "Reflexionar acerca de la importancia social, económica y ambiental de la biodiversidad y los recursos naturales, identificando los retos de Ecuador frente a su patrimonio natural y el desarrollo sostenible."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.5.p.3",
+              "description": "Clasificar los servicios ecosistémicos en sus cuatro grandes grupos (aprovisionamiento, regulación, culturales, y de soporte)."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.5.p.4",
+              "description": "Relacionar las actividades antrópicas con la pérdida de biodiversidad."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.5.p.5",
+              "description": "Proponer soluciones a la pérdida de biodiversidad para su conservación y la del ambiente."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.5.p.6",
+              "description": "Diseñar estrategias de desarrollo sostenible."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.5.p.7",
+              "description": "Proponer soluciones innovadoras a los desafíos socioambientales y de crecimiento poblacional desde el respeto a la diversidad cultural y fomentando el desarrollo sostenible."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.5.p.8",
+              "description": "Evaluar el estado de los ecosistemas del Ecuador, con énfasis en los ecosistemas acuáticos (marinos, costeros y de agua dulce)."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.5.p.9",
+              "description": "Debatir sobre los beneficios del uso del transporte público y compartido, considerando los impactos ambientales enfocados en el desarrollo sostenible."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.5.a.1",
+              "description": "Reconocer el valor intrínseco y la importancia de la biodiversidad y los servicios ecosistémicos para el planeta y la humanidad."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.5.a.2",
+              "description": "Asumir un compromiso personal y social con la conservación de la diversidad biológica y el ambiente."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.5.a.3",
+              "description": "Apreciar la riqueza natural de Ecuador y su megadiversidad."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.5.a.4",
+              "description": "Fortalecer el sentido de identidad con el entorno natural del Ecuador y el compromiso con su protección."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.5.a.5",
+              "description": "Cuestionar los modelos de consumo y desarrollo insostenibles."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.5.a.6",
+              "description": "Mostrar disposición a promover cambios en su vida enfocados a la sostenibilidad."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.5.a.7",
+              "description": "Valorar el papel de la mujer en la ciencia, reconociendo contribuciones pioneras como la de Rachel Carson o Yolanda Kakabadse en el movimiento ambientalista moderno."
+            }
+          ]
+        },
+        {
+          "code": "CE.CN.B.5.9",
+          "text": "Reconocer la importancia ecológica, cultural y socioeconómica de las plantas en el Ecuador a partir de sus estructuras, funciones, evolución y adaptaciones, conectando con su rol vital en los ecosistemas y su impacto en la sociedad, incluyendo el desarrollo sostenible agrícola del país, demostrando respeto por la naturaleza.",
+          "keyCompetencyCodes": [
+            "CMCT",
+            "CC",
+            "CD",
+            "CIT",
+            "CCICC",
+            "CSE"
+          ],
+          "indicators": [
+            {
+              "code": "I.CN.B.5.9.1",
+              "text": "Explica los procesos que se realizan en las plantas (vegetativos y reproductores) desde la experimentación y la identificación de sus estructuras."
+            },
+            {
+              "code": "I.CN.B.5.9.2",
+              "text": "Explica el papel vital de las plantas en los ecosistemas, en la seguridad alimentaria y en la medicina tradicional, a partir del conocimiento de su evolución (comparado con los animales) y adaptaciones a los pisos climáticos ecuatorianos."
+            },
+            {
+              "code": "I.CN.B.5.9.3",
+              "text": "Analiza la contribución de las plantas al desarrollo agrícola del país, así como el impacto de las prácticas agrícolas en los ecosistemas y las contribuciones de la Biotecnología en el campo de la Agricultura"
+            },
+            {
+              "code": "I.CN.B.5.9.4",
+              "text": "Plantea medidas de conservación de la flora (nativa y endémica) a partir del conocimiento de sus usos etnobotánicos y su importancia ecológica, cultural y socioeconómica."
+            }
+          ],
+          "sabers": [
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.4.d.1",
+              "description": "Tipos de tejidos vegetales"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.4.d.10",
+              "description": "Plantas medicinales y principios activos"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.4.d.11",
+              "description": "Biotecnología vegetal y mejoramiento genético"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.4.d.2",
+              "description": "Meristemos: características, clases y funciones"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.4.d.3",
+              "description": "Tejidos diferenciados: características, clases y funciones."
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.4.d.4",
+              "description": "Órganos vegetativos de las plantas superiores: raíz, tallo y hojas, características y funciones"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.4.d.5",
+              "description": "Órganos reproductores de las plantas superiores: flor, fruto y semilla, características y funciones"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.4.d.6",
+              "description": "Evolución, clasificación e importancia de las plantas"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.4.d.7",
+              "description": "Adaptaciones de plantas a pisos climáticos ecuatorianos"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.4.d.8",
+              "description": "Plantas nativas y endémicas del Ecuador y sus usos etnobotánicos"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.4.d.9",
+              "description": "Agricultura sostenible y seguridad alimentaria"
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.4.p.1",
+              "description": "Observar preparaciones de tejidos y órganos vegetales al microscopio óptico."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.4.p.2",
+              "description": "Trazar el flujo del agua y las sales minerales desde la tierra por el xilema y la fabricación de nutrientes en las hojas y su transporte por el floema."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.4.p.3",
+              "description": "Relacionar las estrategias adaptativas de las plantas durante la evolución."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.4.p.4",
+              "description": "Diseñar experimentos sobre factores que afectan el crecimiento vegetal."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.4.p.5",
+              "description": "Investigar las medidas de conservación para las plantas nativas y endémicas del Ecuador."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.4.p.6",
+              "description": "Comparar las estrategias evolutivas de plantas (sedentarismo y estructura modular/plasticidad) y animales (nomadismo y estructura fija)."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.4.p.7",
+              "description": "Indagar sobre el desarrollo de la Biotecnología en el campo de la Agricultura, interpretando su aplicación para una mejor alimentación."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.4.p.8",
+              "description": "Seleccionar fuentes confiables sobre experimentos clave en fisiología vegetal, importancia ecológica, cultural y socioeconómica de las plantas, biotecnología agrícola, extrayendo conclusiones prácticas."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.5.p.11",
+              "description": "Evaluar el impacto de prácticas agrícolas en el ecosistema."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.4.a.1",
+              "description": "Fomentar una actitud de respeto hacia la vida vegetal a partir del conocimiento de su estructura (tejidos, órganos)."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.4.a.2",
+              "description": "Valorar la riqueza vegetal del Ecuador y su potencial biotecnológico."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.4.a.3",
+              "description": "Promover prácticas agrícolas sostenibles y conservación de especies nativas y endémicas."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.4.a.4",
+              "description": "Valorar el papel de la mujer en la ciencia, reconociendo contribuciones como la de Mary Agnes Chase en la taxonomía y clasificación de plantas."
+            }
+          ]
+        },
+        {
+          "code": "CE.CN.B.5.10",
+          "text": "Demostrar pensamiento crítico al explicar con evidencia científica la importancia de la evolución biológica como el marco unificador de la biología, a partir de la comprensión de la teoría de Darwin, de la teoría sintética, de los mecanismos evolutivos, de las pruebas de la evolución para comprender la diversidad de los seres vivos y su parentesco evolutivo.",
+          "keyCompetencyCodes": [
+            "CMCT",
+            "CC",
+            "CD",
+            "CCICC",
+            "CSE"
+          ],
+          "indicators": [
+            {
+              "code": "I.CN.B.5.10.1",
+              "text": "Relaciona las pruebas de la evolución con la diversidad de los seres vivos y su parentesco evolutivo"
+            },
+            {
+              "code": "I.CN.B.5.10.2",
+              "text": "Explica los fundamentos básicos de la teoría de la evolución biológica a partir de la teoría sintética que aúna las ideas de Darwin con las leyes de Mendel y la genética moderna."
+            },
+            {
+              "code": "I.CN.B.5.10.3",
+              "text": "Describe los principales mecanismos de evolución como la mutación, selección natural, deriva génica y migración y su importancia para los seres vivos."
+            },
+            {
+              "code": "I.CN.B.5.10.4",
+              "text": "Explica la relación entre adaptación y eficacia biológica con la posibilidad de aparición de nuevas especies por cambios en el ambiente."
+            }
+          ],
+          "sabers": [
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.20",
+              "description": "Evolución biológica: definición e importancia"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.21",
+              "description": "Teoría de la Evolución de Darwin y Wallace"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.22",
+              "description": "Pruebas a favor de la Teoría de la Evolución: fósiles, anatómicas, embriológicas, geológicas, biogeográficas, biología molecular"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.23",
+              "description": "Mecanismos de la evolución: mutación, selección natural, deriva génica y migración"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.24",
+              "description": "Adaptación y eficacia biológica"
+            },
+            {
+              "type": "declarativo",
+              "code": "CN.B.5.1.d.25",
+              "description": "Teoría sintética de la Evolución."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.12",
+              "description": "Extraer conclusiones sobre las relaciones filogenéticas y los procesos de cambio."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.13",
+              "description": "Explicar los principios evolutivos con casos concretos."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.14",
+              "description": "Interpretar árboles filogenéticos."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.18",
+              "description": "Aplicar los principios fundamentales de la evolución para interpretar la diversidad, la historia y las interrelaciones de la vida en la Tierra."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.19",
+              "description": "Analizar la posibilidad de aparición de nuevas especies por cambios en el ambiente."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.20",
+              "description": "Indagar sobre la evolución de los pinzones de las Galápagos y sus picos que sustentaron la Teoría de la evolución de Darwin basada en los principios de la selección natural."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.1.p.25",
+              "description": "Comparar la teoría de la evolución de Darwin con la teoría sintética de la evolución para evidenciar su complementariedad."
+            },
+            {
+              "type": "procedimental",
+              "code": "CN.B.5.3.p.5",
+              "description": "Relacionar las estrategias adaptativas de los animales durante la evolución."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.1.a.6",
+              "description": "Deconstruir ideas pseudocientíficas, reconociendo la evolución como una teoría central y unificadora en la biología y que da respuesta de dónde venimos."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.1.a.7",
+              "description": "Asimilar que somos un componente más del planeta, descartando la visión teleológica de la vida."
+            },
+            {
+              "type": "actitudinal",
+              "code": "CN.B.5.1.a.8",
+              "description": "Valorar el papel de la evolución en la configuración de la vida humana considerando las pruebas a favor de la Teoría de la Evolución."
+            }
+          ]
+        }
+      ]
+    }
   }
 ]
