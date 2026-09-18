@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { PrismaPlanningRepository } from '../infrastructure/repositories/prisma-planning.repository'
 import { PrismaInstitutionRepository } from '../../institution/infrastructure/repositories/prisma-institution.repository'
 import { buildMicrocurricularPdf } from '../application/services/microcurricular-pdf.service'
+import { buildMicrocurricularDocx } from '../application/services/microcurricular-docx.service'
 import { buildMultigradePdf, type MultigradeGradeColumn } from '../application/services/multigrade-pdf.service'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
@@ -252,6 +253,34 @@ export default async function planningRoutes(app: FastifyInstance) {
         .header('Content-Type', 'application/pdf')
         .header('Content-Disposition', `inline; filename="planificacion-${slug}.pdf"`)
         .send(pdf)
+    },
+  )
+
+  // ─── Word (Planificación Microcurricular) ───────────────────────────────
+  // Mismos datos/plantilla que el PDF (buildMicrocurricularDocx replica la misma
+  // estructura de secciones/tablas/colores) — el docente elige el formato que
+  // prefiera, ambos se ven equivalentes (Word maneja sus propios saltos de
+  // página de forma nativa, no es un clon pixel-perfect del PDF).
+  app.get<{ Params: { id: string } }>(
+    '/planning/situations/:id/docx',
+    { preHandler: [requirePermission('planning', 'read', 'own')] },
+    async (req, reply) => {
+      const [data, template] = await Promise.all([
+        repo.getSituationPdfData(req.params.id, req.user.institutionId),
+        institutionRepo.getMicrocurricularTemplate(req.user.institutionId),
+      ])
+      const docxBuffer = await buildMicrocurricularDocx(data, template)
+      const slug = data.situationTitle
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .toLowerCase() || 'situacion'
+      return reply
+        .header('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        .header('Content-Disposition', `attachment; filename="planificacion-${slug}.docx"`)
+        .send(docxBuffer)
     },
   )
 
