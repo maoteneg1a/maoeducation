@@ -1,7 +1,6 @@
 import PDFDocument from 'pdfkit'
 import { resolveLogo, drawWatermark, getImageSize, drawLeftLogoHeader } from '../../../../shared/infrastructure/services/pdf-helpers'
 import {
-  cellHeight,
   ensureSpace,
   drawRow,
   drawFlowRow,
@@ -87,12 +86,40 @@ export function drawSectionBand(doc: Doc, x0: number, width: number, text: strin
 }
 
 /**
+ * Construye los bloques de una columna a partir de texto multilínea, un bloque
+ * por línea no vacía — mismo patrón que `buildPhaseBlocks`/`buildResourcesBlocks`
+ * (actividades/recursos de la semana), necesario para que `drawFlowRow` pueda
+ * cortar de forma sincronizada entre columnas cuando el contenido es largo.
+ */
+function buildTextLineBlocks(doc: Doc, text: string, width: number): FlowBlock[] {
+  const lines = text.split('\n').filter((l) => l.trim())
+  if (lines.length === 0) return [{ height: 18, draw: () => {} }]
+  return lines.map((line) => {
+    const h = doc.font('Helvetica').fontSize(8.5).heightOfString(line, { width: width - 8 })
+    return {
+      height: Math.max(h + 8, 18),
+      draw: (d, x, y, w) => {
+        d.font('Helvetica').fontSize(8.5).fillColor('#111111').text(line, x + 4, y + 4, { width: w - 8 })
+      },
+    }
+  })
+}
+
+/**
  * Tabla de saberes tal como el formato oficial: "Indicadores de evaluación" es una
  * columna alta (una sola celda que abarca las 2 filas de encabezado + contenido de
  * "Saberes"), y "Saberes" es un título que abarca las 3 columnas de tipo — cuyo
  * orden y etiqueta son configurables por institución (algunas piden D-P-A, otras
- * D-A-P). Se dibuja a mano porque el motor genérico de filas no soporta celdas que
- * abarcan varias filas (rowspan).
+ * D-A-P). El header (2 filas, siempre bajo) se dibuja aparte porque el motor
+ * genérico de filas no soporta rowspan; el CONTENIDO (que puede ser arbitrariamente
+ * largo — varias competencias con varios indicadores/saberes cada una) usa
+ * `drawFlowRow` para nunca dibujar más allá de lo que cabe en la página real —
+ * antes se calculaba la altura total con `heightOfString` y se asumía que
+ * `doc.text()` la respetaría exactamente; cuando el contenido era grande, un
+ * desajuste mínimo entre el cálculo y el dibujo real hacía que PDFKit paginara
+ * a mitad de una columna sin que esta función lo supiera, dejando texto sin
+ * borde en la página siguiente y un hueco enorme donde el cálculo se quedó corto
+ * (bug real reportado, confirmado byte a byte contra un PDF real de producción).
  */
 function drawSaberesTable(
   doc: Doc,
@@ -106,51 +133,46 @@ function drawSaberesTable(
   headerColor2TextColor: string,
 ) {
   const indicW = fullWidth * 0.22
-  const colW = (fullWidth - indicW) / columns.length
-
+  const saberesW = fullWidth - indicW
+  const colW = saberesW / columns.length
   const headerH = 18
   const subHeaderH = 18
-  const indicHeight = Math.max(cellHeight(doc, { text: indicadores, width: indicW }), 18)
-  const colHeights = columns.map((c) => cellHeight(doc, { text: c.text, width: colW }))
-  const contentH = Math.max(indicHeight, ...colHeights)
 
-  const totalRowspanHeight = headerH + subHeaderH + contentH
-  ensureSpace(doc, totalRowspanHeight + 2)
-  const y0 = doc.y
-
-  doc.lineWidth(0.75).strokeColor('#333333').rect(x0, y0, indicW, totalRowspanHeight).stroke()
-  doc.save().fillColor(headerColor2).rect(x0, y0, indicW, headerH).fill().restore()
-  doc.lineWidth(0.75).strokeColor('#333333').rect(x0, y0, indicW, headerH).stroke()
-  doc.font('Helvetica-Bold').fontSize(8.5).fillColor(headerColor2TextColor).text('Indicadores de evaluación', x0 + 4, y0 + 4, {
-    width: indicW - 8,
-    align: 'center',
-  })
-  doc.font('Helvetica').fontSize(8.5).fillColor('#111111').text(indicadores, x0 + 4, y0 + headerH + subHeaderH + 4, { width: indicW - 8 })
-
-  const saberesW = fullWidth - indicW
-  doc.save().fillColor(headerColor).rect(x0 + indicW, y0, saberesW, headerH).fill().restore()
-  doc.lineWidth(0.75).strokeColor('#333333').rect(x0 + indicW, y0, saberesW, headerH).stroke()
-  doc.font('Helvetica-Bold').fontSize(8.5).fillColor(headerTextColor).text('Saberes', x0 + indicW, y0 + 4, { width: saberesW, align: 'center' })
-
-  let x = x0 + indicW
-  for (const col of columns) {
-    doc.save().fillColor(headerColor2).rect(x, y0 + headerH, colW, subHeaderH).fill().restore()
-    doc.lineWidth(0.75).strokeColor('#333333').rect(x, y0 + headerH, colW, subHeaderH).stroke()
-    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(headerColor2TextColor).text(col.label, x + 4, y0 + headerH + 4, {
-      width: colW - 8,
+  const drawHeader = (): number => {
+    ensureSpace(doc, headerH + subHeaderH + 2)
+    const y0 = doc.y
+    doc.save().fillColor(headerColor2).rect(x0, y0, indicW, headerH + subHeaderH).fill().restore()
+    doc.lineWidth(0.75).strokeColor('#333333').rect(x0, y0, indicW, headerH + subHeaderH).stroke()
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(headerColor2TextColor).text('Indicadores de evaluación', x0 + 4, y0 + 4, {
+      width: indicW - 8,
       align: 'center',
     })
-    x += colW
+
+    doc.save().fillColor(headerColor).rect(x0 + indicW, y0, saberesW, headerH).fill().restore()
+    doc.lineWidth(0.75).strokeColor('#333333').rect(x0 + indicW, y0, saberesW, headerH).stroke()
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(headerTextColor).text('Saberes', x0 + indicW, y0 + 4, { width: saberesW, align: 'center' })
+
+    let x = x0 + indicW
+    for (const col of columns) {
+      doc.save().fillColor(headerColor2).rect(x, y0 + headerH, colW, subHeaderH).fill().restore()
+      doc.lineWidth(0.75).strokeColor('#333333').rect(x, y0 + headerH, colW, subHeaderH).stroke()
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(headerColor2TextColor).text(col.label, x + 4, y0 + headerH + 4, {
+        width: colW - 8,
+        align: 'center',
+      })
+      x += colW
+    }
+    doc.y = y0 + headerH + subHeaderH
+    return headerH + subHeaderH
   }
 
-  x = x0 + indicW
-  for (const col of columns) {
-    doc.lineWidth(0.75).strokeColor('#333333').rect(x, y0 + headerH + subHeaderH, colW, contentH).stroke()
-    doc.font('Helvetica').fontSize(8.5).fillColor('#111111').text(col.text, x + 4, y0 + headerH + subHeaderH + 4, { width: colW - 8 })
-    x += colW
-  }
+  drawHeader()
 
-  doc.y = y0 + totalRowspanHeight
+  const flowColumns: FlowColumn[] = [
+    { x: x0, width: indicW, blocks: buildTextLineBlocks(doc, indicadores, indicW) },
+    ...columns.map((col, i) => ({ x: x0 + indicW + i * colW, width: colW, blocks: buildTextLineBlocks(doc, col.text, colW) })),
+  ]
+  drawFlowRow(doc, flowColumns, drawHeader)
 }
 
 /** Layout "table_per_week": una tabla de metodología completa (3 filas de fase) por cada semana. */
@@ -635,29 +657,38 @@ export function buildMicrocurricularPdf(
     }
 
     // ── Pie de firmas ──
-    ensureSpace(doc, 90)
-    doc.moveDown(0.3)
-    const sigW = fullWidth / data.signatories.length
-    drawRow(
-      doc,
-      x0,
-      data.signatories.map((sig) => ({ text: sig.role.toUpperCase(), width: sigW, bold: true, fill: headerColor2, textColor: headerColor2TextColor, align: 'center' as const })),
-    )
-    drawRow(
-      doc,
-      x0,
-      data.signatories.map((sig) => ({ text: `Nombres: ${sig.name ?? '_______________'}`, width: sigW })),
-    )
-    drawRow(
-      doc,
-      x0,
-      data.signatories.map(() => ({ text: 'Firma: _______________', width: sigW })),
-    )
-    drawRow(
-      doc,
-      x0,
-      data.signatories.map((sig) => ({ text: `Fecha: ${fmtDate(sig.date)}`, width: sigW })),
-    )
+    // Si no hay firmantes, no reserves espacio ni agregues página — antes esto
+    // corría SIEMPRE, incondicionalmente, así que un documento que terminaba
+    // cerca del borde inferior de una página (ej. la última semana) disparaba
+    // un addPage() para un pie que después no dibuja ninguna fila (los 4
+    // drawRow con .map() sobre un array vacío no producen nada), dejando una
+    // página en blanco al final del PDF (bug real, confirmado con trazas de
+    // pageAdded contra un PDF de prueba).
+    if (data.signatories.length > 0) {
+      ensureSpace(doc, 90)
+      doc.moveDown(0.3)
+      const sigW = fullWidth / data.signatories.length
+      drawRow(
+        doc,
+        x0,
+        data.signatories.map((sig) => ({ text: sig.role.toUpperCase(), width: sigW, bold: true, fill: headerColor2, textColor: headerColor2TextColor, align: 'center' as const })),
+      )
+      drawRow(
+        doc,
+        x0,
+        data.signatories.map((sig) => ({ text: `Nombres: ${sig.name ?? '_______________'}`, width: sigW })),
+      )
+      drawRow(
+        doc,
+        x0,
+        data.signatories.map(() => ({ text: 'Firma: _______________', width: sigW })),
+      )
+      drawRow(
+        doc,
+        x0,
+        data.signatories.map((sig) => ({ text: `Fecha: ${fmtDate(sig.date)}`, width: sigW })),
+      )
+    }
 
     doc.end()
   })
