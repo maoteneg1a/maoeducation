@@ -28,10 +28,10 @@ export function useCompetenciesForSubject(subjectId: string | undefined, subnive
 }
 
 /** Saberes (declarativo/procedimental/actitudinal) ya cargados para una competencia. */
-export function useSaberesForCompetency(competencyId: string | undefined) {
+export function useSaberesForCompetency(competencyId: string | undefined, gradeCode?: string) {
   return useQuery({
-    queryKey: ['competency-saberes', competencyId],
-    queryFn: () => competencyCurriculumApi.listSaberesForCompetency(competencyId!),
+    queryKey: ['competency-saberes', competencyId, gradeCode],
+    queryFn: () => competencyCurriculumApi.listSaberesForCompetency(competencyId!, gradeCode),
     enabled: !!competencyId,
   })
 }

@@ -40,11 +40,20 @@ export class PrismaCompetencyCurriculumRepository {
     })
   }
 
-  listSaberesForCompetency(competencyId: string) {
-    return prisma.competencySaber.findMany({
+  /**
+   * `gradeCode` opcional: si se pasa, filtra igual que `availableCompetenciesForDistribution`
+   * (prisma-planning.repository.ts) — un saber con `gradeCodes` no vacío solo se incluye si
+   * `gradeCode` está en esa lista (granularidad TIGA por grado dentro de un subnivel
+   * compartido). Sin `gradeCode`, mantiene el comportamiento histórico (todos los saberes) —
+   * retrocompatible para consumidores que no conocen el grado real de la asignación.
+   */
+  async listSaberesForCompetency(competencyId: string, gradeCode?: string) {
+    const sabers = await prisma.competencySaber.findMany({
       where: { competencyId, isActive: true },
       orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
     })
+    if (!gradeCode) return sabers
+    return sabers.filter((s) => s.gradeCodes.length === 0 || s.gradeCodes.includes(gradeCode))
   }
 
   /** Solo se pueden agregar saberes a competencias PROPIAS de la institución — el banco oficial no se modifica por tenant. */
