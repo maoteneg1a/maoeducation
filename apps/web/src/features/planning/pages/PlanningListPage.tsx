@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { NotebookPen, Plus } from 'lucide-react'
+import { NotebookPen, Plus, Users } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { Card } from '@/shared/components/ui/card'
@@ -11,6 +11,7 @@ import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
 import { usePlanningModel } from '@/features/settings/hooks/useSettings'
+import { usePersonalClasses } from '@/features/personal/hooks/usePersonalClasses'
 import { usePlans, useCreatePlan } from '../hooks/usePlanning'
 import type { CurriculumPlan } from '../api/planning.api'
 
@@ -51,6 +52,20 @@ export function PlanningListPage() {
 
   const { data: plans = [], isLoading } = usePlans(assignmentIds)
   const createPlan = useCreatePlan()
+
+  // Aula multigrado: sus miembros no se listan como tarjetas sueltas — se
+  // agrupan en una sola tarjeta que lleva al flujo real (experiencia común +
+  // semana por grado), ver MultigradeGroupPage. Sin esto, el docente veía 4
+  // tarjetas idénticas al resto sin ninguna señal de que están agrupadas.
+  const { data: personalClasses } = usePersonalClasses()
+  const multigradeGroupId = personalClasses?.multigradeGroupId ?? null
+  const multigradeAssignmentIds = React.useMemo(
+    () => new Set(personalClasses?.rows.filter((r) => r.isMultigradeMember).map((r) => r.courseAssignmentId) ?? []),
+    [personalClasses],
+  )
+  const visiblePlans = multigradeGroupId
+    ? plans.filter((p) => !multigradeAssignmentIds.has(p.courseAssignmentId))
+    : plans
 
   const [selectedAssignmentId, setSelectedAssignmentId] = React.useState(defaultAssignmentId)
   React.useEffect(() => {
@@ -108,7 +123,7 @@ export function PlanningListPage() {
 
       {isLoading ? (
         <PageLoader />
-      ) : plans.length === 0 ? (
+      ) : visiblePlans.length === 0 && !multigradeGroupId ? (
         <EmptyState
           icon={NotebookPen}
           title="Sin planificaciones"
@@ -116,7 +131,27 @@ export function PlanningListPage() {
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {plans.map((plan) => {
+          {multigradeGroupId && (
+            <Card
+              className="cursor-pointer p-4 transition hover:border-primary/50 hover:shadow-sm"
+              onClick={() => navigate(`/planning/multigrade/${multigradeGroupId}`)}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-medium flex items-center gap-1.5">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    Aula multigrado
+                  </p>
+                  <p className="text-xs text-muted-foreground">{multigradeAssignmentIds.size} grado(s)/materia(s)</p>
+                </div>
+                <Badge variant="secondary">Multigrado</Badge>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Experiencia común semanal para todos los grados a la vez
+              </p>
+            </Card>
+          )}
+          {visiblePlans.map((plan) => {
             const { progress, ready, total } = getPlanProgress(plan)
             return (
               <Card

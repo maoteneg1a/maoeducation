@@ -122,4 +122,25 @@ export const aiAssistantApi = {
   /** Genera y guarda TODO el proyecto interdisciplinario a partir de un prompt/idea breve. */
   draftProject: (data: { projectId: string; prompt?: string }) =>
     apiClient.post('ai-assistant/draft-project', { json: data, timeout: 120000 }).json<DraftProjectResult>(),
+
+  /** Genera y guarda UNA experiencia común multigrado + la semana completa de cada grado participante. */
+  draftMultigradeWeek: (data: { groupId: string; academicPeriodId: string; weekNumber: number }) =>
+    apiClient.post('ai-assistant/draft-multigrade-week', { json: data, timeout: 180000 }).json<DraftMultigradeWeekResult>(),
+}
+
+export interface DraftedMultigradeGrade {
+  gradeCode: string
+  courseAssignmentId: string
+  situationId: string
+  planningWeekId: string
+  generationMode: 'AI_ENHANCED' | 'AI_FALLBACK'
+  validationErrors: string[]
+}
+
+export interface DraftMultigradeWeekResult {
+  experienceId: string
+  title: string
+  context: string
+  commonPurpose: string
+  grades: DraftedMultigradeGrade[]
 }

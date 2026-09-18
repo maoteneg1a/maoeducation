@@ -324,4 +324,43 @@ export const planningApi = {
     a.click()
     URL.revokeObjectURL(url)
   },
+
+  getMultigradeGroup: (groupId: string) => apiGet<MultigradeGroupDetail>(`planning/multigrade-groups/${groupId}`),
+
+  /** Mismo patrón de descarga directa que downloadMicrocurricularDocx. */
+  downloadMultigradePdf: async (groupId: string, weekNumber: number) => {
+    const blob = await apiClient.get(`planning/multigrade-groups/${groupId}/weeks/${weekNumber}/pdf`).blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'planificacion-multigrado.pdf'
+    a.click()
+    URL.revokeObjectURL(url)
+  },
+}
+
+export interface MultigradeGroupMemberInfo {
+  courseAssignmentId: string
+  gradeCode: string
+  gradeName: string
+  subjectId: string
+  subjectName: string
+  parallelId: string
+}
+
+export interface MultigradeSharedExperienceInfo {
+  id: string
+  academicPeriodId: string
+  weekNumber: number
+  title: string
+  createdAt: string
+}
+
+export interface MultigradeGroupDetail {
+  id: string
+  name: string
+  academicYearId: string
+  allowSuperiorExtension: boolean
+  members: MultigradeGroupMemberInfo[]
+  experiences: MultigradeSharedExperienceInfo[]
 }
