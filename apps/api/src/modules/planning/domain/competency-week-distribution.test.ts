@@ -5,6 +5,15 @@ function saber(id: string, type: 'declarativo' | 'procedimental' | 'actitudinal'
   return { id, type, code, description: code }
 }
 
+function competencyWithDeclarativos(id: string, count: number): DistributionCompetency {
+  return {
+    id,
+    code: `CE.${id.toUpperCase()}`,
+    text: `Competencia ${id}`,
+    sabers: Array.from({ length: count }, (_, i) => saber(`${id}.d.${i + 1}`, 'declarativo', `${id}.d.${i + 1}`)),
+  }
+}
+
 const COMPETENCY_A: DistributionCompetency = {
   id: 'a',
   code: 'CE.A',
@@ -26,43 +35,83 @@ const COMPETENCY_B: DistributionCompetency = {
 }
 
 describe('distributeCompetencyWeeks', () => {
-  it('asigna 1 declarativo por semana', () => {
+  it('asigna 1 declarativo por semana dentro del bloque de una competencia', () => {
     const { weeks } = distributeCompetencyWeeks([COMPETENCY_A], 2)
     expect(weeks).toHaveLength(2)
     expect(weeks[0].saberIds).toContain('a.d.1')
     expect(weeks[1].saberIds).toContain('a.d.2')
   })
 
-  it('pasa a la siguiente competencia cuando la actual se queda sin declarativos', () => {
-    const { weeks } = distributeCompetencyWeeks([COMPETENCY_A, COMPETENCY_B], 3)
-    expect(weeks[0].competencyId).toBe('a')
-    expect(weeks[1].competencyId).toBe('a')
-    expect(weeks[2].competencyId).toBe('b')
-    expect(weeks[2].saberIds).toContain('b.d.1')
+  it('bug real reportado: una competencia con muchos declarativos NO ocupa todas las semanas si hay otra disponible', () => {
+    const dense = competencyWithDeclarativos('dense', 10)
+    const other = competencyWithDeclarativos('other', 2)
+    const { weeks } = distributeCompetencyWeeks([dense, other], 8)
+    const competencyIdsUsed = new Set(weeks.map((w) => w.competencyId))
+    expect(competencyIdsUsed.size).toBeGreaterThan(1)
+    expect(weeks.filter((w) => w.competencyId === 'dense').length).toBeLessThan(8)
+    expect(weeks.filter((w) => w.competencyId === 'other').length).toBeGreaterThan(0)
+  })
+
+  it('reparte las semanas proporcional a la densidad de declarativos de cada competencia', () => {
+    const dense = competencyWithDeclarativos('dense', 8)
+    const sparse = competencyWithDeclarativos('sparse', 2)
+    const { weeks } = distributeCompetencyWeeks([dense, sparse], 10)
+    const denseWeeks = weeks.filter((w) => w.competencyId === 'dense').length
+    const sparseWeeks = weeks.filter((w) => w.competencyId === 'sparse').length
+    expect(denseWeeks + sparseWeeks).toBe(10)
+    expect(denseWeeks).toBeGreaterThan(sparseWeeks)
+    expect(sparseWeeks).toBeGreaterThanOrEqual(1)
+  })
+
+  it('respeta la capacidad por carga horaria (weeklyPeriods) al elegir cuántas competencias entran', () => {
+    const many = [competencyWithDeclarativos('a', 3), competencyWithDeclarativos('b', 3), competencyWithDeclarativos('c', 3)]
+    // weeklyPeriods=2, weeksCount=6 -> capacity = floor(2*6/12) = 1
+    const { weeks, coverageWarning } = distributeCompetencyWeeks(many, 6, 2)
+    const competencyIdsUsed = new Set(weeks.map((w) => w.competencyId))
+    expect(competencyIdsUsed.size).toBe(1)
+    expect(coverageWarning).toContain('sin espacio')
+  })
+
+  it('sin weeklyPeriods, usa el fallback ceil(weeksCount/4) para la capacidad', () => {
+    const many = [competencyWithDeclarativos('a', 2), competencyWithDeclarativos('b', 2), competencyWithDeclarativos('c', 2)]
+    // fallback: ceil(8/4) = 2 competencias entran de las 3 disponibles
+    const { weeks, coverageWarning } = distributeCompetencyWeeks(many, 8)
+    const competencyIdsUsed = new Set(weeks.map((w) => w.competencyId))
+    expect(competencyIdsUsed.size).toBe(2)
+    expect(coverageWarning).toContain('sin espacio')
   })
 
   it('reparte procedimentales/actitudinales solo entre las semanas que ocupa esa competencia', () => {
     const { weeks } = distributeCompetencyWeeks([COMPETENCY_A], 2)
     const allExtraIds = weeks.flatMap((w) => w.saberIds).filter((id) => id !== 'a.d.1' && id !== 'a.d.2')
     expect(allExtraIds.sort()).toEqual(['a.at.1', 'a.p.1', 'a.p.2'].sort())
-    // Ninguna semana debe llevar saberes de otra competencia.
     for (const week of weeks) {
       expect(week.sabers.every((s) => s.id.startsWith('a.'))).toBe(true)
     }
   })
 
-  it('cicla desde la primera competencia y marca coverageWarning si se agotan todos los declarativos', () => {
+  it('cicla los declarativos dentro del bloque y marca coverageWarning si se agotan antes de terminar', () => {
     const { weeks, coverageWarning } = distributeCompetencyWeeks([COMPETENCY_B], 3)
     expect(weeks).toHaveLength(3)
-    expect(weeks[0].competencyId).toBe('b')
-    expect(weeks[1].competencyId).toBe('b')
-    expect(weeks[2].competencyId).toBe('b')
+    expect(weeks.every((w) => w.competencyId === 'b')).toBe(true)
     expect(coverageWarning).toBeTruthy()
   })
 
-  it('no marca coverageWarning cuando los declarativos alcanzan exactamente', () => {
-    const { coverageWarning } = distributeCompetencyWeeks([COMPETENCY_A, COMPETENCY_B], 3)
+  it('no marca coverageWarning cuando los declarativos alcanzan exactamente y todas las competencias entran', () => {
+    // capacity = floor(8*3/12) = 2 -> ambas entran; allocations [2,1] coincide
+    // exactamente con sus declarativos (A tiene 2, B tiene 1) -> sin ciclo, sin sobrantes.
+    const { coverageWarning } = distributeCompetencyWeeks([COMPETENCY_A, COMPETENCY_B], 3, 8)
     expect(coverageWarning).toBeUndefined()
+  })
+
+  it('si hay menos semanas que competencias con capacidad, recorta a las primeras N', () => {
+    const many = [competencyWithDeclarativos('a', 2), competencyWithDeclarativos('b', 2), competencyWithDeclarativos('c', 2)]
+    const { weeks } = distributeCompetencyWeeks(many, 2, 12) // capacity alto, pero solo 2 semanas
+    expect(weeks).toHaveLength(2)
+    const competencyIdsUsed = new Set(weeks.map((w) => w.competencyId))
+    expect(competencyIdsUsed.size).toBe(2)
+    expect(competencyIdsUsed.has('a')).toBe(true)
+    expect(competencyIdsUsed.has('b')).toBe(true)
   })
 
   it('devuelve un aviso y ninguna semana si ninguna competencia tiene declarativos', () => {

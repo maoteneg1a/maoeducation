@@ -1,12 +1,19 @@
 /**
  * Motor de distribución de competencias/saberes por semana — reemplaza el
  * concepto de "situación de aprendizaje" elegida a mano por el docente: dado
- * un período con N semanas, reparte automáticamente 1 saber declarativo por
- * semana entre las competencias disponibles (en el orden dado, normalmente
- * código ascendente y ya excluyendo competencias usadas en otros períodos del
- * mismo plan). Cuando una competencia se queda sin declarativos, la siguiente
- * semana pasa a la siguiente competencia. Puro y testeado — no toca la BD, el
- * caller (repositorio) resuelve qué competencias pasar y persiste el resultado.
+ * un período con N semanas, decide CUÁNTAS competencias entran (capacidad),
+ * reparte las semanas ENTRE ellas de forma proporcional a su densidad de
+ * saberes, y dentro del bloque de semanas de cada competencia reparte 1 saber
+ * declarativo por semana + procedimentales/actitudinales round-robin.
+ *
+ * Calcado del motor real de TIGA (cnc_curriculum_distribution_engine.py:
+ * competency_capacity/_select_scope/_weekly_units) — bug real corregido: la
+ * versión anterior agotaba TODOS los declarativos de la competencia 1 antes
+ * de tocar la competencia 2, así que una competencia con muchos declarativos
+ * podía ocupar el trimestre completo (reportado por el usuario con captura:
+ * la misma competencia en las 8 semanas de un período). Puro y testeado — no
+ * toca la BD, el caller (repositorio) resuelve qué competencias pasar y
+ * persiste el resultado.
  */
 
 export interface DistributionSaber {
@@ -48,7 +55,46 @@ function roundRobinBuckets<T>(items: T[], bucketCount: number): T[][] {
   return buckets
 }
 
-export function distributeCompetencyWeeks(competencies: DistributionCompetency[], weeksCount: number): DistributionResult {
+/**
+ * Cuántas competencias caben en un período de `weeksCount` semanas — TIGA usa
+ * ~12 "períodos-semana" (periodos semanales × semanas) por competencia; sin
+ * carga horaria conocida, cae al fallback de TIGA para ese caso: 1 semana si
+ * el período es de 1 semana, si no ceil(weeksCount/4).
+ */
+function competencyCapacity(weeksCount: number, weeklyPeriods: number | null | undefined): number {
+  if (weeklyPeriods && weeklyPeriods > 0) {
+    return Math.max(1, Math.floor((weeklyPeriods * weeksCount) / 12))
+  }
+  return weeksCount <= 1 ? 1 : Math.ceil(weeksCount / 4)
+}
+
+/**
+ * Reparte `weeksCount` semanas entre `competencies` — 1 semana garantizada
+ * por competencia, el resto va, una semana a la vez, a la competencia con
+ * menor `allocated/knowledgeWeight` (peso = cantidad de declarativos; más
+ * saberes pendientes por cubrir → más probabilidad de recibir la siguiente
+ * semana). Calcado de _weekly_units en TIGA.
+ */
+function allocateWeeksAcrossCompetencies(competencies: DistributionCompetency[], weeksCount: number): number[] {
+  const allocations = competencies.map(() => 1)
+  const knowledgeWeight = competencies.map((c) => Math.max(1, c.sabers.filter((s) => s.type === 'declarativo').length))
+  let remaining = weeksCount - competencies.length
+  while (remaining > 0) {
+    let pick = 0
+    for (let i = 1; i < competencies.length; i++) {
+      if (allocations[i] / knowledgeWeight[i] < allocations[pick] / knowledgeWeight[pick]) pick = i
+    }
+    allocations[pick]++
+    remaining--
+  }
+  return allocations
+}
+
+export function distributeCompetencyWeeks(
+  competencies: DistributionCompetency[],
+  weeksCount: number,
+  weeklyPeriods?: number | null,
+): DistributionResult {
   const usable = competencies.filter((c) => c.sabers.some((s) => s.type === 'declarativo'))
   if (usable.length === 0) {
     return {
@@ -57,54 +103,56 @@ export function distributeCompetencyWeeks(competencies: DistributionCompetency[]
     }
   }
 
-  // Secuencia plana de (competencia, declarativo) en el orden dado — un
-  // elemento = una semana. Cuando se agota, se cicla desde el inicio.
-  const anchorSequence: { competency: DistributionCompetency; declarativo: DistributionSaber }[] = []
-  for (const competency of usable) {
-    for (const declarativo of competency.sabers.filter((s) => s.type === 'declarativo')) {
-      anchorSequence.push({ competency, declarativo })
-    }
-  }
+  // Fase 1 — capacidad y selección: nunca "todas hasta agotarlas", un
+  // subconjunto acotado proporcional a las semanas disponibles. Si hay menos
+  // semanas que competencias con capacidad, se recorta a las primeras
+  // `weeksCount` (mismo efecto que el achicamiento de scope de TIGA para ese
+  // caso, sin portar su rama de "coverage_state" que aquí no aplica).
+  const capacity = Math.min(competencyCapacity(weeksCount, weeklyPeriods), usable.length)
+  const selected = usable.slice(0, Math.min(capacity, weeksCount))
+  const leftoverCount = usable.length - selected.length
+
+  // Fase 2 — repartir las semanas ENTRE las competencias seleccionadas,
+  // proporcional a su densidad de declarativos (nunca una sola ocupa todo el
+  // bloque si hay más de una competencia disponible).
+  const allocations = allocateWeeksAcrossCompetencies(selected, weeksCount)
 
   let cycled = false
-  const weekAnchors = Array.from({ length: weeksCount }, (_, i) => {
-    if (i >= anchorSequence.length) cycled = true
-    return anchorSequence[i % anchorSequence.length]
-  })
-
-  // Índices de semana (0-based) que ocupa cada competencia — para repartir sus
-  // procedimentales/actitudinales solo entre esas semanas.
-  const weekIndicesByCompetency = new Map<string, number[]>()
-  weekAnchors.forEach((anchor, idx) => {
-    const list = weekIndicesByCompetency.get(anchor.competency.id) ?? []
-    list.push(idx)
-    weekIndicesByCompetency.set(anchor.competency.id, list)
-  })
-
-  const extrasByWeekIndex = new Map<number, DistributionSaber[]>()
-  for (const [competencyId, weekIndices] of weekIndicesByCompetency) {
-    const competency = usable.find((c) => c.id === competencyId)!
+  const weeks: WeekDistribution[] = []
+  let weekNumber = 1
+  for (let ci = 0; ci < selected.length; ci++) {
+    const competency = selected[ci]
+    const blockWeeks = allocations[ci]
+    const declarativos = competency.sabers.filter((s) => s.type === 'declarativo')
     const extras = competency.sabers.filter((s) => s.type !== 'declarativo')
-    const buckets = roundRobinBuckets(extras, weekIndices.length)
-    weekIndices.forEach((weekIndex, i) => extrasByWeekIndex.set(weekIndex, buckets[i]))
+    const extraBuckets = roundRobinBuckets(extras, blockWeeks)
+
+    for (let w = 0; w < blockWeeks; w++) {
+      if (w >= declarativos.length) cycled = true
+      const declarativo = declarativos[w % declarativos.length]
+      const sabers = [declarativo, ...extraBuckets[w]]
+      weeks.push({
+        weekNumber,
+        competencyId: competency.id,
+        competencyCode: competency.code,
+        competencyText: competency.text,
+        saberIds: sabers.map((s) => s.id),
+        sabers,
+      })
+      weekNumber++
+    }
   }
 
-  const weeks: WeekDistribution[] = weekAnchors.map((anchor, idx) => {
-    const sabers = [anchor.declarativo, ...(extrasByWeekIndex.get(idx) ?? [])]
-    return {
-      weekNumber: idx + 1,
-      competencyId: anchor.competency.id,
-      competencyCode: anchor.competency.code,
-      competencyText: anchor.competency.text,
-      saberIds: sabers.map((s) => s.id),
-      sabers,
-    }
-  })
+  const warnings: string[] = []
+  if (cycled) {
+    warnings.push('Alguna competencia tiene menos saberes declarativos que semanas asignadas — se repitieron desde el inicio de su bloque para completarlo.')
+  }
+  if (leftoverCount > 0) {
+    warnings.push(`Quedaron ${leftoverCount} competencia(s) sin espacio en este período — se cubrirán en periodos siguientes.`)
+  }
 
   return {
     weeks,
-    coverageWarning: cycled
-      ? 'El número de semanas supera los saberes declarativos disponibles — se repitieron competencias desde el inicio para completar el bloque.'
-      : undefined,
+    coverageWarning: warnings.length > 0 ? warnings.join(' ') : undefined,
   }
 }

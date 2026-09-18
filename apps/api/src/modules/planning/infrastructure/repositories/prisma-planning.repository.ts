@@ -4,6 +4,7 @@ import { ConflictError, NotFoundError } from '../../../../shared/domain/errors/a
 import { buildSituationTitle } from '../../domain/situation-title'
 import { distributeCompetencyWeeks } from '../../domain/competency-week-distribution'
 import { findGradeByCode } from '../../../../shared/domain/grade-catalog'
+import { resolveWorkload } from '../../../../shared/domain/workload-resolution'
 import type {
   ConfirmDistributionDto,
   ConfirmDistributionWeekDto,
@@ -597,11 +598,23 @@ export class PrismaPlanningRepository {
     const period = await prisma.academicPeriod.findFirst({ where: { id: academicPeriodId } })
     if (!period) throw new NotFoundError('Periodo académico no encontrado')
 
-    const { competencyAreaId, subnivel, gradeCode } = await this.resolveAssignmentForDistribution(courseAssignmentId, institutionId)
+    const { assignment, competencyAreaId, subnivel, gradeCode } = await this.resolveAssignmentForDistribution(courseAssignmentId, institutionId)
     const competencies = await this.availableCompetenciesForDistribution(courseAssignmentId, academicPeriodId, competencyAreaId, subnivel, gradeCode)
 
+    // Carga horaria oficial determina cuántas competencias caben en el
+    // período (competencyCapacity) — mismo patrón de resolveWorkload ya
+    // usado en competency-pedagogical-generator.service.ts.
+    const workloadEntries = await prisma.curricularWorkload.findMany()
+    const workload = resolveWorkload(
+      workloadEntries,
+      assignment.parallel.level.code,
+      assignment.subject.workloadCode,
+      assignment.parallel.educationOffer,
+      assignment.weeklyPeriodsOverride,
+    )
+
     const calendarWeeks = calendarWeeksBetween(period.startDate, period.endDate)
-    const { weeks, coverageWarning } = distributeCompetencyWeeks(competencies, dto.weeksCount)
+    const { weeks, coverageWarning } = distributeCompetencyWeeks(competencies, dto.weeksCount, workload.weeklyPeriods)
 
     return {
       weeks,
