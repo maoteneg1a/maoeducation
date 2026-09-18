@@ -26,9 +26,37 @@ const EXPERIENCE_SCHEMA = {
 
 export interface DraftMultigradeWeekDto {
   groupId: string
+  /** Filtra los miembros del grupo a solo esta materia — la experiencia común se genera
+   * POR MATERIA (ver comentario en schema.prisma MultigradeSharedExperience.subjectId),
+   * nunca mezclando materias distintas de un mismo bloque. */
+  subjectId: string
   academicPeriodId: string
   /** Número relativo de semana dentro del bloque multigrado (1..N) — igual para todos los grados participantes esa semana. */
   weekNumber: number
+  /**
+   * Competencia + saberes YA REVISADOS por el docente (paso de sugerencia previo,
+   * ver suggestMultigradeWeek) — uno por grado participante. Sin esto, cada grado
+   * usaría siempre la competencia "ancla" automática (comportamiento anterior).
+   */
+  grades?: { courseAssignmentId: string; competencyId: string; saberIds: string[] }[]
+}
+
+export interface SuggestMultigradeWeekDto {
+  groupId: string
+  subjectId: string
+  academicPeriodId: string
+  weekNumber: number
+}
+
+export interface SuggestedMultigradeGrade {
+  courseAssignmentId: string
+  gradeCode: string
+  gradeLabel: string
+  competencyId: string
+  competencyCode: string
+  competencyText: string
+  sabers: { id: string; type: 'declarativo' | 'procedimental' | 'actitudinal'; code: string; description: string }[]
+  saberIds: string[]
 }
 
 export interface DraftedMultigradeGrade {
@@ -75,6 +103,87 @@ async function anchorCompetency(competencyAreaId: string, subnivel: string) {
   return competency
 }
 
+/** Saberes de una competencia filtrados por grado — mismo criterio que availableCompetenciesForDistribution/listSaberesForCompetency (granularidad TIGA: CompetencySaber.gradeCodes vacío = aplica a todo el subnivel). */
+async function saberesForCompetencyAndGrade(competencyId: string, gradeCode: string) {
+  const sabers = await prisma.competencySaber.findMany({
+    where: { competencyId, isActive: true },
+    orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+  })
+  return sabers.filter((s) => s.gradeCodes.length === 0 || s.gradeCodes.includes(gradeCode))
+}
+
+/**
+ * Paso de revisión (pedido explícito del usuario, mismo patrón que
+ * DistributionWizard/suggestDistribution del flujo individual): antes de
+ * generar contenido con IA, resuelve — SIN escribir nada todavía — qué
+ * competencia+saberes se usarían para cada grado de este bloque de materia,
+ * para que el docente los revise/ajuste (o reemplace la competencia por otra
+ * del banco, vía /competency-curriculum ya existente) antes de confirmar.
+ */
+export async function suggestMultigradeWeek(
+  institutionId: string,
+  dto: SuggestMultigradeWeekDto,
+): Promise<SuggestedMultigradeGrade[]> {
+  const group = await prisma.multigradeGroup.findFirst({
+    where: { id: dto.groupId, institutionId },
+    include: {
+      members: {
+        where: { subjectId: dto.subjectId },
+        include: { courseAssignment: { include: { subject: true, parallel: { include: { level: true } } } } },
+      },
+    },
+  })
+  if (!group) throw new NotFoundError('Aula multigrado no encontrada')
+  if (group.members.length < 2) {
+    throw new BadRequestError('Esta materia necesita al menos 2 grados en el aula multigrado para generar una experiencia común')
+  }
+
+  const period = await prisma.academicPeriod.findFirst({ where: { id: dto.academicPeriodId } })
+  if (!period) throw new NotFoundError('Periodo académico no encontrado')
+
+  const suggestions: SuggestedMultigradeGrade[] = []
+  for (const member of group.members) {
+    const assignment = member.courseAssignment
+    if (!assignment.subject.competencyAreaId) {
+      throw new BadRequestError(`La materia "${assignment.subject.name}" no tiene área de competencias vinculada`)
+    }
+    const subnivel = assignment.parallel.level.subnivel
+    if (!subnivel) throw new BadRequestError(`El grado "${member.gradeCode}" no tiene subnivel configurado`)
+
+    // Ya existe una situación/semana para este período+grado (ej. el docente
+    // vuelve a revisar) — se sugiere su competencia actual, no una nueva ancla.
+    const existingSituation = await prisma.learningSituation.findFirst({
+      where: { plan: { courseAssignmentId: assignment.id }, academicPeriodId: dto.academicPeriodId },
+    })
+    const existingWeek = existingSituation
+      ? await prisma.planningWeek.findUnique({
+          where: { situationId_weekNumber: { situationId: existingSituation.id, weekNumber: dto.weekNumber } },
+        })
+      : null
+
+    const competency =
+      existingWeek?.competencyIds[0]
+        ? await prisma.competency.findUnique({ where: { id: existingWeek.competencyIds[0] } })
+        : await anchorCompetency(assignment.subject.competencyAreaId, subnivel)
+    if (!competency) throw new NotFoundError('Competencia no encontrada')
+
+    const sabers = await saberesForCompetencyAndGrade(competency.id, member.gradeCode)
+    const preselectedSaberIds = existingWeek?.competencySaberIds.length ? existingWeek.competencySaberIds : sabers.map((s) => s.id)
+
+    suggestions.push({
+      courseAssignmentId: assignment.id,
+      gradeCode: member.gradeCode,
+      gradeLabel: assignment.parallel.level.name,
+      competencyId: competency.id,
+      competencyCode: competency.code,
+      competencyText: competency.text,
+      sabers: sabers.map((s) => ({ id: s.id, type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description })),
+      saberIds: preselectedSaberIds,
+    })
+  }
+  return suggestions
+}
+
 /** Reusa el PCA existente de la asignación o lo crea con la plantilla por defecto — el docente nunca pasa por Planificación > PCA a mano. */
 async function ensurePlan(institutionId: string, actorId: string, courseAssignmentId: string) {
   const existing = await prisma.curriculumPlan.findUnique({ where: { courseAssignmentId } })
@@ -89,7 +198,12 @@ async function ensurePlan(institutionId: string, actorId: string, courseAssignme
   })
 }
 
-/** Reusa la situación existente del período o la crea con la competencia ancla ya resuelta — el docente nunca elige competencia a mano en multigrado. */
+/**
+ * Reusa la situación existente del período o la crea. Si el docente ya revisó
+ * la sugerencia (suggestMultigradeWeek) y confirmó una competencia específica
+ * (`chosenCompetencyId`), se usa esa — sin ella, cae al comportamiento
+ * anterior (competencia ancla automática, cero configuración manual).
+ */
 async function ensureSituation(
   institutionId: string,
   actorId: string,
@@ -97,12 +211,15 @@ async function ensureSituation(
   academicPeriodId: string,
   competencyAreaId: string,
   subnivel: string,
+  chosenCompetencyId?: string,
 ) {
   const existing = await prisma.learningSituation.findFirst({ where: { planId, academicPeriodId } })
   if (existing) return existing
   const period = await prisma.academicPeriod.findUnique({ where: { id: academicPeriodId } })
   if (!period) throw new NotFoundError('Periodo académico no encontrado')
-  const competency = await anchorCompetency(competencyAreaId, subnivel)
+  const competency = chosenCompetencyId
+    ? await prisma.competency.findUniqueOrThrow({ where: { id: chosenCompetencyId } })
+    : await anchorCompetency(competencyAreaId, subnivel)
   const title = buildSituationTitle(competency.code, competency.text)
   return prisma.learningSituation.create({
     data: {
@@ -120,14 +237,20 @@ async function ensureSituation(
   })
 }
 
-/** Reusa el slot de semana si ya existe (reintento) o lo crea vacío — mismo patrón idempotente de draft-situation-block.service.ts. */
-async function ensureWeekSlot(institutionId: string, situationId: string, weekNumber: number, competencyIds: string[]) {
+/** Reusa el slot de semana si ya existe (reintento) o lo crea vacío (o con los saberes ya revisados por el docente) — mismo patrón idempotente de draft-situation-block.service.ts. */
+async function ensureWeekSlot(
+  institutionId: string,
+  situationId: string,
+  weekNumber: number,
+  competencyIds: string[],
+  saberIds?: string[],
+) {
   const existing = await prisma.planningWeek.findUnique({
     where: { situationId_weekNumber: { situationId, weekNumber } },
   })
   if (existing) return existing
   return prisma.planningWeek.create({
-    data: { institutionId, situationId, weekNumber, competencyIds },
+    data: { institutionId, situationId, weekNumber, competencyIds, competencySaberIds: saberIds ?? [] },
   })
 }
 
@@ -144,12 +267,13 @@ async function ensureSharedExperience(
   actorId: string,
   aiModel: string,
   group: { id: string },
+  subjectId: string,
   academicPeriodId: string,
   weekNumber: number,
   participants: { gradeLabel: string; subjectName: string }[],
 ) {
   const existing = await prisma.multigradeSharedExperience.findUnique({
-    where: { groupId_academicPeriodId_weekNumber: { groupId: group.id, academicPeriodId, weekNumber } },
+    where: { groupId_subjectId_academicPeriodId_weekNumber: { groupId: group.id, subjectId, academicPeriodId, weekNumber } },
   })
   if (existing) return existing
 
@@ -265,6 +389,7 @@ Reglas estrictas: no menciones competencias/indicadores específicos de ningún 
     data: {
       institutionId,
       groupId: group.id,
+      subjectId,
       academicPeriodId,
       weekNumber,
       title: verified.title,
@@ -307,6 +432,7 @@ export async function draftMultigradeWeek(
     where: { id: dto.groupId, institutionId },
     include: {
       members: {
+        where: { subjectId: dto.subjectId },
         include: {
           courseAssignment: { include: { subject: true, parallel: { include: { level: true } } } },
         },
@@ -315,8 +441,10 @@ export async function draftMultigradeWeek(
   })
   if (!group) throw new NotFoundError('Aula multigrado no encontrada')
   if (group.members.length < 2) {
-    throw new BadRequestError('El aula multigrado necesita al menos 2 grados+materias para generar una experiencia común')
+    throw new BadRequestError('Esta materia necesita al menos 2 grados en el aula multigrado para generar una experiencia común')
   }
+
+  const chosenByAssignment = new Map((dto.grades ?? []).map((g) => [g.courseAssignmentId, g]))
 
   const period = await prisma.academicPeriod.findFirst({ where: { id: dto.academicPeriodId } })
   if (!period) throw new NotFoundError('Periodo académico no encontrado')
@@ -327,6 +455,7 @@ export async function draftMultigradeWeek(
     situationId: string
     weekId: string
     competencyIds: string[]
+    selectedSaberIds?: string[]
     subjectName: string
     gradeLabel: string
   }[] = []
@@ -343,6 +472,7 @@ export async function draftMultigradeWeek(
       throw new BadRequestError(`El grado "${member.gradeCode}" no tiene subnivel configurado — contacta soporte`)
     }
 
+    const chosen = chosenByAssignment.get(assignment.id)
     const plan = await ensurePlan(institutionId, actorId, assignment.id)
     const situation = await ensureSituation(
       institutionId,
@@ -351,8 +481,9 @@ export async function draftMultigradeWeek(
       dto.academicPeriodId,
       assignment.subject.competencyAreaId,
       subnivel,
+      chosen?.competencyId,
     )
-    const week = await ensureWeekSlot(institutionId, situation.id, dto.weekNumber, situation.competencyIds)
+    const week = await ensureWeekSlot(institutionId, situation.id, dto.weekNumber, situation.competencyIds, chosen?.saberIds)
 
     prepared.push({
       gradeCode: member.gradeCode,
@@ -360,6 +491,7 @@ export async function draftMultigradeWeek(
       situationId: situation.id,
       weekId: week.id,
       competencyIds: situation.competencyIds,
+      selectedSaberIds: chosen?.saberIds,
       subjectName: assignment.subject.name,
       gradeLabel: assignment.parallel.level.name,
     })
@@ -370,6 +502,7 @@ export async function draftMultigradeWeek(
     actorId,
     aiConfig.model,
     group,
+    dto.subjectId,
     dto.academicPeriodId,
     dto.weekNumber,
     prepared.map((p) => ({ gradeLabel: p.gradeLabel, subjectName: p.subjectName })),
@@ -391,6 +524,7 @@ export async function draftMultigradeWeek(
       situationId: p.situationId,
       competencyIds: p.competencyIds,
       weekNumber: dto.weekNumber,
+      selectedSaberIds: p.selectedSaberIds,
       multigradeSharedExperience: {
         title: experience.title,
         context: experience.context,

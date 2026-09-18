@@ -327,9 +327,11 @@ export const planningApi = {
 
   getMultigradeGroup: (groupId: string) => apiGet<MultigradeGroupDetail>(`planning/multigrade-groups/${groupId}`),
 
-  /** Mismo patrón de descarga directa que downloadMicrocurricularDocx. */
-  downloadMultigradePdf: async (groupId: string, weekNumber: number) => {
-    const blob = await apiClient.get(`planning/multigrade-groups/${groupId}/weeks/${weekNumber}/pdf`).blob()
+  /** Mismo patrón de descarga directa que downloadMicrocurricularDocx. subjectId es obligatorio — la experiencia común se genera por materia. */
+  downloadMultigradePdf: async (groupId: string, weekNumber: number, subjectId: string) => {
+    const blob = await apiClient
+      .get(`planning/multigrade-groups/${groupId}/weeks/${weekNumber}/pdf`, { searchParams: { subjectId } })
+      .blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -343,8 +345,6 @@ export interface MultigradeGroupMemberInfo {
   courseAssignmentId: string
   gradeCode: string
   gradeName: string
-  subjectId: string
-  subjectName: string
   parallelId: string
 }
 
@@ -356,11 +356,18 @@ export interface MultigradeSharedExperienceInfo {
   createdAt: string
 }
 
+/** La experiencia común se genera POR MATERIA — un bloque = un subjectId + sus miembros/semanas propias, independiente de los demás. */
+export interface MultigradeSubjectBlock {
+  subjectId: string
+  subjectName: string
+  members: MultigradeGroupMemberInfo[]
+  experiences: MultigradeSharedExperienceInfo[]
+}
+
 export interface MultigradeGroupDetail {
   id: string
   name: string
   academicYearId: string
   allowSuperiorExtension: boolean
-  members: MultigradeGroupMemberInfo[]
-  experiences: MultigradeSharedExperienceInfo[]
+  subjectBlocks: MultigradeSubjectBlock[]
 }

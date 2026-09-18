@@ -5,7 +5,12 @@ import { draftWeek } from '../application/services/planning-ai.service'
 import { draftProject } from '../application/services/project-ai.service'
 import { draftCompetencyWeek } from '../application/services/competency-pedagogical-generator.service'
 import { draftSituationBlock, type DraftSituationBlockDto } from '../application/services/draft-situation-block.service'
-import { draftMultigradeWeek, type DraftMultigradeWeekDto } from '../application/services/multigrade-week-generator.service'
+import {
+  draftMultigradeWeek,
+  suggestMultigradeWeek,
+  type DraftMultigradeWeekDto,
+  type SuggestMultigradeWeekDto,
+} from '../application/services/multigrade-week-generator.service'
 import type { DraftCompetencyWeekDto, DraftProjectDto, DraftWeekDto } from '../application/dtos/ai-assistant.dto'
 
 export default async function aiAssistantRoutes(app: FastifyInstance) {
@@ -54,10 +59,22 @@ export default async function aiAssistantRoutes(app: FastifyInstance) {
     },
   )
 
-  // Multigrado (unidocente/pluridocente): genera y GUARDA de una sola vez la
-  // experiencia común de la semana MÁS la semana completa (Inicio/Desarrollo/
-  // Cierre) de cada grado participante — cero configuración manual, ver
-  // multigrade-week-generator.service.ts.
+  // Multigrado (unidocente/pluridocente): paso de revisión — resuelve, SIN
+  // escribir nada, qué competencia+saberes se usarían por grado de un bloque
+  // de materia, para que el docente los ajuste antes de confirmar (mismo
+  // patrón que /planning/course-assignments/:id/periods/:id/suggest-distribution).
+  app.post<{ Body: SuggestMultigradeWeekDto }>(
+    '/ai-assistant/suggest-multigrade-week',
+    { preHandler: [requirePermission('planning', 'read', 'own')] },
+    async (req, reply) => {
+      const result = await suggestMultigradeWeek(req.user.institutionId, req.body)
+      return reply.send(result)
+    },
+  )
+
+  // Multigrado: genera y GUARDA de una sola vez la experiencia común de la
+  // semana MÁS la semana completa (Inicio/Desarrollo/Cierre) de cada grado
+  // participante de ESA MATERIA — ver multigrade-week-generator.service.ts.
   app.post<{ Body: DraftMultigradeWeekDto }>(
     '/ai-assistant/draft-multigrade-week',
     { preHandler: [requirePermission('planning', 'write', 'own')] },

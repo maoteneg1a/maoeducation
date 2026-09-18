@@ -7,7 +7,7 @@ import { buildMultigradePdf, type MultigradeGradeColumn } from '../application/s
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import { getPlannedSkillIds, getPlannedCompetencyIds } from '../../../shared/infrastructure/services/planned-curriculum.service'
-import { NotFoundError } from '../../../shared/domain/errors/app.errors'
+import { NotFoundError, BadRequestError } from '../../../shared/domain/errors/app.errors'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import type {
   ConfirmDistributionDto,
@@ -305,23 +305,43 @@ export default async function planningRoutes(app: FastifyInstance) {
       const experiences = await prisma.multigradeSharedExperience.findMany({
         where: { groupId: group.id },
         orderBy: { weekNumber: 'asc' },
-        select: { id: true, academicPeriodId: true, weekNumber: true, title: true, createdAt: true },
+        select: { id: true, subjectId: true, academicPeriodId: true, weekNumber: true, title: true, createdAt: true },
       })
+
+      // La experiencia común se genera POR MATERIA (nunca mezclando materias
+      // distintas de un mismo bloque, decisión de producto — ver comentario
+      // en schema.prisma MultigradeSharedExperience.subjectId) — se agrupan
+      // los miembros por subjectId para que la UI muestre un bloque
+      // independiente por cada materia, cada uno con sus propias semanas.
+      const bySubject = new Map<string, { subjectId: string; subjectName: string; members: typeof group.members }>()
+      for (const m of group.members) {
+        const key = m.subjectId
+        if (!bySubject.has(key)) {
+          bySubject.set(key, { subjectId: key, subjectName: m.courseAssignment.subject.name, members: [] })
+        }
+        bySubject.get(key)!.members.push(m)
+      }
+
+      const subjectBlocks = [...bySubject.values()].map((block) => ({
+        subjectId: block.subjectId,
+        subjectName: block.subjectName,
+        members: block.members.map((m) => ({
+          courseAssignmentId: m.courseAssignmentId,
+          gradeCode: m.gradeCode,
+          gradeName: m.courseAssignment.parallel.level.name,
+          parallelId: m.parallelId,
+        })),
+        experiences: experiences
+          .filter((e) => e.subjectId === block.subjectId)
+          .map((e) => ({ id: e.id, academicPeriodId: e.academicPeriodId, weekNumber: e.weekNumber, title: e.title, createdAt: e.createdAt })),
+      }))
 
       return reply.send({
         id: group.id,
         name: group.name,
         academicYearId: group.academicYearId,
         allowSuperiorExtension: group.allowSuperiorExtension,
-        members: group.members.map((m) => ({
-          courseAssignmentId: m.courseAssignmentId,
-          gradeCode: m.gradeCode,
-          gradeName: m.courseAssignment.parallel.level.name,
-          subjectId: m.subjectId,
-          subjectName: m.courseAssignment.subject.name,
-          parallelId: m.parallelId,
-        })),
-        experiences,
+        subjectBlocks,
       })
     },
   )
@@ -330,17 +350,21 @@ export default async function planningRoutes(app: FastifyInstance) {
   // Una semana multigrado ya generada (ver /ai-assistant/draft-multigrade-week):
   // experiencia común + una columna por grado participante, en vez de la tabla
   // de 3 columnas de una sola materia.
-  app.get<{ Params: { groupId: string; weekNumber: string } }>(
+  app.get<{ Params: { groupId: string; weekNumber: string }; Querystring: { subjectId: string } }>(
     '/planning/multigrade-groups/:groupId/weeks/:weekNumber/pdf',
     { preHandler: [requirePermission('planning', 'read', 'own')] },
     async (req, reply) => {
       const weekNumber = Number(req.params.weekNumber)
+      const { subjectId } = req.query
+      if (!subjectId) throw new BadRequestError('subjectId es obligatorio — la experiencia común se genera por materia')
+
       const group = await prisma.multigradeGroup.findFirst({
         where: { id: req.params.groupId, institutionId: req.user.institutionId },
         include: {
           teacher: { include: { profile: true } },
           academicYear: true,
           members: {
+            where: { subjectId },
             include: {
               courseAssignment: { include: { subject: true, parallel: { include: { level: true } } } },
             },
@@ -350,7 +374,7 @@ export default async function planningRoutes(app: FastifyInstance) {
       if (!group) throw new NotFoundError('Aula multigrado no encontrada')
 
       const experience = await prisma.multigradeSharedExperience.findFirst({
-        where: { groupId: group.id, weekNumber },
+        where: { groupId: group.id, subjectId, weekNumber },
         include: { academicPeriod: true },
       })
       if (!experience) throw new NotFoundError('No hay experiencia común generada para esa semana todavía')
