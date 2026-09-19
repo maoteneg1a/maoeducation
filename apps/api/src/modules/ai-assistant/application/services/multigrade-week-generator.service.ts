@@ -4,7 +4,7 @@ import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import { getAnthropicClient, isAnthropicConfigured } from '../../infrastructure/services/anthropic-client'
 import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
-import { buildSituationTitle } from '../../../planning/domain/situation-title'
+import { generateSituationNarrativeSafe } from './situation-narrative-generator.service'
 import { draftCompetencyWeek } from './competency-pedagogical-generator.service'
 import type { DraftCompetencyWeekResult } from '../dtos/ai-assistant.dto'
 
@@ -211,6 +211,8 @@ async function ensureSituation(
   academicPeriodId: string,
   competencyAreaId: string,
   subnivel: string,
+  subjectName: string,
+  gradeName: string,
   chosenCompetencyId?: string,
 ) {
   const existing = await prisma.learningSituation.findFirst({ where: { planId, academicPeriodId } })
@@ -220,13 +222,24 @@ async function ensureSituation(
   const competency = chosenCompetencyId
     ? await prisma.competency.findUniqueOrThrow({ where: { id: chosenCompetencyId } })
     : await anchorCompetency(competencyAreaId, subnivel)
-  const title = buildSituationTitle(competency.code, competency.text)
+  // Título+descripción redactados por IA (con fallback mecánico si no está
+  // disponible) — mismo generador reusado de confirmDistribution, con el
+  // contexto más angosto que hay aquí (solo la competencia ancla, sin
+  // saberes de bloque completo).
+  const narrative = await generateSituationNarrativeSafe(institutionId, actorId, `${planId}:${academicPeriodId}`, competency.code, competency.text, {
+    subjectName,
+    gradeName,
+    periodName: period.name,
+    competencyTexts: [competency.text],
+    saberDescriptions: [],
+  })
   return prisma.learningSituation.create({
     data: {
       institutionId,
       planId,
       academicPeriodId,
-      title,
+      title: narrative.title,
+      description: narrative.description,
       startDate: period.startDate,
       endDate: period.endDate,
       interdisciplinaryAreaIds: [],
@@ -481,6 +494,8 @@ export async function draftMultigradeWeek(
       dto.academicPeriodId,
       assignment.subject.competencyAreaId,
       subnivel,
+      assignment.subject.name,
+      assignment.parallel.level.name,
       chosen?.competencyId,
     )
     const week = await ensureWeekSlot(institutionId, situation.id, dto.weekNumber, situation.competencyIds, chosen?.saberIds)

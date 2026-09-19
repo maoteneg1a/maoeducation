@@ -224,6 +224,7 @@ export default async function planningRoutes(app: FastifyInstance) {
       const competencies = await prisma.competency.findMany({
         where: { id: { in: competencyIds } },
         orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+        include: { indicators: { orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] } },
       })
       return reply.send(competencies)
     },

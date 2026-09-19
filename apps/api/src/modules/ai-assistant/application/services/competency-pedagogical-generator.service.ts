@@ -408,14 +408,24 @@ export async function draftCompetencyWeek(
   const allowedTechniqueCodes = new Set(assessmentTechniques.map((t) => t.code))
   const allowedInstrumentCodes = new Set(assessmentInstruments.map((i) => i.code))
 
+  // EXCEPCIÓN igual que selectedSaberIds: si el docente eligió explícitamente
+  // qué indicadores aplican a esta semana (en vez de "todos los indicadores
+  // de la competencia", comportamiento automático de siempre), esa selección
+  // manda — se filtran los indicadores de CADA competencia a ese subconjunto
+  // antes de construir el prompt/indicadoresEvaluacion/criterio.
+  const selectedIndicatorIdSet = dto.selectedIndicatorIds?.length ? new Set(dto.selectedIndicatorIds) : null
+  const competenciesForPrompt = selectedIndicatorIdSet
+    ? competencies.map((c) => ({ ...c, indicators: c.indicators.filter((i) => selectedIndicatorIdSet.has(i.id)) }))
+    : competencies
+
   // Se genera para la primera competencia seleccionada (una semana puede tener varias,
   // pero el borrador de metodología/evaluación se ancla a la principal para mantener
   // el prompt e identidad simples — el docente ajusta manualmente si combina varias).
-  const primary = competencies[0]
-  const primaryIndicator = primary.indicators[0]
+  const primary = competenciesForPrompt[0]
+  const primaryIndicator = primary.indicators[0] ?? competencies[0].indicators[0]
   const identityCode = primaryIndicator ? primaryIndicator.code : primary.code
-  const indicadoresEvaluacion = formatIndicatorsWithCode(competencies) || primary.code
-  const criterio = indicatorCodes(competencies) || primary.code
+  const indicadoresEvaluacion = formatIndicatorsWithCode(competenciesForPrompt) || primary.code
+  const criterio = indicatorCodes(competenciesForPrompt) || primary.code
 
   // Distribución de saberes entre semanas del bloque — calcado del motor de
   // TIGA (competency_capacity + reparto rotatorio por posición): asignar TODOS
@@ -475,7 +485,7 @@ export async function draftCompetencyWeek(
     return fallbackResult(['MONTHLY_TOKEN_CAP_REACHED'])
   }
 
-  const competenciesBlock = competencies
+  const competenciesBlock = competenciesForPrompt
     .map((c) => {
       const indicators = c.indicators.map((i) => `    - [${i.code}] ${i.text}`).join('\n') || '    (sin indicadores)'
       const sabersForWeek = selectedSaberIdSet

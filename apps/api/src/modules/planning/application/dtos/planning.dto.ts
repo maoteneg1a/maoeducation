@@ -197,6 +197,8 @@ export interface ConfirmDistributionWeekDto {
   weekNumber: number
   competencyIds: string[]
   saberIds: string[]
+  /** OPCIONAL — vacío/ausente (comportamiento de siempre) = se derivan automáticamente TODOS los indicadores de las competencias de esta semana. */
+  indicatorIds?: string[]
 }
 
 export interface ConfirmDistributionDto {
