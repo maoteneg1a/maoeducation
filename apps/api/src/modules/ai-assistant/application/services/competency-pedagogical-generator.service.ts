@@ -511,19 +511,17 @@ export async function draftCompetencyWeek(
     ? `\nCONTEXTO MULTIGRADO — este grado comparte salón con otros grados a la vez. Ya existe una EXPERIENCIA COMÚN planteada para toda el aula:\nTítulo: "${dto.multigradeSharedExperience.title}"\nContexto: ${dto.multigradeSharedExperience.context}\nPropósito común: ${dto.multigradeSharedExperience.commonPurpose}\nLa PRIMERA actividad de Inicio (ANTICIPATION[0]) DEBE partir explícitamente de esta situación común (menciónala con palabras propias, adaptada al nivel de "${dto.multigradeSharedExperience.gradeLabel}"), y el resto de actividades de Inicio/Desarrollo/Cierre siguen el currículo propio de este grado (nunca inventes contenido común nuevo fuera de la experiencia dada).\n`
     : ''
 
-  const systemPrompt = `Eres un asistente pedagógico que ayuda a docentes ecuatorianos a redactar la planificación microcurricular semanal (PUD) por COMPETENCIAS, siguiendo el Currículo Nacional por Competencias (CNC) del MINEDUC.
-
-Asignatura: ${situation.plan.courseAssignment.subject.name}
-Grado/Curso: ${situation.plan.courseAssignment.parallel.level.name}
-Trimestre: ${situation.academicPeriod.name}
-${densityLine}
-${sharedExperienceLine}
-
-Competencias seleccionadas por el docente:
-
-${competenciesBlock}
-
-Identidad inmutable de esta generación (repítela EXACTA en identityCode, no la alteres): "${identityCode}"
+  // Bloque ESTÁTICO — idéntico para CUALQUIER institución/docente/materia (rol,
+  // instrucciones de generación, y los catálogos DUA/evaluación, que son
+  // globales, no por institución). Va en su propio bloque `system` con
+  // cache_control separado del bloque variable de abajo: así Anthropic puede
+  // servirlo desde caché entre llamadas de DISTINTOS docentes/instituciones
+  // (dentro de la ventana de 5 min), no solo dentro de los reintentos de una
+  // misma conversación — reduce significativamente el costo real, confirmado
+  // con datos de producción que cada trimestre de 8 semanas dispara docenas
+  // de llamadas reales, cada una reenviando este mismo catálogo ~2500
+  // caracteres de otro modo.
+  const staticInstructions = `Eres un asistente pedagógico que ayuda a docentes ecuatorianos a redactar la planificación microcurricular semanal (PUD) por COMPETENCIAS, siguiendo el Currículo Nacional por Competencias (CNC) del MINEDUC.
 
 Catálogo DUA disponible — cada actividad debe llevar EXACTAMENTE UN código de este catálogo, no inventes otros:
 ${duaCatalogText}
@@ -534,8 +532,8 @@ ${techniquesText}
 IMPORTANTE — terminología del documento final: las 3 fases se llaman "Inicio", "Desarrollo" y "Cierre" (nunca "Anticipación"/"Construcción"/"Consolidación" — esos son solo los nombres técnicos internos de las claves ANTICIPATION/CONSTRUCTION/CONSOLIDATION que usas en el JSON, el docente nunca los ve).
 
 Genera:
-1. Saberes: pon en reusedSaberIds ÚNICAMENTE los ids listados arriba en "Saberes de ESTA semana" de cada competencia — NUNCA agregues otros saberes de la competencia que no estén en esa lista, aunque los conozcas por el código; esa lista ya es el subconjunto correcto para esta semana específica del bloque, no toda la competencia. Si una competencia no tiene ningún saber listado, propone 1-2 nuevos de cada tipo en newSabers con code "<código_competencia>.d.1"/".p.1"/".a.1".
-2. methodology: para ANTICIPATION (Inicio), CONSTRUCTION (Desarrollo) y CONSOLIDATION (Cierre) — cada fase es una lista de "activities", con EXACTAMENTE el número de actividades indicado arriba en "Número de actividades...". Cada actividad tiene:
+1. Saberes: pon en reusedSaberIds ÚNICAMENTE los ids listados en "Saberes de ESTA semana" de cada competencia (dados en el mensaje siguiente) — NUNCA agregues otros saberes de la competencia que no estén en esa lista, aunque los conozcas por el código; esa lista ya es el subconjunto correcto para esta semana específica del bloque, no toda la competencia. Si una competencia no tiene ningún saber listado, propone 1-2 nuevos de cada tipo en newSabers con code "<código_competencia>.d.1"/".p.1"/".a.1".
+2. methodology: para ANTICIPATION (Inicio), CONSTRUCTION (Desarrollo) y CONSOLIDATION (Cierre) — cada fase es una lista de "activities", con EXACTAMENTE el número de actividades indicado en el mensaje siguiente. Cada actividad tiene:
    - text: una actividad CONCRETA y ESPECÍFICA de al menos 8 palabras, nunca genérica tipo "trabajar en grupos".
    - duaCode: EXACTAMENTE un código del catálogo DUA dado arriba, coherente con esa fase y esa actividad específica (no repitas el mismo código en todas las actividades salvo que realmente aplique).
 3. resources: lista de 3-6 recursos CONCRETOS para TODA la semana (no por fase) — cada uno una palabra o frase CORTA de 1-3 palabras, SIN paréntesis ni descripciones — que aparezca mencionado (mismas palabras) en al menos una de las actividades de methodology. NO repitas la misma redacción de las actividades: el recurso es solo el NOMBRE del material, la actividad ya explica el uso.
@@ -553,6 +551,19 @@ No redactes "criterio" ni "indicadoresEvaluacion" — el sistema los deriva auto
 
 Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o instrumento fuera de los dados. No inventes URLs — usa siempre la herramienta de búsqueda web para verificarlas.`
 
+  // Bloque VARIABLE — específico de esta materia/grado/competencia(s)/semana.
+  const contextPrompt = `Asignatura: ${situation.plan.courseAssignment.subject.name}
+Grado/Curso: ${situation.plan.courseAssignment.parallel.level.name}
+Trimestre: ${situation.academicPeriod.name}
+${densityLine}
+${sharedExperienceLine}
+
+Competencias seleccionadas por el docente:
+
+${competenciesBlock}
+
+Identidad inmutable de esta generación (repítela EXACTA en identityCode, no la alteres): "${identityCode}"`
+
   const client = getAnthropicClient()
   let lastErrors: string[] = []
 
@@ -563,14 +574,32 @@ Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o in
   // forzado al tool de respuesta, Claude NUNCA podría buscar en el mismo turno, así
   // que se pasa a "auto" + se instruye en el prompt que siempre debe terminar
   // llamando submit_competency_week_draft.
-  const serverTools = [{ type: 'web_search_20260209' as const, name: 'web_search' as const, allowed_callers: ['direct' as const] }]
-  const MAX_PAUSE_RESUMES = 5
+  // max_uses: 1 — evita que la IA dispare varias búsquedas en un mismo turno
+  // (cada búsqueda puede pausar el turno y forzar un "resume", que es una
+  // llamada de API completa nueva); una sola búsqueda basta para resolver un
+  // resourceLink/instrumentLink puntual.
+  const serverTools = [{ type: 'web_search_20260209' as const, name: 'web_search' as const, max_uses: 1, allowed_callers: ['direct' as const] }]
+  // Antes 5 — acotado a 2 tras confirmar con datos reales de producción
+  // (audit_logs) que el volumen de llamadas por trimestre ya es alto por
+  // diseño (8 semanas × validación estricta); menos resumes reduce el peor
+  // caso de llamadas facturadas sin degradar la validación (2 intentos de
+  // pause_turn normalmente resuelven una búsqueda real).
+  const MAX_PAUSE_RESUMES = 2
 
   // `messages` persiste ENTRE intentos (no se reconstruye desde cero) — si se
   // resetea en cada intento, Claude pierde toda memoria de lo que generó antes
   // y el mensaje de corrección ("corrige el error X") no tiene con qué relacionarse,
   // así que el modelo responde con texto pidiendo aclaraciones en vez de corregir.
-  const messages: Anthropic.MessageParam[] = [{ role: 'user', content: 'Genera el borrador de esta semana.' }]
+  const messages: Anthropic.MessageParam[] = [
+    { role: 'user', content: `${contextPrompt}\n\nGenera el borrador de esta semana.` },
+  ]
+  // Dos bloques `system` con cache_control PROPIO cada uno: el estático
+  // (instrucciones+catálogos, idéntico entre docentes/instituciones) cachea
+  // ancho — puede servirse desde caché entre llamadas de OTROS docentes
+  // dentro de la ventana de 5 min, no solo dentro de esta misma conversación.
+  const systemBlocks: Anthropic.TextBlockParam[] = [
+    { type: 'text', text: staticInstructions, cache_control: { type: 'ephemeral' } },
+  ]
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     let response: Anthropic.Message | undefined
@@ -582,7 +611,7 @@ Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o in
         response = await client.messages.create({
           model: aiConfig.model,
           max_tokens: 4096,
-          system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+          system: systemBlocks,
           messages,
           tools: [...tools, ...serverTools],
           tool_choice: { type: 'auto' },
