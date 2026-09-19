@@ -104,6 +104,14 @@ export interface DraftCompetencyWeekDto {
    * mantiene el comportamiento de siempre (reparto automático).
    */
   selectedSaberIds?: string[]
+  /**
+   * OPCIONAL — igual que selectedSaberIds pero para indicadores: si el
+   * docente elige explícitamente cuáles indicadores de la(s) competencia(s)
+   * aplican a esta semana (en vez de "todos los indicadores de la
+   * competencia", comportamiento automático de siempre), esos ids tienen
+   * prioridad absoluta sobre formatIndicatorsWithCode/indicatorCodes.
+   */
+  selectedIndicatorIds?: string[]
 }
 
 export interface DraftCompetencyWeekResult {

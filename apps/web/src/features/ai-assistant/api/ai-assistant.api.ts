@@ -113,6 +113,8 @@ export const aiAssistantApi = {
     weekNumber?: number
     /** Si el docente ya filtró manualmente los saberes, tienen prioridad sobre la distribución automática. */
     selectedSaberIds?: string[]
+    /** Si el docente ya eligió indicadores específicos, tienen prioridad sobre "todos los indicadores de la competencia". */
+    selectedIndicatorIds?: string[]
   }) => apiPost<DraftCompetencyWeekResult>('ai-assistant/draft-competency-week', data, { timeout: 120000 }),
 
   /** Estilo TIGA: genera y guarda de una vez las N semanas de un bloque completo (una llamada de IA por semana, en el servidor). */

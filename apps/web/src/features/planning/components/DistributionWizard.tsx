@@ -29,6 +29,8 @@ interface EditableWeek {
   weekNumber: number
   competencyIds: string[]
   saberIds: string[]
+  /** Vacío (por defecto) = se derivan automáticamente todos los indicadores de las competencias al confirmar. */
+  indicatorIds: string[]
 }
 
 let weekKeySeq = 0
@@ -92,6 +94,7 @@ export function DistributionWizard({ courseAssignmentId, academicYearId, subject
       weekNumber: w.weekNumber,
       competencyIds: w.competencies.map((c) => c.competencyId),
       saberIds: w.competencies.flatMap((c) => c.saberIds),
+      indicatorIds: [],
     }))
     setWeeks(next)
     setExpandedKey(next[0]?.key ?? null)
@@ -124,7 +127,7 @@ export function DistributionWizard({ courseAssignmentId, academicYearId, subject
   const addWeek = () => {
     const nextNumber = weeks && weeks.length > 0 ? Math.max(...weeks.map((w) => w.weekNumber)) + 1 : 1
     const key = nextWeekKey()
-    setWeeks((prev) => [...(prev ?? []), { key, weekNumber: nextNumber, competencyIds: [], saberIds: [] }])
+    setWeeks((prev) => [...(prev ?? []), { key, weekNumber: nextNumber, competencyIds: [], saberIds: [], indicatorIds: [] }])
     setExpandedKey(key)
   }
 
@@ -139,7 +142,12 @@ export function DistributionWizard({ courseAssignmentId, academicYearId, subject
         courseAssignmentId,
         academicPeriodId,
         weeksCount: weeks.length,
-        weeks: weeks.map((w) => ({ weekNumber: w.weekNumber, competencyIds: w.competencyIds, saberIds: w.saberIds })),
+        weeks: weeks.map((w) => ({
+          weekNumber: w.weekNumber,
+          competencyIds: w.competencyIds,
+          saberIds: w.saberIds,
+          indicatorIds: w.indicatorIds.length ? w.indicatorIds : undefined,
+        })),
       },
       {
         onSuccess: (result) => {
@@ -312,8 +320,10 @@ function WeekRow({
             gradeCode={gradeCode}
             competencyIds={week.competencyIds}
             saberIds={week.saberIds}
+            indicatorIds={week.indicatorIds}
             onCompetencyIdsChange={(ids) => onChange({ competencyIds: ids })}
             onSaberIdsChange={(ids) => onChange({ saberIds: ids })}
+            onIndicatorIdsChange={(ids) => onChange({ indicatorIds: ids })}
             isEditable
           />
         </div>

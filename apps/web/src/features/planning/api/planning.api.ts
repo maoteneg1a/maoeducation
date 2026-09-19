@@ -185,6 +185,8 @@ export interface ConfirmDistributionWeekInput {
   weekNumber: number
   competencyIds: string[]
   saberIds: string[]
+  /** Vacío/ausente (por defecto) = se derivan automáticamente todos los indicadores de las competencias al confirmar. */
+  indicatorIds?: string[]
 }
 
 export interface ConfirmDistributionResult {

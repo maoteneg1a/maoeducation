@@ -176,6 +176,7 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
   const [saberIds, setSaberIds] = React.useState<string[]>(week.saberIds)
   const [competencyIds, setCompetencyIds] = React.useState<string[]>(week.competencyIds)
   const [competencySaberIds, setCompetencySaberIds] = React.useState<string[]>(week.competencySaberIds)
+  const [competencyIndicatorIds, setCompetencyIndicatorIds] = React.useState<string[]>(week.competencyIndicatorIds)
   const [momentos, setMomentos] = React.useState<PlanningMomentos>(!isCompetencyModel ? (week.momentos as PlanningMomentos) ?? {} : {})
   const [competencyMomentos, setCompetencyMomentos] = React.useState<CompetencyPlanningMomentos>(
     isCompetencyModel ? ((week.momentos as CompetencyPlanningMomentos) ?? emptyCompetencyMomentos()) : emptyCompetencyMomentos(),
@@ -207,7 +208,14 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
   const handleGenerateWithAi = () => {
     if (isCompetencyModel) {
       draftCompetencyWeek.mutate(
-        { situationId, competencyIds, weekName: name || undefined, weekNumber: week.weekNumber },
+        {
+          situationId,
+          competencyIds,
+          weekName: name || undefined,
+          weekNumber: week.weekNumber,
+          selectedSaberIds: competencySaberIds.length ? competencySaberIds : undefined,
+          selectedIndicatorIds: competencyIndicatorIds.length ? competencyIndicatorIds : undefined,
+        },
         {
           onSuccess: (result) => {
             setPendingResult(result)
@@ -247,6 +255,7 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
         // IA propuso 5, dejó solo 2) — esa selección manda sobre lo que la IA
         // proponga de nuevo, no debe reemplazarse en cada regeneración.
         selectedSaberIds: competencySaberIds.length ? competencySaberIds : undefined,
+        selectedIndicatorIds: competencyIndicatorIds.length ? competencyIndicatorIds : undefined,
       },
       { onSuccess: (result) => setCompetencyMomentos(result.momentos as unknown as CompetencyPlanningMomentos) },
     )
@@ -303,6 +312,7 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
       saberIds,
       competencyIds,
       competencySaberIds,
+      competencyIndicatorIds,
       momentos: isCompetencyModel ? competencyMomentos : momentos,
     })
   }
@@ -344,6 +354,8 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
                 saberIds={competencySaberIds}
                 onCompetencyIdsChange={setCompetencyIds}
                 onSaberIdsChange={setCompetencySaberIds}
+                indicatorIds={competencyIndicatorIds}
+                onIndicatorIdsChange={setCompetencyIndicatorIds}
                 isEditable={isEditable}
               />
             </div>

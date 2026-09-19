@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { ConflictError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import { buildSituationTitle } from '../../domain/situation-title'
+import { generateSituationNarrativeSafe } from '../../../ai-assistant/application/services/situation-narrative-generator.service'
 import { distributeCompetencyWeeks } from '../../domain/competency-week-distribution'
 import { findGradeByCode } from '../../../../shared/domain/grade-catalog'
 import { resolveWorkload } from '../../../../shared/domain/workload-resolution'
@@ -637,7 +638,7 @@ export class PrismaPlanningRepository {
     if (dto.weeksCount < 2) throw new ConflictError('Un periodo académico debe tener al menos 2 semanas')
     if (dto.weeks.length === 0) throw new ConflictError('La distribución no puede estar vacía')
 
-    await this.resolveAssignmentForDistribution(courseAssignmentId, institutionId)
+    const { assignment } = await this.resolveAssignmentForDistribution(courseAssignmentId, institutionId)
 
     const period = await prisma.academicPeriod.findFirst({ where: { id: academicPeriodId } })
     if (!period) throw new NotFoundError('Periodo académico no encontrado')
@@ -662,18 +663,38 @@ export class PrismaPlanningRepository {
         data: { competencyIds },
       })
     } else {
-      const anchorCompetency = await prisma.competency.findFirst({
+      const competencies = await prisma.competency.findMany({
         where: { id: { in: competencyIds } },
         orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
         select: { code: true, text: true },
       })
-      const title = anchorCompetency ? buildSituationTitle(anchorCompetency.code, anchorCompetency.text) : period.name
+      const saberIds = [...new Set(dto.weeks.flatMap((w) => w.saberIds))]
+      const sabers = saberIds.length
+        ? await prisma.competencySaber.findMany({ where: { id: { in: saberIds } }, select: { description: true } })
+        : []
+      // Título+descripción redactados por IA (con fallback mecánico si la IA
+      // no está disponible/habilitada — nunca bloquea crear la situación).
+      const narrative = await generateSituationNarrativeSafe(
+        institutionId,
+        actorId,
+        `${plan.id}:${academicPeriodId}`,
+        competencies[0]?.code ?? '',
+        competencies[0]?.text ?? period.name,
+        {
+          subjectName: assignment.subject.name,
+          gradeName: assignment.parallel.level.name,
+          periodName: period.name,
+          competencyTexts: competencies.map((c) => c.text),
+          saberDescriptions: sabers.map((s) => s.description),
+        },
+      )
       situation = await prisma.learningSituation.create({
         data: {
           institutionId,
           planId: plan.id,
           academicPeriodId,
-          title,
+          title: narrative.title,
+          description: narrative.description,
           startDate: period.startDate,
           endDate: period.endDate,
           interdisciplinaryAreaIds: [],
@@ -694,10 +715,12 @@ export class PrismaPlanningRepository {
             weekNumber: w.weekNumber,
             competencyIds: w.competencyIds,
             competencySaberIds: w.saberIds,
+            competencyIndicatorIds: w.indicatorIds ?? [],
           },
           update: {
             competencyIds: w.competencyIds,
             competencySaberIds: w.saberIds,
+            competencyIndicatorIds: w.indicatorIds ?? [],
           },
         }),
       ),
