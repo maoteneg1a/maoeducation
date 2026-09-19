@@ -1,6 +1,8 @@
 import * as React from 'react'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Pencil } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
+import { Badge } from '@/shared/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/shared/components/ui/dialog'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { cn } from '@/shared/lib/utils'
@@ -132,7 +134,7 @@ export function CompetencyAndSaberSelector({
                   >
                     <CheckBox selected={selected} />
                     <span>
-                      <span className="font-mono text-xs text-muted-foreground">{competency.code}</span> {competency.text}
+                      <span className="font-mono text-sm font-medium text-muted-foreground">{competency.code}</span> {competency.text}
                     </span>
                   </button>
                 )
@@ -144,13 +146,32 @@ export function CompetencyAndSaberSelector({
 
       <div className="space-y-2">
         <Label>Saberes</Label>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {competencyIds.length === 0 ? (
-            <p className="text-sm text-muted-foreground sm:col-span-3">Selecciona al menos una competencia para ver sus saberes.</p>
-          ) : (
-            competencyIds.map((competencyId) => (
-              <CompetencySaberColumns
+        {competencyIds.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Selecciona al menos una competencia para ver sus saberes.</p>
+        ) : competencyIds.length === 1 ? (
+          // Una sola competencia: columnas directo, sin indirección — es el caso simple y más común.
+          <div className="grid gap-3 sm:grid-cols-3">
+            <CompetencySaberColumns
+              competencyId={competencyIds[0]}
+              gradeCode={gradeCode}
+              selectedSaberIds={saberIds}
+              onToggle={(id) => onSaberIdsChange(saberIds.includes(id) ? saberIds.filter((s) => s !== id) : [...saberIds, id])}
+              onBulkChange={(ids, add) =>
+                onSaberIdsChange(add ? [...new Set([...saberIds, ...ids])] : saberIds.filter((id) => !ids.includes(id)))
+              }
+              isEditable={isEditable}
+            />
+          </div>
+        ) : (
+          // 2+ competencias: mezclar todas las columnas de saberes en la misma
+          // vista es ilegible (mucho texto, sin saber a cuál competencia
+          // pertenece cada uno) — una fila compacta por competencia, saberes
+          // en un modal aparte que aísla claramente de cuál competencia son.
+          <div className="space-y-1.5">
+            {competencyIds.map((competencyId) => (
+              <CompetencySaberRow
                 key={competencyId}
+                competency={availableCompetencies.find((c) => c.id === competencyId)}
                 competencyId={competencyId}
                 gradeCode={gradeCode}
                 selectedSaberIds={saberIds}
@@ -160,11 +181,67 @@ export function CompetencyAndSaberSelector({
                 }
                 isEditable={isEditable}
               />
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </>
+  )
+}
+
+/** Fila compacta usada cuando hay 2+ competencias en la semana — evita mezclar los saberes de todas en la misma vista (confuso, mucho texto). Abre un modal con solo esta competencia y sus 3 columnas. */
+function CompetencySaberRow({
+  competency,
+  competencyId,
+  gradeCode,
+  selectedSaberIds,
+  onToggle,
+  onBulkChange,
+  isEditable,
+}: {
+  competency: { code: string; text: string } | undefined
+  competencyId: string
+  gradeCode?: string
+  selectedSaberIds: string[]
+  onToggle: (id: string) => void
+  onBulkChange: (ids: string[], add: boolean) => void
+  isEditable: boolean
+}) {
+  const [open, setOpen] = React.useState(false)
+  const { data: saberes = [] } = useSaberesForCompetency(competencyId, gradeCode)
+  const selectedCount = saberes.filter((s) => selectedSaberIds.includes(s.id)).length
+
+  return (
+    <div className="flex items-center justify-between gap-2 rounded border px-3 py-2">
+      <div className="flex items-center gap-2 overflow-hidden">
+        <Badge variant="secondary" className="font-mono text-sm shrink-0">{competency?.code ?? '…'}</Badge>
+        <span className="truncate text-sm text-muted-foreground">{competency?.text}</span>
+      </div>
+      <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setOpen(true)}>
+        <Pencil className="h-3.5 w-3.5" />
+        Saberes ({selectedCount} de {saberes.length})
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Badge variant="secondary" className="font-mono text-base">{competency?.code}</Badge>
+            </DialogTitle>
+            <DialogDescription className="text-sm">{competency?.text}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <CompetencySaberColumns
+              competencyId={competencyId}
+              gradeCode={gradeCode}
+              selectedSaberIds={selectedSaberIds}
+              onToggle={onToggle}
+              onBulkChange={onBulkChange}
+              isEditable={isEditable}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }
 
@@ -215,12 +292,12 @@ function CompetencySaberColumns({
     <>
       {saberes.length > 3 && (
         <div className="relative sm:col-span-3">
-          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar saber por código o texto..."
-            className="h-7 pl-7 text-xs"
+            className="h-9 pl-8 text-sm"
           />
         </div>
       )}
@@ -228,13 +305,13 @@ function CompetencySaberColumns({
         const visible = byType(type)
         const selectedCount = visible.filter((s) => selectedSaberIds.includes(s.id)).length
         return (
-          <div key={type} className="rounded border p-2">
-            <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-xs font-semibold text-muted-foreground">
+          <div key={type} className="rounded border p-2.5">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-semibold text-muted-foreground">
                 {SABER_TYPE_LABEL[type]} ({selectedCount} de {visible.length})
               </p>
               {isEditable && visible.length > 0 && (
-                <div className="flex gap-1.5 text-[11px]">
+                <div className="flex gap-2 text-xs">
                   <button type="button" className="text-primary hover:underline" onClick={() => onBulkChange(visible.map((s) => s.id), true)}>
                     Todos
                   </button>
@@ -244,7 +321,7 @@ function CompetencySaberColumns({
                 </div>
               )}
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {visible.map((saber) => {
                 const selected = selectedSaberIds.includes(saber.id)
                 return (
@@ -254,7 +331,7 @@ function CompetencySaberColumns({
                     disabled={!isEditable}
                     onClick={() => onToggle(saber.id)}
                     className={cn(
-                      'flex w-full items-start gap-1.5 rounded px-1.5 py-1 text-left text-xs transition',
+                      'flex w-full items-start gap-2 rounded px-2 py-1.5 text-left text-sm transition',
                       selected ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50',
                     )}
                   >

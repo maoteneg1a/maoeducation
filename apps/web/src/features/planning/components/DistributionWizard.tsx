@@ -2,6 +2,7 @@ import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, Sparkles, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
+import { Badge } from '@/shared/components/ui/badge'
 import { Card } from '@/shared/components/ui/card'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
@@ -12,6 +13,7 @@ import { usePeriods } from '@/features/academic/hooks/useAcademic'
 import { useAiEnabled, useDraftSituationBlock } from '@/features/ai-assistant/hooks/useAiAssistant'
 import { useSuggestDistribution, useConfirmDistribution } from '../hooks/usePlanning'
 import { CompetencyAndSaberSelector } from './CompetencyAndSaberSelector'
+import { useCompetenciesForSubject } from '@/features/competency-curriculum/hooks/useCompetencyCurriculum'
 import type { SuggestedWeekDistribution } from '../api/planning.api'
 
 interface DistributionWizardProps {
@@ -57,6 +59,19 @@ export function DistributionWizard({ courseAssignmentId, academicYearId, subject
   const [weeksCountWarning, setWeeksCountWarning] = React.useState<string | undefined>()
   const [weeks, setWeeks] = React.useState<(EditableWeek & { key: string })[] | null>(null)
   const [expandedKey, setExpandedKey] = React.useState<string | null>(null)
+  // Mapa id->code de competencias — se completa con el banco (para las que el
+  // docente agregue a mano) y con lo que ya trae la sugerencia (disponible
+  // antes de que el banco cargue, para el resumen colapsado de cada semana).
+  const [competencyCodes, setCompetencyCodes] = React.useState<Record<string, string>>({})
+  const { data: competencyBank = [] } = useCompetenciesForSubject(subjectId, subnivel)
+  React.useEffect(() => {
+    if (competencyBank.length === 0) return
+    setCompetencyCodes((prev) => {
+      const next = { ...prev }
+      for (const c of competencyBank) next[c.id] = c.code
+      return next
+    })
+  }, [competencyBank])
 
   const selectedPeriod = periods.find((p) => p.id === academicPeriodId)
 
@@ -80,6 +95,11 @@ export function DistributionWizard({ courseAssignmentId, academicYearId, subject
     }))
     setWeeks(next)
     setExpandedKey(next[0]?.key ?? null)
+    setCompetencyCodes((prev) => {
+      const codes = { ...prev }
+      for (const w of suggested) for (const c of w.competencies) codes[c.competencyId] = c.competencyCode
+      return codes
+    })
   }
 
   const handleSuggest = () => {
@@ -207,6 +227,7 @@ export function DistributionWizard({ courseAssignmentId, academicYearId, subject
               <WeekRow
                 key={week.key}
                 week={week}
+                competencyCodes={competencyCodes}
                 expanded={expandedKey === week.key}
                 onToggle={() => setExpandedKey(expandedKey === week.key ? null : week.key)}
                 onChange={(patch) => updateWeek(week.key, patch)}
@@ -237,6 +258,7 @@ export function DistributionWizard({ courseAssignmentId, academicYearId, subject
 
 function WeekRow({
   week,
+  competencyCodes,
   expanded,
   onToggle,
   onChange,
@@ -247,6 +269,7 @@ function WeekRow({
   canRemove,
 }: {
   week: EditableWeek & { key: string }
+  competencyCodes: Record<string, string>
   expanded: boolean
   onToggle: () => void
   onChange: (patch: Partial<EditableWeek>) => void
@@ -258,15 +281,22 @@ function WeekRow({
 }) {
   return (
     <div className="rounded-md border">
-      <div className="flex items-center gap-2 px-3 py-2">
-        <button type="button" onClick={onToggle} className="flex flex-1 items-center gap-2 text-left">
+      <div className="sticky top-0 z-10 flex items-center gap-2 bg-background px-3 py-2.5 rounded-t-md border-b data-[expanded=false]:border-b-0" data-expanded={expanded}>
+        <button type="button" onClick={onToggle} className="flex flex-1 flex-wrap items-center gap-2 text-left">
           {expanded ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-          <span className="text-sm font-medium">Semana {week.weekNumber}</span>
-          <span className="text-xs text-muted-foreground">
-            {week.competencyIds.length === 0
-              ? 'sin competencia — elige al menos una'
-              : `${week.competencyIds.length} competencia(s) · ${week.saberIds.length} saber(es)`}
-          </span>
+          <span className="text-base font-semibold">Semana {week.weekNumber}</span>
+          {week.competencyIds.length === 0 ? (
+            <span className="text-sm text-amber-700">sin competencia — elige al menos una</span>
+          ) : (
+            <>
+              {week.competencyIds.map((id) => (
+                <Badge key={id} variant="secondary" className="font-mono text-xs">
+                  {competencyCodes[id] ?? '…'}
+                </Badge>
+              ))}
+              <span className="text-xs text-muted-foreground">{week.saberIds.length} saber(es)</span>
+            </>
+          )}
         </button>
         {canRemove && (
           <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground" onClick={onRemove}>
@@ -275,7 +305,7 @@ function WeekRow({
         )}
       </div>
       {expanded && (
-        <div className="space-y-3 border-t p-3">
+        <div className="space-y-3 p-3">
           <CompetencyAndSaberSelector
             subjectId={subjectId}
             subnivel={subnivel}
