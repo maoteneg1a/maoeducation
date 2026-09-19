@@ -160,13 +160,18 @@ export interface DistributionSaber {
   description: string
 }
 
-export interface SuggestedWeekDistribution {
-  weekNumber: number
+export interface SuggestedWeekCompetency {
   competencyId: string
   competencyCode: string
   competencyText: string
   saberIds: string[]
   sabers: DistributionSaber[]
+}
+
+/** competencies es un array — 1+ por semana, el docente puede agregar más manualmente en el wizard. */
+export interface SuggestedWeekDistribution {
+  weekNumber: number
+  competencies: SuggestedWeekCompetency[]
 }
 
 export interface SuggestDistributionResult {
@@ -178,7 +183,7 @@ export interface SuggestDistributionResult {
 
 export interface ConfirmDistributionWeekInput {
   weekNumber: number
-  competencyId: string
+  competencyIds: string[]
   saberIds: string[]
 }
 

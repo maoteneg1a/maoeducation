@@ -30,13 +30,24 @@ export interface DistributionCompetency {
   sabers: DistributionSaber[]
 }
 
-export interface WeekDistribution {
-  weekNumber: number
+export interface WeekCompetencyDistribution {
   competencyId: string
   competencyCode: string
   competencyText: string
   saberIds: string[]
   sabers: DistributionSaber[]
+}
+
+/**
+ * `competencies` es un array — el algoritmo de dosificación (ver capacity/
+ * allocateWeeksAcrossCompetencies más abajo) siempre asigna UNA competencia
+ * por semana (cada bloque contiguo pertenece a una sola), pero el caller
+ * (wizard) puede agregar más manualmente antes de confirmar — el shape ya lo
+ * soporta desde aquí para no forzar cardinalidad 1 en el resto del flujo.
+ */
+export interface WeekDistribution {
+  weekNumber: number
+  competencies: WeekCompetencyDistribution[]
 }
 
 export interface DistributionResult {
@@ -133,11 +144,15 @@ export function distributeCompetencyWeeks(
       const sabers = [declarativo, ...extraBuckets[w]]
       weeks.push({
         weekNumber,
-        competencyId: competency.id,
-        competencyCode: competency.code,
-        competencyText: competency.text,
-        saberIds: sabers.map((s) => s.id),
-        sabers,
+        competencies: [
+          {
+            competencyId: competency.id,
+            competencyCode: competency.code,
+            competencyText: competency.text,
+            saberIds: sabers.map((s) => s.id),
+            sabers,
+          },
+        ],
       })
       weekNumber++
     }

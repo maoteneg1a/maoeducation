@@ -19,6 +19,13 @@ const SABER_TYPE_LABEL: Record<CompetencySaberType, string> = {
   actitudinal: 'Actitudinales',
 }
 
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+}
+
 interface CompetencyAndSaberSelectorProps {
   subjectId: string | undefined
   subnivel: string | undefined
@@ -30,6 +37,8 @@ interface CompetencyAndSaberSelectorProps {
   /** Igual que en SkillAndSaberSelector: si se dan ambos, restringe a lo ya planificado. */
   courseAssignmentId?: string
   academicPeriodId?: string
+  /** Level.code real (ej. "6B") — filtra los saberes por granularidad TIGA (CompetencySaber.gradeCodes). */
+  gradeCode?: string
 }
 
 /** Equivalente a SkillAndSaberSelector pero para el modelo por COMPETENCIAS (CNC-MINEDUC). */
@@ -43,6 +52,7 @@ export function CompetencyAndSaberSelector({
   isEditable,
   courseAssignmentId,
   academicPeriodId,
+  gradeCode,
 }: CompetencyAndSaberSelectorProps) {
   const restrictToPlanned = !!courseAssignmentId && !!academicPeriodId
   const { data: fullBank = [] } = useCompetenciesForSubject(
@@ -52,12 +62,6 @@ export function CompetencyAndSaberSelector({
   const { data: plannedCompetencies = [] } = usePlannedCompetencies(courseAssignmentId, academicPeriodId)
   const availableCompetencies = restrictToPlanned ? plannedCompetencies : fullBank
   const [search, setSearch] = React.useState('')
-
-  const normalize = (s: string) =>
-    s
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
 
   const filtered = React.useMemo(() => {
     const query = normalize(search.trim())
@@ -70,16 +74,25 @@ export function CompetencyAndSaberSelector({
   const toggleCompetency = (id: string) => {
     onCompetencyIdsChange(competencyIds.includes(id) ? competencyIds.filter((c) => c !== id) : [...competencyIds, id])
   }
-  const toggleSaber = (id: string) => {
-    onSaberIdsChange(saberIds.includes(id) ? saberIds.filter((s) => s !== id) : [...saberIds, id])
-  }
 
   return (
     <>
       <div className="space-y-2">
-        <Label>
-          {restrictToPlanned ? 'Competencias planificadas' : 'Competencias del banco (CNC)'} ({competencyIds.length} seleccionada{competencyIds.length === 1 ? '' : 's'})
-        </Label>
+        <div className="flex items-center justify-between">
+          <Label>
+            {restrictToPlanned ? 'Competencias planificadas' : 'Competencias del banco (CNC)'} ({competencyIds.length} de {availableCompetencies.length} seleccionada{competencyIds.length === 1 ? '' : 's'})
+          </Label>
+          {isEditable && availableCompetencies.length > 0 && (
+            <div className="flex gap-2 text-xs">
+              <button type="button" className="text-primary hover:underline" onClick={() => onCompetencyIdsChange([...new Set([...competencyIds, ...filtered.map((c) => c.id)])])}>
+                Todas
+              </button>
+              <button type="button" className="text-muted-foreground hover:underline" onClick={() => onCompetencyIdsChange(competencyIds.filter((id) => !filtered.some((c) => c.id === id)))}>
+                Ninguna
+              </button>
+            </div>
+          )}
+        </div>
         {!subjectId || !subnivel ? (
           <p className="text-sm text-muted-foreground">
             Esta materia no tiene área de competencias vinculada o el paralelo no tiene subnivel configurado.
@@ -139,8 +152,12 @@ export function CompetencyAndSaberSelector({
               <CompetencySaberColumns
                 key={competencyId}
                 competencyId={competencyId}
+                gradeCode={gradeCode}
                 selectedSaberIds={saberIds}
-                onToggle={toggleSaber}
+                onToggle={(id) => onSaberIdsChange(saberIds.includes(id) ? saberIds.filter((s) => s !== id) : [...saberIds, id])}
+                onBulkChange={(ids, add) =>
+                  onSaberIdsChange(add ? [...new Set([...saberIds, ...ids])] : saberIds.filter((id) => !ids.includes(id)))
+                }
                 isEditable={isEditable}
               />
             ))
@@ -153,22 +170,32 @@ export function CompetencyAndSaberSelector({
 
 function CompetencySaberColumns({
   competencyId,
+  gradeCode,
   selectedSaberIds,
   onToggle,
+  onBulkChange,
   isEditable,
 }: {
   competencyId: string
+  gradeCode?: string
   selectedSaberIds: string[]
   onToggle: (id: string) => void
+  onBulkChange: (ids: string[], add: boolean) => void
   isEditable: boolean
 }) {
-  const { data: saberes = [] } = useSaberesForCompetency(competencyId)
+  const { data: saberes = [] } = useSaberesForCompetency(competencyId, gradeCode)
   const createSaber = useCreateCompetencySaber()
   const [addingType, setAddingType] = React.useState<CompetencySaberType | null>(null)
   const [newCode, setNewCode] = React.useState('')
   const [newDescription, setNewDescription] = React.useState('')
+  const [search, setSearch] = React.useState('')
 
-  const byType = (type: CompetencySaberType) => saberes.filter((s) => s.type === type)
+  const byType = (type: CompetencySaberType) => {
+    const all = saberes.filter((s) => s.type === type)
+    const query = normalize(search.trim())
+    if (!query) return all
+    return all.filter((s) => normalize(s.code).includes(query) || normalize(s.description).includes(query))
+  }
 
   const handleAdd = (type: CompetencySaberType) => {
     if (!newCode.trim() || !newDescription.trim()) return
@@ -186,63 +213,92 @@ function CompetencySaberColumns({
 
   return (
     <>
-      {(['declarativo', 'procedimental', 'actitudinal'] as CompetencySaberType[]).map((type) => (
-        <div key={type} className="rounded border p-2">
-          <p className="mb-1.5 text-xs font-semibold text-muted-foreground">{SABER_TYPE_LABEL[type]}</p>
-          <div className="space-y-1">
-            {byType(type).map((saber) => {
-              const selected = selectedSaberIds.includes(saber.id)
-              return (
-                <button
-                  key={saber.id}
-                  type="button"
-                  disabled={!isEditable}
-                  onClick={() => onToggle(saber.id)}
-                  className={cn(
-                    'flex w-full items-start gap-1.5 rounded px-1.5 py-1 text-left text-xs transition',
-                    selected ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50',
-                  )}
-                >
-                  <CheckBox selected={selected} />
-                  <span>
-                    <span className="font-mono text-muted-foreground">{saber.code}</span> {saber.description}
-                  </span>
-                </button>
-              )
-            })}
-            {isEditable && addingType === type ? (
-              <div className="space-y-1 pt-1">
-                <Input value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="Código" className="h-7 text-xs" />
-                <Input
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  placeholder="Descripción"
-                  className="h-7 text-xs"
-                />
-                <div className="flex gap-1">
-                  <Button size="sm" className="h-6 px-2 text-xs" onClick={() => handleAdd(type)} loading={createSaber.isPending}>
-                    Agregar
-                  </Button>
-                  <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setAddingType(null)}>
-                    Cancelar
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              isEditable && (
-                <button
-                  type="button"
-                  onClick={() => setAddingType(type)}
-                  className="flex items-center gap-1 pt-1 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <Plus className="h-3 w-3" />
-                  Agregar
-                </button>
-              )
-            )}
-          </div>
+      {saberes.length > 3 && (
+        <div className="relative sm:col-span-3">
+          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar saber por código o texto..."
+            className="h-7 pl-7 text-xs"
+          />
         </div>
-      ))}
+      )}
+      {(['declarativo', 'procedimental', 'actitudinal'] as CompetencySaberType[]).map((type) => {
+        const visible = byType(type)
+        const selectedCount = visible.filter((s) => selectedSaberIds.includes(s.id)).length
+        return (
+          <div key={type} className="rounded border p-2">
+            <div className="mb-1.5 flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground">
+                {SABER_TYPE_LABEL[type]} ({selectedCount} de {visible.length})
+              </p>
+              {isEditable && visible.length > 0 && (
+                <div className="flex gap-1.5 text-[11px]">
+                  <button type="button" className="text-primary hover:underline" onClick={() => onBulkChange(visible.map((s) => s.id), true)}>
+                    Todos
+                  </button>
+                  <button type="button" className="text-muted-foreground hover:underline" onClick={() => onBulkChange(visible.map((s) => s.id), false)}>
+                    Ninguno
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="space-y-1">
+              {visible.map((saber) => {
+                const selected = selectedSaberIds.includes(saber.id)
+                return (
+                  <button
+                    key={saber.id}
+                    type="button"
+                    disabled={!isEditable}
+                    onClick={() => onToggle(saber.id)}
+                    className={cn(
+                      'flex w-full items-start gap-1.5 rounded px-1.5 py-1 text-left text-xs transition',
+                      selected ? 'bg-primary/10 border border-primary/30' : 'hover:bg-muted/50',
+                    )}
+                  >
+                    <CheckBox selected={selected} />
+                    <span>
+                      <span className="font-mono text-muted-foreground">{saber.code}</span> {saber.description}
+                    </span>
+                  </button>
+                )
+              })}
+              {isEditable && addingType === type ? (
+                <div className="space-y-1 pt-1">
+                  <Input value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="Código" className="h-7 text-xs" />
+                  <Input
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    placeholder="Descripción"
+                    className="h-7 text-xs"
+                  />
+                  <div className="flex gap-1">
+                    <Button size="sm" className="h-6 px-2 text-xs" onClick={() => handleAdd(type)} loading={createSaber.isPending}>
+                      Agregar
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setAddingType(null)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                isEditable && (
+                  <button
+                    type="button"
+                    onClick={() => setAddingType(type)}
+                    className="flex items-center gap-1 pt-1 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Agregar
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+        )
+      })}
     </>
   )
 }
