@@ -650,7 +650,7 @@ export class PrismaPlanningRepository {
       })
     }
 
-    const competencyIds = [...new Set(dto.weeks.map((w) => w.competencyId))]
+    const competencyIds = [...new Set(dto.weeks.flatMap((w) => w.competencyIds))]
 
     // Como máximo UNA situación por plan+periodo — si ya existe (ej. el docente
     // vuelve a confirmar una distribución editada), se reutiliza en vez de
@@ -692,11 +692,11 @@ export class PrismaPlanningRepository {
             institutionId,
             situationId: situation!.id,
             weekNumber: w.weekNumber,
-            competencyIds: [w.competencyId],
+            competencyIds: w.competencyIds,
             competencySaberIds: w.saberIds,
           },
           update: {
-            competencyIds: [w.competencyId],
+            competencyIds: w.competencyIds,
             competencySaberIds: w.saberIds,
           },
         }),

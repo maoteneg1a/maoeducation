@@ -166,13 +166,24 @@ export interface SuggestDistributionDto {
   weeksCount: number
 }
 
-export interface SuggestedWeekDistribution {
-  weekNumber: number
+export interface SuggestedWeekCompetency {
   competencyId: string
   competencyCode: string
   competencyText: string
   saberIds: string[]
   sabers: { id: string; type: 'declarativo' | 'procedimental' | 'actitudinal'; code: string; description: string }[]
+}
+
+/**
+ * `competencies` es un array (1+ competencias por semana) — la sugerencia
+ * automática (distributeCompetencyWeeks) siempre devuelve 1, pero el docente
+ * puede agregar más manualmente en el wizard antes de confirmar. Nunca se
+ * fuerza a una sola: el modelo de datos (PlanningWeek.competencyIds) ya
+ * soportaba N desde antes, esto solo deja de ocultarlo en el DTO.
+ */
+export interface SuggestedWeekDistribution {
+  weekNumber: number
+  competencies: SuggestedWeekCompetency[]
 }
 
 export interface SuggestDistributionResult {
@@ -184,7 +195,7 @@ export interface SuggestDistributionResult {
 
 export interface ConfirmDistributionWeekDto {
   weekNumber: number
-  competencyId: string
+  competencyIds: string[]
   saberIds: string[]
 }
 
