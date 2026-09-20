@@ -71,12 +71,15 @@ export interface AiConfig {
   model: string
   /** Tope mensual de tokens (input+output) para esta institución. 0 = sin tope. */
   monthlyTokenCap: number
+  /** Tope diario de tokens — frena un pico concentrado en un día sin esperar a que se note en el tope mensual. 0 = sin tope. */
+  dailyTokenCap: number
 }
 
 export interface UpdateAiConfigDto {
   enabled?: boolean
   model?: string
   monthlyTokenCap?: number
+  dailyTokenCap?: number
 }
 
 // ---- Modelo de planificación curricular (configurable por institución) ----

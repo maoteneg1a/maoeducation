@@ -6,6 +6,7 @@ import { getAnthropicClient, isAnthropicConfigured } from '../../infrastructure/
 import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
 import { generateSituationNarrativeSafe } from './situation-narrative-generator.service'
 import { draftCompetencyWeek } from './competency-pedagogical-generator.service'
+import { assertBudgetAvailable } from './ai-budget.service'
 import type { DraftCompetencyWeekResult } from '../dtos/ai-assistant.dto'
 
 const institutionRepo = new PrismaInstitutionRepository()
@@ -291,10 +292,10 @@ async function ensureSharedExperience(
   if (existing) return existing
 
   const participantsBlock = participants.map((p) => `- ${p.gradeLabel} — ${p.subjectName}`).join('\n')
-  const systemPrompt = `Eres un asistente pedagógico que ayuda a docentes ecuatorianos UNIDOCENTES/PLURIDOCENTES (multigrado) a plantear la EXPERIENCIA COMÚN de una semana de clase compartida entre varios grados a la vez, siguiendo el Currículo Nacional por Competencias (CNC) del MINEDUC.
-
-Grados y materias que comparten esta semana en la misma aula:
-${participantsBlock}
+  // Bloque fijo, separado del bloque variable (grados/materias de ESTE grupo)
+  // por la misma razón que en los demás generadores: un solo bloque ephemeral
+  // con datos variables nunca logra cache hit entre grupos multigrado distintos.
+  const staticInstructions = `Eres un asistente pedagógico que ayuda a docentes ecuatorianos UNIDOCENTES/PLURIDOCENTES (multigrado) a plantear la EXPERIENCIA COMÚN de una semana de clase compartida entre varios grados a la vez, siguiendo el Currículo Nacional por Competencias (CNC) del MINEDUC.
 
 Genera con la herramienta:
 1. title: título corto y concreto de la situación/experiencia común de esta semana (no repitas ningún nombre de materia literal).
@@ -302,6 +303,8 @@ Genera con la herramienta:
 3. commonPurpose: qué logran en conjunto todos los grados con esta experiencia — texto DISTINTO en palabras de "context" (no repitas frases).
 
 Reglas estrictas: no menciones competencias/indicadores específicos de ningún grado (eso lo maneja cada grado por separado más adelante); no repitas frases entre title/context/commonPurpose; la experiencia debe tener sentido genuino para TODOS los grados listados a la vez, sin favorecer solo uno.`
+
+  const participantsContext = `Grados y materias que comparten esta semana en la misma aula:\n${participantsBlock}`
 
   const client = getAnthropicClient()
   const messages: Anthropic.MessageParam[] = [
@@ -316,7 +319,10 @@ Reglas estrictas: no menciones competencias/indicadores específicos de ningún 
       response = await client.messages.create({
         model: aiModel,
         max_tokens: 1024,
-        system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+        system: [
+          { type: 'text', text: staticInstructions, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: participantsContext },
+        ],
         messages,
         tools: [
           { name: 'submit_shared_experience', description: 'Envía la experiencia común multigrado', input_schema: EXPERIENCE_SCHEMA },
@@ -330,26 +336,29 @@ Reglas estrictas: no menciones competencias/indicadores específicos de ningún 
       continue
     }
 
-    await prisma.auditLog.create({
-      data: {
-        institutionId,
-        userId: actorId,
-        action: 'ai.draft_multigrade_shared_experience',
-        resourceType: 'multigrade_group',
-        resourceId: group.id,
-        newValue: {
-          model: aiModel,
-          attempt,
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-          cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    const recordAttempt = (errors: string[]) =>
+      prisma.auditLog.create({
+        data: {
+          institutionId,
+          userId: actorId,
+          action: 'ai.draft_multigrade_shared_experience',
+          resourceType: 'multigrade_group',
+          resourceId: group.id,
+          newValue: {
+            model: aiModel,
+            attempt,
+            inputTokens: response!.usage.input_tokens,
+            outputTokens: response!.usage.output_tokens,
+            cacheReadTokens: response!.usage.cache_read_input_tokens ?? 0,
+            errors,
+          },
         },
-      },
-    })
+      })
 
     const toolUse = response.content.find((b) => b.type === 'tool_use')
     if (!toolUse || toolUse.type !== 'tool_use') {
       lastErrors = ['NO_TOOL_USE_RETURNED']
+      await recordAttempt(lastErrors)
       messages.push({ role: 'assistant', content: response.content })
       messages.push({
         role: 'user',
@@ -373,6 +382,7 @@ Reglas estrictas: no menciones competencias/indicadores específicos de ningún 
     const texts = [raw.context, raw.commonPurpose].filter((t): t is string => typeof t === 'string' && t.length > 0)
     if (new Set(texts.map((t) => t.trim().toLowerCase())).size < texts.length) errors.push('FIELDS_REPEATED')
 
+    await recordAttempt(errors)
     if (errors.length === 0) {
       verified = { title: raw.title!.trim().slice(0, 200), context: raw.context!.trim(), commonPurpose: raw.commonPurpose!.trim() }
       break
@@ -440,6 +450,7 @@ export async function draftMultigradeWeek(
   if (!isAnthropicConfigured()) throw new ForbiddenError('El asistente IA no está configurado en el servidor')
   const aiConfig = await institutionRepo.getAiConfig(institutionId)
   if (!aiConfig.enabled) throw new ForbiddenError('El asistente IA no está habilitado para esta institución')
+  await assertBudgetAvailable(institutionId, aiConfig)
 
   const group = await prisma.multigradeGroup.findFirst({
     where: { id: dto.groupId, institutionId },

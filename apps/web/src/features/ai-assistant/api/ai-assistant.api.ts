@@ -4,6 +4,7 @@ export interface AiConfig {
   enabled: boolean
   model: string
   monthlyTokenCap: number
+  dailyTokenCap: number
 }
 
 export interface DraftedSaber {

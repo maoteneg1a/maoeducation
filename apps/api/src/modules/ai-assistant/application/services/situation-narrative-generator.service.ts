@@ -3,6 +3,7 @@ import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { getAnthropicClient, isAnthropicConfigured } from '../../infrastructure/services/anthropic-client'
 import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
 import { buildSituationTitle } from '../../../planning/domain/situation-title'
+import { assertBudgetAvailable } from './ai-budget.service'
 
 /**
  * Título+descripción de una situación de aprendizaje redactados por IA, en
@@ -56,9 +57,21 @@ async function generateSituationNarrative(
   const competenciesBlock = context.competencyTexts.map((t, i) => `${i + 1}. ${t}`).join('\n')
   const saberesBlock = context.saberDescriptions.slice(0, 20).map((s) => `- ${s}`).join('\n')
 
-  const systemPrompt = `Eres un asistente pedagógico que ayuda a docentes ecuatorianos a titular y describir una SITUACIÓN DE APRENDIZAJE del Currículo Nacional por Competencias (CNC) del MINEDUC.
+  // Bloque fijo, idéntico en TODAS las llamadas (cualquier institución/situación)
+  // — es el único que vale la pena cachear. El bloque de abajo (datos de esta
+  // situación puntual) cambia siempre, así que va sin cache_control: antes
+  // estaba todo junto en un solo bloque marcado ephemeral, lo que pagaba el
+  // costo de cache-write (1.25x) en cada llamada sin nunca lograr un hit real
+  // entre situaciones distintas.
+  const staticInstructions = `Eres un asistente pedagógico que ayuda a docentes ecuatorianos a titular y describir una SITUACIÓN DE APRENDIZAJE del Currículo Nacional por Competencias (CNC) del MINEDUC.
 
-Asignatura: ${context.subjectName}
+Genera con la herramienta:
+1. title: título corto (estilo situación/reto de aprendizaje, no una simple etiqueta) — NUNCA copies literalmente el texto de la competencia, redacta con tus propias palabras manteniendo el sentido pedagógico real.
+2. description: 2-4 líneas describiendo la situación de aprendizaje que vivirán los estudiantes — qué explorarán, harán o resolverán, conectado a la competencia y los saberes dados. Texto DISTINTO en palabras de "title" (no repitas frases).
+
+Reglas estrictas: no inventes contenido curricular fuera de lo dado; no repitas frases entre title/description.`
+
+  const situationContext = `Asignatura: ${context.subjectName}
 Grado/Curso: ${context.gradeName}
 Trimestre: ${context.periodName}
 
@@ -66,13 +79,7 @@ Competencia(s) que cubre esta situación de aprendizaje:
 ${competenciesBlock}
 
 Saberes reales asociados (muestra):
-${saberesBlock || '(sin saberes específicos todavía)'}
-
-Genera con la herramienta:
-1. title: título corto (estilo situación/reto de aprendizaje, no una simple etiqueta) — NUNCA copies literalmente el texto de la competencia, redacta con tus propias palabras manteniendo el sentido pedagógico real.
-2. description: 2-4 líneas describiendo la situación de aprendizaje que vivirán los estudiantes — qué explorarán, harán o resolverán, conectado a la competencia y los saberes dados. Texto DISTINTO en palabras de "title" (no repitas frases).
-
-Reglas estrictas: no inventes contenido curricular fuera de lo dado; no repitas frases entre title/description.`
+${saberesBlock || '(sin saberes específicos todavía)'}`
 
   const client = getAnthropicClient()
   const messages: Anthropic.MessageParam[] = [
@@ -86,7 +93,10 @@ Reglas estrictas: no inventes contenido curricular fuera de lo dado; no repitas 
       response = await client.messages.create({
         model: aiModel,
         max_tokens: 1024,
-        system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+        system: [
+          { type: 'text', text: staticInstructions, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: situationContext },
+        ],
         messages,
         tools: [{ name: 'submit_situation_narrative', description: 'Envía el título y descripción', input_schema: NARRATIVE_SCHEMA }],
         tool_choice: { type: 'auto' },
@@ -98,26 +108,29 @@ Reglas estrictas: no inventes contenido curricular fuera de lo dado; no repitas 
       continue
     }
 
-    await prisma.auditLog.create({
-      data: {
-        institutionId,
-        userId: actorId,
-        action: 'ai.draft_situation_narrative',
-        resourceType: 'learning_situation',
-        resourceId,
-        newValue: {
-          model: aiModel,
-          attempt,
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-          cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    const recordAttempt = (errors: string[]) =>
+      prisma.auditLog.create({
+        data: {
+          institutionId,
+          userId: actorId,
+          action: 'ai.draft_situation_narrative',
+          resourceType: 'learning_situation',
+          resourceId,
+          newValue: {
+            model: aiModel,
+            attempt,
+            inputTokens: response!.usage.input_tokens,
+            outputTokens: response!.usage.output_tokens,
+            cacheReadTokens: response!.usage.cache_read_input_tokens ?? 0,
+            errors,
+          },
         },
-      },
-    })
+      })
 
     const toolUse = response.content.find((b) => b.type === 'tool_use')
     if (!toolUse || toolUse.type !== 'tool_use') {
       lastErrors = ['NO_TOOL_USE_RETURNED']
+      await recordAttempt(lastErrors)
       messages.push({ role: 'assistant', content: response.content })
       messages.push({ role: 'user', content: 'Debes llamar a submit_situation_narrative — no respondas con texto libre.' })
       continue
@@ -133,6 +146,7 @@ Reglas estrictas: no inventes contenido curricular fuera de lo dado; no repitas 
       errors.push('FIELDS_REPEATED')
     }
 
+    await recordAttempt(errors)
     if (errors.length === 0) {
       return { title: raw.title!.trim(), description: raw.description!.trim() }
     }
@@ -176,6 +190,7 @@ export async function generateSituationNarrativeSafe(
   try {
     const aiConfig = await institutionRepo.getAiConfig(institutionId)
     if (!aiConfig.enabled) return fallback
+    await assertBudgetAvailable(institutionId, aiConfig)
     const generated = await generateSituationNarrative(institutionId, actorId, aiConfig.model, resourceId, context)
     if (!generated) return fallback
     return { title: generated.title.slice(0, 200), description: generated.description }

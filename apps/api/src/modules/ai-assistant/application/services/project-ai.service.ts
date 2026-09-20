@@ -1,10 +1,120 @@
+import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
-import { ForbiddenError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
+import { BadRequestError, ForbiddenError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import { getAnthropicClient, isAnthropicConfigured } from '../../infrastructure/services/anthropic-client'
 import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
+import { assertBudgetAvailable } from './ai-budget.service'
 import type { DraftProjectDto, DraftProjectResult, DraftedProjectContribution } from '../dtos/ai-assistant.dto'
 
 const institutionRepo = new PrismaInstitutionRepository()
+const MAX_ATTEMPTS = 2
+const MIN_TEXT_WORDS = 6
+
+function wordCount(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length
+}
+
+interface RawProjectPayload extends DraftProjectResult {
+  contributions: (DraftedProjectContribution & { newSabers: DraftedProjectContribution['newSabers'] })[]
+}
+
+/**
+ * Valida agresivamente el payload generado — antes de este fix se casteaba
+ * `toolUse.input as DraftProjectResult` sin ninguna verificación y se
+ * persistía directo en Prisma, así que un contributionId inventado o un
+ * conteo de semanas incorrecto se guardaba sin que nadie lo detectara.
+ * Calcado del validador ya probado en interdisciplinary-project-generator.
+ */
+function validatePayload(
+  raw: unknown,
+  expectedContributionIds: Set<string>,
+  weeksCount: number,
+): { status: 'VERIFIED'; payload: RawProjectPayload } | { status: 'REJECTED'; errors: string[] } {
+  const errors: string[] = []
+  if (!raw || typeof raw !== 'object') return { status: 'REJECTED', errors: ['EMPTY_PAYLOAD'] }
+  const p = raw as Partial<RawProjectPayload>
+
+  const topFields: [string, string | undefined][] = [
+    ['situacionReto', p.situacionReto],
+    ['contexto', p.contexto],
+    ['propositoComun', p.propositoComun],
+    ['productoFinal', p.productoFinal],
+  ]
+  for (const [name, value] of topFields) {
+    if (!value || typeof value !== 'string' || wordCount(value) < MIN_TEXT_WORDS) {
+      errors.push(`${name.toUpperCase()}_TOO_SHORT_OR_MISSING`)
+    }
+  }
+  const generalTexts = topFields.map(([, v]) => v).filter((t): t is string => typeof t === 'string' && t.length > 0)
+  if (new Set(generalTexts.map((t) => t.trim().toLowerCase())).size < generalTexts.length) {
+    errors.push('GENERAL_FIELDS_REPEATED')
+  }
+
+  if (!Array.isArray(p.contributions) || p.contributions.length === 0) {
+    errors.push('CONTRIBUTIONS_MISSING')
+    return { status: 'REJECTED', errors: [...new Set(errors)] }
+  }
+
+  const seenContributionIds = new Set<string>()
+  for (const c of p.contributions) {
+    if (!c || typeof c !== 'object') {
+      errors.push('CONTRIBUTION_MALFORMED')
+      continue
+    }
+    if (!c.contributionId || !expectedContributionIds.has(c.contributionId)) {
+      errors.push('CONTRIBUTION_ID_INVALID')
+      continue
+    }
+    if (seenContributionIds.has(c.contributionId)) errors.push('CONTRIBUTION_ID_DUPLICATED')
+    seenContributionIds.add(c.contributionId)
+
+    if (!c.contribucion || typeof c.contribucion !== 'string' || wordCount(c.contribucion) < MIN_TEXT_WORDS) {
+      errors.push(`CONTRIBUTION_${c.contributionId}_CONTRIBUCION_TOO_SHORT`)
+    }
+    if (!c.responsabilidad || typeof c.responsabilidad !== 'string' || wordCount(c.responsabilidad) < MIN_TEXT_WORDS) {
+      errors.push(`CONTRIBUTION_${c.contributionId}_RESPONSABILIDAD_TOO_SHORT`)
+    }
+    if (c.contribucion && c.responsabilidad && c.contribucion.trim().toLowerCase() === c.responsabilidad.trim().toLowerCase()) {
+      errors.push(`CONTRIBUTION_${c.contributionId}_CONTRIBUCION_EQUALS_RESPONSABILIDAD`)
+    }
+    if (!Array.isArray(c.skillIds) || !Array.isArray(c.competencyIds)) {
+      errors.push(`CONTRIBUTION_${c.contributionId}_SKILL_OR_COMPETENCY_IDS_MALFORMED`)
+    }
+    if (!Array.isArray(c.weeks) || c.weeks.length !== weeksCount) {
+      errors.push(`CONTRIBUTION_${c.contributionId}_WEEKS_COUNT_MISMATCH`)
+      continue
+    }
+    const seenWeekNumbers = new Set<number>()
+    for (const w of c.weeks) {
+      if (!w || typeof w !== 'object') {
+        errors.push(`CONTRIBUTION_${c.contributionId}_WEEK_MALFORMED`)
+        continue
+      }
+      if (typeof w.weekNumber !== 'number' || w.weekNumber < 1 || w.weekNumber > weeksCount) {
+        errors.push(`CONTRIBUTION_${c.contributionId}_WEEK_NUMBER_OUT_OF_RANGE`)
+        continue
+      }
+      seenWeekNumbers.add(w.weekNumber)
+      const phaseFields: [string, unknown][] = [
+        ['weekProposito', w.weekProposito],
+        ['faseInicio', w.faseInicio],
+        ['faseDesarrollo', w.faseDesarrollo],
+        ['faseCierre', w.faseCierre],
+      ]
+      for (const [field, value] of phaseFields) {
+        if (typeof value !== 'string' || wordCount(value) < 4) {
+          errors.push(`CONTRIBUTION_${c.contributionId}_WEEK_${w.weekNumber}_${field.toUpperCase()}_TOO_SHORT`)
+        }
+      }
+    }
+    if (seenWeekNumbers.size !== weeksCount) {
+      errors.push(`CONTRIBUTION_${c.contributionId}_WEEK_NUMBERS_INCOMPLETE_OR_DUPLICATED`)
+    }
+  }
+
+  if (errors.length > 0) return { status: 'REJECTED', errors: [...new Set(errors)] }
+  return { status: 'VERIFIED', payload: raw as RawProjectPayload }
+}
 
 const SABER_SCHEMA = {
   type: 'object',
@@ -63,25 +173,6 @@ const RESPONSE_SCHEMA = {
   additionalProperties: false,
 }
 
-async function assertBudgetAvailable(institutionId: string, monthlyTokenCap: number) {
-  if (monthlyTokenCap <= 0) return
-  const startOfMonth = new Date()
-  startOfMonth.setDate(1)
-  startOfMonth.setHours(0, 0, 0, 0)
-
-  const logs = await prisma.auditLog.findMany({
-    where: { institutionId, action: { in: ['ai.draft_week', 'ai.draft_project'] }, createdAt: { gte: startOfMonth } },
-    select: { newValue: true },
-  })
-  const used = logs.reduce((sum, log) => {
-    const v = (log.newValue ?? {}) as { inputTokens?: number; outputTokens?: number }
-    return sum + (v.inputTokens ?? 0) + (v.outputTokens ?? 0)
-  }, 0)
-  if (used >= monthlyTokenCap) {
-    throw new ForbiddenError('Se alcanzó el tope mensual de uso del asistente IA para esta institución')
-  }
-}
-
 /**
  * Genera y GUARDA de una sola vez todo el proyecto interdisciplinario (reto,
  * contexto, propósito, producto final, y por cada asignatura ya unida: su
@@ -97,7 +188,7 @@ export async function draftProject(institutionId: string, actorId: string, dto: 
   if (!aiConfig.enabled) {
     throw new ForbiddenError('El asistente IA no está habilitado para esta institución')
   }
-  await assertBudgetAvailable(institutionId, aiConfig.monthlyTokenCap)
+  await assertBudgetAvailable(institutionId, aiConfig)
 
   const project = await prisma.interdisciplinaryProject.findFirst({
     where: { id: dto.projectId, institutionId },
@@ -197,9 +288,12 @@ export async function draftProject(institutionId: string, actorId: string, dto: 
 
   const promptIdea = dto.prompt?.trim() || project.title
 
-  const systemPrompt = `Eres un asistente pedagógico que ayuda a equipos docentes ecuatorianos a diseñar un PROYECTO INTERDISCIPLINARIO completo, siguiendo el Currículo Priorizado con Énfasis en Competencias del MINEDUC.
+  // Bloque fijo, separado del contexto variable de abajo por la misma razón que
+  // en interdisciplinary-project-generator.service.ts: antes todo iba en un solo
+  // bloque ephemeral, así que el cache nunca pegaba entre proyectos distintos.
+  const staticInstructions = `Eres un asistente pedagógico que ayuda a equipos docentes ecuatorianos a diseñar un PROYECTO INTERDISCIPLINARIO completo, siguiendo el Currículo Priorizado con Énfasis en Competencias del MINEDUC.`
 
-Grado/Paralelo: ${project.parallel.level.name} "${project.parallel.name}"
+  const projectContext = `Grado/Paralelo: ${project.parallel.level.name} "${project.parallel.name}"
 Periodo: ${project.academicPeriod.name}
 Número de semanas del proyecto: ${project.weeksCount}
 Idea/título del proyecto: ${promptIdea}
@@ -223,42 +317,107 @@ Genera el proyecto completo:
 Sé concreto y breve en cada campo (2-3 líneas máximo por campo). No inventes ids de destrezas o saberes fuera de los dados.`
 
   const client = getAnthropicClient()
-  const response = await client.messages.create({
-    model: aiConfig.model,
-    max_tokens: 8000,
-    system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
-    messages: [{ role: 'user', content: 'Genera el proyecto interdisciplinario completo.' }],
-    tools: [
-      {
-        name: 'submit_project_draft',
-        description: 'Envía el proyecto interdisciplinario completo generado',
-        input_schema: RESPONSE_SCHEMA,
-      },
-    ],
-    tool_choice: { type: 'tool', name: 'submit_project_draft' },
-  })
+  const expectedContributionIds = new Set(project.contributions.map((c) => c.id))
+  const messages: Anthropic.MessageParam[] = [{ role: 'user', content: 'Genera el proyecto interdisciplinario completo.' }]
+  let lastErrors: string[] = []
+  let verifiedPayload: RawProjectPayload | null = null
 
-  const toolUse = response.content.find((b) => b.type === 'tool_use')
-  if (!toolUse || toolUse.type !== 'tool_use') {
-    throw new Error('El asistente IA no devolvió un proyecto válido')
-  }
-  const raw = toolUse.input as DraftProjectResult
-
-  await prisma.auditLog.create({
-    data: {
-      institutionId,
-      userId: actorId,
-      action: 'ai.draft_project',
-      resourceType: 'interdisciplinary_project',
-      resourceId: dto.projectId,
-      newValue: {
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let response
+    try {
+      response = await client.messages.create({
         model: aiConfig.model,
-        inputTokens: response.usage.input_tokens,
-        outputTokens: response.usage.output_tokens,
-        cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
-      },
-    },
-  })
+        max_tokens: 8000,
+        system: [
+          { type: 'text', text: staticInstructions, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: projectContext },
+        ],
+        messages,
+        tools: [
+          {
+            name: 'submit_project_draft',
+            description: 'Envía el proyecto interdisciplinario completo generado',
+            input_schema: RESPONSE_SCHEMA,
+          },
+        ],
+        tool_choice: { type: 'auto' },
+      })
+    } catch (error) {
+      const status = error instanceof Anthropic.APIError ? error.status : undefined
+      lastErrors = [`API_ERROR_${status ?? 'UNKNOWN'}`]
+      await prisma.auditLog.create({
+        data: {
+          institutionId,
+          userId: actorId,
+          action: 'ai.draft_project',
+          resourceType: 'interdisciplinary_project',
+          resourceId: dto.projectId,
+          newValue: { model: aiConfig.model, attempt, errors: lastErrors },
+        },
+      })
+      if (status === 401 || status === 403 || status === 429) break
+      continue
+    }
+
+    const recordAttempt = (errors: string[]) =>
+      prisma.auditLog.create({
+        data: {
+          institutionId,
+          userId: actorId,
+          action: 'ai.draft_project',
+          resourceType: 'interdisciplinary_project',
+          resourceId: dto.projectId,
+          newValue: {
+            model: aiConfig.model,
+            attempt,
+            inputTokens: response.usage.input_tokens,
+            outputTokens: response.usage.output_tokens,
+            cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+            errors,
+          },
+        },
+      })
+
+    const toolUse = response.content.find((b) => b.type === 'tool_use')
+    if (!toolUse || toolUse.type !== 'tool_use') {
+      lastErrors = ['NO_TOOL_USE_RETURNED']
+      await recordAttempt(lastErrors)
+      messages.push({ role: 'assistant', content: response.content })
+      messages.push({
+        role: 'user',
+        content: 'Debes llamar a submit_project_draft con el proyecto completo — no respondas con texto libre.',
+      })
+      continue
+    }
+
+    const validation = validatePayload(toolUse.input, expectedContributionIds, project.weeksCount)
+    if (validation.status === 'VERIFIED') {
+      await recordAttempt([])
+      verifiedPayload = validation.payload
+      break
+    }
+    lastErrors = validation.errors
+    await recordAttempt(lastErrors)
+    messages.push({ role: 'assistant', content: response.content })
+    messages.push({
+      role: 'user',
+      content: [
+        {
+          type: 'tool_result',
+          tool_use_id: toolUse.id,
+          is_error: true,
+          content: `Corrige ÚNICAMENTE estos errores y vuelve a llamar la herramienta con el proyecto completo corregido: ${validation.errors.join(', ')}.`,
+        },
+      ],
+    })
+  }
+
+  if (!verifiedPayload) {
+    throw new BadRequestError(
+      `El asistente IA no pudo generar un proyecto interdisciplinario válido tras ${MAX_ATTEMPTS} intentos (${lastErrors.join(', ')}). Intenta de nuevo o crea el proyecto manualmente.`,
+    )
+  }
+  const raw = verifiedPayload
 
   // Guarda todo: datos generales del proyecto + cada contribución + sus semanas.
   await prisma.interdisciplinaryProject.update({
