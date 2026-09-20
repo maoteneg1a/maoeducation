@@ -13,6 +13,24 @@ export function useAiEnabled() {
   return data?.enabled ?? false
 }
 
+/**
+ * Uso real de tokens de hoy/mes contra los topes configurados — aviso
+ * preventivo antes de que el docente choque contra el límite (antes solo se
+ * enteraba vía el toast de error de useDraftWeek/useDraftCompetencyWeek/etc.
+ * cuando ya era tarde). refetchInterval corto porque el consumo cambia con
+ * cada generación de cualquier docente de la institución, no solo la propia.
+ */
+export function useAiBudgetUsage() {
+  const aiEnabled = useAiEnabled()
+  return useQuery({
+    queryKey: ['ai-budget-usage'],
+    queryFn: aiAssistantApi.getAiUsage,
+    enabled: aiEnabled,
+    staleTime: 20 * 1000,
+    refetchInterval: 30 * 1000,
+  })
+}
+
 export function useDraftWeek() {
   return useMutation({
     mutationFn: aiAssistantApi.draftWeek,
