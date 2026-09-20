@@ -140,24 +140,31 @@ const RESPONSE_SCHEMA = {
         type: 'object',
         properties: {
           contributionId: { type: 'string' },
-          contribucion: { type: 'string' },
-          responsabilidad: { type: 'string' },
+          contribucion: { type: 'string', maxLength: 220 },
+          responsabilidad: { type: 'string', maxLength: 220 },
           skillIds: { type: 'array', items: { type: 'string' } },
           competencyIds: { type: 'array', items: { type: 'string' } },
           newSabers: { type: 'array', items: SABER_SCHEMA },
           reusedSaberIds: { type: 'array', items: { type: 'string' } },
+          // maxLength: estos 6 campos se repiten por SEMANA × CONTRIBUCIÓN —
+          // el mayor multiplicador de output de todo el módulo ai-assistant
+          // (6 campos × ~8 semanas × ~3 asignaturas ≈ 7500 tokens capados,
+          // que ya casi saturaba max_tokens=8000 con 200/campo — se bajó a
+          // 150 para dejar margen real y no arriesgar que el JSON se trunque
+          // a mitad de generación, lo cual dispara MÁS reintentos en vez de
+          // menos). El output es el token 5x más caro que el input en Sonnet.
           weeks: {
             type: 'array',
             items: {
               type: 'object',
               properties: {
                 weekNumber: { type: 'number' },
-                weekProposito: { type: 'string' },
-                faseInicio: { type: 'string' },
-                faseDesarrollo: { type: 'string' },
-                faseCierre: { type: 'string' },
-                propositoPedagogico: { type: 'string' },
-                evidencias: { type: 'string' },
+                weekProposito: { type: 'string', maxLength: 150 },
+                faseInicio: { type: 'string', maxLength: 150 },
+                faseDesarrollo: { type: 'string', maxLength: 150 },
+                faseCierre: { type: 'string', maxLength: 150 },
+                propositoPedagogico: { type: 'string', maxLength: 150 },
+                evidencias: { type: 'string', maxLength: 150 },
               },
               required: ['weekNumber', 'weekProposito', 'faseInicio', 'faseDesarrollo', 'faseCierre', 'propositoPedagogico', 'evidencias'],
               additionalProperties: false,

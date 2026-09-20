@@ -483,6 +483,9 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
                     ? 'Genera indicadores, saberes y las 3 fases (Inicio/Desarrollo/Cierre) a partir de las competencias seleccionadas.'
                     : 'Genera competencias, indicadores, saberes y las 3 fases (Inicio/Desarrollo/Cierre) a partir de las destrezas seleccionadas.'}
                 </p>
+                <p className="mt-0.5 text-[11px] text-amber-700">
+                  Cada regeneración consume tokens de nuevo — revisa bien la selección antes de regenerar.
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 {isCompetencyModel && (
