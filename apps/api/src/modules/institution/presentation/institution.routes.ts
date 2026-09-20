@@ -4,6 +4,7 @@ import { requirePermission } from '../../../shared/infrastructure/middleware/rba
 import { ForbiddenError } from '../../../shared/domain/errors/app.errors'
 import { PrismaInstitutionRepository } from '../infrastructure/repositories/prisma-institution.repository'
 import { buildMicrocurricularPdf } from '../../planning/application/services/microcurricular-pdf.service'
+import { getBudgetUsage } from '../../ai-assistant/application/services/ai-budget.service'
 import type {
   MicrocurricularTemplateConfig,
   UpdateAiConfigDto,
@@ -151,6 +152,13 @@ export default async function institutionRoutes(app: FastifyInstance) {
   // GET /institution/ai-config — cualquiera autenticado (para saber si mostrar el botón de IA)
   app.get('/institution/ai-config', async (req, reply) => {
     return reply.send(await repo.getAiConfig(req.user.institutionId))
+  })
+
+  // GET /institution/ai-usage — cualquiera autenticado, aviso preventivo antes de chocar el tope
+  // (antes el docente solo se enteraba del cupo agotado vía el toast de error al generar).
+  app.get('/institution/ai-usage', async (req, reply) => {
+    const aiConfig = await repo.getAiConfig(req.user.institutionId)
+    return reply.send(await getBudgetUsage(req.user.institutionId, aiConfig))
   })
 
   // PUT /institution/ai-config — ya NO editable por el admin de la institución.

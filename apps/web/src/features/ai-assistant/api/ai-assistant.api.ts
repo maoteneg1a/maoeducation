@@ -7,6 +7,13 @@ export interface AiConfig {
   dailyTokenCap: number
 }
 
+export interface AiBudgetUsage {
+  usedToday: number
+  usedThisMonth: number
+  dailyTokenCap: number
+  monthlyTokenCap: number
+}
+
 export interface DraftedSaber {
   id: string
   type: 'declarativo' | 'procedimental' | 'actitudinal'
@@ -99,6 +106,7 @@ export interface DraftProjectResult {
 
 export const aiAssistantApi = {
   getAiConfig: () => apiGet<AiConfig>('institution/ai-config'),
+  getAiUsage: () => apiGet<AiBudgetUsage>('institution/ai-usage'),
 
   draftWeek: (data: { situationId: string; skillIds: string[]; weekName?: string }) =>
     apiPost<DraftWeekResult>('ai-assistant/draft-week', data),
