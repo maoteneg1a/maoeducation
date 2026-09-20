@@ -24,7 +24,7 @@ export function AiUsageBadge() {
   return (
     <div
       className={cn('hidden sm:flex flex-col items-center justify-center rounded-lg border px-3 py-1.5 ring-1', tone.ring)}
-      title={`Cupo diario de IA de la institución: ${data.usedToday.toLocaleString('es')} / ${data.dailyTokenCap.toLocaleString('es')} tokens usados hoy`}
+      title={`Cupo diario de IA de la institución: ${data.usedToday.toLocaleString('es')} / ${data.dailyTokenCap.toLocaleString('es')} tokens usados hoy (~$${data.costTodayUsd.toFixed(2)} USD)`}
     >
       <span className={cn('text-lg font-bold leading-none', tone.text)}>{remainingPct}%</span>
       <span className="text-[10px] uppercase tracking-wide text-muted-foreground leading-none mt-0.5">cupo IA hoy</span>

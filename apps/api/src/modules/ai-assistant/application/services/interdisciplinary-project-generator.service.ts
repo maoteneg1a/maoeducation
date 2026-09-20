@@ -6,6 +6,7 @@ import { getAnthropicClient, isAnthropicConfigured } from '../../infrastructure/
 import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
 import { resolveWorkload, weeklyPhaseCounts } from '../../../../shared/domain/workload-resolution'
 import { assertBudgetAvailable } from './ai-budget.service'
+import { withGenerationLock } from './ai-generation-lock'
 import type { DraftedSaber } from '../dtos/ai-assistant.dto'
 
 const institutionRepo = new PrismaInstitutionRepository()
@@ -267,6 +268,18 @@ function validatePayload(
  * persistente (nunca reconstruye messages desde cero) si la validación falla.
  */
 export async function draftInterdisciplinaryProject(
+  institutionId: string,
+  actorId: string,
+  situationId: string,
+): Promise<DraftInterdisciplinaryProjectResult> {
+  // Idempotencia: evita que un doble clic/retry dispare dos generaciones
+  // completas para la MISMA situación a la vez (aparte del borrado del
+  // proyecto anterior de esa situación que ya existe al crear el nuevo).
+  const lockKey = `draft-interdisciplinary-project:${institutionId}:${situationId}`
+  return withGenerationLock(lockKey, () => draftInterdisciplinaryProjectInner(institutionId, actorId, situationId))
+}
+
+async function draftInterdisciplinaryProjectInner(
   institutionId: string,
   actorId: string,
   situationId: string,

@@ -60,7 +60,11 @@ function isResourceJustified(resource: string, activity: string): boolean {
 
 export interface GeneratedResourceLink {
   kind: 'web_search' | 'generate_document'
-  resolvedUrl?: string
+  // web_search: el modelo solo propone el texto de búsqueda — la URL real se
+  // resuelve DESPUÉS de validar, en una llamada aislada (ver
+  // web-resource-resolver.service.ts), nunca dentro de la generación
+  // pedagógica principal.
+  searchQuery?: string
   documentSpec?: unknown
 }
 
@@ -133,6 +137,51 @@ function allActivitiesStems(methodology: Record<PedagogicalPhase, GeneratedCompe
   return stems
 }
 
+/**
+ * Repara en TypeScript, ANTES de validar, los defectos que son puramente
+ * estructurales/mecánicos — nunca decisiones pedagógicas del modelo — para no
+ * gastar un reintento completo (facturado de nuevo, contexto entero) en algo
+ * que el código puede arreglar solo:
+ *
+ * - identityCode alterado: el sistema ya sabe cuál es el correcto (`ctx.expectedIdentityCode`)
+ *   — sobrescribirlo no cambia nada pedagógico, solo corrige un campo que el
+ *   modelo a veces reformula o trunca.
+ * - resourceLink/instrumentLink con datos incompletos (kind="web_search" sin
+ *   searchQuery, o kind="generate_document" sin documentSpec): son opcionales
+ *   por diseño — un link roto no amerita rechazar la semana entera, se
+ *   descarta el link y se sigue sin él.
+ *
+ * Errores que SÍ requieren volver a llamar al modelo (actividad genérica,
+ * código DUA no permitido, técnica/instrumento incompatible, evidencia no
+ * alineada con el indicador, etc.) se dejan intactos — son juicio pedagógico
+ * real, no algo que el código pueda decidir por su cuenta.
+ */
+export function autoRepairCompetencyPayload(
+  payload: GeneratedCompetencyPedagogyPayload,
+  ctx: PedagogicalValidationContext,
+): GeneratedCompetencyPedagogyPayload {
+  const repaired: GeneratedCompetencyPedagogyPayload = {
+    ...payload,
+    identityCode: ctx.expectedIdentityCode,
+    assessment: { ...payload.assessment },
+  }
+
+  if (repaired.resourceLink) {
+    const link = repaired.resourceLink
+    const isBroken =
+      (link.kind === 'web_search' && !link.searchQuery) || (link.kind === 'generate_document' && !link.documentSpec)
+    if (isBroken) repaired.resourceLink = undefined
+  }
+  if (repaired.assessment.instrumentLink) {
+    const link = repaired.assessment.instrumentLink
+    const isBroken =
+      (link.kind === 'web_search' && !link.searchQuery) || (link.kind === 'generate_document' && !link.documentSpec)
+    if (isBroken) repaired.assessment.instrumentLink = undefined
+  }
+
+  return repaired
+}
+
 export function validateGeneratedCompetencyPedagogy(
   payload: GeneratedCompetencyPedagogyPayload,
   ctx: PedagogicalValidationContext,
@@ -178,8 +227,8 @@ export function validateGeneratedCompetencyPedagogy(
     }
   }
   if (payload.resourceLink) {
-    if (payload.resourceLink.kind === 'web_search' && !payload.resourceLink.resolvedUrl) {
-      errors.push('RESOURCE_LINK_MISSING_URL')
+    if (payload.resourceLink.kind === 'web_search' && !payload.resourceLink.searchQuery) {
+      errors.push('RESOURCE_LINK_MISSING_QUERY')
     }
     if (payload.resourceLink.kind === 'generate_document' && !payload.resourceLink.documentSpec) {
       errors.push('RESOURCE_LINK_MISSING_SPEC')
@@ -200,8 +249,8 @@ export function validateGeneratedCompetencyPedagogy(
     errors.push('INSTRUMENT_NOT_ALLOWED')
   }
   if (assessment.instrumentLink) {
-    if (assessment.instrumentLink.kind === 'web_search' && !assessment.instrumentLink.resolvedUrl) {
-      errors.push('INSTRUMENT_LINK_MISSING_URL')
+    if (assessment.instrumentLink.kind === 'web_search' && !assessment.instrumentLink.searchQuery) {
+      errors.push('INSTRUMENT_LINK_MISSING_QUERY')
     }
     if (assessment.instrumentLink.kind === 'generate_document' && !assessment.instrumentLink.documentSpec) {
       errors.push('INSTRUMENT_LINK_MISSING_SPEC')
@@ -287,8 +336,8 @@ export function validateGeneratedPedagogy(
     // silencio (resolveResourceLinkText simplemente lo omite), así que mejor
     // rechazar y reintentar en vez de dejarlo pasar a medias.
     if (item.resourceLink) {
-      if (item.resourceLink.kind === 'web_search' && !item.resourceLink.resolvedUrl) {
-        errors.push(`${item.phase}_RESOURCE_LINK_MISSING_URL`)
+      if (item.resourceLink.kind === 'web_search' && !item.resourceLink.searchQuery) {
+        errors.push(`${item.phase}_RESOURCE_LINK_MISSING_QUERY`)
       }
       if (item.resourceLink.kind === 'generate_document' && !item.resourceLink.documentSpec) {
         errors.push(`${item.phase}_RESOURCE_LINK_MISSING_SPEC`)

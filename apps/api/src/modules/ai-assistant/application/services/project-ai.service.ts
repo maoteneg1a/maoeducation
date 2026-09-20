@@ -4,6 +4,7 @@ import { BadRequestError, ForbiddenError, NotFoundError } from '../../../../shar
 import { getAnthropicClient, isAnthropicConfigured } from '../../infrastructure/services/anthropic-client'
 import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
 import { assertBudgetAvailable } from './ai-budget.service'
+import { withGenerationLock } from './ai-generation-lock'
 import type { DraftProjectDto, DraftProjectResult, DraftedProjectContribution } from '../dtos/ai-assistant.dto'
 
 const institutionRepo = new PrismaInstitutionRepository()
@@ -188,6 +189,13 @@ const RESPONSE_SCHEMA = {
  * y ya unió ≥2 asignaturas — de ahí en adelante todo lo llena la IA.
  */
 export async function draftProject(institutionId: string, actorId: string, dto: DraftProjectDto): Promise<DraftProjectResult> {
+  // Idempotencia: evita que un doble clic/retry dispare dos generaciones
+  // completas (la más cara del módulo) sobre el MISMO proyecto a la vez.
+  const lockKey = `draft-project:${institutionId}:${dto.projectId}`
+  return withGenerationLock(lockKey, () => draftProjectInner(institutionId, actorId, dto))
+}
+
+async function draftProjectInner(institutionId: string, actorId: string, dto: DraftProjectDto): Promise<DraftProjectResult> {
   if (!isAnthropicConfigured()) {
     throw new ForbiddenError('El asistente IA no está configurado en el servidor')
   }

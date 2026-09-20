@@ -12,6 +12,8 @@ export interface AiBudgetUsage {
   usedThisMonth: number
   dailyTokenCap: number
   monthlyTokenCap: number
+  costTodayUsd: number
+  costThisMonthUsd: number
 }
 
 export interface DraftedSaber {

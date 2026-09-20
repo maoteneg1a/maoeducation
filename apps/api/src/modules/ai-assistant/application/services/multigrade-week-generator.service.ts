@@ -451,6 +451,7 @@ export async function draftMultigradeWeek(
   const aiConfig = await institutionRepo.getAiConfig(institutionId)
   if (!aiConfig.enabled) throw new ForbiddenError('El asistente IA no está habilitado para esta institución')
   await assertBudgetAvailable(institutionId, aiConfig)
+  const operationStartedAt = new Date()
 
   const group = await prisma.multigradeGroup.findFirst({
     where: { id: dto.groupId, institutionId },
@@ -578,6 +579,51 @@ export async function draftMultigradeWeek(
       validationErrors: result.validationErrors,
     })
   }
+
+  // Resumen agregado de TODA la operación multigrado (Prioridad 14 del plan
+  // de optimización de costos) — antes solo se veía el costo grado por grado
+  // en audit_logs, sin poder saber de un vistazo cuánto costó la operación
+  // multigrado COMPLETA (experiencia común + N grados). Lee de vuelta los
+  // logs que ya escribieron draftCompetencyWeek/resolveWebResource por cada
+  // grado, en vez de acumular en memoria durante el loop, porque
+  // draftCompetencyWeek no devuelve sus propios contadores de tokens.
+  const perGradeLogs = await prisma.auditLog.findMany({
+    where: {
+      institutionId,
+      action: { in: ['ai.draft_competency_week', 'ai.resolve_web_resource'] },
+      resourceId: { in: prepared.map((p) => p.situationId) },
+      createdAt: { gte: operationStartedAt },
+    },
+    select: { newValue: true },
+  })
+  const totals = perGradeLogs.reduce(
+    (acc, log) => {
+      const v = (log.newValue ?? {}) as { inputTokens?: number; outputTokens?: number; estimatedCostUsd?: number }
+      acc.requests++
+      acc.totalInputTokens += v.inputTokens ?? 0
+      acc.totalOutputTokens += v.outputTokens ?? 0
+      acc.totalCostUsd += v.estimatedCostUsd ?? 0
+      return acc
+    },
+    { requests: 0, totalInputTokens: 0, totalOutputTokens: 0, totalCostUsd: 0 },
+  )
+  await prisma.auditLog.create({
+    data: {
+      institutionId,
+      userId: actorId,
+      action: 'ai.draft_multigrade_week_summary',
+      resourceType: 'multigrade_shared_experience',
+      resourceId: experience.id,
+      newValue: {
+        multigradeGroupId: dto.groupId,
+        gradeCount: prepared.length,
+        requestsGenerated: totals.requests,
+        totalInputTokens: totals.totalInputTokens,
+        totalOutputTokens: totals.totalOutputTokens,
+        totalCostUsd: totals.totalCostUsd,
+      },
+    },
+  })
 
   return {
     experienceId: experience.id,

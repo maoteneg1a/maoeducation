@@ -12,6 +12,7 @@ import {
 } from '../../../../shared/domain/pedagogical-methodology'
 import {
   validateGeneratedCompetencyPedagogy,
+  autoRepairCompetencyPayload,
   type GeneratedCompetencyPedagogyPayload,
   type GeneratedResourceLink,
   type PedagogicalValidationContext,
@@ -19,6 +20,9 @@ import {
 import { resolveWorkload, weeklyPhaseCounts } from '../../../../shared/domain/workload-resolution'
 import { buildResourceDocumentPdf, type DocumentSpec } from './resource-document-pdf.service'
 import { assertBudgetAvailable } from './ai-budget.service'
+import { resolveWebResource, type WebResourceResolverContext } from './web-resource-resolver.service'
+import { estimateCostUsd } from './ai-pricing'
+import { withGenerationLock } from './ai-generation-lock'
 import { storage } from '../../../../shared/infrastructure/services/storage.service'
 import { env } from '../../../../config/env'
 import { randomUUID } from 'crypto'
@@ -45,15 +49,17 @@ const DOCUMENT_BLOCK_SCHEMA = {
 const RESOURCE_LINK_SCHEMA = {
   type: 'object' as const,
   properties: {
-    // web_search: usa la herramienta de búsqueda para encontrar un recurso digital
-    // REAL ya publicado (video, artículo, imagen) — nunca inventes una URL sin buscarla.
+    // web_search: el recurso ya existe publicado en internet (video, artículo,
+    // imagen) — SOLO propone searchQuery, la búsqueda real se resuelve en un
+    // paso APARTE después de validar el borrador (web-resource-resolver.service.ts),
+    // nunca dentro de esta llamada (antes web_search vivía aquí mismo y cada
+    // pause_turn reenviaba todo el contexto pedagógico completo — la llamada
+    // más cara del módulo — solo para resolver un link puntual).
     // generate_document: el recurso no existe en internet pero es simple de producir
     // (ficha, organizador, guía, rúbrica) — describe su contenido en documentSpec, el
     // sistema genera el PDF y te devuelve su link real.
     kind: { type: 'string', enum: ['web_search', 'generate_document'] },
     searchQuery: { type: 'string' },
-    resolvedUrl: { type: 'string' },
-    resolvedTitle: { type: 'string' },
     documentSpec: {
       type: 'object',
       properties: {
@@ -263,21 +269,30 @@ function toValidationPayload(raw: RawGenerationPayload): GeneratedCompetencyPeda
 }
 
 /**
- * Si el link pedido es "web_search", ya trae la URL real que Claude encontró
- * con la herramienta de búsqueda — solo se empaqueta. Si es "generate_document",
+ * Si el link pedido es "web_search", resuelve la búsqueda AHORA, en una
+ * llamada aislada (web-resource-resolver.service.ts) — antes el modelo ya
+ * traía la URL resuelta porque web_search vivía en la misma llamada que
+ * generaba toda la planificación; separarlo evita que cada pause_turn de la
+ * búsqueda reenvíe el contexto pedagógico completo. Si es "generate_document",
  * genera el PDF del documentSpec (reusa el mismo motor que las fichas de
  * recurso), lo sube al storage, y devuelve su URL pública. Nunca lanza: un
- * fallo aquí (storage caído, etc.) simplemente omite el link.
+ * fallo aquí (storage caído, búsqueda sin resultados, etc.) simplemente omite
+ * el link — NUNCA debe hacer fallar ni reintentar la generación pedagógica ya
+ * validada.
  */
 async function resolveLink(
-  link: (GeneratedResourceLink & { documentSpec?: DocumentSpec; resolvedTitle?: string }) | undefined,
+  link: (GeneratedResourceLink & { documentSpec?: DocumentSpec; searchQuery?: string }) | undefined,
   fallbackTitle: string,
+  model: string,
+  webResourceCtx: WebResourceResolverContext,
 ): Promise<{ title: string; url: string } | undefined> {
   if (!link) return undefined
   try {
     if (link.kind === 'web_search') {
-      if (!link.resolvedUrl) return undefined
-      return { title: link.resolvedTitle ?? fallbackTitle, url: link.resolvedUrl }
+      if (!link.searchQuery) return undefined
+      const resolved = await resolveWebResource(model, link.searchQuery, webResourceCtx)
+      if (!resolved) return undefined
+      return { title: resolved.title || fallbackTitle, url: resolved.url }
     }
     if (link.kind === 'generate_document' && link.documentSpec) {
       const pdf = await buildResourceDocumentPdf(link.documentSpec)
@@ -295,6 +310,8 @@ async function momentosFromPayload(
   raw: RawGenerationPayload,
   criterio: string,
   instrumentLabelByCode: Map<string, string>,
+  model: string,
+  webResourceCtx: WebResourceResolverContext,
 ): Promise<CompetencyWeekMomentos> {
   const fases = {} as CompetencyWeekMomentos['fases']
   const PHASE_TO_KEY: Record<PedagogicalPhase, 'inicio' | 'desarrollo' | 'cierre'> = {
@@ -307,8 +324,8 @@ async function momentosFromPayload(
   }
 
   const [recursoLink, instrumentoLink] = await Promise.all([
-    resolveLink(raw.resourceLink, 'Recurso'),
-    resolveLink(raw.assessment.instrumentLink, 'Instrumento'),
+    resolveLink(raw.resourceLink, 'Recurso', model, webResourceCtx),
+    resolveLink(raw.assessment.instrumentLink, 'Instrumento', model, webResourceCtx),
   ])
 
   return {
@@ -359,6 +376,18 @@ function indicatorCodes(competencies: { indicators: { code: string; text: string
  * por fase.
  */
 export async function draftCompetencyWeek(
+  institutionId: string,
+  actorId: string,
+  dto: DraftCompetencyWeekDto,
+): Promise<DraftCompetencyWeekResult> {
+  // Idempotencia: un doble clic o un retry del frontend en la MISMA semana no
+  // dispara una segunda generación completa (facturada de nuevo) mientras la
+  // primera sigue en curso — ver ai-generation-lock.ts para el alcance/límites.
+  const lockKey = `draft-competency-week:${institutionId}:${dto.situationId}:${dto.weekNumber ?? 1}`
+  return withGenerationLock(lockKey, () => draftCompetencyWeekInner(institutionId, actorId, dto))
+}
+
+async function draftCompetencyWeekInner(
   institutionId: string,
   actorId: string,
   dto: DraftCompetencyWeekDto,
@@ -536,7 +565,7 @@ Genera:
    - duaCode: EXACTAMENTE un código del catálogo DUA dado arriba, coherente con esa fase y esa actividad específica (no repitas el mismo código en todas las actividades salvo que realmente aplique).
 3. resources: lista de 3-6 recursos CONCRETOS para TODA la semana (no por fase) — cada uno una palabra o frase CORTA de 1-3 palabras, SIN paréntesis ni descripciones — que aparezca mencionado (mismas palabras) en al menos una de las actividades de methodology. NO repitas la misma redacción de las actividades: el recurso es solo el NOMBRE del material, la actividad ya explica el uso.
 4. resourceLink (OPCIONAL): si uno de los recursos de la semana es un material DIGITAL que debería tener un enlace real:
-   - kind="web_search" + searchQuery: cuando el recurso ya existe publicado en internet (video, imagen, artículo). Usa la herramienta de búsqueda web ANTES de llamar a submit_competency_week_draft, y solo si encuentras un resultado real completa resolvedUrl (URL exacta, sin modificar) y resolvedTitle. Si no encuentras nada útil, NO incluyas resourceLink.
+   - kind="web_search" + searchQuery: cuando el recurso ya existe publicado en internet (video, imagen, artículo). NO busques nada tú mismo — solo propone el texto de búsqueda más específico posible (searchQuery), otro proceso resuelve la URL real después.
    - kind="generate_document" + documentSpec: cuando el recurso es un material que NO existe en internet pero es simple de producir (ficha, organizador gráfico, guía de trabajo) — documentSpec describe título/instrucciones/bloques (paragraph, numbered_lines, table con headers+rows, o blank_space con label).
    - Si el recurso es solo un material físico genérico (pizarra, cuaderno), NO agregues resourceLink.
 5. assessment: evaluación de TODA la semana (una sola, no por fase):
@@ -547,7 +576,7 @@ Genera:
 
 No redactes "criterio" ni "indicadoresEvaluacion" — el sistema los deriva automáticamente de los códigos de indicador ya seleccionados por el docente.
 
-Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o instrumento fuera de los dados. No inventes URLs — usa siempre la herramienta de búsqueda web para verificarlas.`
+Sé concreto. No inventes códigos de competencia, indicador, DUA, técnica o instrumento fuera de los dados. No inventes URLs — para kind="web_search" solo propone searchQuery, nunca una URL.`
 
   // Bloque VARIABLE — específico de esta materia/grado/competencia(s)/semana.
   const contextPrompt = `Asignatura: ${situation.plan.courseAssignment.subject.name}
@@ -568,26 +597,17 @@ Identidad inmutable de esta generación (repítela EXACTA en identityCode, no la
   const tools: Anthropic.Tool[] = [
     { name: 'submit_competency_week_draft', description: 'Envía el borrador estructurado', input_schema: RESPONSE_SCHEMA },
   ]
-  // web_search es server-side (Anthropic lo ejecuta, no nosotros) — con tool_choice
-  // forzado al tool de respuesta, Claude NUNCA podría buscar en el mismo turno, así
-  // que se pasa a "auto" + se instruye en el prompt que siempre debe terminar
-  // llamando submit_competency_week_draft.
-  // max_uses: 1 — evita que la IA dispare varias búsquedas en un mismo turno
-  // (cada búsqueda puede pausar el turno y forzar un "resume", que es una
-  // llamada de API completa nueva); una sola búsqueda basta para resolver un
-  // resourceLink/instrumentLink puntual.
-  const serverTools = [{ type: 'web_search_20260209' as const, name: 'web_search' as const, max_uses: 1, allowed_callers: ['direct' as const] }]
-  // Antes 5 — acotado a 2 tras confirmar con datos reales de producción
-  // (audit_logs) que el volumen de llamadas por trimestre ya es alto por
-  // diseño (8 semanas × validación estricta); menos resumes reduce el peor
-  // caso de llamadas facturadas sin degradar la validación (2 intentos de
-  // pause_turn normalmente resuelven una búsqueda real).
-  const MAX_PAUSE_RESUMES = 2
-
-  // `messages` persiste ENTRE intentos (no se reconstruye desde cero) — si se
-  // resetea en cada intento, Claude pierde toda memoria de lo que generó antes
-  // y el mensaje de corrección ("corrige el error X") no tiene con qué relacionarse,
-  // así que el modelo responde con texto pidiendo aclaraciones en vez de corregir.
+  // web_search YA NO vive en esta llamada (antes era server-side aquí mismo,
+  // con tool_choice:'auto' porque el modelo necesitaba poder elegir buscar
+  // en el mismo turno). Ahora el modelo solo declara searchQuery en
+  // resourceLink/instrumentLink — la búsqueda real se resuelve DESPUÉS de
+  // validar, en una llamada aislada (web-resource-resolver.service.ts). Eso
+  // elimina pause_turn de este flujo por completo: sin web_search no hay
+  // razón para que Anthropic pause el turno, así que se puede forzar
+  // tool_choice al tool de respuesta — reduce el motivo de reintento más
+  // común (NO_TOOL_USE_RETURNED, el modelo respondiendo con texto libre) y
+  // baja el peor caso de esta llamada de hasta 6 requests (2 intentos × 3
+  // resumes) a exactamente 1 por intento.
   const messages: Anthropic.MessageParam[] = [
     { role: 'user', content: `${contextPrompt}\n\nGenera el borrador de esta semana.` },
   ]
@@ -599,30 +619,35 @@ Identidad inmutable de esta generación (repítela EXACTA en identityCode, no la
     { type: 'text', text: staticInstructions, cache_control: { type: 'ephemeral' } },
   ]
 
+  // Instrumentación por request (Prioridad 5/6/11 del plan de optimización):
+  // antes solo se veía el agregado de tokens por operación, sin poder
+  // distinguir cuánto pesa el contexto (competencias/indicadores/saberes de
+  // ESTA llamada puntual) del resto — necesario para diagnosticar picos como
+  // el de ~1M input tokens en pocas horas sin adivinar la causa.
+  const competencyCount = competenciesForPrompt.length
+  const indicatorCount = competenciesForPrompt.reduce((sum, c) => sum + c.indicators.length, 0)
+  const saberCount = competenciesForPrompt.reduce((sum, c) => sum + c.sabers.length, 0)
+
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     let response: Anthropic.Message | undefined
     let apiError: string | null = null
     let nonRetryableApiError = false
+    const requestStartedAt = Date.now()
 
-    for (let resumes = 0; resumes <= MAX_PAUSE_RESUMES; resumes++) {
-      try {
-        response = await client.messages.create({
-          model: aiConfig.model,
-          max_tokens: 4096,
-          system: systemBlocks,
-          messages,
-          tools: [...tools, ...serverTools],
-          tool_choice: { type: 'auto' },
-        })
-      } catch (error) {
-        const status = error instanceof Anthropic.APIError ? error.status : undefined
-        nonRetryableApiError = status === 401 || status === 403 || status === 429
-        apiError = `API_ERROR_${status ?? 'UNKNOWN'}`
-        response = undefined
-        break
-      }
-      if (response.stop_reason !== 'pause_turn') break
-      messages.push({ role: 'assistant', content: response.content })
+    try {
+      response = await client.messages.create({
+        model: aiConfig.model,
+        max_tokens: 4096,
+        system: systemBlocks,
+        messages,
+        tools,
+        tool_choice: { type: 'tool', name: 'submit_competency_week_draft' },
+      })
+    } catch (error) {
+      const status = error instanceof Anthropic.APIError ? error.status : undefined
+      nonRetryableApiError = status === 401 || status === 403 || status === 429
+      apiError = `API_ERROR_${status ?? 'UNKNOWN'}`
+      response = undefined
     }
 
     if (!response) {
@@ -649,9 +674,25 @@ Identidad inmutable de esta generación (repítela EXACTA en identityCode, no la
           newValue: {
             model: aiConfig.model,
             attempt,
+            subjectId: assignment.subjectId,
+            gradeId: assignment.parallelId,
+            weekNumber: currentWeekNumber,
+            competencyCount,
+            indicatorCount,
+            saberCount,
             inputTokens: response!.usage.input_tokens,
             outputTokens: response!.usage.output_tokens,
             cacheReadTokens: response!.usage.cache_read_input_tokens ?? 0,
+            cacheCreationTokens: response!.usage.cache_creation_input_tokens ?? 0,
+            stopReason: response!.stop_reason,
+            durationMs: Date.now() - requestStartedAt,
+            estimatedCostUsd: estimateCostUsd({
+              model: aiConfig.model,
+              inputTokens: response!.usage.input_tokens,
+              outputTokens: response!.usage.output_tokens,
+              cacheReadTokens: response!.usage.cache_read_input_tokens ?? 0,
+              cacheCreationTokens: response!.usage.cache_creation_input_tokens ?? 0,
+            }),
             errors,
           },
         },
@@ -696,7 +737,17 @@ Identidad inmutable de esta generación (repítela EXACTA en identityCode, no la
       techniqueInstrumentMap,
       allowedInstrumentCodes,
     }
-    const validation = validateGeneratedCompetencyPedagogy(toValidationPayload(raw), ctx)
+    // Repara en TypeScript lo puramente mecánico (identityCode alterado, link
+    // opcional incompleto) ANTES de validar — así un defecto trivial no
+    // dispara un reintento completo (facturado de nuevo) por algo que el
+    // código ya sabía corregir. Los campos reparados se reinyectan en `raw`
+    // para que el resto del flujo (persistencia, momentosFromPayload) use la
+    // versión ya corregida, no la original con el defecto.
+    const repaired = autoRepairCompetencyPayload(toValidationPayload(raw), ctx)
+    raw.identityCode = repaired.identityCode
+    if (!repaired.resourceLink) raw.resourceLink = undefined
+    if (!repaired.assessment.instrumentLink) raw.assessment.instrumentLink = undefined
+    const validation = validateGeneratedCompetencyPedagogy(repaired, ctx)
 
     if (validation.status === 'VERIFIED') {
       await recordAttempt([])
@@ -705,7 +756,11 @@ Identidad inmutable de esta generación (repítela EXACTA en identityCode, no la
         indicadoresEvaluacion,
         newSabers: createdSabers,
         reusedSaberIds: [...raw.reusedSaberIds, ...reusedIds],
-        momentos: await momentosFromPayload(raw, criterio, instrumentLabelByCode),
+        momentos: await momentosFromPayload(raw, criterio, instrumentLabelByCode, aiConfig.model, {
+          institutionId,
+          userId: actorId,
+          resourceId: dto.situationId,
+        }),
         generationMode: 'AI_ENHANCED',
         validationErrors: [],
       }
