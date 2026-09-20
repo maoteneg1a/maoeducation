@@ -72,11 +72,13 @@ function AiConfigSection({ institutionId }: { institutionId: string }) {
   const update = useUpdateInstitutionAiConfig(institutionId)
   const [enabled, setEnabled] = React.useState(false)
   const [monthlyTokenCap, setMonthlyTokenCap] = React.useState(0)
+  const [dailyTokenCap, setDailyTokenCap] = React.useState(0)
 
   React.useEffect(() => {
     if (data) {
       setEnabled(data.enabled)
       setMonthlyTokenCap(data.monthlyTokenCap)
+      setDailyTokenCap(data.dailyTokenCap)
     }
   }, [data])
 
@@ -95,19 +97,30 @@ function AiConfigSection({ institutionId }: { institutionId: string }) {
         Habilitar asistente IA para esta institución
       </label>
       {enabled && (
-        <div className="max-w-xs space-y-1.5">
-          <Label>Tope mensual de tokens (0 = sin tope)</Label>
-          <Input
-            type="number"
-            min={0}
-            value={monthlyTokenCap}
-            onChange={(e) => setMonthlyTokenCap(Number(e.target.value))}
-          />
+        <div className="flex gap-4">
+          <div className="max-w-xs space-y-1.5">
+            <Label>Tope diario de tokens (0 = sin tope)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={dailyTokenCap}
+              onChange={(e) => setDailyTokenCap(Number(e.target.value))}
+            />
+          </div>
+          <div className="max-w-xs space-y-1.5">
+            <Label>Tope mensual de tokens (0 = sin tope)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={monthlyTokenCap}
+              onChange={(e) => setMonthlyTokenCap(Number(e.target.value))}
+            />
+          </div>
         </div>
       )}
       <Button
         size="sm"
-        onClick={() => update.mutate({ enabled, monthlyTokenCap, model: data.model })}
+        onClick={() => update.mutate({ enabled, monthlyTokenCap, dailyTokenCap, model: data.model })}
         loading={update.isPending}
       >
         Guardar configuración de IA

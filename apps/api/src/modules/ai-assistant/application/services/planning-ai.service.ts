@@ -4,6 +4,7 @@ import { ForbiddenError, NotFoundError } from '../../../../shared/domain/errors/
 import { getAnthropicClient, isAnthropicConfigured } from '../../infrastructure/services/anthropic-client'
 import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
 import { buildDeterministicMethodology } from '../../../../shared/domain/pedagogical-methodology'
+import { assertBudgetAvailable } from './ai-budget.service'
 import type { DraftWeekDto, DraftWeekResult } from '../dtos/ai-assistant.dto'
 
 const institutionRepo = new PrismaInstitutionRepository()
@@ -56,25 +57,6 @@ const RESPONSE_SCHEMA = {
   },
 }
 
-async function assertBudgetAvailable(institutionId: string, monthlyTokenCap: number) {
-  if (monthlyTokenCap <= 0) return
-  const startOfMonth = new Date()
-  startOfMonth.setDate(1)
-  startOfMonth.setHours(0, 0, 0, 0)
-
-  const logs = await prisma.auditLog.findMany({
-    where: { institutionId, action: 'ai.draft_week', createdAt: { gte: startOfMonth } },
-    select: { newValue: true },
-  })
-  const used = logs.reduce((sum, log) => {
-    const v = (log.newValue ?? {}) as { inputTokens?: number; outputTokens?: number }
-    return sum + (v.inputTokens ?? 0) + (v.outputTokens ?? 0)
-  }, 0)
-  if (used >= monthlyTokenCap) {
-    throw new ForbiddenError('Se alcanzó el tope mensual de uso del asistente IA para esta institución')
-  }
-}
-
 /**
  * Genera un borrador completo de una semana de Planificación Microcurricular
  * (competencias, indicadores, saberes y los 3 momentos DUA) a partir de las
@@ -89,7 +71,7 @@ export async function draftWeek(institutionId: string, actorId: string, dto: Dra
   if (!aiConfig.enabled) {
     throw new ForbiddenError('El asistente IA no está habilitado para esta institución')
   }
-  await assertBudgetAvailable(institutionId, aiConfig.monthlyTokenCap)
+  await assertBudgetAvailable(institutionId, aiConfig)
 
   const situation = await prisma.learningSituation.findFirst({
     where: { id: dto.situationId, institutionId },

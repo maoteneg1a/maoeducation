@@ -18,6 +18,7 @@ import {
 } from '../../../../shared/domain/pedagogical-validation'
 import { resolveWorkload, weeklyPhaseCounts } from '../../../../shared/domain/workload-resolution'
 import { buildResourceDocumentPdf, type DocumentSpec } from './resource-document-pdf.service'
+import { assertBudgetAvailable } from './ai-budget.service'
 import { storage } from '../../../../shared/infrastructure/services/storage.service'
 import { env } from '../../../../config/env'
 import { randomUUID } from 'crypto'
@@ -162,24 +163,6 @@ interface RawGenerationPayload {
   resources: string[]
   resourceLink?: GeneratedResourceLink & { documentSpec?: DocumentSpec }
   assessment: RawAssessment
-}
-
-async function assertBudgetAvailable(institutionId: string, monthlyTokenCap: number) {
-  if (monthlyTokenCap <= 0) return
-  const startOfMonth = new Date()
-  startOfMonth.setDate(1)
-  startOfMonth.setHours(0, 0, 0, 0)
-  const logs = await prisma.auditLog.findMany({
-    where: { institutionId, action: 'ai.draft_competency_week', createdAt: { gte: startOfMonth } },
-    select: { newValue: true },
-  })
-  const used = logs.reduce((sum, log) => {
-    const v = (log.newValue ?? {}) as { inputTokens?: number; outputTokens?: number }
-    return sum + (v.inputTokens ?? 0) + (v.outputTokens ?? 0)
-  }, 0)
-  if (used >= monthlyTokenCap) {
-    throw new ForbiddenError('Se alcanzó el tope mensual de uso del asistente IA para esta institución')
-  }
 }
 
 /**
@@ -480,7 +463,7 @@ export async function draftCompetencyWeek(
   if (!aiConfig.enabled) return fallbackResult(['AI_DISABLED'])
 
   try {
-    await assertBudgetAvailable(institutionId, aiConfig.monthlyTokenCap)
+    await assertBudgetAvailable(institutionId, aiConfig)
   } catch {
     return fallbackResult(['MONTHLY_TOKEN_CAP_REACHED'])
   }
@@ -643,26 +626,36 @@ Identidad inmutable de esta generación (repítela EXACTA en identityCode, no la
       continue
     }
 
-    await prisma.auditLog.create({
-      data: {
-        institutionId,
-        userId: actorId,
-        action: 'ai.draft_competency_week',
-        resourceType: 'learning_situation',
-        resourceId: dto.situationId,
-        newValue: {
-          model: aiConfig.model,
-          attempt,
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-          cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    // El log de auditoría se escribe UNA vez por intento, después de conocer
+    // el desenlace (errors: [] si quedó VERIFIED) — antes se escribía apenas
+    // llegaba la respuesta, sin el motivo del reintento, así que no se podía
+    // distinguir un intento que falló por código DUA inventado de uno que
+    // falló por tool_use ausente: ambos quedaban indistinguibles en
+    // audit_logs y no había forma de atacar la causa real del ~20% de
+    // reintentos observado en producción.
+    const recordAttempt = (errors: string[]) =>
+      prisma.auditLog.create({
+        data: {
+          institutionId,
+          userId: actorId,
+          action: 'ai.draft_competency_week',
+          resourceType: 'learning_situation',
+          resourceId: dto.situationId,
+          newValue: {
+            model: aiConfig.model,
+            attempt,
+            inputTokens: response!.usage.input_tokens,
+            outputTokens: response!.usage.output_tokens,
+            cacheReadTokens: response!.usage.cache_read_input_tokens ?? 0,
+            errors,
+          },
         },
-      },
-    })
+      })
 
     const toolUse = response.content.find((b) => b.type === 'tool_use' && b.name === 'submit_competency_week_draft')
     if (!toolUse || toolUse.type !== 'tool_use') {
       lastErrors = ['NO_TOOL_USE_RETURNED']
+      await recordAttempt(lastErrors)
       messages.push({ role: 'assistant', content: response.content })
       messages.push({
         role: 'user',
@@ -674,6 +667,7 @@ Identidad inmutable de esta generación (repítela EXACTA en identityCode, no la
     const raw = toolUse.input as RawGenerationPayload
     if (!raw.methodology || !raw.assessment || !raw.resources) {
       lastErrors = ['INCOMPLETE_TOOL_INPUT']
+      await recordAttempt(lastErrors)
       messages.push({ role: 'assistant', content: response.content })
       messages.push({
         role: 'user',
@@ -700,6 +694,7 @@ Identidad inmutable de esta generación (repítela EXACTA en identityCode, no la
     const validation = validateGeneratedCompetencyPedagogy(toValidationPayload(raw), ctx)
 
     if (validation.status === 'VERIFIED') {
+      await recordAttempt([])
       const { createdSabers, reusedIds } = await persistSabers(raw.newSabers, competencies)
       return {
         indicadoresEvaluacion,
@@ -711,6 +706,7 @@ Identidad inmutable de esta generación (repítela EXACTA en identityCode, no la
       }
     }
     lastErrors = validation.errors
+    await recordAttempt(lastErrors)
     messages.push({ role: 'assistant', content: response.content })
     messages.push({
       role: 'user',

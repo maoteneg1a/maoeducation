@@ -43,6 +43,7 @@ export interface AiConfig {
   enabled: boolean
   model: string
   monthlyTokenCap: number
+  dailyTokenCap: number
 }
 
 export type PlanningModel = 'destrezas' | 'competencias'

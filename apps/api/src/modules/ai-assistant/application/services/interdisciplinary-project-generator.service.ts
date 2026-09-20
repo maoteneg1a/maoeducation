@@ -5,6 +5,7 @@ import { BadRequestError, ForbiddenError, NotFoundError } from '../../../../shar
 import { getAnthropicClient, isAnthropicConfigured } from '../../infrastructure/services/anthropic-client'
 import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
 import { resolveWorkload, weeklyPhaseCounts } from '../../../../shared/domain/workload-resolution'
+import { assertBudgetAvailable } from './ai-budget.service'
 import type { DraftedSaber } from '../dtos/ai-assistant.dto'
 
 const institutionRepo = new PrismaInstitutionRepository()
@@ -273,6 +274,7 @@ export async function draftInterdisciplinaryProject(
   if (!aiConfig.enabled) {
     throw new ForbiddenError('El asistente IA no está habilitado para esta institución')
   }
+  await assertBudgetAvailable(institutionId, aiConfig)
 
   const situation = await prisma.learningSituation.findFirst({
     where: { id: situationId, institutionId },
@@ -384,9 +386,15 @@ export async function draftInterdisciplinaryProject(
 
   const expectedAssignmentIds = new Set(assignments.map((a) => a.id))
 
-  const systemPrompt = `Eres un asistente pedagógico que ayuda a equipos docentes ecuatorianos a diseñar, de forma CASI AUTOMÁTICA, un PROYECTO INTERDISCIPLINARIO completo a partir de una situación de aprendizaje ya planificada, siguiendo el Currículo Priorizado con Énfasis en Competencias del MINEDUC.
+  // Bloque fijo, idéntico en TODAS las llamadas — separado en su propio breakpoint
+  // para que el prefijo cacheable (este texto + los tools schema, que van antes en
+  // el request) pueda reusarse entre proyectos/instituciones distintas, no solo
+  // dentro de los reintentos de una misma generación (antes estaba todo — incluido
+  // el contexto 100% variable de abajo — en un solo bloque ephemeral, así que el
+  // cache nunca pegaba entre proyectos distintos).
+  const staticInstructions = `Eres un asistente pedagógico que ayuda a equipos docentes ecuatorianos a diseñar, de forma CASI AUTOMÁTICA, un PROYECTO INTERDISCIPLINARIO completo a partir de una situación de aprendizaje ya planificada, siguiendo el Currículo Priorizado con Énfasis en Competencias del MINEDUC.`
 
-Situación de aprendizaje de origen: "${situation.title}"
+  const projectContext = `Situación de aprendizaje de origen: "${situation.title}"
 Grado/Paralelo: ${originAssignment.parallel.level.name} "${originAssignment.parallel.name}"
 Periodo: ${situation.academicPeriod.name}
 Número de semanas (EXACTO — debe coincidir con las semanas de la situación de origen): ${weeksCount}
@@ -429,7 +437,10 @@ Reglas estrictas: no repitas texto entre situacionReto/contexto/propositoComun/p
       response = await client.messages.create({
         model: aiConfig.model,
         max_tokens: 8000,
-        system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+        system: [
+          { type: 'text', text: staticInstructions, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: projectContext },
+        ],
         messages,
         tools: [
           {
@@ -448,26 +459,29 @@ Reglas estrictas: no repitas texto entre situacionReto/contexto/propositoComun/p
       continue
     }
 
-    await prisma.auditLog.create({
-      data: {
-        institutionId,
-        userId: actorId,
-        action: 'ai.draft_interdisciplinary_project',
-        resourceType: 'learning_situation',
-        resourceId: situationId,
-        newValue: {
-          model: aiConfig.model,
-          attempt,
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-          cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    const recordAttempt = (errors: string[]) =>
+      prisma.auditLog.create({
+        data: {
+          institutionId,
+          userId: actorId,
+          action: 'ai.draft_interdisciplinary_project',
+          resourceType: 'learning_situation',
+          resourceId: situationId,
+          newValue: {
+            model: aiConfig.model,
+            attempt,
+            inputTokens: response.usage.input_tokens,
+            outputTokens: response.usage.output_tokens,
+            cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+            errors,
+          },
         },
-      },
-    })
+      })
 
     const toolUse = response.content.find((b) => b.type === 'tool_use')
     if (!toolUse || toolUse.type !== 'tool_use') {
       lastErrors = ['NO_TOOL_USE_RETURNED']
+      await recordAttempt(lastErrors)
       messages.push({ role: 'assistant', content: response.content })
       messages.push({
         role: 'user',
@@ -478,11 +492,13 @@ Reglas estrictas: no repitas texto entre situacionReto/contexto/propositoComun/p
 
     const validation = validatePayload(toolUse.input, expectedAssignmentIds, weeksCount)
     if (validation.status === 'VERIFIED') {
+      await recordAttempt([])
       verifiedPayload = validation.payload
       break
     }
 
     lastErrors = validation.errors
+    await recordAttempt(lastErrors)
     // Empuja la respuesta del modelo + el resultado de error, para que el reintento
     // tenga memoria de qué generó y por qué falló (nunca reconstruir messages desde cero).
     messages.push({ role: 'assistant', content: response.content })

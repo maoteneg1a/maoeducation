@@ -90,6 +90,7 @@ function extractAiConfig(settings: unknown): AiConfig {
     enabled: ac.enabled ?? DEFAULT_AI_CONFIG.enabled,
     model: ac.model ?? DEFAULT_AI_CONFIG.model,
     monthlyTokenCap: ac.monthlyTokenCap ?? DEFAULT_AI_CONFIG.monthlyTokenCap,
+    dailyTokenCap: ac.dailyTokenCap ?? DEFAULT_AI_CONFIG.dailyTokenCap,
   }
 }
 
@@ -275,6 +276,7 @@ export class PrismaInstitutionRepository {
       enabled: dto.enabled ?? current.enabled,
       model: dto.model ?? current.model,
       monthlyTokenCap: dto.monthlyTokenCap ?? current.monthlyTokenCap,
+      dailyTokenCap: dto.dailyTokenCap ?? current.dailyTokenCap,
     }
 
     const updated = await prisma.institution.update({

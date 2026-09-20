@@ -592,6 +592,10 @@ export const DEFAULT_AI_CONFIG = {
   enabled: false,
   model: 'claude-sonnet-4-6',
   monthlyTokenCap: 2_000_000,
+  // ~1/15 del mensual — frena un pico concentrado en un día (varios docentes
+  // planificando el trimestre completo la misma semana) sin esperar a que el
+  // tope mensual, que promedia todo el mes, lo note.
+  dailyTokenCap: 150_000,
 } as const
 
 // Formato del PDF de Planificación Microcurricular tal como sale hoy (mismos
