@@ -1395,6 +1395,13 @@ model InterdisciplinaryProject {
   institutionId    String   @map("institution_id")
   parallelId       String   @map("parallel_id")
   academicPeriodId String   @map("academic_period_id")
+  // Situación de aprendizaje de origen — nullable porque proyectos creados
+  // antes de este campo no la tienen. Sirve para que "regenerar con IA desde
+  // la situación" reemplace el proyecto anterior de ESA situación en vez de
+  // crear uno adicional cada vez (antes no había forma de vincularlos, y cada
+  // clic en regenerar dejaba un proyecto huérfano completo — la llamada más
+  // cara del módulo, facturada de nuevo entera).
+  situationId      String?  @map("situation_id")
   title            String   @db.VarChar(200)
   situacionReto    String?  @map("situacion_reto")
   contexto         String?
@@ -1414,6 +1421,7 @@ model InterdisciplinaryProject {
   contributions  InterdisciplinaryContribution[]
 
   @@unique([parallelId, academicPeriodId, title])
+  @@index([situationId])
   @@map("interdisciplinary_projects")
 }
 

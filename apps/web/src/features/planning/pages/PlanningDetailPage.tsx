@@ -21,6 +21,7 @@ import {
   useDeleteSituation,
 } from '../hooks/usePlanning'
 import { DistributionWizard } from '../components/DistributionWizard'
+import { AiTokenTipModal } from '@/features/ai-assistant/components/AiTokenTipModal'
 import type { SituationStatus } from '../api/planning.api'
 
 // Sin flujo de aprobación por terceros para la Situación de Aprendizaje — solo "Borrador"/"Listo".
@@ -83,6 +84,7 @@ export function PlanningDetailPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      <AiTokenTipModal />
       <div className="flex items-start justify-between gap-4">
         <div>
           <Link to="/planning" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">

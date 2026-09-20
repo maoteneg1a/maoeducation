@@ -24,14 +24,18 @@ const SABER_SCHEMA = {
   additionalProperties: false,
 }
 
+// maxLength es un techo de output, no de calidad: estos 4 campos se repiten
+// por SEMANA × ASIGNATURA (el mayor multiplicador de output del generador),
+// y el output es el token 5x más caro (input:output = 1:5 en Sonnet) — una
+// frase concreta de 6-20 palabras cabe holgada en 200 caracteres.
 const WEEK_SCHEMA = {
   type: 'object' as const,
   properties: {
     weekNumber: { type: 'number' },
-    weekProposito: { type: 'string' },
-    faseInicio: { type: 'string' },
-    faseDesarrollo: { type: 'string' },
-    faseCierre: { type: 'string' },
+    weekProposito: { type: 'string', maxLength: 200 },
+    faseInicio: { type: 'string', maxLength: 200 },
+    faseDesarrollo: { type: 'string', maxLength: 200 },
+    faseCierre: { type: 'string', maxLength: 200 },
   },
   required: ['weekNumber', 'weekProposito', 'faseInicio', 'faseDesarrollo', 'faseCierre'],
   additionalProperties: false,
@@ -41,8 +45,8 @@ const CONTRIBUTION_SCHEMA = {
   type: 'object' as const,
   properties: {
     courseAssignmentId: { type: 'string' },
-    contribucion: { type: 'string' },
-    responsabilidad: { type: 'string' },
+    contribucion: { type: 'string', maxLength: 220 },
+    responsabilidad: { type: 'string', maxLength: 220 },
     skillIds: { type: 'array', items: { type: 'string' } },
     competencyIds: { type: 'array', items: { type: 'string' } },
     newSabers: { type: 'array', items: SABER_SCHEMA },
@@ -546,11 +550,21 @@ Reglas estrictas: no repitas texto entre situacionReto/contexto/propositoComun/p
   }
 
   const projectId = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    // Si el docente ya había generado un proyecto para ESTA situación y vuelve
+    // a generar (regenerar), se borra el anterior antes de crear el nuevo —
+    // onDelete: Cascade en InterdisciplinaryContribution/WeekEntry limpia sus
+    // hijos automáticamente. Antes no existía este vínculo (situationId no
+    // existía en el modelo) y cada regeneración dejaba un proyecto huérfano
+    // completo, además de facturar de nuevo la llamada más cara del módulo
+    // sin ningún beneficio (el anterior quedaba abandonado, no reemplazado).
+    await tx.interdisciplinaryProject.deleteMany({ where: { situationId, institutionId } })
+
     const project = await tx.interdisciplinaryProject.create({
       data: {
         institutionId,
         parallelId,
         academicPeriodId,
+        situationId,
         title,
         situacionReto: raw.situacionReto,
         contexto: raw.contexto,
