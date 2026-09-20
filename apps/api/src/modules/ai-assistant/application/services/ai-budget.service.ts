@@ -1,5 +1,6 @@
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { ForbiddenError } from '../../../../shared/domain/errors/app.errors'
+import { estimateCostUsd } from './ai-pricing'
 
 export interface AiTokenCaps {
   dailyTokenCap: number
@@ -11,15 +12,23 @@ export interface AiBudgetUsage {
   usedThisMonth: number
   dailyTokenCap: number
   monthlyTokenCap: number
+  /** Costo real estimado en USD — a diferencia de usedToday/usedThisMonth (tokens crudos), distingue input caro de cache barato/output. */
+  costTodayUsd: number
+  costThisMonthUsd: number
 }
 
 /**
- * Suma el consumo real de tokens (input+output) del día y del mes en curso —
- * base compartida por assertBudgetAvailable (bloquea al generar) y por el
- * endpoint que expone el uso a la UI del docente (aviso preventivo antes de
- * chocar contra el tope).
+ * Suma el consumo real de tokens (input+output) Y el costo estimado en USD
+ * (que sí distingue input caro, cache barato, output 5x más caro, y
+ * búsquedas web) del día y del mes en curso — base compartida por
+ * assertBudgetAvailable (bloquea al generar, sigue en tokens crudos para no
+ * cambiar el comportamiento de los topes ya configurados en producción) y
+ * por el endpoint que expone el uso a la UI (aviso preventivo, que sí puede
+ * mostrar dólares reales).
  */
-async function computeUsage(institutionId: string): Promise<{ usedToday: number; usedThisMonth: number }> {
+async function computeUsage(
+  institutionId: string,
+): Promise<{ usedToday: number; usedThisMonth: number; costTodayUsd: number; costThisMonthUsd: number }> {
   const startOfDay = new Date()
   startOfDay.setHours(0, 0, 0, 0)
   const startOfMonth = new Date()
@@ -33,13 +42,42 @@ async function computeUsage(institutionId: string): Promise<{ usedToday: number;
 
   let usedToday = 0
   let usedThisMonth = 0
+  let costTodayUsd = 0
+  let costThisMonthUsd = 0
   for (const log of logs) {
-    const v = (log.newValue ?? {}) as { inputTokens?: number; outputTokens?: number }
+    const v = (log.newValue ?? {}) as {
+      model?: string
+      inputTokens?: number
+      outputTokens?: number
+      cacheReadTokens?: number
+      cacheCreationTokens?: number
+      webSearches?: number
+      estimatedCostUsd?: number
+    }
     const tokens = (v.inputTokens ?? 0) + (v.outputTokens ?? 0)
+    // Si el log ya trae estimatedCostUsd (generadores instrumentados) se reusa;
+    // si no (logs viejos o acciones sin costo, ej. ai.draft_multigrade_week_summary
+    // que ya es un agregado), se recalcula solo cuando hay datos de modelo/tokens.
+    const cost =
+      v.estimatedCostUsd ??
+      (v.model
+        ? estimateCostUsd({
+            model: v.model,
+            inputTokens: v.inputTokens ?? 0,
+            outputTokens: v.outputTokens ?? 0,
+            cacheReadTokens: v.cacheReadTokens,
+            cacheCreationTokens: v.cacheCreationTokens,
+            webSearches: v.webSearches,
+          })
+        : 0)
     usedThisMonth += tokens
-    if (log.createdAt >= startOfDay) usedToday += tokens
+    costThisMonthUsd += cost
+    if (log.createdAt >= startOfDay) {
+      usedToday += tokens
+      costTodayUsd += cost
+    }
   }
-  return { usedToday, usedThisMonth }
+  return { usedToday, usedThisMonth, costTodayUsd, costThisMonthUsd }
 }
 
 /**
@@ -69,6 +107,13 @@ export async function assertBudgetAvailable(institutionId: string, caps: AiToken
 
 /** Uso real de hoy/mes + los topes configurados — para el aviso preventivo en la UI del docente. */
 export async function getBudgetUsage(institutionId: string, caps: AiTokenCaps): Promise<AiBudgetUsage> {
-  const { usedToday, usedThisMonth } = await computeUsage(institutionId)
-  return { usedToday, usedThisMonth, dailyTokenCap: caps.dailyTokenCap, monthlyTokenCap: caps.monthlyTokenCap }
+  const { usedToday, usedThisMonth, costTodayUsd, costThisMonthUsd } = await computeUsage(institutionId)
+  return {
+    usedToday,
+    usedThisMonth,
+    dailyTokenCap: caps.dailyTokenCap,
+    monthlyTokenCap: caps.monthlyTokenCap,
+    costTodayUsd,
+    costThisMonthUsd,
+  }
 }
