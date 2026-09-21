@@ -19,6 +19,8 @@ interface EditableRow {
   subjectAreaId: string
   courseAssignmentId?: string
   hasDependentData?: boolean
+  weeklyPeriodsOverride: number | null
+  needsWeeklyPeriodsOverride: boolean
 }
 
 let rowSeq = 0
@@ -44,6 +46,8 @@ export function PersonalClassesPage() {
         subjectAreaId: r.subjectAreaId ?? '',
         courseAssignmentId: r.courseAssignmentId,
         hasDependentData: r.hasDependentData,
+        weeklyPeriodsOverride: r.weeklyPeriodsOverride,
+        needsWeeklyPeriodsOverride: r.needsWeeklyPeriodsOverride,
       })),
     )
     setMultigradeEnabled(data.multigradeEnabled)
@@ -67,7 +71,10 @@ export function PersonalClassesPage() {
   }
 
   function addRow() {
-    setRows((rs) => [...rs, { key: newRowKey(), gradeCode: '', subjectAreaId: '' }])
+    setRows((rs) => [
+      ...rs,
+      { key: newRowKey(), gradeCode: '', subjectAreaId: '', weeklyPeriodsOverride: null, needsWeeklyPeriodsOverride: false },
+    ])
   }
 
   function removeRow(key: string) {
@@ -77,7 +84,7 @@ export function PersonalClassesPage() {
   async function handleSave() {
     const selections: PersonalClassSelection[] = rows
       .filter((r) => r.gradeCode && r.subjectAreaId)
-      .map((r) => ({ gradeCode: r.gradeCode, subjectAreaId: r.subjectAreaId }))
+      .map((r) => ({ gradeCode: r.gradeCode, subjectAreaId: r.subjectAreaId, weeklyPeriodsOverride: r.weeklyPeriodsOverride }))
 
     if (selections.length === 0) {
       toast.error('Agrega al menos un grado con materia')
@@ -132,41 +139,63 @@ export function PersonalClassesPage() {
         </CardHeader>
         <CardContent className="space-y-2">
           {rows.map((row) => (
-            <div key={row.key} className="flex gap-2 items-start">
-              <select
-                value={row.gradeCode}
-                onChange={(e) => setRow(row.key, { gradeCode: e.target.value })}
-                className="flex-1 h-9 rounded-md border border-gray-200 px-2 text-sm text-gray-700"
-              >
-                <option value="">Grado…</option>
-                {GRADE_OPTIONS.map((g) => (
-                  <option key={g.value} value={g.value}>
-                    {g.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={row.subjectAreaId}
-                onChange={(e) => setRow(row.key, { subjectAreaId: e.target.value })}
-                className="flex-1 h-9 rounded-md border border-gray-200 px-2 text-sm text-gray-700"
-              >
-                <option value="">Materia…</option>
-                {catalogAreas.map((area) => (
-                  <option key={area.id} value={area.id}>
-                    {area.name}
-                  </option>
-                ))}
-              </select>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="shrink-0 text-gray-400"
-                onClick={() => removeRow(row.key)}
-                title={row.hasDependentData ? 'Ya tiene actividades/notas registradas' : undefined}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+            <div key={row.key} className="space-y-1">
+              <div className="flex gap-2 items-start">
+                <select
+                  value={row.gradeCode}
+                  onChange={(e) => setRow(row.key, { gradeCode: e.target.value })}
+                  className="flex-1 h-9 rounded-md border border-gray-200 px-2 text-sm text-gray-700"
+                >
+                  <option value="">Grado…</option>
+                  {GRADE_OPTIONS.map((g) => (
+                    <option key={g.value} value={g.value}>
+                      {g.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={row.subjectAreaId}
+                  onChange={(e) => setRow(row.key, { subjectAreaId: e.target.value })}
+                  className="flex-1 h-9 rounded-md border border-gray-200 px-2 text-sm text-gray-700"
+                >
+                  <option value="">Materia…</option>
+                  {catalogAreas.map((area) => (
+                    <option key={area.id} value={area.id}>
+                      {area.name}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-gray-400"
+                  onClick={() => removeRow(row.key)}
+                  title={row.hasDependentData ? 'Ya tiene actividades/notas registradas' : undefined}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+              {row.needsWeeklyPeriodsOverride && (
+                <div className="flex items-center gap-2 pl-1">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span className="text-xs text-gray-500">
+                    Esta materia comparte horas con otras — indica cuántas clases a la semana tienes tú:
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={row.weeklyPeriodsOverride ?? ''}
+                    onChange={(e) =>
+                      setRow(row.key, { weeklyPeriodsOverride: e.target.value ? Number(e.target.value) : null })
+                    }
+                    className="w-16 h-8 rounded-md border border-gray-200 px-2 text-sm text-gray-700"
+                    placeholder="ej. 3"
+                  />
+                  <span className="text-xs text-gray-400">clases/semana</span>
+                </div>
+              )}
             </div>
           ))}
           <Button type="button" variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 px-0" onClick={addRow}>

@@ -83,7 +83,7 @@ const ACTIVITY_SCHEMA = {
     // 5x más caro (input:output = 1:5 en Sonnet), y sin techo el modelo a
     // veces redacta párrafos largos donde una frase corta cumple igual la
     // instrucción pedagógica ("al menos 8 palabras" solo pone un mínimo).
-    text: { type: 'string', maxLength: 220 },
+    text: { type: 'string', maxLength: 440 },
     // Código de checkpoint DUA del catálogo — UNO por actividad (no un bloque
     // genérico de "estrategias DUA" para toda la fase, como pedía el formato
     // anterior — cada actividad individual justifica su propio código).
@@ -132,12 +132,12 @@ const RESPONSE_SCHEMA = {
     // Recursos y evaluación se piden UNA sola vez para toda la semana — NO por
     // fase — porque el formato final es una sola tabla de 3 columnas por semana,
     // no 3 tablas repetidas (pedido explícito: "NO SE DEBE REPETIR TODO ESO").
-    resources: { type: 'array', items: { type: 'string', maxLength: 60 } },
+    resources: { type: 'array', items: { type: 'string', maxLength: 120 } },
     resourceLink: RESOURCE_LINK_SCHEMA,
     assessment: {
       type: 'object',
       properties: {
-        evidence: { type: 'string', maxLength: 220 },
+        evidence: { type: 'string', maxLength: 440 },
         technique: { type: 'string' },
         instrument: { type: 'string' },
         instrumentLink: RESOURCE_LINK_SCHEMA,
@@ -561,7 +561,7 @@ IMPORTANTE — terminología del documento final: las 3 fases se llaman "Inicio"
 Genera:
 1. Saberes: pon en reusedSaberIds ÚNICAMENTE los ids listados en "Saberes de ESTA semana" de cada competencia (dados en el mensaje siguiente) — NUNCA agregues otros saberes de la competencia que no estén en esa lista, aunque los conozcas por el código; esa lista ya es el subconjunto correcto para esta semana específica del bloque, no toda la competencia. Si una competencia no tiene ningún saber listado, propone 1-2 nuevos de cada tipo en newSabers con code "<código_competencia>.d.1"/".p.1"/".a.1".
 2. methodology: para ANTICIPATION (Inicio), CONSTRUCTION (Desarrollo) y CONSOLIDATION (Cierre) — cada fase es una lista de "activities", con EXACTAMENTE el número de actividades indicado en el mensaje siguiente. Cada actividad tiene:
-   - text: una actividad CONCRETA y ESPECÍFICA de 8 a 25 palabras (máximo 220 caracteres) — nunca genérica tipo "trabajar en grupos", pero tampoco un párrafo largo: una frase concreta y accionable alcanza.
+   - text: una actividad CONCRETA y ESPECÍFICA de 16 a 50 palabras (máximo 440 caracteres) — nunca genérica tipo "trabajar en grupos", pero tampoco un párrafo largo: una frase concreta y accionable alcanza.
    - duaCode: EXACTAMENTE un código del catálogo DUA dado arriba, coherente con esa fase y esa actividad específica (no repitas el mismo código en todas las actividades salvo que realmente aplique).
 3. resources: lista de 3-6 recursos CONCRETOS para TODA la semana (no por fase) — cada uno una palabra o frase CORTA de 1-3 palabras, SIN paréntesis ni descripciones — que aparezca mencionado (mismas palabras) en al menos una de las actividades de methodology. NO repitas la misma redacción de las actividades: el recurso es solo el NOMBRE del material, la actividad ya explica el uso.
 4. resourceLink (OPCIONAL): si uno de los recursos de la semana es un material DIGITAL que debería tener un enlace real:
@@ -569,7 +569,7 @@ Genera:
    - kind="generate_document" + documentSpec: cuando el recurso es un material que NO existe en internet pero es simple de producir (ficha, organizador gráfico, guía de trabajo) — documentSpec describe título/instrucciones/bloques (paragraph, numbered_lines, table con headers+rows, o blank_space con label).
    - Si el recurso es solo un material físico genérico (pizarra, cuaderno), NO agregues resourceLink.
 5. assessment: evaluación de TODA la semana (una sola, no por fase):
-   - evidence: el producto o desempeño observable que demuestra el aprendizaje de la semana — DEBE ser distinto en palabras de cualquiera de las actividades de methodology (no repitas la misma redacción, aporta información nueva: qué se entrega/observa, no qué se hizo). Una frase concreta (máximo 220 caracteres), no un párrafo.
+   - evidence: el producto o desempeño observable que demuestra el aprendizaje de la semana — DEBE ser distinto en palabras de cualquiera de las actividades de methodology (no repitas la misma redacción, aporta información nueva: qué se entrega/observa, no qué se hizo). Una frase concreta (máximo 440 caracteres), no un párrafo.
    - technique: código del catálogo de evaluación.
    - instrument: instrumento compatible con esa técnica (del catálogo).
    - instrumentLink (OPCIONAL): si el instrumento (ej. una rúbrica o lista de cotejo) conviene entregarse como documento descargable, usa kind="generate_document" con documentSpec describiendo una tabla de rúbrica/lista de cotejo con los criterios de evaluación como filas — reusa el mismo formato de documentSpec que resourceLink.

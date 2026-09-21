@@ -39,6 +39,8 @@ export interface PersonalSetupDto {
 export interface PersonalClassSelection {
   gradeCode: string
   subjectAreaId: string
+  /** Períodos/semana reales de esta materia — solo aplica cuando la fila trae needsWeeklyPeriodsOverride. */
+  weeklyPeriodsOverride?: number | null
 }
 
 export interface PersonalClassRow {
@@ -51,6 +53,9 @@ export interface PersonalClassRow {
   subjectAreaId: string | null
   isMultigradeMember: boolean
   hasDependentData: boolean
+  weeklyPeriodsOverride: number | null
+  /** true si esta materia comparte un bloque de horas MINEDUC (ej. LL+CN+CS+M) y nadie repartió los períodos todavía. */
+  needsWeeklyPeriodsOverride: boolean
 }
 
 export interface PersonalClassesState {

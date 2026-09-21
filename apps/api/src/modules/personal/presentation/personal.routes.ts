@@ -616,7 +616,11 @@ export default async function personalRoutes(app: FastifyInstance) {
               items: {
                 type: 'object',
                 required: ['gradeCode', 'subjectAreaId'],
-                properties: { gradeCode: { type: 'string' }, subjectAreaId: { type: 'string' } },
+                properties: {
+                  gradeCode: { type: 'string' },
+                  subjectAreaId: { type: 'string' },
+                  weeklyPeriodsOverride: { type: ['number', 'null'] },
+                },
               },
             },
             multigradeEnabled: { type: 'boolean' },
