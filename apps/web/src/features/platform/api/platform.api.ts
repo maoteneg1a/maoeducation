@@ -211,6 +211,8 @@ export interface PlatformSubscription {
   userCount: number
   /** null = institución sin suscripción gestionada (no se le restringe nada). */
   status: PlatformSubscriptionStatus | null
+  /** La suscripción real — si el asistente IA está activado para esta institución. */
+  aiEnabled: boolean
   notes: string | null
   pendingPayments: number
   lastPaymentAt: string | null

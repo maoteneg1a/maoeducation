@@ -56,6 +56,8 @@ export interface PlatformSubscriptionDto {
   accountType: 'personal' | 'institution'
   userCount: number
   status: SubscriptionStatus | null
+  /** La suscripción real — si el asistente IA está activado para esta institución. */
+  aiEnabled: boolean
   notes: string | null
   pendingPayments: number
   lastPaymentAt: string | null
