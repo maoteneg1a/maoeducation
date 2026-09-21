@@ -126,6 +126,9 @@ export const aiAssistantApi = {
     selectedSaberIds?: string[]
     /** Si el docente ya eligió indicadores específicos, tienen prioridad sobre "todos los indicadores de la competencia". */
     selectedIndicatorIds?: string[]
+    /** 'per_saber' = una actividad por saber de la semana. 'fixed' = fixedActivitiesTotal exacto. Sin ninguno, usa la carga horaria de la materia. */
+    activitiesMode?: 'per_saber' | 'fixed'
+    fixedActivitiesTotal?: number
   }) => apiPost<DraftCompetencyWeekResult>('ai-assistant/draft-competency-week', data, { timeout: 120000 }),
 
   /** Estilo TIGA: genera y guarda de una vez las N semanas de un bloque completo (una llamada de IA por semana, en el servidor). */

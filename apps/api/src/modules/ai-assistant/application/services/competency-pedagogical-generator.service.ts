@@ -17,7 +17,7 @@ import {
   type GeneratedResourceLink,
   type PedagogicalValidationContext,
 } from '../../../../shared/domain/pedagogical-validation'
-import { resolveWorkload, weeklyPhaseCounts } from '../../../../shared/domain/workload-resolution'
+import { resolveWorkload, weeklyPhaseCounts, phaseCountsFromTotal } from '../../../../shared/domain/workload-resolution'
 import { buildResourceDocumentPdf, type DocumentSpec } from './resource-document-pdf.service'
 import { assertBudgetAvailable } from './ai-budget.service'
 import { resolveWebResource, type WebResourceResolverContext } from './web-resource-resolver.service'
@@ -518,7 +518,21 @@ async function draftCompetencyWeekInner(
     assignment.parallel.educationOffer,
     assignment.weeklyPeriodsOverride,
   )
-  const phaseCounts = weeklyPhaseCounts(workload.weeklyPeriods)
+  // El docente puede pedir explícitamente "una actividad por saber" en vez
+  // del cálculo por carga horaria — cuenta los saberes reales que van a
+  // aparecer en el prompt de ESTA semana (todas las competencias, no solo la
+  // principal), repartidos entre las 3 fases. fixedActivitiesTotal permite un
+  // número manual distinto sin depender de ninguno de los dos cálculos.
+  const totalSabersForWeek = competenciesForPrompt.reduce((sum, c) => {
+    const sabers = selectedSaberIdSet ? c.sabers.filter((s) => selectedSaberIdSet.has(s.id)) : selectSabersForWeek(c.sabers, currentWeekNumber, totalWeeksInBlock)
+    return sum + sabers.length
+  }, 0)
+  const phaseCounts =
+    dto.activitiesMode === 'per_saber'
+      ? phaseCountsFromTotal(totalSabersForWeek)
+      : dto.activitiesMode === 'fixed' && dto.fixedActivitiesTotal
+        ? phaseCountsFromTotal(dto.fixedActivitiesTotal)
+        : weeklyPhaseCounts(workload.weeklyPeriods)
 
   const deterministic = buildDeterministicCompetencyMethodology(
     duaStrategies,
@@ -570,9 +584,15 @@ async function draftCompetencyWeekInner(
     .map((t) => `  ${t.code} (${t.label}) -> instrumentos válidos: ${t.compatibleInstrumentCodes.join(', ')}`)
     .join('\n')
 
-  const densityLine = workload.weeklyPeriods
-    ? `Carga horaria: ${workload.weeklyPeriods} períodos/semana. Número de actividades numeradas que DEBES generar por fase: Inicio ${phaseCounts.anticipation}, Desarrollo ${phaseCounts.construction}, Cierre ${phaseCounts.consolidation}. Respeta este número exacto — ni más ni menos. NUNCA menos de 2 actividades en ninguna fase, sin excepción.`
-    : 'Carga horaria no configurada para este grado+materia — genera exactamente 2 actividades en Inicio, 2 en Desarrollo y 2 en Cierre (densidad estándar). NUNCA menos de 2 actividades en ninguna fase, sin excepción.'
+  const activityCountReason =
+    dto.activitiesMode === 'per_saber'
+      ? `Modo elegido por el docente: UNA actividad por cada saber movilizado esta semana (${totalSabersForWeek} saberes).`
+      : dto.activitiesMode === 'fixed' && dto.fixedActivitiesTotal
+        ? `Modo elegido por el docente: número fijo de ${dto.fixedActivitiesTotal} actividades para la semana.`
+        : workload.weeklyPeriods
+          ? `Carga horaria: ${workload.weeklyPeriods} períodos/semana.`
+          : 'Carga horaria no configurada para este grado+materia — densidad estándar.'
+  const densityLine = `${activityCountReason} Número de actividades numeradas que DEBES generar por fase: Inicio ${phaseCounts.anticipation}, Desarrollo ${phaseCounts.construction}, Cierre ${phaseCounts.consolidation}. Respeta este número exacto — ni más ni menos. NUNCA menos de 2 actividades en ninguna fase, sin excepción.`
 
   // Multigrado (ver multigrade-week-generator.service.ts): la experiencia común ya
   // fue generada UNA vez para toda el aula — aquí solo se le pide a la IA conectar
