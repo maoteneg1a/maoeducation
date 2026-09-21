@@ -156,6 +156,28 @@ function allActivitiesStems(methodology: Record<PedagogicalPhase, GeneratedCompe
  * alineada con el indicador, etc.) se dejan intactos — son juicio pedagógico
  * real, no algo que el código pueda decidir por su cuenta.
  */
+/**
+ * Empareja un código devuelto por el modelo contra un catálogo permitido de
+ * forma tolerante (trim + sin distinguir mayúsculas) — NUNCA sustituye por un
+ * código pedagógicamente distinto, solo corrige diferencias mecánicas de
+ * formato (espacio de más, mayúscula/minúscula) que en producción explicaban
+ * la mayoría de los DUA_CODE_NOT_ALLOWED/TECHNIQUE_NOT_ALLOWED/
+ * INSTRUMENT_NOT_ALLOWED que agotaban los 2 reintentos y caían al fallback
+ * genérico — el código en sí era el correcto, solo no calzaba con el
+ * Set.has() exacto anterior.
+ */
+function normalizeAgainstCatalog(value: string | undefined, catalog: Set<string>): string | undefined {
+  if (!value) return value
+  if (catalog.has(value)) return value
+  const trimmed = value.trim()
+  if (catalog.has(trimmed)) return trimmed
+  const lower = trimmed.toLowerCase()
+  for (const candidate of catalog) {
+    if (candidate.toLowerCase() === lower) return candidate
+  }
+  return value
+}
+
 export function autoRepairCompetencyPayload(
   payload: GeneratedCompetencyPedagogyPayload,
   ctx: PedagogicalValidationContext,
@@ -163,8 +185,22 @@ export function autoRepairCompetencyPayload(
   const repaired: GeneratedCompetencyPedagogyPayload = {
     ...payload,
     identityCode: ctx.expectedIdentityCode,
+    methodology: { ...payload.methodology },
     assessment: { ...payload.assessment },
   }
+
+  for (const phase of PHASES) {
+    const block = repaired.methodology[phase]
+    if (!block?.activities) continue
+    repaired.methodology[phase] = {
+      activities: block.activities.map((activity) => ({
+        ...activity,
+        duaCode: normalizeAgainstCatalog(activity.duaCode, ctx.allowedDuaCodes) ?? activity.duaCode,
+      })),
+    }
+  }
+  repaired.assessment.technique = normalizeAgainstCatalog(repaired.assessment.technique, ctx.allowedTechniqueCodes) ?? repaired.assessment.technique
+  repaired.assessment.instrument = normalizeAgainstCatalog(repaired.assessment.instrument, ctx.allowedInstrumentCodes) ?? repaired.assessment.instrument
 
   if (repaired.resourceLink) {
     const link = repaired.resourceLink
