@@ -2,6 +2,7 @@ import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, BadRequestError } from '../../../../shared/domain/errors/app.errors'
 import { findGradeByCode } from '../../../../shared/domain/grade-catalog'
 import { MultigradeDomainError, resolveMultigradeSelections } from '../../../../shared/domain/multigrade'
+import { resolveWorkload } from '../../../../shared/domain/workload-resolution'
 
 /**
  * Resolución de materia/nivel compartida entre el wizard de setup
@@ -26,7 +27,7 @@ export type PlanningModel = 'destrezas' | 'competencias'
 export async function resolveSubjectAreaLinks(
   planningModel: PlanningModel,
   areaId: string,
-): Promise<{ name: string; curriculumAreaId?: string; competencyAreaId?: string }> {
+): Promise<{ name: string; curriculumAreaId?: string; competencyAreaId?: string; workloadCode: string }> {
   if (planningModel === 'competencias') {
     const competencyArea = await prisma.competencyArea.findFirst({ where: { id: areaId } })
     if (!competencyArea) throw new NotFoundError('Área de competencias no encontrada en el catálogo')
@@ -37,6 +38,13 @@ export async function resolveSubjectAreaLinks(
     return {
       name: competencyArea.name,
       competencyAreaId: competencyArea.id,
+      // El code del área (BIOLOGY, LL, CN...) ES el mismo código que usa
+      // CurricularWorkload.subjectCodes — confirmado 1:1 contra el catálogo
+      // real. Sin esto, resolveWorkload() siempre devuelve NOT_APPLICABLE y
+      // el generador de IA cae al default fijo de 2/2/2 actividades por
+      // fase, ignorando la carga horaria real (3-5 clases/semana) — bug real
+      // confirmado en producción: 0 de 339 Subjects tenían workloadCode.
+      workloadCode: competencyArea.code,
       ...(curriculumArea ? { curriculumAreaId: curriculumArea.id } : {}),
     }
   }
@@ -50,6 +58,7 @@ export async function resolveSubjectAreaLinks(
   return {
     name: curriculumArea.name,
     curriculumAreaId: curriculumArea.id,
+    workloadCode: curriculumArea.code,
     ...(competencyArea ? { competencyAreaId: competencyArea.id } : {}),
   }
 }
@@ -64,7 +73,7 @@ export async function getOrCreateSubjectForArea(
   planningModel: PlanningModel,
   areaId: string,
 ) {
-  const { name, curriculumAreaId, competencyAreaId } = await resolveSubjectAreaLinks(planningModel, areaId)
+  const { name, curriculumAreaId, competencyAreaId, workloadCode } = await resolveSubjectAreaLinks(planningModel, areaId)
   const existing = await prisma.subject.findFirst({
     where: {
       institutionId,
@@ -72,9 +81,18 @@ export async function getOrCreateSubjectForArea(
       ...(competencyAreaId ? { competencyAreaId } : {}),
     },
   })
-  if (existing) return existing
+  // Auto-repara materias creadas antes de este fix (workloadCode null en
+  // producción confirmado para las 339 Subjects existentes) — sin esto el
+  // generador de IA sigue cayendo al default fijo de actividades para
+  // cualquier institución que ya hubiera creado la materia.
+  if (existing) {
+    if (!existing.workloadCode) {
+      return prisma.subject.update({ where: { id: existing.id }, data: { workloadCode } })
+    }
+    return existing
+  }
   return prisma.subject.create({
-    data: { institutionId, name, curriculumAreaId, competencyAreaId },
+    data: { institutionId, name, curriculumAreaId, competencyAreaId, workloadCode },
   })
 }
 
@@ -122,6 +140,16 @@ export async function ensureParallelA(institutionId: string, levelId: string, ac
 export interface PersonalClassSelection {
   gradeCode: string
   subjectAreaId: string
+  /**
+   * Períodos/semana reales de ESTA materia para este docente — solo hace
+   * falta cuando CurricularWorkload.sourceType es OFFICIAL_GROUPED (varias
+   * materias comparten un bloque de horas, ej. LL+CN+CS+M=20 en Básica
+   * Media, y el MINEDUC no dice cuánto le toca a cada una individualmente).
+   * Sin esto, resolveWorkload() devuelve weeklyPeriods=null y el generador
+   * de IA cae al default fijo de 2 actividades/fase, ignorando la carga
+   * horaria real (3-5 clases/semana) — bug confirmado en producción.
+   */
+  weeklyPeriodsOverride?: number | null
 }
 
 export interface PersonalClassRow {
@@ -135,6 +163,9 @@ export interface PersonalClassRow {
   subjectAreaId: string | null
   isMultigradeMember: boolean
   hasDependentData: boolean
+  weeklyPeriodsOverride: number | null
+  /** true si CurricularWorkload es OFFICIAL_GROUPED para esta materia+grado — la UI solo pide el override cuando aplica. */
+  needsWeeklyPeriodsOverride: boolean
 }
 
 export interface PersonalClassesState {
@@ -193,11 +224,19 @@ export async function listPersonalClasses(institutionId: string): Promise<Person
   })
 
   const group = await prisma.multigradeGroup.findFirst({ where: { institutionId, academicYearId: year.id } })
+  const workloadEntries = await prisma.curricularWorkload.findMany()
 
   const rows: PersonalClassRow[] = []
   for (const a of assignments) {
     const areaId =
       planningModel === 'competencias' ? a.subject.competencyAreaId : a.subject.curriculumAreaId
+    const workload = resolveWorkload(
+      workloadEntries,
+      a.parallel.level.code,
+      a.subject.workloadCode,
+      a.parallel.educationOffer,
+      a.weeklyPeriodsOverride,
+    )
     rows.push({
       gradeCode: a.parallel.level.code,
       gradeName: a.parallel.level.name,
@@ -208,6 +247,11 @@ export async function listPersonalClasses(institutionId: string): Promise<Person
       subjectAreaId: areaId ?? null,
       isMultigradeMember: a.multigradeGroupMember !== null,
       hasDependentData: await hasDependentData(a.id),
+      weeklyPeriodsOverride: a.weeklyPeriodsOverride,
+      // Solo pide el override cuando resolveWorkload realmente lo necesita
+      // (bloque OFFICIAL_GROUPED sin resolver) — status viene de
+      // workload-resolution.ts: 'INSTITUTIONAL_CONFIGURATION_REQUIRED'.
+      needsWeeklyPeriodsOverride: workload.status === 'INSTITUTIONAL_CONFIGURATION_REQUIRED',
     })
   }
 
@@ -285,11 +329,14 @@ export async function reconcilePersonalClasses(
     const existing = await prisma.courseAssignment.findFirst({
       where: { subjectId: subject.id, parallelId, academicYearId: year.id },
     })
-    const assignment =
-      existing ??
-      (await prisma.courseAssignment.create({
-        data: { institutionId, subjectId: subject.id, parallelId, teacherId, academicYearId: year.id },
-      }))
+    const override = selection.weeklyPeriodsOverride ?? null
+    const assignment = existing
+      ? existing.weeklyPeriodsOverride === override
+        ? existing
+        : await prisma.courseAssignment.update({ where: { id: existing.id }, data: { weeklyPeriodsOverride: override } })
+      : await prisma.courseAssignment.create({
+          data: { institutionId, subjectId: subject.id, parallelId, teacherId, academicYearId: year.id, weeklyPeriodsOverride: override },
+        })
     keepAssignmentIds.add(assignment.id)
   }
 

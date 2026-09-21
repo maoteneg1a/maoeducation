@@ -33,10 +33,10 @@ const WEEK_SCHEMA = {
   type: 'object' as const,
   properties: {
     weekNumber: { type: 'number' },
-    weekProposito: { type: 'string', maxLength: 200 },
-    faseInicio: { type: 'string', maxLength: 200 },
-    faseDesarrollo: { type: 'string', maxLength: 200 },
-    faseCierre: { type: 'string', maxLength: 200 },
+    weekProposito: { type: 'string', maxLength: 400 },
+    faseInicio: { type: 'string', maxLength: 400 },
+    faseDesarrollo: { type: 'string', maxLength: 400 },
+    faseCierre: { type: 'string', maxLength: 400 },
   },
   required: ['weekNumber', 'weekProposito', 'faseInicio', 'faseDesarrollo', 'faseCierre'],
   additionalProperties: false,
@@ -46,8 +46,8 @@ const CONTRIBUTION_SCHEMA = {
   type: 'object' as const,
   properties: {
     courseAssignmentId: { type: 'string' },
-    contribucion: { type: 'string', maxLength: 220 },
-    responsabilidad: { type: 'string', maxLength: 220 },
+    contribucion: { type: 'string', maxLength: 440 },
+    responsabilidad: { type: 'string', maxLength: 440 },
     skillIds: { type: 'array', items: { type: 'string' } },
     competencyIds: { type: 'array', items: { type: 'string' } },
     newSabers: { type: 'array', items: SABER_SCHEMA },
@@ -453,7 +453,10 @@ Reglas estrictas: no repitas texto entre situacionReto/contexto/propositoComun/p
     try {
       response = await client.messages.create({
         model: aiConfig.model,
-        max_tokens: 8000,
+        // 16000 (antes 8000): weekProposito/faseInicio/faseDesarrollo/faseCierre
+        // se duplicaron a maxLength 400 y se repiten por semana × asignatura —
+        // sin este ajuste el JSON podía truncarse a mitad de generación.
+        max_tokens: 16000,
         system: [
           { type: 'text', text: staticInstructions, cache_control: { type: 'ephemeral' } },
           { type: 'text', text: projectContext },

@@ -141,31 +141,30 @@ const RESPONSE_SCHEMA = {
         type: 'object',
         properties: {
           contributionId: { type: 'string' },
-          contribucion: { type: 'string', maxLength: 220 },
-          responsabilidad: { type: 'string', maxLength: 220 },
+          contribucion: { type: 'string', maxLength: 440 },
+          responsabilidad: { type: 'string', maxLength: 440 },
           skillIds: { type: 'array', items: { type: 'string' } },
           competencyIds: { type: 'array', items: { type: 'string' } },
           newSabers: { type: 'array', items: SABER_SCHEMA },
           reusedSaberIds: { type: 'array', items: { type: 'string' } },
           // maxLength: estos 6 campos se repiten por SEMANA × CONTRIBUCIÓN —
           // el mayor multiplicador de output de todo el módulo ai-assistant
-          // (6 campos × ~8 semanas × ~3 asignaturas ≈ 7500 tokens capados,
-          // que ya casi saturaba max_tokens=8000 con 200/campo — se bajó a
-          // 150 para dejar margen real y no arriesgar que el JSON se trunque
-          // a mitad de generación, lo cual dispara MÁS reintentos en vez de
-          // menos). El output es el token 5x más caro que el input en Sonnet.
+          // (6 campos × ~8 semanas × ~3 asignaturas). Duplicado de 150 a 300
+          // a pedido — max_tokens subido de 8000 a 16000 en la misma llamada
+          // para no reintroducir el riesgo de truncar el JSON a mitad de
+          // generación (que dispararía MÁS reintentos, no menos).
           weeks: {
             type: 'array',
             items: {
               type: 'object',
               properties: {
                 weekNumber: { type: 'number' },
-                weekProposito: { type: 'string', maxLength: 150 },
-                faseInicio: { type: 'string', maxLength: 150 },
-                faseDesarrollo: { type: 'string', maxLength: 150 },
-                faseCierre: { type: 'string', maxLength: 150 },
-                propositoPedagogico: { type: 'string', maxLength: 150 },
-                evidencias: { type: 'string', maxLength: 150 },
+                weekProposito: { type: 'string', maxLength: 300 },
+                faseInicio: { type: 'string', maxLength: 300 },
+                faseDesarrollo: { type: 'string', maxLength: 300 },
+                faseCierre: { type: 'string', maxLength: 300 },
+                propositoPedagogico: { type: 'string', maxLength: 300 },
+                evidencias: { type: 'string', maxLength: 300 },
               },
               required: ['weekNumber', 'weekProposito', 'faseInicio', 'faseDesarrollo', 'faseCierre', 'propositoPedagogico', 'evidencias'],
               additionalProperties: false,
@@ -342,7 +341,7 @@ Sé concreto y breve en cada campo (2-3 líneas máximo por campo). No inventes 
     try {
       response = await client.messages.create({
         model: aiConfig.model,
-        max_tokens: 8000,
+        max_tokens: 16000,
         system: [
           { type: 'text', text: staticInstructions, cache_control: { type: 'ephemeral' } },
           { type: 'text', text: projectContext },
