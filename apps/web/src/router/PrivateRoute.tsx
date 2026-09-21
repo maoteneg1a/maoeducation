@@ -5,24 +5,17 @@ interface PrivateRouteProps {
   children: React.ReactNode
 }
 
-const SETUP_PATH = '/personal/setup'
-
+// El wizard de onboarding (/personal/setup, PersonalSetupPage) se eliminó —
+// toda cuenta personal ya nace con setupComplete=true desde /personal/register
+// (año lectivo/niveles ya existen por bootstrapInstitution, y "Mis grados y
+// materias" cubre la única edición real que el docente necesita). Este
+// componente ya no redirige a ningún wizard obligatorio.
 export function PrivateRoute({ children }: PrivateRouteProps) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated())
-  const institution = useAuthStore((s) => s.user?.institution ?? null)
   const location = useLocation()
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />
-  }
-
-  // Cuenta personal de profesor sin terminar el wizard de setup: no puede
-  // navegar a ninguna otra ruta protegida (ni con URL directa) hasta
-  // completar /personal/setup — ver PersonalSetupPage.
-  const needsPersonalSetup =
-    institution?.accountType === 'personal' && institution.setupComplete !== true
-  if (needsPersonalSetup && location.pathname !== SETUP_PATH) {
-    return <Navigate to={SETUP_PATH} replace />
   }
 
   return <>{children}</>

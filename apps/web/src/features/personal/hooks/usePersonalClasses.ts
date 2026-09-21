@@ -27,3 +27,13 @@ export function useSavePersonalClasses() {
     },
   })
 }
+
+export function useUpdatePlanningModel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (planningModel: 'destrezas' | 'competencias') => personalApi.updatePlanningModel(planningModel),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: personalClassesKeys.classes })
+    },
+  })
+}

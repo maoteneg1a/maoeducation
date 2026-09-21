@@ -7,13 +7,10 @@ import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.m
 import { BadRequestError, ConflictError, NotFoundError, UnauthorizedError } from '../../../shared/domain/errors/app.errors'
 import { bootstrapInstitution } from '../../platform/application/services/institution-bootstrap'
 import { MultigradeDomainError, resolveMultigradeSelections } from '../../../shared/domain/multigrade'
-import { findGradeByCode } from '../../../shared/domain/grade-catalog'
 import { buildAuthInstitution } from '../../auth/application/services/auth-institution.mapper'
 import { PrismaAuthUserRepository } from '../../auth/infrastructure/repositories/prisma-auth-user.repository'
 import { sendVerificationEmail } from '../../../shared/infrastructure/services/email.service'
 import {
-  ensureLevelForGrade,
-  ensureParallelA,
   getOrCreateSubjectForArea,
   listPersonalClasses,
   reconcilePersonalClasses,
@@ -155,13 +152,20 @@ export default async function personalRoutes(app: FastifyInstance) {
             { name, code },
             { email, firstName, lastName, password },
           )
-          // Marcar la institución como personal y pendiente de setup
+          // Marcar la institución como personal — setupComplete ya nace true:
+          // el wizard de onboarding (PersonalSetupPage) se eliminó, "Mis
+          // grados y materias" ya cubre lo mismo (grado+materia, año lectivo
+          // ya existe por bootstrapInstitution) sin bloquear el dashboard.
+          // planningModel arranca en 'competencias' — es hacia donde está
+          // migrando toda la plataforma (Biología, el generador principal de
+          // IA, etc.); el docente puede pedir cambiarlo después si hace falta.
           await tx.institution.update({
             where: { id: result.institutionId },
             data: {
               settings: {
                 accountType: 'personal',
-                setupComplete: false,
+                setupComplete: true,
+                planningModel: 'competencias',
                 modules: PERSONAL_DEFAULT_MODULES,
               } as unknown as Parameters<typeof tx.institution.update>[0]['data']['settings'],
             },
@@ -283,307 +287,41 @@ export default async function personalRoutes(app: FastifyInstance) {
     },
   )
 
-  // ─── Setup ────────────────────────────────────────────────────────────────
-  app.post<{
-    Body: {
-      profile: 'subject-first' | 'classroom-first' | 'multigrade'
-      yearName: string
-      yearStart: string
-      yearEnd: string
-      workspaceName?: string
-      // subject-first — una sola materia (elegida del catálogo oficial), varios grupos
-      subjectAreaId?: string
-      groups?: Array<{ name: string }>
-      // classroom-first — un solo grupo, varias materias (elegidas del catálogo oficial)
-      parallelName?: string
-      subjectAreaIds?: string[]
-      // multigrado — selección explícita grado+materia (unidocente/pluridocente), calcado
-      // de las reglas TIGA Multigrado v1.0 (ver shared/domain/multigrade.ts). Mínimo 2
-      // selecciones; 8vo-10mo EGB requiere allowSuperiorExtension=true explícito; BGU rechazado.
-      multigradeName?: string
-      multigradeSelections?: Array<{ gradeCode: string; subjectAreaId: string }>
-      allowSuperiorExtension?: boolean
-      // subject-first/classroom-first — grado REAL que enseña el docente (ej. "6B") —
-      // resuelve un Level real del catálogo (GRADE_CATALOG/DEFAULT_LEVELS), nunca el
-      // código sintético "PERSONAL" (bug real: sin grado real, el filtro de
-      // CompetencySaber.gradeCodes nunca encuentra coincidencia y bloquea la
-      // generación de planificación). El subnivel se DERIVA de este grado, no se
-      // pregunta por separado. Multigrado ya captura su propio grado por fila
-      // (multigradeSelections) y no usa este campo.
-      gradeCode?: string
-      planningModel?: 'destrezas' | 'competencias'
-    }
-  }>(
-    '/personal/setup',
+  // ─── Edición de grados/materias + modo multigrado + modelo curricular ────
+  // Único punto de administración de la estructura académica de una cuenta
+  // personal (agregar/quitar grado+materia, prender/apagar multigrado,
+  // cambiar destrezas/competencias) — no hay wizard de onboarding separado.
+
+  // El wizard de onboarding (/personal/setup) fijaba planningModel una sola
+  // vez en el paso "Currículo" — eliminado ese wizard, esta es la única vía
+  // para que una cuenta personal lo cambie después de registrarse (arranca
+  // en 'competencias' por defecto, ver POST /personal/register).
+  app.put<{ Body: { planningModel: 'destrezas' | 'competencias' } }>(
+    '/personal/planning-model',
     {
       preHandler: [authMiddleware],
       schema: {
         body: {
           type: 'object',
-          required: ['profile', 'yearName', 'yearStart', 'yearEnd'],
-          properties: {
-            profile: { type: 'string', enum: ['subject-first', 'classroom-first', 'multigrade'] },
-            yearName: { type: 'string', minLength: 1 },
-            yearStart: { type: 'string' },
-            yearEnd: { type: 'string' },
-            workspaceName: { type: 'string' },
-            subjectAreaId: { type: 'string' },
-            groups: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' } } } },
-            parallelName: { type: 'string' },
-            subjectAreaIds: { type: 'array', items: { type: 'string' } },
-            multigradeName: { type: 'string' },
-            multigradeSelections: {
-              type: 'array',
-              items: {
-                type: 'object',
-                required: ['gradeCode', 'subjectAreaId'],
-                properties: { gradeCode: { type: 'string' }, subjectAreaId: { type: 'string' } },
-              },
-            },
-            allowSuperiorExtension: { type: 'boolean' },
-            gradeCode: { type: 'string' },
-            planningModel: { type: 'string', enum: ['destrezas', 'competencias'] },
-          },
+          required: ['planningModel'],
+          properties: { planningModel: { type: 'string', enum: ['destrezas', 'competencias'] } },
         },
       },
     },
     async (req, reply) => {
       const institutionId = req.user.institutionId
-      const teacherId = req.user.sub
-
-      const institution = await prisma.institution.findUnique({
-        where: { id: institutionId },
-        select: { settings: true },
-      })
+      const institution = await prisma.institution.findUnique({ where: { id: institutionId }, select: { settings: true } })
       const settings = (institution?.settings ?? {}) as Record<string, unknown>
       if (settings.accountType !== 'personal') {
         return reply.status(403).send({ message: 'Solo disponible para cuentas personales' })
       }
-
-      const { profile, yearName, yearStart, yearEnd, workspaceName, gradeCode } = req.body
-      // Multigrado SIEMPRE usa el modelo por COMPETENCIAS (CNC): es el único banco
-      // que cubre el subnivel "preparatoria" (1ro EGB reutiliza su currículo integrado,
-      // ver shared/domain/multigrade.ts) y es el formato ya calcado de TIGA
-      // (Inicio/Desarrollo/Cierre con actividades numeradas + DUA) que el generador
-      // multigrado necesita — nunca se le pregunta al docente, se decide aquí.
-      const planningModel: 'destrezas' | 'competencias' | undefined =
-        profile === 'multigrade' ? 'competencias' : req.body.planningModel
-
-      // Multigrado: valida TODAS las selecciones grado+materia ANTES de escribir nada
-      // en la base — all-or-nothing, calcado del orquestador de TIGA (si una sola
-      // selección es inválida — BGU, fuera de rango, o 8vo-10mo sin confirmar la
-      // extensión superior — se rechaza la lista completa con 400 explícito, sin
-      // dejar creado ningún Level/Parallel/CourseAssignment a medias).
-      let resolvedMultigradeSelections: ReturnType<typeof resolveMultigradeSelections> = []
-      if (profile === 'multigrade') {
-        try {
-          resolvedMultigradeSelections = resolveMultigradeSelections(
-            req.body.multigradeSelections ?? [],
-            req.body.allowSuperiorExtension === true,
-          )
-        } catch (error) {
-          if (error instanceof MultigradeDomainError) throw new BadRequestError(error.message)
-          throw error
-        }
-      }
-
-      // Update workspace name if provided
-      if (workspaceName?.trim()) {
-        await prisma.institution.update({ where: { id: institutionId }, data: { name: workspaceName.trim() } })
-      }
-
-      // Get period scheme for trimester generation
-      const scheme = await prisma.academicPeriodScheme.findFirst({
-        where: { institutionId },
-        select: { id: true, periodsCount: true },
-      })
-
-      // Create academic year — bootstrapInstitution (en /personal/register) ya crea
-      // un año lectivo activo con el nombre por defecto del régimen (ej. "2026-2027")
-      // más sus 3 períodos, para que la app no salga vacía antes del wizard. Si el
-      // docente deja ese mismo nombre en este paso, create() chocaba con el
-      // constraint único (institution_id, name) — se reusa ese año existente
-      // (actualizando fechas si las cambió) en vez de duplicar.
-      const existingYear = await prisma.academicYear.findFirst({ where: { institutionId, name: yearName } })
-      const year = existingYear
-        ? await prisma.academicYear.update({
-            where: { id: existingYear.id },
-            data: { startDate: new Date(yearStart), endDate: new Date(yearEnd) },
-          })
-        : await prisma.academicYear.create({
-            data: { institutionId, name: yearName, startDate: new Date(yearStart), endDate: new Date(yearEnd) },
-          })
-      const yearHadPeriods = existingYear
-        ? (await prisma.academicPeriod.count({ where: { academicYearId: year.id } })) > 0
-        : false
-
-      // Auto-generate trimester periods — solo si el año es nuevo o no tenía
-      // períodos todavía (el año que ya trae bootstrapInstitution ya tiene los suyos).
-      if (scheme && !yearHadPeriods) {
-        const start = new Date(yearStart)
-        const end = new Date(yearEnd)
-        const totalMs = end.getTime() - start.getTime()
-        const periodMs = totalMs / scheme.periodsCount
-        const names = ['1er Trimestre', '2do Trimestre', '3er Trimestre', '1er Quimestre', '2do Quimestre']
-        for (let i = 0; i < scheme.periodsCount; i++) {
-          const pStart = new Date(start.getTime() + periodMs * i)
-          const pEnd = new Date(start.getTime() + periodMs * (i + 1) - 1)
-          await prisma.academicPeriod.create({
-            data: {
-              schemeId: scheme.id,
-              academicYearId: year.id,
-              name: names[i] ?? `Período ${i + 1}`,
-              periodNumber: i + 1,
-              startDate: pStart,
-              endDate: pEnd,
-            },
-          })
-        }
-      }
-
-      // Get or create the REAL grade level for personal accounts (ej. "6B") —
-      // bootstrapInstitution (en /personal/register) ya crea los 13 Levels
-      // reales del catálogo (DEFAULT_LEVELS/GRADE_CATALOG) por institución, así
-      // que normalmente esto solo los encuentra; el create() es solo defensivo.
-      // NUNCA usar un código sintético como "PERSONAL": el filtro de
-      // CompetencySaber.gradeCodes (saberes distintos por grado dentro de un
-      // mismo subnivel compartido, ej. 5°/6°/7° de "media") depende de que
-      // Level.code sea un grado real — con "PERSONAL" nunca coincide con nada
-      // y bloquea la generación de planificación por completo (bug real
-      // encontrado en producción). Multigrado NO usa este bloque: cada grado
-      // necesita SU PROPIO Level y se resuelve en la rama multigrado abajo.
-      let level: Awaited<ReturnType<typeof ensureLevelForGrade>> | null = null
-      if (profile !== 'multigrade') {
-        if (!gradeCode || !findGradeByCode(gradeCode)) {
-          throw new BadRequestError('Selecciona un grado válido antes de continuar')
-        }
-        level = await ensureLevelForGrade(institutionId, gradeCode)
-      }
-
-      const assignmentIds: string[] = []
-      const subjectIds: string[] = []
-      const parallelIds: string[] = []
-      let multigradeGroupId: string | null = null
-      const resolvedPlanningModel: PlanningModel =
-        planningModel ?? ((settings.planningModel as PlanningModel | undefined) ?? 'destrezas')
-
-      if (profile === 'subject-first' && req.body.subjectAreaId && req.body.groups?.length) {
-        // One subject (del catálogo oficial), multiple parallels
-        const subject = await getOrCreateSubjectForArea(institutionId, resolvedPlanningModel, req.body.subjectAreaId)
-        subjectIds.push(subject.id)
-
-        for (const g of req.body.groups) {
-          const parallel = await prisma.parallel.create({
-            // level siempre existe aquí: solo es null en la rama 'multigrade' (que
-            // usa su propio Level por grado más abajo, nunca este bloque).
-            data: { institutionId, name: g.name, levelId: level!.id, academicYearId: year.id },
-          })
-          parallelIds.push(parallel.id)
-
-          const assignment = await prisma.courseAssignment.create({
-            data: { institutionId, subjectId: subject.id, parallelId: parallel.id, teacherId, academicYearId: year.id },
-          })
-          assignmentIds.push(assignment.id)
-        }
-      } else if (profile === 'classroom-first' && req.body.parallelName && req.body.subjectAreaIds?.length) {
-        // One parallel, multiple subjects (cada una del catálogo oficial)
-        const parallel = await prisma.parallel.create({
-          data: { institutionId, name: req.body.parallelName, levelId: level!.id, academicYearId: year.id },
-        })
-        parallelIds.push(parallel.id)
-
-        for (const areaId of req.body.subjectAreaIds) {
-          const subject = await getOrCreateSubjectForArea(institutionId, resolvedPlanningModel, areaId)
-          subjectIds.push(subject.id)
-
-          const assignment = await prisma.courseAssignment.create({
-            data: { institutionId, subjectId: subject.id, parallelId: parallel.id, teacherId, academicYearId: year.id },
-          })
-          assignmentIds.push(assignment.id)
-        }
-      } else if (profile === 'multigrade') {
-        // Unidocente/pluridocente: N selecciones explícitas grado+materia, ya
-        // validadas all-or-nothing arriba (resolvedMultigradeSelections). Deja
-        // TODO listo de una sola pasada — Level por grado (ya existe desde
-        // bootstrapInstitution vía DEFAULT_LEVELS, se reusa; nunca se duplica),
-        // UN Parallel por grado (aunque tenga varias materias), y UN
-        // CourseAssignment por combinación grado×materia — el profesor nunca
-        // pasa por Configuración > Niveles ni por Configuración > Calificación.
-        const group = await prisma.multigradeGroup.create({
-          data: {
-            institutionId,
-            teacherId,
-            academicYearId: year.id,
-            name: req.body.multigradeName?.trim() || 'Aula multigrado',
-            allowSuperiorExtension: req.body.allowSuperiorExtension === true,
-            createdBy: teacherId,
-          },
-        })
-        multigradeGroupId = group.id
-
-        const parallelIdByGrade = new Map<string, string>()
-
-        for (const selection of resolvedMultigradeSelections) {
-          const gradeLevel = await ensureLevelForGrade(institutionId, selection.gradeCode)
-
-          let parallelId = parallelIdByGrade.get(selection.gradeCode)
-          if (!parallelId) {
-            const parallel = await ensureParallelA(institutionId, gradeLevel.id, year.id)
-            parallelId = parallel.id
-            parallelIdByGrade.set(selection.gradeCode, parallelId)
-            parallelIds.push(parallelId)
-          }
-
-          const subject = await getOrCreateSubjectForArea(institutionId, resolvedPlanningModel, selection.subjectAreaId)
-          subjectIds.push(subject.id)
-
-          const existingAssignment = await prisma.courseAssignment.findFirst({
-            where: { subjectId: subject.id, parallelId, academicYearId: year.id },
-          })
-          const assignment =
-            existingAssignment ??
-            (await prisma.courseAssignment.create({
-              data: { institutionId, subjectId: subject.id, parallelId, teacherId, academicYearId: year.id },
-            }))
-          assignmentIds.push(assignment.id)
-
-          await prisma.multigradeGroupMember.upsert({
-            where: { courseAssignmentId: assignment.id },
-            create: {
-              groupId: group.id,
-              gradeCode: selection.gradeCode,
-              courseAssignmentId: assignment.id,
-              parallelId,
-              subjectId: subject.id,
-            },
-            update: { groupId: group.id },
-          })
-        }
-      }
-
-      // Mark setup complete (preserve existing settings like branding) y fija el
-      // modelo de planificación elegido en el wizard — así el profesor nunca
-      // tiene que tocar Configuración > Calificación para elegirlo.
-      const currentSettings = (institution?.settings ?? {}) as Record<string, unknown>
       await prisma.institution.update({
         where: { id: institutionId },
-        data: {
-          settings: {
-            ...currentSettings,
-            setupComplete: true,
-            planningModel: planningModel ?? currentSettings.planningModel ?? 'destrezas',
-          } as unknown as Parameters<typeof prisma.institution.update>[0]['data']['settings'],
-        },
+        data: { settings: { ...settings, planningModel: req.body.planningModel } },
       })
-
-      return reply.send({ yearId: year.id, parallelIds, subjectIds, assignmentIds, multigradeGroupId })
+      return reply.send({ planningModel: req.body.planningModel })
     },
   )
-
-  // ─── Edición post-onboarding: grados/materias + modo multigrado ──────────
-  // El wizard de /personal/setup solo corre una vez; estos dos endpoints
-  // permiten corregir después (agregar/quitar grado+materia, prender/apagar
-  // multigrado) sin tener que rehacer la cuenta desde cero.
 
   app.get('/personal/classes', { preHandler: [authMiddleware] }, async (req, reply) => {
     const institutionId = req.user.institutionId

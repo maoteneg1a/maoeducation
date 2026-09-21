@@ -6,12 +6,14 @@ import { useAuthStore } from '@/store/auth.store'
  * Bloquea las pantallas de estructura académica (niveles, materias, años,
  * paralelos, asignaciones, insumos) para cuentas personales de profesor.
  *
- * Esa estructura se crea una sola vez desde el wizard de /personal/setup al
- * abrir la cuenta — no debe volver a tocarse manualmente después (a
- * diferencia de una institución normal, donde el admin sí la mantiene). El
- * bloqueo es tanto de sidebar (ver Sidebar.tsx, hideForPersonal) como de
- * ruta directa: entrar a /academic/levels por URL con una cuenta personal
- * cae aquí en vez de en la página real.
+ * El año lectivo/niveles ya nacen creados desde bootstrapInstitution al
+ * registrarse (/personal/register) — la única edición que el docente
+ * necesita es grado+materia, que vive en /settings/mis-grados-y-materias
+ * (PersonalClassesPage), no en las pantallas de administración académica
+ * pensadas para instituciones con admin. El bloqueo es tanto de sidebar
+ * (ver Sidebar.tsx, hideForPersonal) como de ruta directa: entrar a
+ * /academic/levels por URL con una cuenta personal cae aquí en vez de en la
+ * página real.
  *
  * No toca el permiso de backend academic_config:manage — ese permiso
  * también gatea /settings/formato-planificacion (plantillas de PDF), que sí
