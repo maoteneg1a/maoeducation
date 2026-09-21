@@ -269,6 +269,51 @@ function toValidationPayload(raw: RawGenerationPayload): GeneratedCompetencyPeda
 }
 
 /**
+ * Construye el mensaje de corrección del reintento con el detalle exacto de
+ * qué está mal — antes decía solo "Corrige DUA_CODE_NOT_ALLOWED" sin indicar
+ * QUÉ actividad ni QUÉ código inventó, y sin repetir el catálogo válido (el
+ * modelo tenía que "recordarlo" de cientos de líneas atrás en el system
+ * prompt). Confirmado en producción: con el mensaje genérico, la tasa de
+ * fallo en el reintento era ~100% (26/26 llamadas de una sesión real,
+ * fallando con el MISMO error en ambos intentos) — el modelo no tenía
+ * suficiente información para corregir algo concreto.
+ */
+function buildCorrectionMessage(
+  errors: string[],
+  payload: GeneratedCompetencyPedagogyPayload,
+  ctx: PedagogicalValidationContext,
+): string {
+  const lines = [`Corrige ÚNICAMENTE estos errores y vuelve a llamar la herramienta con el borrador completo corregido: ${errors.join(', ')}.`]
+
+  if (errors.includes('DUA_CODE_NOT_ALLOWED')) {
+    const offending: string[] = []
+    for (const phase of PHASES) {
+      const block = payload.methodology[phase]
+      if (!block?.activities) continue
+      block.activities.forEach((activity, i) => {
+        if (!activity.duaCode || !ctx.allowedDuaCodes.has(activity.duaCode)) {
+          offending.push(`${phase} actividad ${i + 1}: escribiste "${activity.duaCode ?? '(vacío)'}", que NO existe en el catálogo.`)
+        }
+      })
+    }
+    lines.push(
+      `\nDUA_CODE_NOT_ALLOWED — actividades con código inválido:\n${offending.join('\n')}\nCatálogo de códigos DUA VÁLIDOS (usa EXACTAMENTE uno de estos, copiado tal cual, sin inventar ni combinar): ${[...ctx.allowedDuaCodes].join(', ')}.`,
+    )
+  }
+  if (errors.includes('TECHNIQUE_NOT_ALLOWED')) {
+    lines.push(
+      `\nTECHNIQUE_NOT_ALLOWED — escribiste "${payload.assessment.technique}", que no existe. Técnicas VÁLIDAS: ${[...ctx.allowedTechniqueCodes].join(', ')}.`,
+    )
+  }
+  if (errors.includes('INSTRUMENT_NOT_ALLOWED')) {
+    lines.push(
+      `\nINSTRUMENT_NOT_ALLOWED — escribiste "${payload.assessment.instrument}", que no existe o no es compatible con la técnica elegida. Instrumentos VÁLIDOS: ${[...ctx.allowedInstrumentCodes].join(', ')}.`,
+    )
+  }
+  return lines.join('\n')
+}
+
+/**
  * Si el link pedido es "web_search", resuelve la búsqueda AHORA, en una
  * llamada aislada (web-resource-resolver.service.ts) — antes el modelo ya
  * traía la URL resuelta porque web_search vivía en la misma llamada que
@@ -775,7 +820,7 @@ Identidad inmutable de esta generación (repítela EXACTA en identityCode, no la
           type: 'tool_result',
           tool_use_id: toolUse.id,
           is_error: true,
-          content: `Corrige ÚNICAMENTE estos errores y vuelve a llamar la herramienta con el borrador completo corregido: ${validation.errors.join(', ')}.`,
+          content: buildCorrectionMessage(validation.errors, repaired, ctx),
         },
       ],
     })
