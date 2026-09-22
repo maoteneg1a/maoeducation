@@ -48,7 +48,7 @@ function significantStems(text: string): Set<string> {
  * hoja de trabajo..."). Si NINGUNA palabra significativa del recurso aparece
  * en la actividad, se considera inventado/no justificado.
  */
-function isResourceJustified(resource: string, activity: string): boolean {
+export function isResourceJustified(resource: string, activity: string): boolean {
   const resourceStems = significantStems(resource)
   if (resourceStems.size === 0) return true
   const activityStems = significantStems(activity)
@@ -127,7 +127,7 @@ export interface GeneratedCompetencyPedagogyPayload {
 const MIN_ACTIVITY_WORDS_COMPETENCY = 6
 
 /** Todas las palabras significativas del texto combinado de TODAS las actividades de la semana — un recurso/criterio del nivel-semana se justifica contra el conjunto, no contra una sola actividad. */
-function allActivitiesStems(methodology: Record<PedagogicalPhase, GeneratedCompetencyPhase>): Set<string> {
+export function allActivitiesStems(methodology: Record<PedagogicalPhase, GeneratedCompetencyPhase>): Set<string> {
   const stems = new Set<string>()
   for (const phase of PHASES) {
     for (const activity of methodology[phase]?.activities ?? []) {
