@@ -13,6 +13,8 @@ import {
 import {
   validateGeneratedCompetencyPedagogy,
   autoRepairCompetencyPayload,
+  isResourceJustified,
+  allActivitiesStems,
   type GeneratedCompetencyPedagogyPayload,
   type GeneratedResourceLink,
   type PedagogicalValidationContext,
@@ -308,6 +310,38 @@ function buildCorrectionMessage(
   if (errors.includes('INSTRUMENT_NOT_ALLOWED')) {
     lines.push(
       `\nINSTRUMENT_NOT_ALLOWED — escribiste "${payload.assessment.instrument}", que no existe o no es compatible con la técnica elegida. Instrumentos VÁLIDOS: ${[...ctx.allowedInstrumentCodes].join(', ')}.`,
+    )
+  }
+  if (errors.includes('RESOURCE_NOT_JUSTIFIED')) {
+    // Un recurso está "justificado" si al menos una palabra significativa
+    // suya aparece en el texto de alguna actividad — mismo problema que
+    // DUA_CODE_NOT_ALLOWED: el mensaje genérico no decía CUÁL recurso ni
+    // CON QUÉ actividad no encontraba relación, así el modelo no tenía nada
+    // concreto para corregir en el reintento.
+    const activityStemsText = [...allActivitiesStems(payload.methodology)].join(' ')
+    const offendingResources = payload.resources.filter((r) => !isResourceJustified(r, activityStemsText))
+    lines.push(
+      `\nRESOURCE_NOT_JUSTIFIED — estos recursos no se mencionan (ni con palabras relacionadas) en ninguna actividad de la semana: ${offendingResources.map((r) => `"${r}"`).join(', ')}. Para cada recurso, o bien menciónalo explícitamente dentro del texto de alguna actividad, o cámbialo por uno que ya esté mencionado.`,
+    )
+  }
+  if (errors.includes('ASSESSMENT_NOT_ALIGNED_WITH_INDICATOR')) {
+    // Igual patrón que los anteriores: se exige que al menos una palabra
+    // larga del indicador aparezca literalmente en la evidencia — sin decir
+    // CUÁL palabra faltaba, el modelo reformulaba la evidencia sin acertar
+    // a incluirla, repitiendo el error en el reintento.
+    lines.push(
+      `\nASSESSMENT_NOT_ALIGNED_WITH_INDICATOR — tu evidence ("${payload.assessment.evidence}") no menciona ninguna palabra clave del indicador que estás evaluando: "${ctx.indicatorText}". Reescribe evidence para que incluya EXPLÍCITAMENTE al menos una palabra o frase clave de ese indicador (no hace falta copiarlo completo, pero sí una idea central del mismo).`,
+    )
+  }
+  const missingPhases = PHASES.filter((p) => errors.includes(`${p}_MISSING`))
+  if (missingPhases.length > 0) {
+    // Confirmado en producción: el modelo a veces devuelve el tool_use con
+    // methodology vacío o sin "activities" en alguna fase — un fallo
+    // estructural distinto a un valor puntual mal puesto, así que el mensaje
+    // insiste explícitamente en incluir las 3 fases completas, no solo
+    // "corrige el error" (que el modelo repetía sin agregar contenido).
+    lines.push(
+      `\nFASE(S) VACÍA(S) — tu respuesta anterior NO incluyó actividades en ${missingPhases.length > 1 ? 'estas fases' : 'esta fase'}: ${missingPhases.join(', ')}. Debes volver a llamar la herramienta con las 3 fases (ANTICIPATION, CONSTRUCTION, CONSOLIDATION) completas — cada una con su lista "activities" llena (mínimo 2 actividades reales, con texto y duaCode), nunca vacía ni omitida.`,
     )
   }
   return lines.join('\n')
