@@ -10,7 +10,7 @@ import { useAuthStore } from '@/store/auth.store'
 import { useCurriculumAreas } from '@/features/curriculum/hooks/useCurriculum'
 import { useCompetencyAreas } from '@/features/competency-curriculum/hooks/useCompetencyCurriculum'
 import { GRADE_OPTIONS, MULTIGRADE_GRADE_OPTIONS, isBgu } from '@/features/personal/lib/grade-options'
-import { usePersonalClasses, useSavePersonalClasses } from '@/features/personal/hooks/usePersonalClasses'
+import { usePersonalClasses, useSavePersonalClasses, useUpdatePlanningModel } from '@/features/personal/hooks/usePersonalClasses'
 import type { PersonalClassSelection } from '@/features/personal/api/personal.api'
 
 interface EditableRow {
@@ -31,6 +31,7 @@ function newRowKey() {
 export function PersonalClassesPage() {
   const { data, isLoading } = usePersonalClasses()
   const save = useSavePersonalClasses()
+  const updatePlanningModel = useUpdatePlanningModel()
   const setInstitution = useAuthStore((s) => s.setInstitution)
 
   const [rows, setRows] = useState<EditableRow[]>([])
@@ -129,6 +130,28 @@ export function PersonalClassesPage() {
           Corrige o amplía los grados y materias que dictas. Los cambios se aplican de inmediato a tu planificación.
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Modelo de planificación</CardTitle>
+          <CardDescription>
+            Define qué banco curricular usas: por Destrezas (currículo tradicional) o por Competencias (CNC). Cambiarlo
+            afecta el catálogo de materias disponible abajo — si ya tienes grados/materias configurados con el modelo
+            anterior, revísalos después de cambiar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <select
+            value={data?.planningModel ?? 'competencias'}
+            onChange={(e) => updatePlanningModel.mutate(e.target.value as 'destrezas' | 'competencias')}
+            disabled={updatePlanningModel.isPending}
+            className="h-9 rounded-md border border-gray-200 px-2 text-sm text-gray-700"
+          >
+            <option value="competencias">Por Competencias (CNC)</option>
+            <option value="destrezas">Por Destrezas</option>
+          </select>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

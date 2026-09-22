@@ -10,9 +10,11 @@ import {
   PrismaSubscriptionRepository,
   receiptKey,
 } from '../infrastructure/repositories/prisma-subscription.repository'
+import { PrismaInstitutionRepository } from '../../institution/infrastructure/repositories/prisma-institution.repository'
 import type { SubmitPaymentDto } from '../application/dtos/subscription.dto'
 
 const repo = new PrismaSubscriptionRepository()
+const institutionRepo = new PrismaInstitutionRepository()
 
 /** Capturas de pantalla y PDF del comprobante. */
 const ALLOWED_RECEIPT_MIME = [
@@ -32,7 +34,14 @@ export default async function subscriptionRoutes(app: FastifyInstance) {
    * que la cuenta está por vencer, aunque no pueda pagar.
    */
   app.get('/subscription/status', { preHandler: [authMiddleware] }, async (req, reply) => {
-    return reply.send({ status: await repo.getStatus(req.user.institutionId) })
+    // aiEnabled es la suscripción real (decisión de producto: si tienen IA
+    // activada, tienen suscripción activa) — status (fechas trial/pago) ya
+    // no bloquea nada, se mantiene solo como referencia informativa/histórica.
+    const [status, aiConfig] = await Promise.all([
+      repo.getStatus(req.user.institutionId),
+      institutionRepo.getAiConfig(req.user.institutionId),
+    ])
+    return reply.send({ status, aiEnabled: aiConfig.enabled })
   })
 
   /** Detalle con historial de pagos: solo quien administra la institución. */

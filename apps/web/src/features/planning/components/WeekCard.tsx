@@ -204,6 +204,11 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
   const [pendingResult, setPendingResult] = React.useState<DraftWeekResult | DraftCompetencyWeekResult | null>(null)
   const [reviewTab, setReviewTab] = React.useState<(typeof REVIEW_TABS)[number]['key']>('summary')
   const selectedCount = isCompetencyModel ? competencyIds.length : skillIds.length
+  // Cómo decide la IA cuántas actividades genera por fase — 'workload' (default,
+  // según la carga horaria de la materia) | 'per_saber' (una actividad por cada
+  // saber de la semana) | 'fixed' (número exacto que el docente indica).
+  const [activitiesMode, setActivitiesMode] = React.useState<'workload' | 'per_saber' | 'fixed'>('workload')
+  const [fixedActivitiesTotal, setFixedActivitiesTotal] = React.useState(6)
 
   const handleGenerateWithAi = () => {
     if (isCompetencyModel) {
@@ -215,6 +220,8 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
           weekNumber: week.weekNumber,
           selectedSaberIds: competencySaberIds.length ? competencySaberIds : undefined,
           selectedIndicatorIds: competencyIndicatorIds.length ? competencyIndicatorIds : undefined,
+          activitiesMode: activitiesMode === 'workload' ? undefined : activitiesMode,
+          fixedActivitiesTotal: activitiesMode === 'fixed' ? fixedActivitiesTotal : undefined,
         },
         {
           onSuccess: (result) => {
@@ -385,6 +392,45 @@ export function WeekCard({ week, situationId, subjectId, subnivel, isEditable, e
                   ? `Selecciona al menos una ${isCompetencyModel ? 'competencia' : 'destreza'} arriba para generar el resto de la semana automáticamente.`
                   : `Con ${selectedCount} ${isCompetencyModel ? 'competencia(s)' : 'destreza(s)'} seleccionada(s), la IA genera ${isCompetencyModel ? 'indicadores, saberes' : 'competencias específicas, indicadores, saberes'} y las 3 fases (Inicio/Desarrollo/Cierre) — tú solo revisas y ajustas.`}
               </p>
+              {isCompetencyModel && selectedCount > 0 && (
+                <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
+                  <span className="font-medium">Cantidad de actividades:</span>
+                  <label className="flex items-center gap-1">
+                    <input
+                      type="radio"
+                      checked={activitiesMode === 'workload'}
+                      onChange={() => setActivitiesMode('workload')}
+                    />
+                    Según carga horaria
+                  </label>
+                  <label className="flex items-center gap-1">
+                    <input
+                      type="radio"
+                      checked={activitiesMode === 'per_saber'}
+                      onChange={() => setActivitiesMode('per_saber')}
+                    />
+                    Una por cada saber
+                  </label>
+                  <label className="flex items-center gap-1">
+                    <input
+                      type="radio"
+                      checked={activitiesMode === 'fixed'}
+                      onChange={() => setActivitiesMode('fixed')}
+                    />
+                    Número fijo:
+                    <input
+                      type="number"
+                      min={6}
+                      max={20}
+                      value={fixedActivitiesTotal}
+                      disabled={activitiesMode !== 'fixed'}
+                      onChange={(e) => setFixedActivitiesTotal(Number(e.target.value))}
+                      onFocus={() => setActivitiesMode('fixed')}
+                      className="w-14 rounded border px-1 py-0.5 text-xs disabled:opacity-50"
+                    />
+                  </label>
+                </div>
+              )}
               <Button type="button" size="lg" onClick={handleGenerateWithAi} disabled={selectedCount === 0} loading={isCompetencyModel ? draftCompetencyWeek.isPending : draftWeek.isPending}>
                 <Sparkles className="h-4 w-4" />
                 Generar semana con IA

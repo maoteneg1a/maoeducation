@@ -128,3 +128,16 @@ export function weeklyPhaseCounts(weeklyPeriods: number | null): { anticipation:
   if (periods <= 6) return { anticipation: 2, construction: 3, consolidation: 2 }
   return { anticipation: 2, construction: 4, consolidation: 2 }
 }
+
+/**
+ * Reparte un TOTAL de actividades explícito entre las 3 fases — usado cuando
+ * el docente elige "una actividad por saber" o un número fijo en vez del
+ * cálculo por carga horaria. Mismo piso pedagógico que weeklyPhaseCounts:
+ * nunca menos de 2 por fase. El resto por encima de 6 (2×3) se reparte
+ * dándole prioridad a Desarrollo (donde ocurre la construcción del
+ * aprendizaje), igual que ya hace weeklyPhaseCounts con cargas horarias altas.
+ */
+export function phaseCountsFromTotal(total: number): { anticipation: number; construction: number; consolidation: number } {
+  const extra = Math.max(0, total - 6)
+  return { anticipation: 2, construction: 2 + extra, consolidation: 2 }
+}

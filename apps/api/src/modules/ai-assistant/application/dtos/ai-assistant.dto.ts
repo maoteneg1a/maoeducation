@@ -112,6 +112,18 @@ export interface DraftCompetencyWeekDto {
    * prioridad absoluta sobre formatIndicatorsWithCode/indicatorCodes.
    */
   selectedIndicatorIds?: string[]
+  /**
+   * OPCIONAL — cómo decidir cuántas actividades genera cada fase:
+   * - 'per_saber' (default si no viene): una actividad por cada saber de la
+   *   semana, repartida entre las 3 fases — mínimo 2 por fase igual (no baja
+   *   del piso pedagógico aunque haya pocos saberes).
+   * - 'fixed': ignora los saberes para este cálculo y usa exactamente
+   *   fixedActivitiesTotal actividades repartidas entre las 3 fases (mínimo
+   *   2 por fase). Si no se envía fixedActivitiesTotal, cae al cálculo por
+   *   carga horaria de siempre (weeklyPhaseCounts).
+   */
+  activitiesMode?: 'per_saber' | 'fixed'
+  fixedActivitiesTotal?: number
 }
 
 export interface DraftCompetencyWeekResult {

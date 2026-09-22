@@ -50,7 +50,7 @@ export interface SubmitPaymentPayload {
 }
 
 export const subscriptionApi = {
-  getStatus: () => apiGet<{ status: SubscriptionStatus | null }>('subscription/status'),
+  getStatus: () => apiGet<{ status: SubscriptionStatus | null; aiEnabled: boolean }>('subscription/status'),
 
   getDetail: () => apiGet<SubscriptionDetail>('subscription'),
 

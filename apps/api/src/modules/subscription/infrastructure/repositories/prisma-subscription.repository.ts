@@ -176,6 +176,7 @@ export class PrismaSubscriptionRepository {
     return institutions.map((inst) => {
       const settings = (inst.settings ?? {}) as Record<string, unknown>
       const payments = inst.subscription?.payments ?? []
+      const aiConfig = (settings.aiConfig ?? {}) as { enabled?: boolean }
       return {
         institutionId: inst.id,
         institutionName: inst.name,
@@ -183,6 +184,9 @@ export class PrismaSubscriptionRepository {
         accountType: settings.accountType === 'personal' ? 'personal' : 'institution',
         userCount: inst._count.users,
         status: inst.subscription ? computeSubscriptionStatus(inst.subscription) : null,
+        // La suscripción real (ver approve/suspend en platform-subscription.routes.ts) —
+        // status arriba es solo la vigencia registrada, ya sin efecto de bloqueo.
+        aiEnabled: aiConfig.enabled === true,
         notes: inst.subscription?.notes ?? null,
         pendingPayments: payments.filter((p) => p.status === 'pending').length,
         lastPaymentAt: payments[0]?.createdAt.toISOString() ?? null,

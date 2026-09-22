@@ -28,61 +28,49 @@ interface BannerContent {
   dismissible: boolean
 }
 
-function contentFor(status: SubscriptionStatus): BannerContent | null {
-  switch (status.state) {
-    case 'trial':
-      return {
-        tone: 'info',
-        icon: Sparkles,
-        message:
-          status.daysRemaining > 0
-            ? `Estás en prueba gratuita. Te ${status.daysRemaining === 1 ? 'queda' : 'quedan'} ${days(status.daysRemaining)}.`
-            : 'Tu prueba gratuita termina hoy.',
-        cta: 'Activar cuenta',
-        dismissible: true,
-      }
-
-    case 'active':
-      // Solo molesta cuando falta poco; el resto del año no se muestra nada.
-      if (!status.expiringSoon) return null
+/**
+ * La suscripción real hoy es el acceso al asistente IA (decisión de producto:
+ * "si tienen IA activada, tienen suscripción activa") — el resto del producto
+ * (notas, asistencia, planificación manual) funciona siempre, sin importar
+ * este estado. `status` (fechas trial/pago) ya no bloquea nada; se usa solo
+ * para el mensaje informativo cuando aiEnabled es false, para no perder el
+ * contexto de "por qué" (prueba vencida vs. suspendida vs. nunca activada).
+ */
+function contentFor(status: SubscriptionStatus | null, aiEnabled: boolean): BannerContent | null {
+  if (aiEnabled) {
+    // Con IA activa, solo avisar si la vigencia registrada está por vencer —
+    // informativo, nunca bloqueante (el superadmin decide si la desactiva).
+    if (status?.state === 'active' && status.expiringSoon) {
       return {
         tone: 'warning',
         icon: Clock,
         message:
           status.daysRemaining > 0
-            ? `Tu suscripción vence en ${days(status.daysRemaining)} (${formatDate(status.expiresAt)}).`
-            : `Tu suscripción vence hoy (${formatDate(status.expiresAt)}).`,
+            ? `Tu suscripción vence en ${days(status.daysRemaining)} (${formatDate(status.expiresAt)}). Después de esa fecha el asistente IA podría desactivarse.`
+            : `Tu suscripción vence hoy (${formatDate(status.expiresAt)}). Después de esa fecha el asistente IA podría desactivarse.`,
         cta: 'Renovar',
         dismissible: true,
       }
+    }
+    return null
+  }
 
-    case 'grace':
-      return {
-        tone: 'danger',
-        icon: AlertTriangle,
-        message: `Tu suscripción venció el ${formatDate(status.expiresAt)}. Tienes hasta el ${formatDate(status.graceEndsAt)} para renovar; después la cuenta pasa a solo lectura.`,
-        cta: 'Renovar ahora',
-        dismissible: false,
-      }
+  if (status?.state === 'suspended') {
+    return {
+      tone: 'danger',
+      icon: Lock,
+      message: 'El asistente IA de esta cuenta está desactivado. Contacta a soporte para reactivarlo.',
+      cta: null,
+      dismissible: false,
+    }
+  }
 
-    case 'readonly':
-      return {
-        tone: 'danger',
-        icon: Lock,
-        message:
-          'Cuenta en solo lectura: puedes consultar y exportar, pero no registrar cambios. Renueva para reactivarla.',
-        cta: 'Renovar ahora',
-        dismissible: false,
-      }
-
-    case 'suspended':
-      return {
-        tone: 'danger',
-        icon: Lock,
-        message: 'Esta cuenta está suspendida. Contacta a soporte para reactivarla.',
-        cta: null,
-        dismissible: false,
-      }
+  return {
+    tone: 'info',
+    icon: Sparkles,
+    message: 'El asistente IA no está activado para tu institución. Activa tu suscripción para usarlo.',
+    cta: 'Activar cuenta',
+    dismissible: true,
   }
 }
 
@@ -110,11 +98,12 @@ export function SubscriptionBanner() {
   const { hasPermission } = usePermissions()
   const [dismissed, setDismissed] = useState(false)
 
-  const status = data?.status
-  // Sin suscripción gestionada no hay nada que avisar.
-  if (!status) return null
+  // Sin respuesta todavía (loading/error) no hay nada que avisar — aiEnabled
+  // por defecto false hasta que llegue la respuesta real evitaría un flash
+  // del banner "sin IA" en cada carga, así que se espera a tener datos.
+  if (!data) return null
 
-  const content = contentFor(status)
+  const content = contentFor(data.status, data.aiEnabled)
   if (!content) return null
   if (content.dismissible && dismissed) return null
 

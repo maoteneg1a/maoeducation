@@ -1,6 +1,5 @@
 import { FastifyInstance } from 'fastify'
 import { platformAuthMiddleware } from '../../../shared/infrastructure/middleware/platform-auth.middleware'
-import { invalidateSubscriptionCache } from '../../../shared/infrastructure/middleware/subscription.middleware'
 import { storage } from '../../../shared/infrastructure/services/storage.service'
 import { BadRequestError, NotFoundError } from '../../../shared/domain/errors/app.errors'
 import {
@@ -9,9 +8,11 @@ import {
   addDays,
   receiptKey,
 } from '../infrastructure/repositories/prisma-subscription.repository'
+import { PrismaInstitutionRepository } from '../../institution/infrastructure/repositories/prisma-institution.repository'
 import type { PaymentStatus } from '../application/dtos/subscription.dto'
 
 const repo = new PrismaSubscriptionRepository()
+const institutionRepo = new PrismaInstitutionRepository()
 
 const PAYMENT_STATUSES: PaymentStatus[] = ['pending', 'approved', 'rejected']
 
@@ -88,8 +89,14 @@ export default async function platformSubscriptionRoutes(app: FastifyInstance) {
         req.platformAdmin.sub,
         req.body,
       )
-      // Sin esto el cliente que acaba de pagar sigue bloqueado hasta un minuto.
-      invalidateSubscriptionCache(institutionId)
+      // La suscripción real = acceso al asistente IA (ver decisión de
+      // producto: "si tienen IA activada, tienen suscripción activa"). Al
+      // aprobar el pago, se activa la IA automáticamente — antes esto
+      // requería un paso manual aparte del superadmin en otra pantalla.
+      const aiConfig = await institutionRepo.getAiConfig(institutionId)
+      if (!aiConfig.enabled) {
+        await institutionRepo.updateAiConfig(institutionId, { enabled: true })
+      }
 
       return reply.send(await repo.getDetail(institutionId))
     },
@@ -147,12 +154,16 @@ export default async function platformSubscriptionRoutes(app: FastifyInstance) {
       if (Number.isNaN(expiresAt.getTime())) throw new BadRequestError('Fecha de vigencia inválida')
 
       const status = await repo.setValidity(req.params.institutionId, req.body)
-      invalidateSubscriptionCache(req.params.institutionId)
       return reply.send({ status })
     },
   )
 
-  /** Corte manual (y su reversa). Gana sobre las fechas. */
+  /**
+   * Corte manual (y su reversa). Gana sobre las fechas. Suspender también
+   * apaga la IA de la institución — mismo criterio que approve: la IA es la
+   * suscripción, así que un corte manual debe cortar el acceso real, no solo
+   * quedar registrado en una tabla que nadie más consulta.
+   */
   app.patch<{ Params: { institutionId: string }; Body: { suspended: boolean } }>(
     '/platform/subscriptions/:institutionId/suspend',
     {
@@ -167,7 +178,9 @@ export default async function platformSubscriptionRoutes(app: FastifyInstance) {
     },
     async (req, reply) => {
       const status = await repo.setSuspended(req.params.institutionId, req.body.suspended)
-      invalidateSubscriptionCache(req.params.institutionId)
+      if (req.body.suspended) {
+        await institutionRepo.updateAiConfig(req.params.institutionId, { enabled: false })
+      }
       return reply.send({ status })
     },
   )

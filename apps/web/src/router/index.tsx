@@ -6,7 +6,6 @@ import { PersonalStructureGuard } from './PersonalStructureGuard'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { PersonalRegisterPage } from '@/features/personal/pages/PersonalRegisterPage'
 import { PersonalLoginPage } from '@/features/personal/pages/PersonalLoginPage'
-import { PersonalSetupPage } from '@/features/personal/pages/PersonalSetupPage'
 import PersonalCheckEmailPage from '@/features/personal/pages/PersonalCheckEmailPage'
 import PersonalVerifyEmailPage from '@/features/personal/pages/PersonalVerifyEmailPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
@@ -34,14 +33,6 @@ export const router = createBrowserRouter([
   {
     path: '/personal/verify-email',
     element: <PersonalVerifyEmailPage />,
-  },
-  {
-    path: '/personal/setup',
-    element: (
-      <PrivateRoute>
-        <PersonalSetupPage />
-      </PrivateRoute>
-    ),
   },
   {
     path: '/',
@@ -89,10 +80,10 @@ export const router = createBrowserRouter([
       },
       // ---- Academic Config ----
       // Estructura académica (niveles, materias, años, paralelos, asignaciones,
-      // insumos): se crea una sola vez desde el wizard /personal/setup para
-      // cuentas personales de profesor, así que PersonalStructureGuard bloquea
-      // el acceso a esa cuenta aunque entre por URL directa. No afecta a
-      // instituciones normales (accountType !== 'personal').
+      // insumos): para cuentas personales de profesor nace de bootstrapInstitution
+      // al registrarse — PersonalStructureGuard bloquea el acceso directo a estas
+      // pantallas de administración (usan "Mis grados y materias" en su lugar).
+      // No afecta a instituciones normales (accountType !== 'personal').
       {
         path: 'academic',
         element: <PermissionGuard permission="academic_config:manage" />,
@@ -531,11 +522,10 @@ export const router = createBrowserRouter([
         ],
       },
       // ---- Settings / Mis grados y materias (solo cuentas personales) ----
-      // Reemplaza al wizard de /personal/setup como único punto de edición
-      // post-onboarding — PersonalStructureGuard sigue bloqueando las
-      // pantallas normales de estructura académica (niveles/materias/
-      // paralelos/asignaciones), esta es la vía dedicada para cuentas
-      // personales en su lugar.
+      // Único punto de edición de grado+materia para cuentas personales —
+      // PersonalStructureGuard sigue bloqueando las pantallas normales de
+      // estructura académica (niveles/materias/paralelos/asignaciones), esta
+      // es la vía dedicada para cuentas personales en su lugar.
       {
         path: 'settings/mis-grados',
         element: <PermissionGuard permission="academic_config:manage" />,

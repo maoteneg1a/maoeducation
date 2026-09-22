@@ -104,9 +104,9 @@ const NAV_SECTIONS: NavSection[] = [
         permission: 'academic_config:manage',
         module: 'academic',
         children: [
-          // Estructura académica: se crea una sola vez desde el wizard de
-          // /personal/setup para cuentas personales de profesor, así que no se
-          // vuelve a exponer en su sidebar (ver hideForPersonal más abajo y
+          // Estructura académica: para cuentas personales de profesor ya nace
+          // creada desde bootstrapInstitution al registrarse, así que no se
+          // expone en su sidebar (ver hideForPersonal más abajo y
           // PersonalStructureGuard en router/index.tsx, que bloquea la ruta
           // directa también). Calificación y Formato de Planificación SÍ se
           // conservan: son plantillas/personalización, no estructura.
@@ -118,10 +118,9 @@ const NAV_SECTIONS: NavSection[] = [
           { label: 'Insumos por paralelo', path: '/academic/insumo-setup', hideForPersonal: true },
           { label: 'Calificación y Asistente IA', path: '/settings/calificacion' },
           { label: 'Formato de Planificación', path: '/settings/formato-planificacion' },
-          // Único punto de edición post-onboarding de grados/materias +
-          // modo multigrado para cuentas personales — reemplaza al wizard
-          // de /personal/setup una vez completado. No aplica a instituciones
-          // normales, que ya administran esto desde Niveles/Asignaciones.
+          // Único punto de edición de grados/materias + modo multigrado
+          // para cuentas personales. No aplica a instituciones normales,
+          // que ya administran esto desde Niveles/Asignaciones.
           { label: 'Mis grados y materias', path: '/settings/mis-grados', showOnlyForPersonal: true },
         ],
       },
@@ -282,9 +281,9 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   // Una sección sin ítems visibles desaparece con su encabezado — así una cuenta
   // personal sin módulos institucionales no muestra un título vacío. Los hijos
   // de estructura académica (niveles/materias/años/paralelos/asignaciones) se
-  // ocultan además para cuentas personales — esa estructura ya la resolvió el
-  // wizard de /personal/setup una sola vez (ver PersonalStructureGuard, que
-  // bloquea también el acceso por URL directa a esas rutas).
+  // ocultan además para cuentas personales — esa estructura ya nace creada
+  // desde bootstrapInstitution (ver PersonalStructureGuard, que bloquea
+  // también el acceso por URL directa a esas rutas).
   const visibleSections = NAV_SECTIONS
     .map((section) => ({
       ...section,
