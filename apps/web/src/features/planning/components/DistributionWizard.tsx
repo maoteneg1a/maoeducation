@@ -65,6 +65,10 @@ export function DistributionWizard({ courseAssignmentId, academicYearId, subject
   // docente agregue a mano) y con lo que ya trae la sugerencia (disponible
   // antes de que el banco cargue, para el resumen colapsado de cada semana).
   const [competencyCodes, setCompetencyCodes] = React.useState<Record<string, string>>({})
+  // Cómo decide la IA cuántas actividades genera por fase, aplicado a TODAS
+  // las semanas del bloque — mismo criterio que WeekCard.tsx para una sola semana.
+  const [activitiesMode, setActivitiesMode] = React.useState<'workload' | 'per_saber' | 'fixed'>('workload')
+  const [fixedActivitiesTotal, setFixedActivitiesTotal] = React.useState(6)
   const { data: competencyBank = [] } = useCompetenciesForSubject(subjectId, subnivel)
   React.useEffect(() => {
     if (competencyBank.length === 0) return
@@ -156,6 +160,8 @@ export function DistributionWizard({ courseAssignmentId, academicYearId, subject
               situationId: result.situation.id,
               weeksCount: weeks.length,
               competencyIds: [...new Set(weeks.flatMap((w) => w.competencyIds))],
+              activitiesMode: activitiesMode === 'workload' ? undefined : activitiesMode,
+              fixedActivitiesTotal: activitiesMode === 'fixed' ? fixedActivitiesTotal : undefined,
             },
             { onSuccess: () => navigate(`/planning/situations/${result.situation.id}`) },
           )
@@ -252,7 +258,32 @@ export function DistributionWizard({ courseAssignmentId, academicYearId, subject
             <Plus className="h-4 w-4 mr-1" /> Agregar semana
           </Button>
 
-          <div className="flex justify-end border-t pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <span className="font-medium">Cantidad de actividades (todas las semanas):</span>
+              <label className="flex items-center gap-1">
+                <input type="radio" checked={activitiesMode === 'workload'} onChange={() => setActivitiesMode('workload')} />
+                Según carga horaria
+              </label>
+              <label className="flex items-center gap-1">
+                <input type="radio" checked={activitiesMode === 'per_saber'} onChange={() => setActivitiesMode('per_saber')} />
+                Una por cada saber
+              </label>
+              <label className="flex items-center gap-1">
+                <input type="radio" checked={activitiesMode === 'fixed'} onChange={() => setActivitiesMode('fixed')} />
+                Número fijo:
+                <input
+                  type="number"
+                  min={6}
+                  max={20}
+                  value={fixedActivitiesTotal}
+                  disabled={activitiesMode !== 'fixed'}
+                  onChange={(e) => setFixedActivitiesTotal(Number(e.target.value))}
+                  onFocus={() => setActivitiesMode('fixed')}
+                  className="w-14 rounded border px-1 py-0.5 text-xs disabled:opacity-50"
+                />
+              </label>
+            </div>
             <Button type="button" onClick={handleConfirm} disabled={!canConfirm} loading={confirmDistribution.isPending || draftBlock.isPending}>
               <Sparkles className="h-4 w-4" />
               Confirmar y generar planificación

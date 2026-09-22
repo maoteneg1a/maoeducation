@@ -10,6 +10,9 @@ export interface DraftSituationBlockDto {
   weeksCount: number
   skillIds?: string[]
   competencyIds?: string[]
+  /** Igual que en draftCompetencyWeek — aplica a TODAS las semanas del bloque. */
+  activitiesMode?: 'per_saber' | 'fixed'
+  fixedActivitiesTotal?: number
 }
 
 export interface DraftedBlockWeek {
@@ -142,6 +145,8 @@ export async function draftSituationBlock(
               rotationSeed: index,
               weekNumber: slot.weekNumber,
               selectedSaberIds: preselectedSaberIdsByNumber.get(slot.weekNumber),
+              activitiesMode: dto.activitiesMode,
+              fixedActivitiesTotal: dto.fixedActivitiesTotal,
             })
           : await draftWeek(institutionId, actorId, {
               situationId: dto.situationId,

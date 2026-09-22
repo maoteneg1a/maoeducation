@@ -132,8 +132,15 @@ export const aiAssistantApi = {
   }) => apiPost<DraftCompetencyWeekResult>('ai-assistant/draft-competency-week', data, { timeout: 120000 }),
 
   /** Estilo TIGA: genera y guarda de una vez las N semanas de un bloque completo (una llamada de IA por semana, en el servidor). */
-  draftSituationBlock: (data: { situationId: string; weeksCount: number; skillIds?: string[]; competencyIds?: string[] }) =>
-    apiClient.post('ai-assistant/draft-situation-block', { json: data, timeout: 180000 }).json<DraftSituationBlockResult>(),
+  draftSituationBlock: (data: {
+    situationId: string
+    weeksCount: number
+    skillIds?: string[]
+    competencyIds?: string[]
+    /** Igual que en draftCompetencyWeek — aplica a TODAS las semanas del bloque. */
+    activitiesMode?: 'per_saber' | 'fixed'
+    fixedActivitiesTotal?: number
+  }) => apiClient.post('ai-assistant/draft-situation-block', { json: data, timeout: 180000 }).json<DraftSituationBlockResult>(),
 
   /** Genera y guarda TODO el proyecto interdisciplinario a partir de un prompt/idea breve. */
   draftProject: (data: { projectId: string; prompt?: string }) =>
