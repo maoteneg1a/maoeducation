@@ -216,7 +216,7 @@ export async function listPersonalClasses(institutionId: string): Promise<Person
   const assignments = await prisma.courseAssignment.findMany({
     where: { institutionId, academicYearId: year.id },
     include: {
-      subject: true,
+      subject: { include: { competencyArea: true, curriculumArea: true } },
       parallel: { include: { level: true } },
       multigradeGroupMember: true,
     },
@@ -230,10 +230,22 @@ export async function listPersonalClasses(institutionId: string): Promise<Person
   for (const a of assignments) {
     const areaId =
       planningModel === 'competencias' ? a.subject.competencyAreaId : a.subject.curriculumAreaId
+    // Fallback + auto-reparación: materias creadas ANTES de que
+    // getOrCreateSubjectForArea empezara a setear workloadCode (confirmado en
+    // producción: 0/339 Subjects lo tenían) se resuelven igual leyendo el
+    // code del área — es el mismo valor que se guardaría, así que se
+    // persiste de una vez y no hay que volver a calcularlo en cada lectura.
+    let workloadCode = a.subject.workloadCode
+    if (!workloadCode) {
+      workloadCode = a.subject.competencyArea?.code ?? a.subject.curriculumArea?.code ?? null
+      if (workloadCode) {
+        await prisma.subject.update({ where: { id: a.subjectId }, data: { workloadCode } })
+      }
+    }
     const workload = resolveWorkload(
       workloadEntries,
       a.parallel.level.code,
-      a.subject.workloadCode,
+      workloadCode,
       a.parallel.educationOffer,
       a.weeklyPeriodsOverride,
     )
