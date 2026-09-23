@@ -588,9 +588,13 @@ export const TRIAL_DAYS = 30
 // explícitamente desde Configuración. Sonnet por defecto: redactar actividades,
 // estrategias DUA y recursos con calidad pedagógica real necesita más capacidad
 // que Haiku (que dejaba actividades genéricas/pobres en pruebas reales).
+// claude-sonnet-5 (antes claude-sonnet-4-6): mismo tier, 33% más barato por
+// token ($2/$10 vs $3/$15 por millón input/output) — todas las llamadas del
+// módulo ya fijan thinking:disabled explícito para no pagar de más por
+// adaptive thinking silencioso (default nuevo del modelo cuando se omite).
 export const DEFAULT_AI_CONFIG = {
   enabled: false,
-  model: 'claude-sonnet-4-6',
+  model: 'claude-sonnet-5',
   monthlyTokenCap: 2_000_000,
   // ~1/15 del mensual — frena un pico concentrado en un día (varios docentes
   // planificando el trimestre completo la misma semana) sin esperar a que el

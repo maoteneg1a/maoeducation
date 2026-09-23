@@ -56,6 +56,9 @@ export async function resolveWebResource(
         messages,
         tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 1, allowed_callers: ['direct'] }],
         tool_choice: { type: 'auto' },
+        // Ver nota equivalente en competency-pedagogical-generator.service.ts —
+        // solo ejecuta una búsqueda y devuelve el resultado, no requiere razonamiento abierto.
+        thinking: { type: 'disabled' },
       })
     } catch (error) {
       console.warn('[resolveWebResource] error de API, se omite el link:', error)

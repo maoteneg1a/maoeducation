@@ -470,6 +470,9 @@ Reglas estrictas: no repitas texto entre situacionReto/contexto/propositoComun/p
           },
         ],
         tool_choice: { type: 'auto' },
+        // Ver nota equivalente en competency-pedagogical-generator.service.ts —
+        // extracción estructurada, no razonamiento abierto.
+        thinking: { type: 'disabled' },
       })
     } catch (error) {
       const status = error instanceof Anthropic.APIError ? error.status : undefined

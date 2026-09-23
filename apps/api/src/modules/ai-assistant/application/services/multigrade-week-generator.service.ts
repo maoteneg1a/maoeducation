@@ -327,6 +327,9 @@ Reglas estrictas: no menciones competencias/indicadores específicos de ningún 
         tools: [
           { name: 'submit_shared_experience', description: 'Envía la experiencia común multigrado', input_schema: EXPERIENCE_SCHEMA },
         ],
+        // Ver nota equivalente en competency-pedagogical-generator.service.ts —
+        // extracción estructurada, no razonamiento abierto.
+        thinking: { type: 'disabled' },
         tool_choice: { type: 'auto' },
       })
     } catch (error) {
