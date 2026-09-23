@@ -741,6 +741,13 @@ Identidad inmutable de esta generación (repítela EXACTA en identityCode, no la
         messages,
         tools,
         tool_choice: { type: 'tool', name: 'submit_competency_week_draft' },
+        // Explícito para no depender del default del modelo: en Sonnet 4.6
+        // omitir thinking corría sin pensar, pero en Sonnet 5+ omitirlo activa
+        // adaptive thinking en silencio (gasta tokens de salida extra sin que
+        // el caller lo pidiera) — esta llamada es extracción estructurada
+        // forzada por tool_choice, no razonamiento abierto, así que thinking
+        // no aporta aquí y solo sumaría costo.
+        thinking: { type: 'disabled' },
       })
     } catch (error) {
       const status = error instanceof Anthropic.APIError ? error.status : undefined

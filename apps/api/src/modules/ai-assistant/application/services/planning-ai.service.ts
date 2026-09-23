@@ -166,6 +166,9 @@ Sé concreto y breve en cada campo (2-3 líneas máximo). No inventes destrezas 
           },
         ],
         tool_choice: { type: 'tool', name: 'submit_week_draft' },
+        // Ver nota equivalente en competency-pedagogical-generator.service.ts —
+        // extracción estructurada forzada, no razonamiento abierto.
+        thinking: { type: 'disabled' },
       })
     } catch (error) {
       // Un fallo de la API (timeout, 401, rate-limit, 5xx) nunca debe tumbar la generación

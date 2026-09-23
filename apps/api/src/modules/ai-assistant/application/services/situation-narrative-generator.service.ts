@@ -100,6 +100,9 @@ ${saberesBlock || '(sin saberes específicos todavía)'}`
         messages,
         tools: [{ name: 'submit_situation_narrative', description: 'Envía el título y descripción', input_schema: NARRATIVE_SCHEMA }],
         tool_choice: { type: 'auto' },
+        // Ver nota equivalente en competency-pedagogical-generator.service.ts —
+        // extracción estructurada, no razonamiento abierto.
+        thinking: { type: 'disabled' },
       })
     } catch (error) {
       const status = error instanceof Anthropic.APIError ? error.status : undefined
