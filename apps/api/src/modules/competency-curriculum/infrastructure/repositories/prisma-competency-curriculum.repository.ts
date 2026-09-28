@@ -53,7 +53,12 @@ export class PrismaCompetencyCurriculumRepository {
       orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
     })
     if (!gradeCode) return sabers
-    return sabers.filter((s) => s.gradeCodes.length === 0 || s.gradeCodes.includes(gradeCode))
+    const filtered = sabers.filter((s) => s.gradeCodes.length === 0 || s.gradeCodes.includes(gradeCode))
+    // Red de seguridad ante huecos del catálogo (ej. un grado sin ningún
+    // saber etiquetado todavía): un docente NUNCA debe ver "0 saberes" para
+    // una competencia que sí los tiene — se prefiere ofrecer el banco
+    // completo sin filtrar antes que dejarlo sin nada que elegir.
+    return filtered.length > 0 ? filtered : sabers
   }
 
   /** Solo se pueden agregar saberes a competencias PROPIAS de la institución — el banco oficial no se modifica por tenant. */
