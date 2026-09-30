@@ -6,12 +6,12 @@
   <meta name="theme-color" content="#080b16">
   <title>Ruleta de ganadores</title>
   <meta name="description" content="Ruleta de sorteos para eventos, con resultados predefinidos y selección aleatoria transparente.">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="/sorteo/styles.css">
 </head>
 <body>
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="Inicio"><span class="brand-mark">A</span><span>Auleka</span></a>
+    <a class="brand" href="/sorteo/" aria-label="Inicio del sorteo"><span class="brand-mark">R</span><span>La Ruleta</span></a>
     <div class="top-actions">
       <button class="ghost-button" id="organizerButton" type="button">⚙ <span>Organizador</span></button>
       <button class="icon-button" id="soundToggle" type="button" aria-label="Desactivar sonido" title="Sonido"><span id="soundIcon">♪</span></button>
@@ -22,7 +22,7 @@
   <main>
     <section class="hero">
       <div class="eyebrow"><span></span> SORTEO EN VIVO</div>
-      <h1 id="eventTitle" contenteditable="true" spellcheck="false">Celebración Auleka 2026</h1>
+      <h1 id="eventTitle" contenteditable="true" spellcheck="false">Gran Sorteo 2026</h1>
       <p id="eventDescription" contenteditable="true" spellcheck="false">Una ruleta, grandes nombres y cinco momentos preparados para celebrar.</p>
       <div class="hero-stats">
         <div><strong id="availableCount">0</strong><span>Disponibles</span></div>
@@ -88,6 +88,6 @@
     <div class="modal-backdrop" id="organizerBackdrop"></div><form class="modal-card" id="organizerForm"><div class="modal-glow"></div><span class="modal-kicker">ACCESO PRIVADO</span><div class="modal-crown organizer-lock">⌁</div><h2 id="organizerModalTitle">Modo organizador</h2><p>Ingresa el PIN para editar participantes y el orden predefinido.</p><label class="sr-only" for="pinInput">PIN de organizador</label><input class="pin-input" id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" maxlength="12" placeholder="••••"><span class="pin-error" id="pinError" aria-live="polite"></span><button type="submit">Acceder</button><button class="cancel-modal" id="cancelOrganizerButton" type="button">Cancelar</button></form>
   </div>
   <canvas id="confetti" aria-hidden="true"></canvas>
-  <script src="./app.js"></script>
+  <script src="/sorteo/app.js"></script>
 </body>
 </html>

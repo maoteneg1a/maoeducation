@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const STORAGE_KEY = 'auleka-sorteo-v1';
+  const STORAGE_KEY = 'ruleta-sorteo-v2';
   const COLORS = ['#17c9d5','#7657dc','#e64ca9','#287cc9','#13a983','#a743d0','#e46162','#1aa4be','#584bc7','#cb3a87','#2472a9','#238f76'];
   const EXAMPLES = ['Ana Torres','Mateo Ruiz','Sofía Pérez','Daniel Cedeño','Valentina Mora','Lucas Andrade','Camila Vélez','Emiliano Paz','Isabella León','Nicolás Castro','Martina Silva','Sebastián Flores'];
   const $ = id => document.getElementById(id);
@@ -9,7 +9,7 @@
   let spinning = false, rotation = 0, audioCtx = null, pendingWinner = null, organizerMode = false;
 
   function newId(){ return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${crypto.getRandomValues(new Uint32Array(1))[0]}`; }
-  function defaultState(){const participants=EXAMPLES.map((name,i)=>({id:`example-${i+1}`,name}));return{title:'Celebración Auleka 2026',description:'Una ruleta, grandes nombres y cinco momentos preparados para celebrar.',participants,preset:participants.slice(0,5).map(p=>p.id),winners:[],started:false,sound:true,organizerPin:'2026'};}
+  function defaultState(){const participants=EXAMPLES.map((name,i)=>({id:`example-${i+1}`,name}));return{title:'Gran Sorteo 2026',description:'Una ruleta, grandes nombres y cinco momentos preparados para celebrar.',participants,preset:participants.slice(0,5).map(p=>p.id),winners:[],started:false,sound:true,organizerPin:'2026'};}
   function loadState(){try{const parsed=JSON.parse(localStorage.getItem(STORAGE_KEY));if(!parsed||!Array.isArray(parsed.participants)||!Array.isArray(parsed.winners))return defaultState();parsed.preset=Array.isArray(parsed.preset)?parsed.preset.slice(0,5):[];parsed.started=Boolean(parsed.started||parsed.winners.length);parsed.sound=parsed.sound!==false;parsed.organizerPin=typeof parsed.organizerPin==='string'&&parsed.organizerPin.length>=4?parsed.organizerPin:'2026';return parsed;}catch{return defaultState();}}
   function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
   function normalized(v){return String(v).trim().replace(/\s+/g,' ');}
