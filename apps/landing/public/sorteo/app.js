@@ -1,0 +1,81 @@
+(() => {
+  'use strict';
+  const STORAGE_KEY = 'auleka-sorteo-v1';
+  const COLORS = ['#17c9d5','#7657dc','#e64ca9','#287cc9','#13a983','#a743d0','#e46162','#1aa4be','#584bc7','#cb3a87','#2472a9','#238f76'];
+  const EXAMPLES = ['Ana Torres','Mateo Ruiz','Sofía Pérez','Daniel Cedeño','Valentina Mora','Lucas Andrade','Camila Vélez','Emiliano Paz','Isabella León','Nicolás Castro','Martina Silva','Sebastián Flores'];
+  const $ = id => document.getElementById(id);
+  const els = {wheel:$('wheel'),spin:$('spinButton'),spinText:$('spinText'),helper:$('spinHelper'),round:$('roundLabel'),mode:$('modePill'),available:$('availableCount'),winnerCount:$('winnerCount'),total:$('totalCount'),badge:$('participantBadge'),participants:$('participantList'),presets:$('presetList'),input:$('namesInput'),add:$('addButton'),message:$('formMessage'),winners:$('winnersList'),empty:$('winnersEmpty'),complete:$('completeMessage'),csv:$('csvButton'),reset:$('resetButton'),sound:$('soundToggle'),soundIcon:$('soundIcon'),title:$('eventTitle'),description:$('eventDescription'),modal:$('winnerModal'),modalTitle:$('modalTitle'),modalPosition:$('modalPosition'),modalKicker:$('modalKicker'),continue:$('continueButton'),lock:$('lockNote'),confetti:$('confetti')};
+  let state = loadState();
+  let spinning = false, rotation = 0, audioCtx = null, pendingWinner = null;
+
+  function newId(){ return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${crypto.getRandomValues(new Uint32Array(1))[0]}`; }
+  function defaultState(){const participants=EXAMPLES.map((name,i)=>({id:`example-${i+1}`,name}));return{title:'Celebración Auleka 2026',description:'Una ruleta, grandes nombres y cinco momentos preparados para celebrar.',participants,preset:participants.slice(0,5).map(p=>p.id),winners:[],started:false,sound:true};}
+  function loadState(){try{const parsed=JSON.parse(localStorage.getItem(STORAGE_KEY));if(!parsed||!Array.isArray(parsed.participants)||!Array.isArray(parsed.winners))return defaultState();parsed.preset=Array.isArray(parsed.preset)?parsed.preset.slice(0,5):[];parsed.started=Boolean(parsed.started||parsed.winners.length);parsed.sound=parsed.sound!==false;return parsed;}catch{return defaultState();}}
+  function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
+  function normalized(v){return String(v).trim().replace(/\s+/g,' ');}
+  function key(v){return normalized(v).toLocaleLowerCase('es');}
+  function availableParticipants(){const won=new Set(state.winners.map(w=>w.id));return state.participants.filter(p=>!won.has(p.id));}
+  function isLocked(){return state.started||state.winners.length>0;}
+  function presetValid(){return state.preset.length===5&&new Set(state.preset).size===5&&state.preset.every(id=>state.participants.some(p=>p.id===id));}
+  function escapeCsv(value){return `"${String(value).replaceAll('"','""')}"`;}
+  function setMessage(text,error=false){els.message.textContent=text;els.message.classList.toggle('error',error);}
+
+  function render(){
+    els.title.textContent=state.title;els.description.textContent=state.description;
+    const available=availableParticipants();
+    els.available.textContent=available.length;els.winnerCount.textContent=state.winners.length;els.total.textContent=state.participants.length;els.badge.textContent=state.participants.length;
+    renderParticipants();renderPresets();renderWinners();drawWheel(available);
+    const n=state.winners.length;
+    if(!available.length){els.round.textContent='Sorteo finalizado';els.mode.textContent='COMPLETADO';els.helper.textContent='Todos los participantes han sido sorteados.';}
+    else if(n<5){els.round.textContent=n?'Siguiente resultado preparado':'Listo para comenzar';els.mode.textContent=`PREDEFINIDO ${n+1} DE 5`;els.helper.textContent='Los primeros 5 resultados siguen el orden configurado.';}
+    else{els.round.textContent=`Ronda ${n+1}`;els.mode.textContent='SELECCIÓN ALEATORIA';els.helper.textContent='Selección aleatoria uniforme mediante Web Crypto.';}
+    const configBad=n<5&&!presetValid();
+    els.spin.disabled=spinning||!available.length||configBad||state.participants.length<5;
+    els.spinText.textContent=spinning?'Girando…':available.length?'Girar ruleta':'Sorteo finalizado';
+    els.add.disabled=isLocked();els.input.disabled=isLocked();els.csv.disabled=!state.winners.length;
+    els.lock.textContent=isLocked()?'🔒 Participantes y orden bloqueados durante el sorteo.':'🔒 La configuración se bloqueará al realizar el primer giro.';
+    els.sound.classList.toggle('off',!state.sound);els.soundIcon.textContent=state.sound?'♪':'×';els.sound.setAttribute('aria-label',state.sound?'Desactivar sonido':'Activar sonido');
+  }
+  function renderParticipants(){els.participants.replaceChildren();state.participants.forEach((p,i)=>{const row=document.createElement('div');row.className='participant-row';const avatar=document.createElement('span');avatar.className='avatar';avatar.textContent=initials(p.name);const input=document.createElement('input');input.value=p.name;input.disabled=isLocked();input.setAttribute('aria-label',`Editar ${p.name}`);input.addEventListener('change',()=>editParticipant(p.id,input.value,input));const del=document.createElement('button');del.type='button';del.textContent='×';del.title='Eliminar';del.disabled=isLocked();del.addEventListener('click',()=>removeParticipant(p.id));row.append(avatar,input,del);els.participants.append(row);});}
+  function renderPresets(){els.presets.replaceChildren();for(let i=0;i<5;i++){const row=document.createElement('div');row.className='preset-row';const num=document.createElement('span');num.className='preset-number';num.textContent=i+1;const select=document.createElement('select');select.disabled=isLocked();select.setAttribute('aria-label',`Ganador predefinido ${i+1}`);const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Selecciona un participante';select.append(placeholder);state.participants.forEach(p=>{const op=document.createElement('option');op.value=p.id;op.textContent=p.name;op.selected=state.preset[i]===p.id;op.disabled=state.preset.some((id,j)=>j!==i&&id===p.id);select.append(op);});select.addEventListener('change',()=>{state.preset[i]=select.value;saveState();render();});row.append(num,select);els.presets.append(row);}}
+  function renderWinners(){els.winners.replaceChildren();els.empty.hidden=state.winners.length>0;state.winners.slice().reverse().forEach(w=>{const row=document.createElement('div');row.className='winner-row';const rank=document.createElement('span');rank.className='winner-rank';rank.textContent=`#${w.order}`;const info=document.createElement('div');info.className='winner-info';const strong=document.createElement('strong');strong.textContent=w.name;const meta=document.createElement('span');meta.textContent=`Resultado ${w.order}`;info.append(strong,meta);const kind=document.createElement('span');kind.className='winner-kind';kind.textContent=w.type==='predefined'?'Predefinido':'Aleatorio';row.append(rank,info,kind);els.winners.append(row);});els.complete.hidden=availableParticipants().length!==0||state.participants.length===0;}
+  function initials(name){return normalized(name).split(' ').slice(0,2).map(s=>s[0]||'').join('').toUpperCase();}
+  function shortName(name,max=14){const clean=normalized(name);return clean.length<=max?clean:`${clean.slice(0,max-1)}…`;}
+  function addNames(){if(isLocked())return;const names=els.input.value.split(/\r?\n/).map(normalized).filter(Boolean);if(!names.length){setMessage('Escribe al menos un nombre.',true);return;}const existing=new Set(state.participants.map(p=>key(p.name)));let added=0,duplicates=0;names.forEach(name=>{if(existing.has(key(name))){duplicates++;return;}state.participants.push({id:newId(),name});existing.add(key(name));added++;});els.input.value='';saveState();setMessage(`${added} participante${added===1?'':'s'} agregado${added===1?'':'s'}${duplicates?`; ${duplicates} duplicado${duplicates===1?' omitido':'s omitidos'}`:''}.`,added===0);render();}
+  function editParticipant(id,value,input){const name=normalized(value);const p=state.participants.find(x=>x.id===id);if(!name||state.participants.some(x=>x.id!==id&&key(x.name)===key(name))){setMessage(!name?'El nombre no puede quedar vacío.':'Ese nombre ya existe.',true);input.value=p.name;return;}p.name=name;saveState();setMessage('Nombre actualizado.');render();}
+  function removeParticipant(id){state.participants=state.participants.filter(p=>p.id!==id);state.preset=state.preset.map(x=>x===id?'':x);saveState();render();}
+
+  function drawWheel(list){
+    const canvas=els.wheel,ctx=canvas.getContext('2d'),size=canvas.width,c=size/2,r=c-18;ctx.clearRect(0,0,size,size);
+    if(!list.length){ctx.beginPath();ctx.arc(c,c,r,0,Math.PI*2);ctx.fillStyle='#151a2c';ctx.fill();ctx.strokeStyle='#30374d';ctx.lineWidth=8;ctx.stroke();ctx.fillStyle='#7d879f';ctx.font='600 25px DM Sans';ctx.textAlign='center';ctx.fillText('Sorteo completado',c,c-105);return;}
+    const step=Math.PI*2/list.length,small=list.length>24;
+    list.forEach((p,i)=>{const center=-Math.PI/2+i*step,start=center-step/2,end=center+step/2;ctx.beginPath();ctx.moveTo(c,c);ctx.arc(c,c,r,start,end);ctx.closePath();ctx.fillStyle=COLORS[i%COLORS.length];ctx.fill();ctx.strokeStyle='rgba(7,9,18,.42)';ctx.lineWidth=list.length>35?1:3;ctx.stroke();if(list.length<=70){ctx.save();ctx.translate(c,c);ctx.rotate(center);ctx.textAlign='right';ctx.fillStyle='white';ctx.shadowColor='rgba(0,0,0,.6)';ctx.shadowBlur=4;ctx.font=`700 ${small?Math.max(10,17-list.length/7):17}px DM Sans`;const max=list.length>30?9:list.length>18?12:16;ctx.fillText(shortName(p.name,max),r-26,5);ctx.restore();}});
+    ctx.beginPath();ctx.arc(c,c,r,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=7;ctx.stroke();ctx.beginPath();ctx.arc(c,c,r-12,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=2;ctx.stroke();
+  }
+  function secureIndex(max){if(max<=0)throw new Error('Rango inválido');const limit=Math.floor(0x100000000/max)*max;const buf=new Uint32Array(1);do{crypto.getRandomValues(buf);}while(buf[0]>=limit);return buf[0]%max;}
+  function chooseWinner(list){const order=state.winners.length;if(order<5){const id=state.preset[order];return list.find(p=>p.id===id)||null;}return list[secureIndex(list.length)];}
+  function spin(){
+    if(spinning)return;const list=availableParticipants();if(!list.length)return;if(!presetValid()&&state.winners.length<5){setMessage('Completa los cinco resultados predefinidos antes de iniciar.',true);document.querySelector('.control-section').scrollIntoView({behavior:'smooth'});return;}
+    const winner=chooseWinner(list);if(!winner)return;spinning=true;state.started=true;saveState();render();pendingWinner=winner;
+    const index=list.findIndex(p=>p.id===winner.id),step=360/list.length,target=((360-index*step)%360+360)%360,current=((rotation%360)+360)%360,delta=((target-current+360)%360)+360*(6+secureIndex(3));rotation+=delta;
+    const duration=5200+secureIndex(1401);els.wheel.style.transitionDuration=`${duration}ms`;requestAnimationFrame(()=>{els.wheel.style.transform=`rotate(${rotation}deg)`;});playSpin(duration);
+    const done=()=>{els.wheel.removeEventListener('transitionend',done);confirmWinner(winner);};els.wheel.addEventListener('transitionend',done,{once:true});setTimeout(()=>{if(spinning)done();},duration+250);
+  }
+  function confirmWinner(winner){if(!spinning)return;const order=state.winners.length+1;if(state.winners.some(w=>w.id===winner.id)){spinning=false;render();return;}state.winners.push({id:winner.id,name:winner.name,order,type:order<=5?'predefined':'random',timestamp:new Date().toISOString()});saveState();spinning=false;els.modalTitle.textContent=winner.name;els.modalPosition.textContent=`Resultado #${order} · ${order<=5?'Orden predefinido':'Selección aleatoria'}`;els.modalKicker.textContent=order===1?'PRIMER RESULTADO':order<=5?'RESULTADO PREDEFINIDO':'TENEMOS GANADOR';els.modal.hidden=false;launchConfetti();playWin();render();}
+  function closeModal(){els.modal.hidden=true;pendingWinner=null;stopConfetti();rotation=0;els.wheel.style.transitionDuration='0ms';els.wheel.style.transform='rotate(0deg)';drawWheel(availableParticipants());}
+  function toggleSound(){state.sound=!state.sound;saveState();if(state.sound)tone(520,.08,.05);render();}
+  function ensureAudio(){if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+  function tone(freq,duration,volume=.035,delay=0){if(!state.sound)return;try{const ac=ensureAudio(),o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime+delay;o.frequency.value=freq;o.type='sine';g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(volume,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+duration);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+duration);}catch{}}
+  function playSpin(duration){if(!state.sound)return;for(let i=0;i<22;i++){const x=i/22;setTimeout(()=>tone(190+i*4,.045,.018),x*x*duration);}}
+  function playWin(){[523,659,784,1047].forEach((f,i)=>tone(f,.35,.05,i*.11));}
+  let confettiFrame=null,particles=[];
+  function launchConfetti(){const c=els.confetti,ctx=c.getContext('2d');c.width=innerWidth*devicePixelRatio;c.height=innerHeight*devicePixelRatio;ctx.scale(devicePixelRatio,devicePixelRatio);particles=Array.from({length:150},()=>({x:innerWidth/2+(Math.random()-.5)*120,y:innerHeight*.42,vx:(Math.random()-.5)*13,vy:-Math.random()*12-5,g:.22+Math.random()*.12,s:4+Math.random()*6,r:Math.random()*6.2,vr:(Math.random()-.5)*.25,color:COLORS[secureIndex(COLORS.length)]}));const animate=()=>{ctx.clearRect(0,0,innerWidth,innerHeight);particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=p.g;p.r+=p.vr;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.r);ctx.fillStyle=p.color;ctx.fillRect(-p.s/2,-p.s/3,p.s,p.s*.65);ctx.restore();});particles=particles.filter(p=>p.y<innerHeight+20);if(particles.length)confettiFrame=requestAnimationFrame(animate);};animate();}
+  function stopConfetti(){if(confettiFrame)cancelAnimationFrame(confettiFrame);els.confetti.getContext('2d').clearRect(0,0,els.confetti.width,els.confetti.height);}
+  function downloadCsv(){const rows=[['Posición','Nombre','Tipo','Fecha'],...state.winners.map(w=>[w.order,w.name,w.type==='predefined'?'Predefinido':'Aleatorio',w.timestamp])];const csv='\uFEFF'+rows.map(r=>r.map(escapeCsv).join(',')).join('\r\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`resultados-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url);}
+  function reset(){if(!confirm('¿Reiniciar el sorteo? Se borrarán todos los resultados y se desbloqueará la configuración.'))return;state.winners=[];state.started=false;rotation=0;els.wheel.style.transitionDuration='0ms';els.wheel.style.transform='rotate(0deg)';saveState();render();setMessage('Sorteo reiniciado.');}
+  function saveEditable(){state.title=normalized(els.title.textContent)||'Mi gran sorteo';state.description=normalized(els.description.textContent)||'Gira la ruleta y celebra cada resultado.';saveState();render();}
+  els.add.addEventListener('click',addNames);els.spin.addEventListener('click',spin);els.continue.addEventListener('click',closeModal);els.csv.addEventListener('click',downloadCsv);els.reset.addEventListener('click',reset);els.sound.addEventListener('click',toggleSound);els.title.addEventListener('blur',saveEditable);els.description.addEventListener('blur',saveEditable);els.input.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter')addNames();});
+  window.addEventListener('resize',()=>{if(!els.modal.hidden&&particles.length)launchConfetti();});
+  window.__sorteoTest={secureIndex,chooseWinner,availableParticipants,presetValid,getState:()=>JSON.parse(JSON.stringify(state))};
+  render();
+})();

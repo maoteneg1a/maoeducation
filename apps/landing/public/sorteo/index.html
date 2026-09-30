@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080b16">
+  <title>Ruleta de ganadores</title>
+  <meta name="description" content="Ruleta de sorteos para eventos, con resultados predefinidos y selección aleatoria transparente.">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Inicio"><span class="brand-mark">A</span><span>Auleka</span></a>
+    <div class="top-actions">
+      <button class="icon-button" id="soundToggle" type="button" aria-label="Desactivar sonido" title="Sonido"><span id="soundIcon">♪</span></button>
+      <button class="ghost-button" id="resetButton" type="button">↻ <span>Reiniciar</span></button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="eyebrow"><span></span> SORTEO EN VIVO</div>
+      <h1 id="eventTitle" contenteditable="true" spellcheck="false">Celebración Auleka 2026</h1>
+      <p id="eventDescription" contenteditable="true" spellcheck="false">Una ruleta, grandes nombres y cinco momentos preparados para celebrar.</p>
+      <div class="hero-stats">
+        <div><strong id="availableCount">0</strong><span>Disponibles</span></div>
+        <i></i>
+        <div><strong id="winnerCount">0</strong><span>Ganadores</span></div>
+        <i></i>
+        <div><strong id="totalCount">0</strong><span>Participantes</span></div>
+      </div>
+    </section>
+
+    <section class="draw-layout">
+      <div class="wheel-card glass-card">
+        <div class="wheel-toolbar">
+          <div><span class="live-dot"></span><span id="roundLabel">Listo para comenzar</span></div>
+          <span class="pill" id="modePill">PREDEFINIDO 1 DE 5</span>
+        </div>
+        <div class="wheel-wrap">
+          <div class="pointer" aria-hidden="true"><div></div></div>
+          <canvas id="wheel" width="760" height="760" aria-label="Ruleta de participantes"></canvas>
+          <div class="wheel-hub"><span>A</span></div>
+        </div>
+        <button class="spin-button" id="spinButton" type="button"><span class="play-icon">▶</span><span id="spinText">Girar ruleta</span></button>
+        <p class="helper" id="spinHelper">Los primeros 5 resultados siguen el orden configurado.</p>
+      </div>
+
+      <aside class="winners-card glass-card">
+        <div class="card-heading"><div><span class="section-kicker">RESULTADOS</span><h2>Salón de ganadores</h2></div><button id="csvButton" class="small-button" type="button" disabled>↓ CSV</button></div>
+        <div id="winnersList" class="winners-list"></div>
+        <div id="winnersEmpty" class="empty-state"><div class="trophy">♕</div><strong>El podio te espera</strong><p>Los nombres aparecerán aquí después de cada giro.</p></div>
+        <div id="completeMessage" class="complete-message" hidden>✦ Todos los participantes han sido sorteados</div>
+      </aside>
+    </section>
+
+    <section class="control-section">
+      <div class="section-intro"><span class="section-kicker">CENTRO DE CONTROL</span><h2>Prepara tu sorteo</h2><p>Configura los nombres y el orden de los cinco primeros resultados antes de comenzar.</p></div>
+      <div class="notice"><span>i</span><p><strong>Sorteo transparente</strong> Los puestos 1 al 5 son predefinidos. A partir del puesto 6, la selección es aleatoria y uniforme mediante Web Crypto.</p></div>
+
+      <div class="settings-grid">
+        <article class="settings-card">
+          <div class="settings-title"><div class="step">1</div><div><h3>Participantes</h3><p>Agrega uno o varios nombres, uno por línea.</p></div><span class="count-badge" id="participantBadge">0</span></div>
+          <div class="add-box"><textarea id="namesInput" rows="3" placeholder="Ana Torres&#10;Mateo Ruiz&#10;Sofía Pérez"></textarea><button id="addButton" type="button">Agregar nombres</button></div>
+          <p class="form-message" id="formMessage" aria-live="polite"></p>
+          <div class="participant-list" id="participantList"></div>
+        </article>
+
+        <article class="settings-card preset-card">
+          <div class="settings-title"><div class="step purple">2</div><div><h3>Primeros cinco resultados</h3><p>Selecciona participantes distintos y define el orden.</p></div></div>
+          <div class="preset-list" id="presetList"></div>
+          <div class="lock-note" id="lockNote">🔒 La configuración se bloqueará al realizar el primer giro.</div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer><span>Hecho para celebrar grandes momentos.</span><span>Los datos se guardan únicamente en este navegador.</span></footer>
+
+  <div class="modal" id="winnerModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" hidden>
+    <div class="modal-backdrop"></div><div class="modal-card"><div class="modal-glow"></div><span class="modal-kicker" id="modalKicker">TENEMOS GANADOR</span><div class="modal-crown">♕</div><h2 id="modalTitle"></h2><p id="modalPosition"></p><button id="continueButton" type="button">Continuar</button></div>
+  </div>
+  <canvas id="confetti" aria-hidden="true"></canvas>
+  <script src="./app.js"></script>
+</body>
+</html>
