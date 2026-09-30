@@ -75,49 +75,46 @@
 
     <section class="control-section" id="controlSection">
       <div class="organizer-bar" id="organizerBar" hidden>
-        <div><span class="organizer-dot"></span><strong>Modo organizador activo</strong><small>Los controles privados
-            están visibles.</small></div><button id="exitOrganizerButton" type="button">Salir al modo
-          presentación</button>
-      </div>
-      <div class="section-intro"><span class="section-kicker">PARTICIPANTES</span>
-        <h2>Lista del sorteo</h2>
-        <p>Consulta todas las personas que forman parte de la ruleta.</p>
-      </div>
 
-      <div class="settings-grid">
-        <article class="settings-card">
-          <div class="settings-title">
-            <div class="step">1</div>
-            <div>
-              <h3>Participantes</h3>
-              <p>Agrega uno o varios nombres, uno por línea.</p>
-            </div><span class="count-badge" id="participantBadge">0</span>
-          </div>
-          <div class="add-box" id="addBox" hidden><textarea id="namesInput" rows="3"
-              placeholder="Ana Torres&#10;Mateo Ruiz&#10;Sofía Pérez"></textarea><button id="addButton"
-              type="button">Agregar nombres</button></div>
-          <p class="form-message" id="formMessage" aria-live="polite"></p>
-          <div class="participant-list" id="participantList"></div>
-        </article>
+        <div class="section-intro"><span class="section-kicker">PARTICIPANTES</span>
+          <h2>Lista del sorteo</h2>
+          <p>Consulta todas las personas que forman parte de la ruleta.</p>
+        </div>
 
-        <article class="settings-card preset-card" id="configuredCard" hidden>
-          <div class="settings-title">
-            <div class="step purple">2</div>
-            <div>
-              <h3>Resultados configurados</h3>
-              <p>Define cuántos resultados seguirán un orden establecido.</p>
+        <div class="settings-grid">
+          <article class="settings-card">
+            <div class="settings-title">
+              <div class="step">1</div>
+              <div>
+                <h3>Participantes</h3>
+                <p>Agrega uno o varios nombres, uno por línea.</p>
+              </div><span class="count-badge" id="participantBadge">0</span>
             </div>
-          </div>
-          <div class="preset-list" id="presetList"></div>
-          <button class="add-position" id="addPositionButton" type="button">＋ Agregar posición</button>
-          <div class="lock-note" id="lockNote">🔒 La configuración se bloqueará al realizar el primer giro.</div>
-          <div class="pin-settings">
-            <div><strong>PIN de organizador</strong><span>Utiliza entre 4 y 12 caracteres.</span></div><input
-              id="newPinInput" type="password" minlength="4" maxlength="12" autocomplete="new-password"
-              placeholder="Nuevo PIN"><button id="changePinButton" type="button">Cambiar PIN</button>
-          </div>
-        </article>
-      </div>
+            <div class="add-box" id="addBox" hidden><textarea id="namesInput" rows="3"
+                placeholder="Ana Torres&#10;Mateo Ruiz&#10;Sofía Pérez"></textarea><button id="addButton"
+                type="button">Agregar nombres</button></div>
+            <p class="form-message" id="formMessage" aria-live="polite"></p>
+            <div class="participant-list" id="participantList"></div>
+          </article>
+
+          <article class="settings-card preset-card" id="configuredCard" hidden>
+            <div class="settings-title">
+              <div class="step purple">2</div>
+              <div>
+                <h3>Resultados configurados</h3>
+                <p>Define cuántos resultados seguirán un orden establecido.</p>
+              </div>
+            </div>
+            <div class="preset-list" id="presetList"></div>
+            <button class="add-position" id="addPositionButton" type="button">＋ Agregar posición</button>
+            <div class="lock-note" id="lockNote">🔒 La configuración se bloqueará al realizar el primer giro.</div>
+            <div class="pin-settings">
+              <div><strong>PIN de organizador</strong><span>Utiliza entre 4 y 12 caracteres.</span></div><input
+                id="newPinInput" type="password" minlength="4" maxlength="12" autocomplete="new-password"
+                placeholder="Nuevo PIN"><button id="changePinButton" type="button">Cambiar PIN</button>
+            </div>
+          </article>
+        </div>
     </section>
   </main>
 
