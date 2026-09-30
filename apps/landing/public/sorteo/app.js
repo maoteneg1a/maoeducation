@@ -9,7 +9,7 @@
   let spinning = false, rotation = 0, audioCtx = null, pendingWinner = null, organizerMode = false;
 
   function newId(){ return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${crypto.getRandomValues(new Uint32Array(1))[0]}`; }
-  function defaultState(){const participants=EXAMPLES.map((name,i)=>({id:`example-${i+1}`,name}));return{title:'Gran Sorteo 2026',description:'Una ruleta, grandes nombres y muchos momentos para celebrar.',participants,preset:participants.slice(0,5).map(p=>p.id),winners:[],started:false,sound:true,organizerPin:'2026'};}
+  function defaultState(){const participants=EXAMPLES.map((name,i)=>({id:`example-${i+1}`,name}));return{title:'Ruleta de la suerte',description:'Una ruleta, grandes premios y muchos momentos para celebrar.',participants,preset:participants.slice(0,5).map(p=>p.id),winners:[],started:false,sound:true,organizerPin:'2026'};}
   function loadState(){try{const parsed=JSON.parse(localStorage.getItem(STORAGE_KEY));if(!parsed||!Array.isArray(parsed.participants)||!Array.isArray(parsed.winners))return defaultState();parsed.preset=Array.isArray(parsed.preset)?parsed.preset:[];parsed.winners=parsed.winners.map(w=>({...w,type:w.type==='random'?'random':'configured'}));parsed.started=Boolean(parsed.started||parsed.winners.length);parsed.sound=parsed.sound!==false;parsed.organizerPin=typeof parsed.organizerPin==='string'&&parsed.organizerPin.length>=4?parsed.organizerPin:'2026';return parsed;}catch{return defaultState();}}
   function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
   function normalized(v){return String(v).trim().replace(/\s+/g,' ');}
