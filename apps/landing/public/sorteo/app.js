@@ -2,7 +2,7 @@
   'use strict';
   const STORAGE_KEY = 'ruleta-sorteo-v2';
   const COLORS = ['#17c9d5','#7657dc','#e64ca9','#287cc9','#13a983','#a743d0','#e46162','#1aa4be','#584bc7','#cb3a87','#2472a9','#238f76'];
-  const EXAMPLES = ['Ana Torres','Mateo Ruiz','Sofía Pérez','Daniel Cedeño','Valentina Mora','Lucas Andrade','Camila Vélez','Emiliano Paz','Isabella León','Nicolás Castro','Martina Silva','Sebastián Flores'];
+  const EXAMPLES = [];
   const $ = id => document.getElementById(id);
   const els = {wheel:$('wheel'),spin:$('spinButton'),spinText:$('spinText'),helper:$('spinHelper'),round:$('roundLabel'),mode:$('modePill'),available:$('availableCount'),winnerCount:$('winnerCount'),total:$('totalCount'),badge:$('participantBadge'),participants:$('participantList'),presets:$('presetList'),input:$('namesInput'),add:$('addButton'),addBox:$('addBox'),message:$('formMessage'),winners:$('winnersList'),empty:$('winnersEmpty'),complete:$('completeMessage'),csv:$('csvButton'),reset:$('resetButton'),sound:$('soundToggle'),soundIcon:$('soundIcon'),title:$('eventTitle'),description:$('eventDescription'),modal:$('winnerModal'),modalTitle:$('modalTitle'),modalPosition:$('modalPosition'),modalKicker:$('modalKicker'),continue:$('continueButton'),lock:$('lockNote'),confetti:$('confetti'),organizerButton:$('organizerButton'),controlSection:$('controlSection'),organizerBar:$('organizerBar'),configuredCard:$('configuredCard'),addPosition:$('addPositionButton'),transparency:$('transparencyText'),exitOrganizer:$('exitOrganizerButton'),organizerModal:$('organizerModal'),organizerForm:$('organizerForm'),organizerBackdrop:$('organizerBackdrop'),cancelOrganizer:$('cancelOrganizerButton'),pinInput:$('pinInput'),pinError:$('pinError'),newPin:$('newPinInput'),changePin:$('changePinButton')};
   let state = loadState();
@@ -27,8 +27,8 @@
     renderParticipants();renderPresets();renderWinners();drawWheel(available);
     const n=state.winners.length;
     if(!available.length){els.round.textContent='Sorteo finalizado';els.mode.textContent='COMPLETADO';els.helper.textContent='Todos los participantes han sido sorteados.';}
-    else if(n<state.preset.length){els.round.textContent=n?'Siguiente resultado configurado':'Listo para comenzar';els.mode.textContent=`CONFIGURADO ${n+1} DE ${state.preset.length}`;els.helper.textContent=`Los primeros ${state.preset.length} resultados siguen el orden configurado por el organizador.`;}
-    else{els.round.textContent=`Ronda ${n+1}`;els.mode.textContent='SELECCIÓN ALEATORIA';els.helper.textContent='Selección aleatoria uniforme mediante Web Crypto.';}
+    else if(n<state.preset.length){els.round.textContent=n?'Siguiente resultado':'';els.mode.textContent=``;els.helper.textContent=``;}
+    else{els.round.textContent=``;els.mode.textContent='';els.helper.textContent='';}
     const configBad=n<state.preset.length&&!presetValid();
     els.spin.disabled=spinning||!available.length||configBad||!state.participants.length;
     els.spinText.textContent=spinning?'Girando…':available.length?'Girar ruleta':'Sorteo finalizado';
