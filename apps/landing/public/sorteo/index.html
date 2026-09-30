@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#080b16">
   <title>Ruleta de ganadores</title>
-  <meta name="description" content="Ruleta de sorteos para eventos, con resultados predefinidos y selección aleatoria transparente.">
+  <meta name="description" content="Ruleta de sorteos para eventos, con resultados configurados y selección aleatoria transparente.">
   <link rel="stylesheet" href="/sorteo/styles.css">
 </head>
 <body>
@@ -37,7 +37,7 @@
       <div class="wheel-card glass-card">
         <div class="wheel-toolbar">
           <div><span class="live-dot"></span><span id="roundLabel">Listo para comenzar</span></div>
-          <span class="pill" id="modePill">PREDEFINIDO 1 DE 5</span>
+          <span class="pill" id="modePill">RESULTADO CONFIGURADO</span>
         </div>
         <div class="wheel-wrap">
           <div class="pointer" aria-hidden="true"><div></div></div>
@@ -45,7 +45,7 @@
           <div class="wheel-hub"><span>A</span></div>
         </div>
         <button class="spin-button" id="spinButton" type="button"><span class="play-icon">▶</span><span id="spinText">Girar ruleta</span></button>
-        <p class="helper" id="spinHelper">Los primeros 5 resultados siguen el orden configurado.</p>
+        <p class="helper" id="spinHelper">Los resultados configurados se identifican claramente.</p>
       </div>
 
       <aside class="winners-card glass-card">
@@ -56,22 +56,23 @@
       </aside>
     </section>
 
-    <section class="control-section" id="controlSection" hidden>
-      <div class="organizer-bar"><div><span class="organizer-dot"></span><strong>Modo organizador activo</strong><small>Este panel no se muestra en el modo presentación.</small></div><button id="exitOrganizerButton" type="button">Salir al modo presentación</button></div>
-      <div class="section-intro"><span class="section-kicker">CENTRO DE CONTROL</span><h2>Prepara tu sorteo</h2><p>Configura los nombres y el orden de los cinco primeros resultados antes de comenzar.</p></div>
-      <div class="notice"><span>i</span><p><strong>Sorteo transparente</strong> Los puestos 1 al 5 son predefinidos. A partir del puesto 6, la selección es aleatoria y uniforme mediante Web Crypto.</p></div>
+    <section class="control-section" id="controlSection">
+      <div class="organizer-bar" id="organizerBar" hidden><div><span class="organizer-dot"></span><strong>Modo organizador activo</strong><small>Los controles privados están visibles.</small></div><button id="exitOrganizerButton" type="button">Salir al modo presentación</button></div>
+      <div class="section-intro"><span class="section-kicker">PARTICIPANTES</span><h2>Lista del sorteo</h2><p>Consulta todas las personas que forman parte de la ruleta.</p></div>
+      <div class="notice"><span>i</span><p id="transparencyText"><strong>Sorteo transparente</strong> Los resultados configurados por el organizador se indican en pantalla; los siguientes se seleccionan aleatoriamente mediante Web Crypto.</p></div>
 
       <div class="settings-grid">
         <article class="settings-card">
           <div class="settings-title"><div class="step">1</div><div><h3>Participantes</h3><p>Agrega uno o varios nombres, uno por línea.</p></div><span class="count-badge" id="participantBadge">0</span></div>
-          <div class="add-box"><textarea id="namesInput" rows="3" placeholder="Ana Torres&#10;Mateo Ruiz&#10;Sofía Pérez"></textarea><button id="addButton" type="button">Agregar nombres</button></div>
+          <div class="add-box" id="addBox" hidden><textarea id="namesInput" rows="3" placeholder="Ana Torres&#10;Mateo Ruiz&#10;Sofía Pérez"></textarea><button id="addButton" type="button">Agregar nombres</button></div>
           <p class="form-message" id="formMessage" aria-live="polite"></p>
           <div class="participant-list" id="participantList"></div>
         </article>
 
-        <article class="settings-card preset-card">
-          <div class="settings-title"><div class="step purple">2</div><div><h3>Primeros cinco resultados</h3><p>Selecciona participantes distintos y define el orden.</p></div></div>
+        <article class="settings-card preset-card" id="configuredCard" hidden>
+          <div class="settings-title"><div class="step purple">2</div><div><h3>Resultados configurados</h3><p>Define cuántos resultados seguirán un orden establecido.</p></div></div>
           <div class="preset-list" id="presetList"></div>
+          <button class="add-position" id="addPositionButton" type="button">＋ Agregar posición</button>
           <div class="lock-note" id="lockNote">🔒 La configuración se bloqueará al realizar el primer giro.</div>
           <div class="pin-settings"><div><strong>PIN de organizador</strong><span>Utiliza entre 4 y 12 caracteres.</span></div><input id="newPinInput" type="password" minlength="4" maxlength="12" autocomplete="new-password" placeholder="Nuevo PIN"><button id="changePinButton" type="button">Cambiar PIN</button></div>
         </article>
@@ -85,7 +86,7 @@
     <div class="modal-backdrop"></div><div class="modal-card"><div class="modal-glow"></div><span class="modal-kicker" id="modalKicker">TENEMOS GANADOR</span><div class="modal-crown">♕</div><h2 id="modalTitle"></h2><p id="modalPosition"></p><button id="continueButton" type="button">Continuar</button></div>
   </div>
   <div class="modal organizer-modal" id="organizerModal" role="dialog" aria-modal="true" aria-labelledby="organizerModalTitle" hidden>
-    <div class="modal-backdrop" id="organizerBackdrop"></div><form class="modal-card" id="organizerForm"><div class="modal-glow"></div><span class="modal-kicker">ACCESO PRIVADO</span><div class="modal-crown organizer-lock">⌁</div><h2 id="organizerModalTitle">Modo organizador</h2><p>Ingresa el PIN para editar participantes y el orden predefinido.</p><label class="sr-only" for="pinInput">PIN de organizador</label><input class="pin-input" id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" maxlength="12" placeholder="••••"><span class="pin-error" id="pinError" aria-live="polite"></span><button type="submit">Acceder</button><button class="cancel-modal" id="cancelOrganizerButton" type="button">Cancelar</button></form>
+    <div class="modal-backdrop" id="organizerBackdrop"></div><form class="modal-card" id="organizerForm"><div class="modal-glow"></div><span class="modal-kicker">ACCESO PRIVADO</span><div class="modal-crown organizer-lock">⌁</div><h2 id="organizerModalTitle">Modo organizador</h2><p>Ingresa el PIN para editar participantes y el orden configurado.</p><label class="sr-only" for="pinInput">PIN de organizador</label><input class="pin-input" id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" maxlength="12" placeholder="••••"><span class="pin-error" id="pinError" aria-live="polite"></span><button type="submit">Acceder</button><button class="cancel-modal" id="cancelOrganizerButton" type="button">Cancelar</button></form>
   </div>
   <canvas id="confetti" aria-hidden="true"></canvas>
   <script src="/sorteo/app.js"></script>
