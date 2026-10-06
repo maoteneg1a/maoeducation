@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { Link } from 'react-router-dom'
 import {
   Plus,
   Edit2,
@@ -13,6 +14,7 @@ import {
   BookOpen,
   CalendarDays,
   Layers,
+  GraduationCap,
 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
@@ -424,6 +426,14 @@ function ActivityCard({
         {activity.description && (
           <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{activity.description}</p>
         )}
+        <Button asChild size="sm" variant="outline" className="mt-3 w-full">
+          <Link
+            to={`/grades?assignmentId=${activity.courseAssignmentId}&periodId=${activity.academicPeriodId}&activityId=${activity.id}`}
+          >
+            <GraduationCap className="h-4 w-4" />
+            Calificar
+          </Link>
+        </Button>
       </CardContent>
     </Card>
   )

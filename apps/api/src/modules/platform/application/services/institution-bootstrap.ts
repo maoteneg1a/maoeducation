@@ -573,6 +573,10 @@ export const DEFAULT_GRADING_CONFIG = {
   pedagogicRecovery: {
     mode: 'replace_if_higher' as const,
   },
+  activityGradeReinforcement: {
+    mode: 'replace' as const,
+    eligibleActivityTypeIds: [] as string[],
+  },
 } as const
 
 // Materias cualitativas por defecto (se califican con notas; en la libreta se

@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { useSearchParams } from 'react-router-dom'
 import { Save, GraduationCap, BarChart3, Settings2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
@@ -82,13 +83,23 @@ interface GradeRowProps {
   maxScore: number
   localScore: number | null | undefined
   localStatus: GradeStatus | undefined
+  localReinforcementScore: number | null | undefined
+  reinforcementEnabled: boolean
+  reinforcementMode: 'replace' | 'average'
   isModified: boolean
   onChange: (studentId: string, value: number | null) => void
   onStatusChange: (studentId: string, status: GradeStatus) => void
+  onReinforcementChange: (studentId: string, value: number | null) => void
 }
 
-function GradeRow({ grade, maxScore, localScore, localStatus, isModified, onChange, onStatusChange }: GradeRowProps) {
+function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcementScore, reinforcementEnabled, reinforcementMode, isModified, onChange, onStatusChange, onReinforcementChange }: GradeRowProps) {
   const displayScore = localScore !== undefined ? localScore : grade.score
+  const reinforcementScore = localReinforcementScore !== undefined ? localReinforcementScore : grade.reinforcementScore
+  const effectiveScore = displayScore == null || reinforcementScore == null
+    ? displayScore
+    : reinforcementMode === 'average'
+      ? (displayScore + reinforcementScore) / 2
+      : reinforcementScore
   const status = localStatus ?? grade.status
   // El puntaje solo se edita cuando hubo entrega (a tiempo o tarde).
   const scoreEditable = status === 'entregado' || status === 'atrasado'
@@ -121,6 +132,31 @@ function GradeRow({ grade, maxScore, localScore, localStatus, isModified, onChan
           <span className="text-xs text-muted-foreground">/ {maxScore}</span>
         </div>
       </TableCell>
+      {reinforcementEnabled && (
+        <TableCell>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              max={maxScore}
+              step={0.01}
+              value={reinforcementScore ?? ''}
+              onChange={(e) => onReinforcementChange(
+                grade.studentId,
+                e.target.value === '' ? null : Number(e.target.value),
+              )}
+              className="w-20 text-center md:w-24"
+              placeholder="—"
+            />
+            <span className="text-xs text-muted-foreground">/ {maxScore}</span>
+          </div>
+        </TableCell>
+      )}
+      {reinforcementEnabled && (
+        <TableCell className="font-semibold tabular-nums">
+          {effectiveScore == null ? '—' : Number(effectiveScore).toFixed(2)}
+        </TableCell>
+      )}
       <TableCell>
         <Select value={status} onValueChange={(v) => onStatusChange(grade.studentId, v as GradeStatus)}>
           <SelectTrigger className="h-8 w-36 text-xs">
@@ -1150,8 +1186,13 @@ function StudentAnnualByPeriodGrid({
 export function GradeEntryPage() {
   const { hasAnyRole } = usePermissions()
   const isStudentOrGuardian = hasAnyRole('student', 'guardian')
+  const [searchParams] = useSearchParams()
+  const requestedAssignmentId = isStudentOrGuardian ? '' : (searchParams.get('assignmentId') ?? '')
+  const requestedPeriodId = isStudentOrGuardian ? '' : (searchParams.get('periodId') ?? '')
+  const requestedActivityId = isStudentOrGuardian ? '' : (searchParams.get('activityId') ?? '')
 
   const teacherDefaults = useTeacherDefaults()
+  const { data: gradingConfig } = useGradingConfig()
 
   // Student: load their own assignments + periods (backend resolves the active year)
   const { data: myData, isSuccess: myDataLoaded } = useQuery({
@@ -1173,9 +1214,11 @@ export function GradeEntryPage() {
 
   // Students only see summary tab
   const [activeTab, setActiveTab] = React.useState<Tab>(isStudentOrGuardian ? 'summary' : 'entry')
-  const [selectedAssignmentId, setSelectedAssignmentId] = React.useState('')
-  const [selectedPeriodId, setSelectedPeriodId] = React.useState('')
-  const [selectedActivityId, setSelectedActivityId] = React.useState('')
+  const [selectedAssignmentId, setSelectedAssignmentId] = React.useState(requestedAssignmentId)
+  const [selectedPeriodId, setSelectedPeriodId] = React.useState(requestedPeriodId)
+  const [selectedActivityId, setSelectedActivityId] = React.useState(requestedActivityId)
+  const previousAssignmentId = React.useRef(selectedAssignmentId)
+  const previousPeriodId = React.useRef(selectedPeriodId)
 
   // Apply defaults once they're available
   React.useEffect(() => {
@@ -1197,6 +1240,10 @@ export function GradeEntryPage() {
   })
 
   const selectedActivity = activitiesList.find((a) => a.id === selectedActivityId)
+  const reinforcementEnabled = !!selectedActivity && (
+    gradingConfig?.activityGradeReinforcement?.eligibleActivityTypeIds?.includes(selectedActivity.activityTypeId) ?? false
+  )
+  const reinforcementMode = gradingConfig?.activityGradeReinforcement?.mode ?? 'replace'
 
   const { data: grades = [], isLoading: gradesLoading } = useGradesByActivity(selectedActivityId)
   const bulkSave = useBulkSaveGrades()
@@ -1204,22 +1251,28 @@ export function GradeEntryPage() {
   // Local grade state
   const [localGrades, setLocalGrades] = React.useState<Record<string, number | null>>({})
   const [localStatus, setLocalStatus] = React.useState<Record<string, GradeStatus>>({})
+  const [localReinforcementScores, setLocalReinforcementScores] = React.useState<Record<string, number | null>>({})
   const [modified, setModified] = React.useState<Set<string>>(new Set())
 
   // Reset local state when activity changes
   React.useEffect(() => {
     setLocalGrades({})
     setLocalStatus({})
+    setLocalReinforcementScores({})
     setModified(new Set())
   }, [selectedActivityId])
 
   // Reset period/activity when assignment changes
   React.useEffect(() => {
+    if (previousAssignmentId.current === selectedAssignmentId) return
+    previousAssignmentId.current = selectedAssignmentId
     setSelectedPeriodId('')
     setSelectedActivityId('')
   }, [selectedAssignmentId])
 
   React.useEffect(() => {
+    if (previousPeriodId.current === selectedPeriodId) return
+    previousPeriodId.current = selectedPeriodId
     setSelectedActivityId('')
   }, [selectedPeriodId])
 
@@ -1239,6 +1292,11 @@ export function GradeEntryPage() {
     setModified((prev) => new Set(prev).add(studentId))
   }
 
+  function handleReinforcementChange(studentId: string, value: number | null) {
+    setLocalReinforcementScores((prev) => ({ ...prev, [studentId]: value }))
+    setModified((prev) => new Set(prev).add(studentId))
+  }
+
   function handleSaveAll() {
     if (modified.size === 0) {
       toast.info('No hay cambios pendientes')
@@ -1250,12 +1308,16 @@ export function GradeEntryPage() {
       activityId: selectedActivityId,
       score: localGrades[studentId] ?? null,
       status: localStatus[studentId] ?? current.get(studentId)?.status ?? 'entregado',
+      reinforcementScore: Object.prototype.hasOwnProperty.call(localReinforcementScores, studentId)
+        ? localReinforcementScores[studentId]
+        : current.get(studentId)?.reinforcementScore ?? null,
     }))
     bulkSave.mutate(gradesToSave, {
       onSuccess: () => {
         setModified(new Set())
         setLocalGrades({})
         setLocalStatus({})
+        setLocalReinforcementScores({})
       },
     })
   }
@@ -1444,6 +1506,8 @@ export function GradeEntryPage() {
                 <TableRow className="hover:bg-transparent">
                   <TableHead>Estudiante</TableHead>
                   <TableHead>Nota</TableHead>
+                  {reinforcementEnabled && <TableHead>Refuerzo</TableHead>}
+                  {reinforcementEnabled && <TableHead>Nota final</TableHead>}
                   <TableHead>Entrega</TableHead>
                   <TableHead className="w-32">Estado</TableHead>
                 </TableRow>
@@ -1456,9 +1520,13 @@ export function GradeEntryPage() {
                     maxScore={selectedActivity?.maxScore ?? 10}
                     localScore={localGrades[grade.studentId]}
                     localStatus={localStatus[grade.studentId]}
+                    localReinforcementScore={localReinforcementScores[grade.studentId]}
+                    reinforcementEnabled={reinforcementEnabled}
+                    reinforcementMode={reinforcementMode}
                     isModified={modified.has(grade.studentId)}
                     onChange={handleScoreChange}
                     onStatusChange={handleStatusChange}
+                    onReinforcementChange={handleReinforcementChange}
                   />
                 ))}
               </TableBody>

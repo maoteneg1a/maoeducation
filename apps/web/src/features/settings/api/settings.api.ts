@@ -29,6 +29,10 @@ export interface PromotionConfig {
 export interface PedagogicRecoveryConfig {
   mode: 'replace_if_higher' | 'average'
 }
+export interface ActivityGradeReinforcementConfig {
+  mode: 'replace' | 'average'
+  eligibleActivityTypeIds: string[]
+}
 
 export interface GradingConfig {
   gradingScaleMax: number
@@ -37,6 +41,7 @@ export interface GradingConfig {
   promotion: PromotionConfig
   defaultExamWeight: number
   pedagogicRecovery: PedagogicRecoveryConfig
+  activityGradeReinforcement: ActivityGradeReinforcementConfig
 }
 
 export interface AiConfig {

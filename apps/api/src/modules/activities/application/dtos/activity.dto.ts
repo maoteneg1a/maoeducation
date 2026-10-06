@@ -59,6 +59,7 @@ export interface BulkGradeDto {
     score: number | null
     status?: string
     notes?: string
+    reinforcementScore?: number | null
   }>
 }
 
