@@ -112,7 +112,7 @@ export function DashboardPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {announcements.slice(0, 3).map((notice) => (
-                  <a key={notice.id} href="/announcements" className="block rounded-md border p-3 transition-colors hover:bg-muted/50">
+                  <a key={notice.id} href={`/announcements?notice=${notice.id}`} className="block rounded-md border p-3 transition-colors hover:bg-muted/50">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium">{notice.title}</p>
                       {notice.priority === 'important' && <Badge variant="warning">Importante</Badge>}
