@@ -242,7 +242,7 @@ export class PrismaReportRepository {
           activities: {
             where: { isPublished: true },
             include: {
-              grades: { where: { studentId, institutionId }, select: { score: true } },
+              grades: { where: { studentId, institutionId }, select: { score: true, baseScore: true, reinforcementScore: true } },
               activityType: { select: { code: true } },
             },
           },
@@ -258,7 +258,7 @@ export class PrismaReportRepository {
           insumoId: null,
         },
         include: {
-          grades: { where: { studentId, institutionId }, select: { score: true } },
+          grades: { where: { studentId, institutionId }, select: { score: true, baseScore: true, reinforcementScore: true } },
           activityType: { select: { code: true } },
         },
       })
@@ -306,6 +306,26 @@ export class PrismaReportRepository {
         .filter((g) => g.activities.some((a) => a.kind === 'regular') || manualRows.some((row) => row.insumoId === g.id))
         .map((g) => ({ name: g.name, avg: avgById.get(g.id) ?? null }))
 
+      const activityGrades = [
+        ...insumos.flatMap((insumo) => insumo.activities.map((activity) => ({ activity, insumoName: insumo.name }))),
+        ...activitiesWithoutInsumo.map((activity) => ({ activity, insumoName: 'Sin insumo' })),
+      ].map(({ activity, insumoName }) => {
+        const grade = activity.grades[0]
+        return {
+          activityId: activity.id,
+          activityName: activity.name,
+          insumoName,
+          previousScore: grade?.baseScore != null
+            ? Number(grade.baseScore)
+            : grade?.score != null && grade.reinforcementScore == null
+              ? Number(grade.score)
+              : null,
+          reinforcementScore: grade?.reinforcementScore != null ? Number(grade.reinforcementScore) : null,
+          finalScore: grade?.score != null ? Number(grade.score) : null,
+          maxScore: Number(activity.maxScore),
+        }
+      })
+
       results.push({
         assignmentId: assignment.id,
         subjectName: assignment.subject.name,
@@ -314,6 +334,7 @@ export class PrismaReportRepository {
           : '',
         examWeight,
         insumoColumns,
+        activityGrades,
         regularAvg: summary.insumosBase,
         examenAvg: summary.examenAvg,
         proyectoAvg: summary.proyectoAvg,
