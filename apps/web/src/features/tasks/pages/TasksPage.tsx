@@ -29,6 +29,7 @@ import { activitiesApi } from '@/features/activities/api/activities.api'
 import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
 import type { AcademicPeriod } from '@/features/academic/api/academic.api'
 import { useAuthStore } from '@/store/auth.store'
+import { usePermissions } from '@/shared/hooks/usePermissions'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -600,8 +601,10 @@ function TaskCard({ task, onClick }: { task: Task; onClick: () => void }) {
 
 export function TasksPage() {
   const user = useAuthStore((s) => s.user)
+  const { hasPermission } = usePermissions()
   const isTeacher = user?.roles.includes('teacher') ?? false
   const isAdmin = (user?.roles.includes('admin') || user?.roles.includes('inspector')) ?? false
+  const canWriteTasks = hasPermission('tasks:write')
   const qc = useQueryClient()
 
   const { assignments, defaultAssignmentId, activeYear, periods, defaultPeriodId } = useTeacherDefaults()
@@ -676,10 +679,10 @@ export function TasksPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Tareas</h1>
           <p className="text-sm text-muted-foreground">
-            {isTeacher ? 'Crea y gestiona tareas para tus alumnos' : 'Tareas y trabajos pendientes'}
+            {canWriteTasks ? 'Crea y gestiona tareas para tus alumnos' : 'Tareas y trabajos pendientes'}
           </p>
         </div>
-        {isTeacher && (
+        {canWriteTasks && (
           <Button onClick={() => { setEditing(null); setShowForm(true) }}>
             <Plus className="h-4 w-4 mr-2" />Nueva tarea
           </Button>
@@ -722,7 +725,7 @@ export function TasksPage() {
         <PageLoader />
       ) : filteredTasks.length === 0 ? (
         <EmptyState icon={BookOpen} title="Sin tareas"
-          description={isTeacher ? 'Crea la primera tarea con el botón "Nueva tarea"' : 'No tienes tareas pendientes'} />
+          description={canWriteTasks ? 'Crea la primera tarea con el botón "Nueva tarea"' : 'No tienes tareas pendientes'} />
       ) : isTeacher || isAdmin ? (
         <div className="space-y-2">
           {filteredTasks.map((task) => (
@@ -745,7 +748,7 @@ export function TasksPage() {
       {/* Detail sheet */}
       <TaskDetailSheet
         task={detailTask}
-        isTeacher={isTeacher}
+        isTeacher={canWriteTasks}
         onClose={() => setDetailTask(null)}
         onEdit={(t) => { setEditing(t); setShowForm(true) }}
         onPublish={(t) => publishMutation.mutate(t.id)}
@@ -769,7 +772,7 @@ export function TasksPage() {
         onClose={() => { setShowForm(false); setEditing(null) }}
         onSave={(data) => editing ? updateMutation.mutate({ id: editing.id, data }) : createMutation.mutate(data)}
         isPending={createMutation.isPending || updateMutation.isPending}
-        assignments={isTeacher
+        assignments={canWriteTasks
           ? assignments.filter((a) => a.subject && a.parallel).map((a) => ({ id: a.id, subject: a.subject!, parallel: a.parallel! }))
           : []}
         defaultAssignmentId={selectedAssignmentId || defaultAssignmentId}

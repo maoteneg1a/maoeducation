@@ -65,3 +65,40 @@ export async function notifyGuardiansOfStudent(
 
   await Promise.allSettled(links.map((l) => sendPushToUser(l.guardianId, personalizedPayload)))
 }
+
+/** Envía una notificación a los representantes de los estudiantes de un curso. */
+export async function notifyGuardiansOfCourseAssignment(
+  courseAssignmentId: string,
+  payload: PushPayload,
+): Promise<void> {
+  const assignment = await prisma.courseAssignment.findUnique({
+    where: { id: courseAssignmentId },
+    select: { institutionId: true, parallelId: true, academicYearId: true },
+  })
+  if (!assignment) return
+
+  const enrollments = await prisma.studentEnrollment.findMany({
+    where: {
+      institutionId: assignment.institutionId,
+      parallelId: assignment.parallelId,
+      academicYearId: assignment.academicYearId,
+    },
+    select: {
+      student: {
+        select: {
+          studentGuardians: { select: { guardianId: true } },
+        },
+      },
+    },
+  })
+
+  const guardianIds = [
+    ...new Set(
+      enrollments.flatMap((enrollment) =>
+        enrollment.student.studentGuardians.map((link) => link.guardianId),
+      ),
+    ),
+  ]
+
+  await Promise.allSettled(guardianIds.map((guardianId) => sendPushToUser(guardianId, payload)))
+}

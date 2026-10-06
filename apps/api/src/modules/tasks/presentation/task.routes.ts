@@ -8,6 +8,7 @@ import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { storage } from '../../../shared/infrastructure/services/storage.service'
 import { NotFoundError } from '../../../shared/domain/errors/app.errors'
 import { resolveGuardianStudentId } from '../../../shared/infrastructure/services/guardian-scope.service'
+import { notifyGuardiansOfCourseAssignment } from '../../../shared/infrastructure/services/push.service'
 import type { CreateTaskDto, UpdateTaskDto, ListTasksQueryDto } from '../application/dtos/task.dto'
 
 export default async function taskRoutes(app: FastifyInstance) {
@@ -74,7 +75,15 @@ export default async function taskRoutes(app: FastifyInstance) {
     '/tasks/:id/publish',
     { preHandler: [requirePermission('tasks', 'write', 'own')] },
     async (req, reply) => {
+      const previousTask = await repo.getById(req.params.id, req.user.institutionId)
       const task = await repo.publish(req.params.id, req.user.institutionId)
+      if (!previousTask.isPublished) {
+        void notifyGuardiansOfCourseAssignment(task.courseAssignmentId, {
+          title: 'Nueva tarea — Auleka',
+          body: task.title,
+          url: '/tasks',
+        })
+      }
       return reply.send(task)
     },
   )
