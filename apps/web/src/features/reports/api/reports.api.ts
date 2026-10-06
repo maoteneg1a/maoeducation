@@ -19,6 +19,7 @@ export interface GradesReportData {
     student: { id: string; profile: { firstName: string; lastName: string; dni?: string } }
     grades: Record<string, number | null>
     summary: GradeSummary
+    manualInsumoAverages: Record<string, number>
   }>
 }
 

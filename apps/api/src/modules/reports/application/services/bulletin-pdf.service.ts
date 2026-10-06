@@ -289,7 +289,12 @@ export function buildBulletinPdf(data: BulletinPdfData): Promise<Buffer> {
     })
 
     // ── Firmas ──
-    const signY = doc.page.height - doc.page.margins.bottom - 30
+    // Reserva la altura completa de las tres líneas de la firma dentro del
+    // área imprimible. Si el último texto toca `page.maxY`, PDFKit agrega una
+    // página automáticamente; como hay dos columnas, eso producía hasta dos
+    // hojas vacías adicionales con las etiquetas de los firmantes.
+    const signatureBlockH = 42
+    const signY = doc.page.height - doc.page.margins.bottom - signatureBlockH
     const colW = pageW / 2
     doc.font('Helvetica').fontSize(8)
     doc.text('_______________________________', left, signY, { width: colW, align: 'center' })

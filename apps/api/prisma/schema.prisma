@@ -36,6 +36,7 @@ model Institution {
   studentEnrollments          StudentEnrollment[]
   activities                  Activity[]
   grades                      Grade[]
+  manualInsumoAverages        ManualInsumoAverage[]
   attendanceRecords           AttendanceRecord[]
   absenceJustifications       AbsenceJustification[]
   disciplinaryIncidents       DisciplinaryIncident[]
@@ -92,6 +93,7 @@ model User {
   multigradeGroupsAsTeacher MultigradeGroup[]      @relation("MultigradeGroupTeacher")
   createdActivities         Activity[]             @relation("ActivityCreator")
   recordedGrades            Grade[]                @relation("GradeRecorder")
+  recordedManualInsumoAverages ManualInsumoAverage[] @relation("ManualInsumoAverageRecorder")
   recordedAttendance        AttendanceRecord[]     @relation("AttendanceRecorder")
   reportedIncidents         DisciplinaryIncident[] @relation("IncidentReporter")
   createdJustifications     AbsenceJustification[] @relation("JustificationCreator")
@@ -106,6 +108,7 @@ model User {
   // Relaciones como alumno
   studentEnrollments    StudentEnrollment[]    @relation("StudentEnrollments")
   studentGrades         Grade[]                @relation("StudentGrades")
+  studentManualInsumoAverages ManualInsumoAverage[] @relation("StudentManualInsumoAverage")
   studentAttendance     AttendanceRecord[]     @relation("StudentAttendance")
   studentIncidents      DisciplinaryIncident[] @relation("StudentIncidents")
   studentJustifications AbsenceJustification[] @relation("StudentJustifications")
@@ -1588,9 +1591,33 @@ model Insumo {
   academicPeriod   AcademicPeriod   @relation(fields: [academicPeriodId], references: [id])
   creator          User             @relation("InsumoCreator", fields: [createdBy], references: [id])
   activities       Activity[]
+  manualAverages   ManualInsumoAverage[]
 
   @@index([courseAssignmentId, academicPeriodId])
   @@map("insumos")
+}
+
+// Promedio ingresado manualmente para un insumo. Sustituye el promedio calculado
+// de sus actividades sin modificar ninguna actividad ni nota individual.
+model ManualInsumoAverage {
+  id            String   @id @default(uuid())
+  institutionId String   @map("institution_id")
+  insumoId      String   @map("insumo_id")
+  studentId     String   @map("student_id")
+  score         Decimal? @db.Decimal(5, 2)
+  reason        String?
+  recordedBy    String   @map("recorded_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  insumo      Insumo      @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+  student     User        @relation("StudentManualInsumoAverage", fields: [studentId], references: [id], onDelete: Cascade)
+  recorder    User        @relation("ManualInsumoAverageRecorder", fields: [recordedBy], references: [id])
+
+  @@unique([insumoId, studentId])
+  @@index([institutionId, studentId])
+  @@map("manual_insumo_averages")
 }
 
 model Activity {

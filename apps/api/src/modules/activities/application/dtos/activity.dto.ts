@@ -63,6 +63,15 @@ export interface BulkGradeDto {
   }>
 }
 
+export interface BulkManualInsumoAverageDto {
+  items: Array<{
+    studentId: string
+    insumoId: string
+    score: number | null
+    reason?: string
+  }>
+}
+
 export interface ListActivitiesQueryDto {
   courseAssignmentId: string
   periodId: string

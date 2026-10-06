@@ -460,12 +460,94 @@ interface SummaryTabProps {
   periodId: string
 }
 
+function ManualInsumoAveragesGrid({ data, onClose }: { data: GradesReportData; onClose: () => void }) {
+  const { data: gradingConfig } = useGradingConfig()
+  const max = gradingConfig?.gradingScaleMax ?? 10
+  const qc = useQueryClient()
+  const insumos = React.useMemo(
+    () => data.insumos.filter((insumo) => insumo.id !== 'no-insumo'),
+    [data.insumos],
+  )
+  const initial = React.useMemo(() => Object.fromEntries(
+    data.students.flatMap((row) => insumos.map((insumo) => [
+      `${row.student.id}:${insumo.id}`,
+      row.manualInsumoAverages?.[insumo.id] ?? null,
+    ])),
+  ) as Record<string, number | null>, [data.students, insumos])
+  const [values, setValues] = React.useState(initial)
+  const [changed, setChanged] = React.useState<Set<string>>(new Set())
+  const [reason, setReason] = React.useState('')
+
+  const save = useMutation({
+    mutationFn: () => activitiesApi.bulkSaveManualInsumoAverages([...changed].map((key) => {
+      const [studentId, insumoId] = key.split(':')
+      return { studentId, insumoId, score: values[key], reason: reason.trim() || undefined }
+    })),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['grades-grid', data.assignment.id] })
+      toast.success('Promedios manuales guardados')
+      onClose()
+    },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
+
+  function update(studentIndex: number, insumoIndex: number, value: string) {
+    const key = `${data.students[studentIndex].student.id}:${insumos[insumoIndex].id}`
+    const score = value.trim() === '' ? null : Number(value.replace(',', '.'))
+    if (score != null && (!Number.isFinite(score) || score < 0 || score > max)) return
+    setValues((current) => ({ ...current, [key]: score }))
+    setChanged((current) => new Set(current).add(key))
+  }
+
+  function paste(startRow: number, startColumn: number, event: React.ClipboardEvent<HTMLInputElement>) {
+    const rows = event.clipboardData.getData('text').trim().split(/\r?\n/).map((row) => row.split('\t'))
+    if (rows.length === 1 && rows[0].length === 1) return
+    event.preventDefault()
+    rows.forEach((row, rowOffset) => row.forEach((cell, columnOffset) => {
+      if (startRow + rowOffset < data.students.length && startColumn + columnOffset < insumos.length) {
+        update(startRow + rowOffset, startColumn + columnOffset, cell)
+      }
+    }))
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 className="font-semibold">Ingreso manual de promedios por insumo</h3>
+          <p className="text-xs text-muted-foreground">Puedes pegar un rango copiado desde Excel. Vaciar una celda restaura el cálculo automático.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={() => save.mutate()} disabled={changed.size === 0} loading={save.isPending}>Guardar cambios</Button>
+        </div>
+      </div>
+      <Input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Motivo u observación (opcional)" />
+      <div className="overflow-x-auto rounded-md border">
+        <table className="w-full text-sm">
+          <thead><tr className="bg-muted/50"><th className="min-w-52 px-3 py-2 text-left">Estudiante</th>{insumos.map((insumo) => <th key={insumo.id} className="min-w-32 px-3 py-2 text-center">{insumo.name}</th>)}</tr></thead>
+          <tbody>{data.students.map((row, rowIndex) => <tr key={row.student.id} className="border-t">
+            <td className="px-3 py-2 font-medium">{row.student.profile.lastName}, {row.student.profile.firstName}</td>
+            {insumos.map((insumo, columnIndex) => {
+              const key = `${row.student.id}:${insumo.id}`
+              const calculated = row.summary.insumoAvgs.find((average) => average.id === insumo.id)?.avg
+              return <td key={insumo.id} className="px-2 py-1.5"><Input type="number" min={0} max={max} step="0.01" className={cn('text-center', changed.has(key) && 'border-amber-400')} value={values[key] ?? ''} placeholder={calculated == null ? '—' : calculated.toFixed(2)} title={calculated == null ? 'Sin promedio calculado' : `Promedio calculado: ${calculated.toFixed(2)}`} onChange={(event) => update(rowIndex, columnIndex, event.target.value)} onPaste={(event) => paste(rowIndex, columnIndex, event)} /></td>
+            })}
+          </tr>)}</tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
   const [view, setView] = React.useState<SummaryView>('compact')
   const [editingWeight, setEditingWeight] = React.useState(false)
   const [weightInput, setWeightInput] = React.useState('')
   const { hasPermission } = usePermissions()
   const canManage = hasPermission('academic_config:manage')
+  const canEnterManualAverages = hasPermission('grades:write')
+  const [manualEntry, setManualEntry] = React.useState(false)
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -515,6 +597,7 @@ function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
 
   return (
     <div className="space-y-3">
+      {manualEntry && <ManualInsumoAveragesGrid data={data} onClose={() => setManualEntry(false)} />}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-3">
           <span>{data.students.length} estudiantes · {totalActivities} actividades</span>
@@ -546,7 +629,13 @@ function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
             </div>
           )}
         </div>
-        <div className="flex rounded-md border overflow-hidden text-xs self-start">
+        <div className="flex items-center gap-2 self-start">
+          {canEnterManualAverages && (
+            <Button size="sm" variant="outline" onClick={() => setManualEntry((value) => !value)}>
+              {manualEntry ? 'Cerrar ingreso manual' : 'Ingresar promedios'}
+            </Button>
+          )}
+          <div className="flex rounded-md border overflow-hidden text-xs">
           <button
             type="button"
             onClick={() => setView('compact')}
@@ -567,6 +656,7 @@ function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
           >
             Sábana total
           </button>
+          </div>
         </div>
       </div>
       {view === 'compact'
