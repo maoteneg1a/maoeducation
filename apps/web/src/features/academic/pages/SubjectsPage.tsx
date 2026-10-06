@@ -10,7 +10,11 @@ import { DataTable } from '@/shared/components/ui/data-table'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
+import { useCurriculumAreas } from '@/features/curriculum/hooks/useCurriculum'
+import { useCompetencyAreas } from '@/features/competency-curriculum/hooks/useCompetencyCurriculum'
+import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { type Subject } from '../api/academic.api'
 import { useCreateSubject, useSubjects, useToggleSubject, useUpdateSubject } from '../hooks/useAcademic'
 
@@ -19,32 +23,42 @@ const subjectSchema = z.object({
   code: z.string().trim().max(20, 'Máximo 20 caracteres'),
   description: z.string().trim(),
   isQualitative: z.boolean(),
+  curriculumAreaId: z.string(),
+  competencyAreaId: z.string(),
+  workloadCode: z.string(),
 })
 type SubjectForm = z.infer<typeof subjectSchema>
+const NONE = '__none__'
 
 export function SubjectsPage() {
   const { data: subjects = [], isLoading } = useSubjects()
   const createSubject = useCreateSubject()
   const updateSubject = useUpdateSubject()
   const toggleSubject = useToggleSubject()
+  const { data: planningModel } = usePlanningModel()
+  const { data: curriculumAreas = [] } = useCurriculumAreas()
+  const { data: competencyAreas = [] } = useCompetencyAreas()
   const [open, setOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Subject | null>(null)
-  const form = useForm<SubjectForm>({ resolver: zodResolver(subjectSchema), defaultValues: { name: '', code: '', description: '', isQualitative: false } })
+  const form = useForm<SubjectForm>({ resolver: zodResolver(subjectSchema), defaultValues: { name: '', code: '', description: '', isQualitative: false, curriculumAreaId: NONE, competencyAreaId: NONE, workloadCode: '' } })
+  const usesCompetencies = planningModel === 'competencias'
+  const catalogAreas = usesCompetencies ? competencyAreas : curriculumAreas
+  const linkedAreaIds = new Set(subjects.flatMap((subject) => [subject.curriculumAreaId, subject.competencyAreaId].filter((id): id is string => !!id)))
 
   function openCreate() {
     setEditing(null)
-    form.reset({ name: '', code: '', description: '', isQualitative: false })
+    form.reset({ name: '', code: '', description: '', isQualitative: false, curriculumAreaId: NONE, competencyAreaId: NONE, workloadCode: '' })
     setOpen(true)
   }
 
   function openEdit(subject: Subject) {
     setEditing(subject)
-    form.reset({ name: subject.name, code: subject.code ?? '', description: subject.description ?? '', isQualitative: subject.isQualitative ?? false })
+    form.reset({ name: subject.name, code: subject.code ?? '', description: subject.description ?? '', isQualitative: subject.isQualitative ?? false, curriculumAreaId: subject.curriculumAreaId ?? NONE, competencyAreaId: subject.competencyAreaId ?? NONE, workloadCode: subject.workloadCode ?? '' })
     setOpen(true)
   }
 
   function onSubmit(values: SubjectForm) {
-    const data = { name: values.name, code: values.code || null, description: values.description || null, isQualitative: values.isQualitative }
+    const data = { name: values.name, code: values.code || null, description: values.description || null, isQualitative: values.isQualitative, curriculumAreaId: values.curriculumAreaId === NONE ? null : values.curriculumAreaId, competencyAreaId: values.competencyAreaId === NONE ? null : values.competencyAreaId, workloadCode: values.workloadCode || null }
     if (editing) updateSubject.mutate({ id: editing.id, data }, { onSuccess: () => setOpen(false) })
     else createSubject.mutate(data, { onSuccess: () => setOpen(false) })
   }
@@ -67,6 +81,29 @@ export function SubjectsPage() {
     <DataTable columns={columns} data={subjects} emptyMessage="No hay materias registradas" emptyDescription="Crea una materia para comenzar" />
     <Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>{editing ? 'Editar materia' : 'Nueva materia'}</DialogTitle></DialogHeader>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <div className="space-y-2">
+          <Label>Agregar desde el catálogo (opcional)</Label>
+          <Select
+            value={usesCompetencies ? form.watch('competencyAreaId') : form.watch('curriculumAreaId')}
+            onValueChange={(areaId) => {
+              const area = catalogAreas.find((item) => item.id === areaId)
+              if (usesCompetencies) form.setValue('competencyAreaId', areaId)
+              else form.setValue('curriculumAreaId', areaId)
+              if (area) {
+                form.setValue('name', area.name)
+                form.setValue('code', area.code)
+                form.setValue('workloadCode', area.code)
+              }
+            }}
+          >
+            <SelectTrigger><SelectValue placeholder="Seleccionar materia oficial" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>Materia personalizada</SelectItem>
+              {catalogAreas.filter((area) => !linkedAreaIds.has(area.id) || area.id === editing?.curriculumAreaId || area.id === editing?.competencyAreaId).map((area) => <SelectItem key={area.id} value={area.id}>{area.name} ({area.code})</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">Las materias ya agregadas se ocultan para evitar duplicados. Al vincularla, el profesor recibe el contenido oficial y puede complementarlo desde su planificación.</p>
+        </div>
         <div className="space-y-2"><Label htmlFor="subject-name">Nombre</Label><Input id="subject-name" {...form.register('name')} placeholder="Ej: Matemática" />{form.formState.errors.name && <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>}</div>
         <div className="space-y-2"><Label htmlFor="subject-code">Código (opcional)</Label><Input id="subject-code" {...form.register('code')} placeholder="Ej: MAT" className="uppercase" onChange={(event) => form.setValue('code', event.target.value.toUpperCase())} />{form.formState.errors.code && <p className="text-xs text-destructive">{form.formState.errors.code.message}</p>}</div>
         <div className="space-y-2"><Label htmlFor="subject-description">Descripción (opcional)</Label><textarea id="subject-description" {...form.register('description')} className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
