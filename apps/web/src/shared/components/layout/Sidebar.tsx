@@ -55,6 +55,26 @@ const NAV_SECTIONS: NavSection[] = [
     icon: Sparkles,
     items: [
       {
+        label: 'Actividades',
+        icon: BookOpen,
+        path: '/activities',
+        permission: 'activities:read',
+        module: 'activities',
+      },
+      {
+        label: 'Tareas',
+        icon: ClipboardCheck,
+        path: '/tasks',
+        module: 'tasks',
+      },
+    ],
+  },
+  {
+    id: 'planificacion',
+    label: 'Planificación',
+    icon: NotebookPen,
+    items: [
+      {
         label: 'Planificaciones',
         icon: NotebookPen,
         path: '/planning',
@@ -67,19 +87,6 @@ const NAV_SECTIONS: NavSection[] = [
         path: '/interdisciplinary-projects',
         permission: 'planning:read',
         module: 'interdisciplinary_projects',
-      },
-      {
-        label: 'Actividades',
-        icon: BookOpen,
-        path: '/activities',
-        permission: 'activities:read',
-        module: 'activities',
-      },
-      {
-        label: 'Tareas',
-        icon: ClipboardCheck,
-        path: '/tasks',
-        module: 'tasks',
       },
       {
         label: 'Refuerzo y Adaptaciones',
