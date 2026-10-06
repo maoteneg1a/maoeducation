@@ -175,6 +175,12 @@ const NAV_SECTIONS: NavSection[] = [
         module: 'promotion',
       },
       {
+        label: 'Alertas académicas',
+        icon: AlertTriangle,
+        path: '/academic-alerts',
+        permission: 'reports:read',
+      },
+      {
         label: 'Asistencia',
         icon: ClipboardList,
         path: '/attendance',

@@ -174,6 +174,19 @@ export const router = createBrowserRouter([
       },
       // ---- Behavior (comportamiento) ----
       {
+        path: 'academic-alerts',
+        element: <PermissionGuard permission="reports:read" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/dashboard/pages/EarlyAlertsPage').then((m) => ({
+                Component: m.EarlyAlertsPage,
+              })),
+          },
+        ],
+      },
+      {
         path: 'behavior',
         element: <PermissionGuard permission="grades:write" />,
         children: [
