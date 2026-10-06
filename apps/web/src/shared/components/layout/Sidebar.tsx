@@ -51,7 +51,7 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     id: 'docencia',
-    label: 'Docencia',
+    label: 'Aula',
     icon: Sparkles,
     accent: true,
     items: [
