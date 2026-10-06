@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Conector Auleka</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Conector Auleka</h1>
+      <p class="muted">Abre en Educar Ecuador la materia y el trimestre correspondientes.</p>
+      <label class="file">
+        <span>Seleccionar archivo de Auleka</span>
+        <input id="file" type="file" accept="application/json,.json" />
+      </label>
+      <section id="summary" hidden></section>
+      <button id="scan" disabled>Previsualizar coincidencias</button>
+      <section id="results" hidden></section>
+      <button id="apply" class="danger" disabled>Cargar notas confirmadas</button>
+      <p id="status" class="status"></p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

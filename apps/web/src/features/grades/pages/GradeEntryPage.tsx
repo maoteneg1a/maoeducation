@@ -2,7 +2,7 @@ import * as React from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useSearchParams } from 'react-router-dom'
-import { Save, GraduationCap, BarChart3, Settings2 } from 'lucide-react'
+import { Save, GraduationCap, BarChart3, Settings2, ExternalLink } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Badge } from '@/shared/components/ui/badge'
@@ -597,6 +597,7 @@ function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
   const [view, setView] = React.useState<SummaryView>('compact')
   const [editingWeight, setEditingWeight] = React.useState(false)
   const [weightInput, setWeightInput] = React.useState('')
+  const { data: gradingConfig } = useGradingConfig()
   const { hasPermission } = usePermissions()
   const canManage = hasPermission('academic_config:manage')
   const qc = useQueryClient()
@@ -631,6 +632,42 @@ function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
 
   const examWeight = data.assignment.examWeight ?? 30
   const totalActivities = data.insumos.reduce((s, i) => s + i.activities.length, 0)
+  const report = data
+
+  function exportForEducarEcuador() {
+    const missingDni = report.students.filter((row) => !row.student.profile.dni).length
+    const payload = {
+      format: 'auleka-educarecuador-grades',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      gradeType: 'trimester_final_average',
+      periodId,
+      subject: report.assignment.subject.name,
+      level: report.assignment.parallel.level.name,
+      parallel: report.assignment.parallel.name,
+      academicYear: report.assignment.academicYear.name,
+      grades: report.students
+        .filter((row) => row.student.profile.dni && row.summary.total != null)
+        .map((row) => ({
+          dni: row.student.profile.dni,
+          name: `${row.student.profile.lastName} ${row.student.profile.firstName}`.trim(),
+          grade: Number(row.summary.total!.toFixed(2)),
+        })),
+    }
+    if (payload.grades.length === 0) {
+      toast.error('No hay calificaciones con cédula para exportar')
+      return
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `educar-ecuador-${report.assignment.subject.name}-${report.assignment.parallel.level.name}-${report.assignment.parallel.name}.json`
+      .toLowerCase().replace(/[^a-z0-9áéíóúñ.-]+/gi, '-')
+    anchor.click()
+    URL.revokeObjectURL(url)
+    toast.success(`${payload.grades.length} promedios finales del trimestre preparados${missingDni ? `; ${missingDni} estudiantes sin cédula fueron omitidos` : ''}`)
+  }
 
   function handleOpenWeightEdit() {
     setWeightInput(String(examWeight))
@@ -679,7 +716,13 @@ function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 self-start">
+        <div className="flex flex-wrap items-center gap-2 self-start">
+          {(gradingConfig?.educarEcuadorExportEnabled ?? true) && (
+            <Button type="button" variant="outline" size="sm" onClick={exportForEducarEcuador}>
+              <ExternalLink className="h-4 w-4" />
+              Enviar a Educar Ecuador
+            </Button>
+          )}
           <div className="flex rounded-md border overflow-hidden text-xs">
           <button
             type="button"
