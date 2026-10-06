@@ -68,7 +68,7 @@ function useBulkSaveGrades() {
 }
 
 // ---- Tabs ----
-type Tab = 'entry' | 'summary'
+type Tab = 'entry' | 'manual' | 'summary'
 
 // ---- Grade Row Component ----
 const STATUS_OPTIONS: Array<{ value: GradeStatus; label: string }> = [
@@ -460,7 +460,7 @@ interface SummaryTabProps {
   periodId: string
 }
 
-function ManualInsumoAveragesGrid({ data, onClose }: { data: GradesReportData; onClose: () => void }) {
+function ManualInsumoAveragesGrid({ data }: { data: GradesReportData }) {
   const { data: gradingConfig } = useGradingConfig()
   const max = gradingConfig?.gradingScaleMax ?? 10
   const qc = useQueryClient()
@@ -485,8 +485,8 @@ function ManualInsumoAveragesGrid({ data, onClose }: { data: GradesReportData; o
     })),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['grades-grid', data.assignment.id] })
+      setChanged(new Set())
       toast.success('Promedios manuales guardados')
-      onClose()
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   })
@@ -514,13 +514,10 @@ function ManualInsumoAveragesGrid({ data, onClose }: { data: GradesReportData; o
     <div className="space-y-3 rounded-lg border p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h3 className="font-semibold">Ingreso manual de promedios por insumo</h3>
+          <h3 className="font-semibold">Ingreso manual de calificaciones</h3>
           <p className="text-xs text-muted-foreground">Puedes pegar un rango copiado desde Excel. Vaciar una celda restaura el cálculo automático.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={() => save.mutate()} disabled={changed.size === 0} loading={save.isPending}>Guardar cambios</Button>
-        </div>
+        <Button onClick={() => save.mutate()} disabled={changed.size === 0} loading={save.isPending}>Guardar cambios</Button>
       </div>
       <Input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Motivo u observación (opcional)" />
       <div className="overflow-x-auto rounded-md border">
@@ -540,14 +537,29 @@ function ManualInsumoAveragesGrid({ data, onClose }: { data: GradesReportData; o
   )
 }
 
+function ManualGradesTab({ courseAssignmentId, periodId }: SummaryTabProps) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['grades-grid', courseAssignmentId, periodId],
+    queryFn: () => getGradesReport({ courseAssignmentId, periodId }),
+    enabled: !!courseAssignmentId && !!periodId,
+  })
+
+  if (isLoading) return <PageLoader />
+  if (!data) {
+    return <EmptyState icon={GraduationCap} title="Sin datos de calificaciones" description="No se encontraron estudiantes para esta materia y período" />
+  }
+  if (!data.insumos.some((insumo) => insumo.id !== 'no-insumo')) {
+    return <EmptyState icon={GraduationCap} title="Sin insumos configurados" description="Configura al menos un insumo para ingresar sus promedios manualmente" />
+  }
+  return <ManualInsumoAveragesGrid data={data} />
+}
+
 function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
   const [view, setView] = React.useState<SummaryView>('compact')
   const [editingWeight, setEditingWeight] = React.useState(false)
   const [weightInput, setWeightInput] = React.useState('')
   const { hasPermission } = usePermissions()
   const canManage = hasPermission('academic_config:manage')
-  const canEnterManualAverages = hasPermission('grades:write')
-  const [manualEntry, setManualEntry] = React.useState(false)
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -597,7 +609,6 @@ function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
 
   return (
     <div className="space-y-3">
-      {manualEntry && <ManualInsumoAveragesGrid data={data} onClose={() => setManualEntry(false)} />}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-3">
           <span>{data.students.length} estudiantes · {totalActivities} actividades</span>
@@ -630,11 +641,6 @@ function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
           )}
         </div>
         <div className="flex items-center gap-2 self-start">
-          {canEnterManualAverages && (
-            <Button size="sm" variant="outline" onClick={() => setManualEntry((value) => !value)}>
-              {manualEntry ? 'Cerrar ingreso manual' : 'Ingresar promedios'}
-            </Button>
-          )}
           <div className="flex rounded-md border overflow-hidden text-xs">
           <button
             type="button"
@@ -1274,8 +1280,9 @@ function StudentAnnualByPeriodGrid({
 }
 
 export function GradeEntryPage() {
-  const { hasAnyRole } = usePermissions()
+  const { hasAnyRole, hasPermission } = usePermissions()
   const isStudentOrGuardian = hasAnyRole('student', 'guardian')
+  const canEnterManualGrades = !isStudentOrGuardian && hasPermission('grades:write')
   const [searchParams] = useSearchParams()
   const requestedAssignmentId = isStudentOrGuardian ? '' : (searchParams.get('assignmentId') ?? '')
   const requestedPeriodId = isStudentOrGuardian ? '' : (searchParams.get('periodId') ?? '')
@@ -1439,6 +1446,23 @@ export function GradeEntryPage() {
             Ingresar Notas
           </button>
         )}
+        {canEnterManualGrades && (
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('manual')
+              if (selectedPeriodId === ALL_PERIODS) setSelectedPeriodId(defaultPeriodId)
+            }}
+            className={cn(
+              'px-4 py-2 text-sm font-medium border-b-2 transition-colors',
+              activeTab === 'manual'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            Ingreso manual de calificaciones
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setActiveTab('summary')}
@@ -1517,7 +1541,17 @@ export function GradeEntryPage() {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'summary' ? (
+      {activeTab === 'manual' ? (
+        selectedAssignmentId && selectedPeriodId ? (
+          <ManualGradesTab courseAssignmentId={selectedAssignmentId} periodId={selectedPeriodId} />
+        ) : (
+          <EmptyState
+            icon={GraduationCap}
+            title="Selecciona una asignación y período"
+            description="Elige la materia y el período para ingresar promedios manuales"
+          />
+        )
+      ) : activeTab === 'summary' ? (
         isStudentOrGuardian ? (
           selectedPeriodId === ALL_PERIODS ? (
             <StudentAnnualView periods={periods} />
