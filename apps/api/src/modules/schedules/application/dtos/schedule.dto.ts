@@ -17,4 +17,5 @@ export interface GetScheduleQuery {
   parallelId?: string
   teacherId?: string
   yearId?: string
+  studentId?: string
 }

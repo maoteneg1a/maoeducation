@@ -21,6 +21,8 @@ import {
 } from '@/shared/components/ui/dialog'
 import { getErrorMessage } from '@/shared/lib/utils'
 import { apiGet } from '@/shared/lib/api-client'
+import { useAuthStore } from '@/store/auth.store'
+import { useGuardianStudentId } from '@/features/guardian/components/ChildSwitcher'
 import {
   getSchedule,
   createScheduleEntry,
@@ -69,6 +71,13 @@ interface FormState {
 
 export function SchedulePage() {
   const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
+  const guardianStudentId = useGuardianStudentId()
+  const roles = user?.roles ?? []
+  const canManage = roles.some((role) => role === 'admin' || role === 'rector' || role === 'teacher')
+  const isGuardian = roles.includes('guardian') && !canManage
+  const isStudent = roles.includes('student') && !canManage
+  const isReadOnlyStudent = isGuardian || isStudent
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [filterYearId, setFilterYearId] = useState('')
@@ -87,6 +96,7 @@ export function SchedulePage() {
   if (filterYearId) scheduleParams.yearId = filterYearId
   if (filterParallelId) scheduleParams.parallelId = filterParallelId
   if (filterTeacherId) scheduleParams.teacherId = filterTeacherId
+  if (isGuardian && guardianStudentId) scheduleParams.studentId = guardianStudentId
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['schedules', scheduleParams],
@@ -94,19 +104,24 @@ export function SchedulePage() {
   })
 
   const { data: assignments = [] } = useQuery({
-    queryKey: ['assignments'],
-    queryFn: () => getAssignments(),
+    queryKey: ['assignments', 'schedule', user?.id, roles],
+    queryFn: () => getAssignments(roles.includes('teacher') && !roles.includes('admin') && !roles.includes('rector')
+      ? { teacherId: user!.id }
+      : undefined),
+    enabled: canManage,
   })
 
   const { data: years = [] } = useQuery({
     queryKey: ['academic/years'],
     queryFn: () => apiGet<AcademicYear[]>('academic/years'),
+    enabled: !isReadOnlyStudent,
   })
 
   const { data: parallels = [] } = useQuery({
     queryKey: ['academic/parallels', filterYearId],
     queryFn: () =>
       apiGet<Parallel[]>('academic/parallels', filterYearId ? { yearId: filterYearId } : undefined),
+    enabled: !isReadOnlyStudent,
   })
 
   const createMutation = useMutation({
@@ -167,14 +182,16 @@ export function SchedulePage() {
           <Calendar className="h-5 w-5 text-primary" />
           <h1 className="text-xl font-semibold">Horario</h1>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Agregar Bloque
-        </Button>
+        {canManage && (
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Agregar Bloque
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+      {!isReadOnlyStudent && <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <Select value={filterYearId} onValueChange={(v) => { setFilterYearId(v === '__all__' ? '' : v); setFilterParallelId('') }}>
           <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Año lectivo" />
@@ -198,7 +215,7 @@ export function SchedulePage() {
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </div>}
 
       {/* Weekly grid */}
       {isLoading ? (
@@ -239,13 +256,15 @@ export function SchedulePage() {
                             <div className="text-muted-foreground text-[10px]">
                               {entry.startTime} – {entry.endTime}
                             </div>
-                            <button
-                              onClick={() => handleDelete(entry)}
-                              className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 transition-opacity"
-                              title="Eliminar bloque"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
+                            {canManage && (
+                              <button
+                                onClick={() => handleDelete(entry)}
+                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 transition-opacity"
+                                title="Eliminar bloque"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
                           </div>
                         ))}
                       </td>
@@ -259,7 +278,7 @@ export function SchedulePage() {
       )}
 
       {/* Create dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {canManage && <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Agregar Bloque de Horario</DialogTitle>
@@ -342,7 +361,7 @@ export function SchedulePage() {
             </DialogFooter>
           </form>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
     </div>
   )
 }

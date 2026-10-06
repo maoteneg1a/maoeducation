@@ -7,14 +7,22 @@ import type {
 } from '../../application/dtos/schedule.dto'
 
 export class PrismaScheduleRepository {
-  async getSchedule(institutionId: string, query: GetScheduleQuery) {
+  async getSchedule(institutionId: string, query: GetScheduleQuery, studentId?: string) {
     return prisma.scheduleEntry.findMany({
       where: {
         institutionId,
         courseAssignment: {
-          ...(query.parallelId && { parallelId: query.parallelId }),
-          ...(query.teacherId && { teacherId: query.teacherId }),
-          ...(query.yearId && { academicYearId: query.yearId }),
+          ...(studentId
+            ? {
+                parallel: {
+                  enrollments: { some: { studentId, status: 'active' } },
+                },
+              }
+            : {
+                ...(query.parallelId && { parallelId: query.parallelId }),
+                ...(query.teacherId && { teacherId: query.teacherId }),
+                ...(query.yearId && { academicYearId: query.yearId }),
+              }),
         },
       },
       include: {
@@ -42,9 +50,9 @@ export class PrismaScheduleRepository {
     })
   }
 
-  async create(institutionId: string, dto: CreateScheduleEntryDto) {
+  async create(institutionId: string, dto: CreateScheduleEntryDto, teacherId?: string) {
     const assignment = await prisma.courseAssignment.findFirst({
-      where: { id: dto.courseAssignmentId, institutionId },
+      where: { id: dto.courseAssignmentId, institutionId, ...(teacherId && { teacherId }) },
     })
     if (!assignment) {
       throw new NotFoundError('Asignación de curso no encontrada')
@@ -94,9 +102,9 @@ export class PrismaScheduleRepository {
     })
   }
 
-  async update(id: string, institutionId: string, dto: UpdateScheduleEntryDto) {
+  async update(id: string, institutionId: string, dto: UpdateScheduleEntryDto, teacherId?: string) {
     const entry = await prisma.scheduleEntry.findFirst({
-      where: { id, institutionId },
+      where: { id, institutionId, ...(teacherId && { courseAssignment: { teacherId } }) },
     })
     if (!entry) {
       throw new NotFoundError('Entrada de horario no encontrada')
@@ -108,9 +116,9 @@ export class PrismaScheduleRepository {
     })
   }
 
-  async delete(id: string, institutionId: string) {
+  async delete(id: string, institutionId: string, teacherId?: string) {
     const entry = await prisma.scheduleEntry.findFirst({
-      where: { id, institutionId },
+      where: { id, institutionId, ...(teacherId && { courseAssignment: { teacherId } }) },
     })
     if (!entry) {
       throw new NotFoundError('Entrada de horario no encontrada')

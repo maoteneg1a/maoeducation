@@ -333,6 +333,7 @@ export const ROLE_PERMISSIONS: Array<{ roleName: string; permKey: string }> = [
   { roleName: 'rector', permKey: 'parent_meetings:write:all' },
   { roleName: 'rector', permKey: 'student_folder:read:all' },
   { roleName: 'rector', permKey: 'reports:read:all' },
+  { roleName: 'rector', permKey: 'academic_config:read:all' },
   // DECE — gestiona casos derivados y seguimiento
   { roleName: 'dece', permKey: 'users:read:all' },
   { roleName: 'dece', permKey: 'incidents:read:all' },

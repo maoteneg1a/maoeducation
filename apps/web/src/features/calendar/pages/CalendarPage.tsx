@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, BookOpen, CalendarDays } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
@@ -119,7 +120,11 @@ function DayPanel({ date, tasks, colorMap, onClose }: DayPanelProps) {
       ) : (
         <div className="space-y-3">
           {tasks.map((task) => (
-            <div key={task.id} className="flex gap-3">
+            <Link
+              key={task.id}
+              to={`/tasks?taskId=${task.id}`}
+              className="flex gap-3 rounded-md -mx-2 px-2 py-1.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               <div className={cn('mt-1 h-3 w-1 rounded-full shrink-0', colorMap.get(task.courseAssignmentId) ?? 'bg-primary')} />
               <div className="space-y-0.5">
                 <p className="text-sm font-medium leading-snug">{task.title}</p>
@@ -131,9 +136,10 @@ function DayPanel({ date, tasks, colorMap, onClose }: DayPanelProps) {
                 )}
                 <div className="flex items-center gap-2 pt-0.5">
                   {!task.isPublished && <Badge variant="secondary" className="text-[10px] px-1.5">Borrador</Badge>}
+                  <span className="text-xs font-medium text-primary">Ver tarea</span>
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
@@ -304,7 +310,11 @@ export function CalendarPage() {
                 .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
                 .slice(0, 6)
                 .map((t) => (
-                  <div key={t.id} className="flex items-start gap-2.5">
+                  <Link
+                    key={t.id}
+                    to={`/tasks?taskId=${t.id}`}
+                    className="flex items-start gap-2.5 rounded-md -mx-2 px-2 py-1.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
                     <div className={cn('mt-1 h-2.5 w-1 rounded-full shrink-0', colorMap.get(t.courseAssignmentId) ?? 'bg-primary')} />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium leading-snug truncate">{t.title}</p>
@@ -313,7 +323,7 @@ export function CalendarPage() {
                     <span className="text-[10px] text-muted-foreground shrink-0">
                       {daysUntil(t.dueDate) === 0 ? 'Hoy' : `${daysUntil(t.dueDate)}d`}
                     </span>
-                  </div>
+                  </Link>
                 ))}
               {tasks.filter((t) => daysUntil(t.dueDate) >= 0 && daysUntil(t.dueDate) <= 14).length === 0 && (
                 <p className="text-xs text-muted-foreground">Sin entregas en los próximos 14 días</p>

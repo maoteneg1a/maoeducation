@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Plus, BookOpen, Clock, CheckCircle2, Pencil, Trash2, Send,
   CalendarDays, Paperclip, Download, X, FileText, Image, File,
@@ -602,6 +602,7 @@ function TaskCard({ task, onClick }: { task: Task; onClick: () => void }) {
 export function TasksPage() {
   const user = useAuthStore((s) => s.user)
   const { hasPermission } = usePermissions()
+  const [searchParams, setSearchParams] = useSearchParams()
   const isTeacher = user?.roles.includes('teacher') ?? false
   const isAdmin = (user?.roles.includes('admin') || user?.roles.includes('inspector')) ?? false
   const canWriteTasks = hasPermission('tasks:write')
@@ -629,6 +630,21 @@ export function TasksPage() {
     queryFn: () => tasksApi.list(queryParams),
     enabled: isTeacher || isAdmin ? !!activeYear : true,
   })
+
+  const requestedTaskId = searchParams.get('taskId')
+  React.useEffect(() => {
+    if (!requestedTaskId || isLoading) return
+    const requestedTask = tasks.find((task) => task.id === requestedTaskId)
+    if (requestedTask) setDetailTask(requestedTask)
+  }, [requestedTaskId, tasks, isLoading])
+
+  function closeTaskDetail() {
+    setDetailTask(null)
+    if (!requestedTaskId) return
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('taskId')
+    setSearchParams(nextParams, { replace: true })
+  }
 
   const createMutation = useMutation({
     mutationFn: (data: CreateTaskPayload) => tasksApi.create(data),
@@ -749,7 +765,7 @@ export function TasksPage() {
       <TaskDetailSheet
         task={detailTask}
         isTeacher={canWriteTasks}
-        onClose={() => setDetailTask(null)}
+        onClose={closeTaskDetail}
         onEdit={(t) => { setEditing(t); setShowForm(true) }}
         onPublish={(t) => publishMutation.mutate(t.id)}
         onDelete={(t) => { if (confirm('¿Eliminar esta tarea?')) deleteMutation.mutate(t.id) }}
