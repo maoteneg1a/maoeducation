@@ -18,6 +18,11 @@ function init() {
 
 /** Envía una notificación push a todos los dispositivos registrados de un usuario. */
 export async function sendPushToUser(userId: string, payload: PushPayload): Promise<void> {
+  // El historial interno es la fuente persistente incluso si el dispositivo no
+  // tiene permiso push, está sin conexión o su suscripción ya venció.
+  await prisma.userNotification.create({
+    data: { userId, title: payload.title, body: payload.body, url: payload.url },
+  })
   init()
   if (!initialized) return
 
