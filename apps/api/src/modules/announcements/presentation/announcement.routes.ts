@@ -1,9 +1,12 @@
 import type { FastifyInstance } from 'fastify'
+import crypto from 'node:crypto'
+import path from 'node:path'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../../shared/domain/errors/app.errors'
 import { isPrivilegedStaff } from '../../../shared/infrastructure/services/teacher-scope.service'
 import { sendPushToUser } from '../../../shared/infrastructure/services/push.service'
+import { storage } from '../../../shared/infrastructure/services/storage.service'
 
 type Audience = 'all' | 'staff' | 'families' | 'parallels'
 
@@ -19,6 +22,31 @@ interface CreateAnnouncementBody {
 }
 
 const STAFF_ROLES = ['admin', 'rector', 'teacher', 'inspector', 'dece']
+const FLYER_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const DOCUMENT_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+])
+const MAX_FLYER_BYTES = 8 * 1024 * 1024
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
+
+function targetParallelIds(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []
+}
+
+function isVisibleToUser(
+  row: { audience: string; parallelIds: unknown },
+  roles: string[],
+  parallels: string[],
+) {
+  if (row.audience === 'all') return true
+  if (row.audience === 'staff') return roles.some((role) => STAFF_ROLES.includes(role))
+  if (row.audience === 'families') return roles.includes('student') || roles.includes('guardian')
+  return targetParallelIds(row.parallelIds).some((id) => parallels.includes(id))
+}
 
 async function userParallelIds(userId: string, institutionId: string, roles: string[]) {
   if (roles.includes('student')) {
@@ -93,22 +121,28 @@ export default async function announcementRoutes(app: FastifyInstance) {
         publishedAt: { lte: now },
         OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
       },
-      include: { creator: { select: { profile: { select: { firstName: true, lastName: true } } } } },
+      include: {
+        creator: { select: { profile: { select: { firstName: true, lastName: true } } } },
+        reads: { where: { userId: sub }, select: { readAt: true } },
+      },
       orderBy: { publishedAt: 'desc' },
       take: 100,
     })
     rows.sort((a, b) => Number(b.priority === 'important') - Number(a.priority === 'important'))
-    if (isPrivilegedStaff(roles)) return reply.send(rows)
-
     const parallels = await userParallelIds(sub, institutionId, roles)
-    const visible = rows.filter((row) => {
-      if (row.audience === 'all') return true
-      if (row.audience === 'staff') return roles.some((role) => STAFF_ROLES.includes(role))
-      if (row.audience === 'families') return roles.includes('student') || roles.includes('guardian')
-      const targets = Array.isArray(row.parallelIds) ? row.parallelIds.filter((id): id is string => typeof id === 'string') : []
-      return targets.some((id) => parallels.includes(id))
-    })
-    return reply.send(visible)
+    const visible = isPrivilegedStaff(roles) ? rows : rows.filter((row) => isVisibleToUser(row, roles, parallels))
+    return reply.send(visible.map((row) => {
+      const { reads, flyerStoredName: _flyerStoredName, attachmentStoredName: _attachmentStoredName, ...announcement } = row
+      void _flyerStoredName
+      void _attachmentStoredName
+      return {
+        ...announcement,
+        isRead: reads.length > 0,
+        readAt: reads[0]?.readAt ?? null,
+        flyerUrl: row.flyerStoredName ? `/announcements/${row.id}/flyer` : null,
+        attachmentUrl: row.attachmentStoredName ? `/announcements/${row.id}/attachment` : null,
+      }
+    }))
   })
 
   app.post<{ Body: CreateAnnouncementBody }>('/announcements', async (req, reply) => {
@@ -145,15 +179,104 @@ export default async function announcementRoutes(app: FastifyInstance) {
       .map((recipient) => sendPushToUser(recipient.id, {
         title: `${announcement.priority === 'important' ? 'Aviso importante' : 'Nuevo aviso'} — Auleka`,
         body: announcement.title,
-        url: '/announcements',
+        url: `/announcements?notice=${announcement.id}`,
       })))
     return reply.status(201).send(announcement)
   })
+
+  app.post<{ Params: { id: string } }>('/announcements/:id/read', async (req, reply) => {
+    const row = await prisma.announcement.findFirst({
+      where: { id: req.params.id, institutionId: req.user.institutionId },
+    })
+    if (!row) throw new NotFoundError('Aviso no encontrado')
+    const parallels = await userParallelIds(req.user.sub, req.user.institutionId, req.user.roles)
+    if (!isPrivilegedStaff(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels)) {
+      throw new ForbiddenError('No tienes acceso a este aviso')
+    }
+    const read = await prisma.announcementRead.upsert({
+      where: { announcementId_userId: { announcementId: row.id, userId: req.user.sub } },
+      create: { announcementId: row.id, userId: req.user.sub },
+      update: {},
+    })
+    return reply.send(read)
+  })
+
+  app.post<{ Params: { id: string; kind: 'flyer' | 'attachment' } }>(
+    '/announcements/:id/files/:kind',
+    async (req, reply) => {
+      if (!isPrivilegedStaff(req.user.roles)) throw new ForbiddenError('Solo autoridades pueden adjuntar archivos')
+      const row = await prisma.announcement.findFirst({
+        where: { id: req.params.id, institutionId: req.user.institutionId },
+      })
+      if (!row) throw new NotFoundError('Aviso no encontrado')
+      const kind = req.params.kind
+      if (kind !== 'flyer' && kind !== 'attachment') throw new BadRequestError('Tipo de archivo inválido')
+      const data = await req.file()
+      if (!data) throw new BadRequestError('No se recibió ningún archivo')
+      const allowed = kind === 'flyer' ? FLYER_MIME_TYPES : DOCUMENT_MIME_TYPES
+      if (!allowed.has(data.mimetype)) {
+        throw new BadRequestError(kind === 'flyer' ? 'El flyer debe ser JPG, PNG o WebP' : 'El documento debe ser PDF, Word o Excel')
+      }
+      const buffer = await data.toBuffer()
+      const maxBytes = kind === 'flyer' ? MAX_FLYER_BYTES : MAX_DOCUMENT_BYTES
+      if (buffer.length > maxBytes) throw new BadRequestError(`El archivo supera el máximo de ${maxBytes / 1024 / 1024} MB`)
+      const storedName = `${crypto.randomUUID()}${path.extname(data.filename).toLowerCase()}`
+      await storage.save(`announcements/${storedName}`, buffer, data.mimetype)
+
+      if (kind === 'flyer') {
+        if (row.flyerStoredName) await storage.remove(`announcements/${row.flyerStoredName}`)
+        await prisma.announcement.update({
+          where: { id: row.id },
+          data: { flyerName: data.filename, flyerStoredName: storedName, flyerMimeType: data.mimetype },
+        })
+      } else {
+        if (row.attachmentStoredName) await storage.remove(`announcements/${row.attachmentStoredName}`)
+        await prisma.announcement.update({
+          where: { id: row.id },
+          data: {
+            attachmentName: data.filename,
+            attachmentStoredName: storedName,
+            attachmentMimeType: data.mimetype,
+            attachmentSize: buffer.length,
+          },
+        })
+      }
+      return reply.status(201).send({ ok: true })
+    },
+  )
+
+  app.get<{ Params: { id: string; kind: 'flyer' | 'attachment' } }>(
+    '/announcements/:id/:kind',
+    async (req, reply) => {
+      const row = await prisma.announcement.findFirst({
+        where: { id: req.params.id, institutionId: req.user.institutionId },
+      })
+      if (!row) throw new NotFoundError('Aviso no encontrado')
+      if (req.params.kind !== 'flyer' && req.params.kind !== 'attachment') throw new BadRequestError('Tipo de archivo inválido')
+      const parallels = await userParallelIds(req.user.sub, req.user.institutionId, req.user.roles)
+      if (!isPrivilegedStaff(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels)) {
+        throw new ForbiddenError('No tienes acceso a este aviso')
+      }
+      const isFlyer = req.params.kind === 'flyer'
+      const storedName = isFlyer ? row.flyerStoredName : row.attachmentStoredName
+      const mimeType = isFlyer ? row.flyerMimeType : row.attachmentMimeType
+      const originalName = isFlyer ? row.flyerName : row.attachmentName
+      if (!storedName || !mimeType || !originalName) throw new NotFoundError('Archivo no encontrado')
+      const stream = await storage.getStream(`announcements/${storedName}`)
+      if (!stream) throw new NotFoundError('Archivo no encontrado')
+      return reply
+        .header('Content-Type', mimeType)
+        .header('Content-Disposition', `${isFlyer ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(originalName)}`)
+        .send(stream)
+    },
+  )
 
   app.delete<{ Params: { id: string } }>('/announcements/:id', async (req, reply) => {
     if (!isPrivilegedStaff(req.user.roles)) throw new ForbiddenError('Solo autoridades pueden eliminar avisos')
     const row = await prisma.announcement.findFirst({ where: { id: req.params.id, institutionId: req.user.institutionId } })
     if (!row) throw new NotFoundError('Aviso no encontrado')
+    if (row.flyerStoredName) await storage.remove(`announcements/${row.flyerStoredName}`)
+    if (row.attachmentStoredName) await storage.remove(`announcements/${row.attachmentStoredName}`)
     await prisma.announcement.delete({ where: { id: row.id } })
     return reply.status(204).send()
   })
