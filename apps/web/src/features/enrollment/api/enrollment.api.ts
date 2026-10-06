@@ -36,6 +36,24 @@ export interface StudentOption {
   dni?: string | null
 }
 
+export interface StudentImportRow {
+  firstName: string
+  lastName: string
+  dni: string
+  birthDate?: string
+}
+
+export interface StudentImportResult {
+  created: number
+  enrolled: number
+  existing: number
+  skipped: number
+  results: Array<StudentImportRow & {
+    status: 'created' | 'enrolled' | 'existing' | 'skipped'
+    reason?: string
+  }>
+}
+
 export function listEnrollments(params?: Record<string, string>) {
   return apiGet<Enrollment[]>('enrollments', params)
 }
@@ -81,4 +99,13 @@ export function createStudentEnrollment(data: {
   academicYearId: string
 }) {
   return apiPost<Enrollment>('enrollments/student', data)
+}
+
+export function importStudents(data: {
+  students: StudentImportRow[]
+  enroll: boolean
+  parallelId?: string
+  academicYearId?: string
+}) {
+  return apiPost<StudentImportResult>('enrollments/students/bulk', data)
 }

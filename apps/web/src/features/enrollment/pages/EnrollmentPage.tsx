@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import { toast } from 'sonner'
-import { UserPlus, Users, Edit2, FileText } from 'lucide-react'
+import { UserPlus, Users, Edit2, FileText, Upload, Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
@@ -39,10 +40,13 @@ import {
   getYears,
   getParallels,
   getStudents,
+  importStudents,
   type Enrollment,
   type AcademicYear,
   type Parallel,
   type StudentOption,
+  type StudentImportRow,
+  type StudentImportResult,
 } from '../api/enrollment.api'
 
 // ---- Constants ----
@@ -381,6 +385,15 @@ export function EnrollmentPage() {
   const [nsLastName, setNsLastName] = useState('')
   const [nsDni, setNsDni] = useState('')
 
+  // Importación Excel: puede crear solamente o crear/reutilizar y matricular.
+  const importFileRef = useRef<HTMLInputElement>(null)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importRows, setImportRows] = useState<StudentImportRow[]>([])
+  const [importEnroll, setImportEnroll] = useState(true)
+  const [importYearId, setImportYearId] = useState('')
+  const [importParallelId, setImportParallelId] = useState('')
+  const [importResult, setImportResult] = useState<StudentImportResult | null>(null)
+
   // Single enrollment form state
   const [singleYearId, setSingleYearId] = useState('')
   const [singleParallelId, setSingleParallelId] = useState('')
@@ -398,6 +411,7 @@ export function EnrollmentPage() {
   const { data: parallels = [] } = useParallels(yearId)
   const { data: singleParallels = [] } = useParallels(singleYearId)
   const { data: bulkParallels = [] } = useParallels(bulkYearId)
+  const { data: importParallels = [] } = useParallels(importYearId)
   const { data: enrollments = [], isLoading: enrollmentsLoading } = useEnrollments(yearId, parallelId)
   const { data: students = [] } = useStudents('')
 
@@ -428,6 +442,7 @@ export function EnrollmentPage() {
   const visibleParallels = filterParallels(parallels)
   const visibleSingleParallels = filterParallels(singleParallels)
   const visibleBulkParallels = filterParallels(bulkParallels)
+  const visibleImportParallels = filterParallels(importParallels)
 
   // Mutations
   const createMutation = useCreateEnrollment(yearId, parallelId)
@@ -441,6 +456,20 @@ export function EnrollmentPage() {
     onSuccess: () => {
       qcRoot.invalidateQueries({ queryKey: ['enrollments', yearId, parallelId] })
       toast.success('Estudiante creado y matriculado')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+  const importMutation = useMutation({
+    mutationFn: importStudents,
+    onSuccess: (result) => {
+      setImportResult(result)
+      qcRoot.invalidateQueries({ queryKey: ['students'] })
+      qcRoot.invalidateQueries({ queryKey: ['enrollments'] })
+      toast.success(
+        importEnroll
+          ? `${result.created} cuentas creadas y ${result.enrolled} estudiantes matriculados`
+          : `${result.created} estudiantes creados`,
+      )
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
@@ -458,6 +487,76 @@ export function EnrollmentPage() {
     setBulkParallelId('')
     setBulkStudentIds([])
   }, [bulkYearId])
+
+  useEffect(() => setImportParallelId(''), [importYearId])
+
+  function openImportDialog() {
+    setImportRows([])
+    setImportResult(null)
+    setImportEnroll(true)
+    setImportYearId(yearId)
+    setImportParallelId(parallelId)
+    setImportOpen(true)
+  }
+
+  function downloadImportTemplate() {
+    const sheet = XLSX.utils.json_to_sheet([
+      { cedula: '0123456789', nombres: 'Ana María', apellidos: 'Pérez López', fecha_nacimiento: '2014-05-20' },
+    ])
+    sheet['!cols'] = [{ wch: 14 }, { wch: 24 }, { wch: 24 }, { wch: 20 }]
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Estudiantes')
+    XLSX.writeFile(workbook, 'plantilla_importacion_estudiantes.xlsx')
+  }
+
+  async function handleImportFile(file?: File) {
+    if (!file) return
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
+      const normalized = raw.map((row) => {
+        const entries = Object.fromEntries(
+          Object.entries(row).map(([key, value]) => [key.trim().toLowerCase().replace(/\s+/g, '_'), value]),
+        )
+        const dateValue = entries.fecha_nacimiento ?? entries.fechanacimiento ?? entries.birthdate
+        const birthDate = dateValue instanceof Date
+          ? dateValue.toISOString().slice(0, 10)
+          : String(dateValue ?? '').trim()
+        const rawDni = entries.cedula ?? entries.cédula ?? entries.dni ?? ''
+        const digits = String(rawDni).replace(/\D/g, '')
+        // Excel suele eliminar el cero inicial cuando la cédula fue guardada como número.
+        const dni = typeof rawDni === 'number' && digits.length === 9 ? digits.padStart(10, '0') : digits
+        return {
+          dni,
+          firstName: String(entries.nombres ?? entries.nombre ?? entries.firstname ?? '').trim(),
+          lastName: String(entries.apellidos ?? entries.apellido ?? entries.lastname ?? '').trim(),
+          ...(birthDate ? { birthDate } : {}),
+        }
+      })
+      if (normalized.length === 0) throw new Error('El archivo no contiene estudiantes')
+      if (normalized.length > 500) throw new Error('El archivo supera el máximo de 500 estudiantes')
+      setImportRows(normalized)
+      setImportResult(null)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo leer el archivo')
+    } finally {
+      if (importFileRef.current) importFileRef.current.value = ''
+    }
+  }
+
+  function submitImport() {
+    if (importRows.length === 0) return
+    if (importEnroll && (!importYearId || !importParallelId)) {
+      toast.error('Selecciona año lectivo y paralelo')
+      return
+    }
+    importMutation.mutate({
+      students: importRows,
+      enroll: importEnroll,
+      ...(importEnroll ? { academicYearId: importYearId, parallelId: importParallelId } : {}),
+    })
+  }
 
   function openSingleDialog() {
     setSingleYearId(yearId)
@@ -650,6 +749,10 @@ export function EnrollmentPage() {
               <Users className="h-4 w-4" />
               Matrícula Masiva
             </Button>
+            <Button variant="outline" onClick={openImportDialog} className="w-full sm:w-auto">
+              <Upload className="h-4 w-4" />
+              Importar Excel
+            </Button>
             <Button onClick={openSingleDialog} className="w-full sm:w-auto">
               <UserPlus className="h-4 w-4" />
               Nueva Matrícula
@@ -778,6 +881,110 @@ export function EnrollmentPage() {
               loading={createMutation.isPending}
             >
               Matricular
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Importar estudiantes y opcionalmente matricularlos */}
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Importar estudiantes desde Excel</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+              Columnas requeridas: <strong>cedula, nombres, apellidos</strong>. La fecha de nacimiento es opcional.
+              La cédula será el usuario y la contraseña inicial. Los estudiantes existentes se reutilizan, no se duplican.
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                ref={importFileRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={(event) => handleImportFile(event.target.files?.[0])}
+              />
+              <Button type="button" onClick={() => importFileRef.current?.click()}>
+                <Upload className="h-4 w-4" /> Seleccionar Excel o CSV
+              </Button>
+              <Button type="button" variant="outline" onClick={downloadImportTemplate}>
+                <Download className="h-4 w-4" /> Descargar plantilla
+              </Button>
+            </div>
+            <label className="flex items-start gap-3 rounded-md border p-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4"
+                checked={importEnroll}
+                onChange={(event) => setImportEnroll(event.target.checked)}
+              />
+              <span>
+                <strong>Matricular después de importar</strong>
+                <span className="block text-muted-foreground">Desmarca esta opción para crear únicamente las cuentas.</span>
+              </span>
+            </label>
+            {importEnroll && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Año lectivo *</Label>
+                  <Select value={importYearId} onValueChange={setImportYearId}>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar año..." /></SelectTrigger>
+                    <SelectContent>
+                      {years.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Grado y paralelo *</Label>
+                  <Select value={importParallelId} onValueChange={setImportParallelId} disabled={!importYearId}>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar paralelo..." /></SelectTrigger>
+                    <SelectContent>
+                      {visibleImportParallels.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>{item.level.name} - {item.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+            {importRows.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Vista previa: {importRows.length} estudiante(s)</p>
+                <div className="max-h-64 overflow-auto rounded-md border">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-muted"><tr><th className="p-2 text-left">Cédula</th><th className="p-2 text-left">Nombres</th><th className="p-2 text-left">Apellidos</th><th className="p-2 text-left">Validación</th></tr></thead>
+                    <tbody>
+                      {importRows.map((row, index) => {
+                        const valid = /^\d{10}$/.test(row.dni) && !!row.firstName && !!row.lastName
+                        return <tr key={`${row.dni}-${index}`} className="border-t"><td className="p-2">{row.dni || '—'}</td><td className="p-2">{row.firstName || '—'}</td><td className="p-2">{row.lastName || '—'}</td><td className={`p-2 ${valid ? 'text-emerald-700' : 'text-destructive'}`}>{valid ? 'Lista' : 'Revisar datos'}</td></tr>
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {importResult && (
+              <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                <p>Resultado: {importResult.created} creados, {importResult.enrolled} matriculados, {importResult.existing} existentes y {importResult.skipped} omitidos.</p>
+                {importResult.results.some((row) => row.status === 'skipped') && (
+                  <ul className="list-disc pl-5 text-xs">
+                    {importResult.results.filter((row) => row.status === 'skipped').slice(0, 10).map((row, index) => (
+                      <li key={`${row.dni}-${index}`}>{row.dni || 'Sin cédula'}: {row.reason}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportOpen(false)}>Cerrar</Button>
+            <Button
+              onClick={submitImport}
+              loading={importMutation.isPending}
+              disabled={importRows.length === 0 || (importEnroll && (!importYearId || !importParallelId))}
+            >
+              {importEnroll ? 'Importar y matricular' : 'Importar estudiantes'}
             </Button>
           </DialogFooter>
         </DialogContent>
