@@ -32,6 +32,8 @@ interface NavSection {
   items: NavItem[]
 }
 
+const labelCollator = new Intl.Collator('es', { sensitivity: 'base' })
+
 /**
  * Navegación agrupada por flujo de trabajo. Las rutas, permisos y módulos se
  * mantienen independientes del grupo visual para poder reorganizar el menú sin
@@ -331,10 +333,16 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           ...item,
           children: item.children?.filter(
             (c) => (!isPersonalAccount || !c.hideForPersonal) && (isPersonalAccount || !c.showOnlyForPersonal),
-          ),
-        })),
+          ).sort((a, b) => labelCollator.compare(a.label, b.label)),
+        }))
+        .sort((a, b) => labelCollator.compare(a.label, b.label)),
     }))
     .filter((section) => section.items.length > 0)
+    .sort((a, b) => {
+      if (!a.label) return -1
+      if (!b.label) return 1
+      return labelCollator.compare(a.label, b.label)
+    })
 
   const matchesRoute = (path: string) =>
     location.pathname === path || location.pathname.startsWith(`${path}/`)
