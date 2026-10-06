@@ -9,6 +9,7 @@ import { apiGet } from '@/shared/lib/api-client'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { PwaOnboardingBanner } from '@/shared/components/pwa/PwaOnboardingBanner'
 import { announcementsApi } from '@/features/announcements/api/announcements.api'
+import { FamilyToday } from '../components/FamilyToday'
 
 interface DashboardStats {
   users: { total: number; students: number; teachers: number }
@@ -128,7 +129,10 @@ export function DashboardPage() {
           {hasRole('teacher') && !hasRole('admin') && <TeacherModules unread={stats?.messages.unread} />}
           {hasRole('inspector') && !hasRole('admin') && <InspectorModules pending={stats?.incidents.pending} unread={stats?.messages.unread} />}
           {(hasRole('student') || hasRole('guardian')) && !hasRole('admin') && !hasRole('teacher') && !hasRole('inspector') && (
-            <StudentModules unread={stats?.messages.unread} />
+            <>
+              <FamilyToday />
+              <StudentModules unread={stats?.messages.unread} />
+            </>
           )}
         </>
       )}

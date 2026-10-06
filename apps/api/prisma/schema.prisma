@@ -135,6 +135,7 @@ model User {
 
   // Promoción y recuperaciones
   pushSubscriptions                  PushSubscription[]
+  notifications                      UserNotification[]
   studentRecoveries                  SubjectRecovery[]                  @relation("StudentRecovery")
   recordedRecoveries                 SubjectRecovery[]                  @relation("RecoveryRecorder")
   studentPedagogicRecoveries         PedagogicRecovery[]                @relation("StudentPedagogicRecovery")
@@ -1493,6 +1494,21 @@ model PushSubscription {
 
   @@unique([userId, endpoint])
   @@map("push_subscriptions")
+}
+
+model UserNotification {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  title     String    @db.VarChar(200)
+  body      String
+  url       String?   @db.VarChar(500)
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@map("user_notifications")
 }
 
 // Avisos institucionales breves para personal, estudiantes y familias.
