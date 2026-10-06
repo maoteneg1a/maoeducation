@@ -2,7 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   Home, Users, Settings, BookOpen, GraduationCap,
   ClipboardList, AlertTriangle, MessageSquare, Calendar,
-  FileText, ChevronDown, X, UserPlus, ShieldCheck,
+  FileText, ChevronRight, X, UserPlus, ShieldCheck,
   ClipboardCheck, CalendarDays, Palette, Smile, Award, HeartHandshake, FolderOpen, NotebookPen, Puzzle,
   Sparkles, School, CreditCard,
   Megaphone,
@@ -32,6 +32,8 @@ interface NavSection {
   items: NavItem[]
 }
 
+const labelCollator = new Intl.Collator('es', { sensitivity: 'base' })
+
 /**
  * Navegación agrupada por flujo de trabajo. Las rutas, permisos y módulos se
  * mantienen independientes del grupo visual para poder reorganizar el menú sin
@@ -51,7 +53,7 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     id: 'docencia',
-    label: 'Docencia',
+    label: 'Aula',
     icon: Sparkles,
     accent: true,
     items: [
@@ -299,12 +301,12 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('auleka.sidebar.sections') ?? '[]')
-      const sections = new Set<string>(Array.isArray(saved) ? saved : ['docencia', 'academico'])
-      // Migra la sección única anterior hacia el grupo académico principal.
-      if (sections.delete('institucional')) sections.add('academico')
-      return sections
+      const savedSections = Array.isArray(saved) ? saved : []
+      const lastSaved = savedSections[savedSections.length - 1]
+      const lastOpen = lastSaved === 'institucional' ? 'academico' : lastSaved
+      return new Set<string>(lastOpen ? [lastOpen] : ['docencia'])
     } catch {
-      return new Set(['docencia', 'academico'])
+      return new Set(['docencia'])
     }
   })
   const institution = useAuthStore((s) => s.user?.institution ?? null)
@@ -331,10 +333,16 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           ...item,
           children: item.children?.filter(
             (c) => (!isPersonalAccount || !c.hideForPersonal) && (isPersonalAccount || !c.showOnlyForPersonal),
-          ),
-        })),
+          ).sort((a, b) => labelCollator.compare(a.label, b.label)),
+        }))
+        .sort((a, b) => labelCollator.compare(a.label, b.label)),
     }))
     .filter((section) => section.items.length > 0)
+    .sort((a, b) => {
+      if (!a.label) return -1
+      if (!b.label) return 1
+      return labelCollator.compare(a.label, b.label)
+    })
 
   const matchesRoute = (path: string) =>
     location.pathname === path || location.pathname.startsWith(`${path}/`)
@@ -348,8 +356,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
     )
     if (activeSection?.label) {
       setExpandedSections((current) => {
-        if (current.has(activeSection.id)) return current
-        const next = new Set(current).add(activeSection.id)
+        if (current.size === 1 && current.has(activeSection.id)) return current
+        const next = new Set([activeSection.id])
         localStorage.setItem('auleka.sidebar.sections', JSON.stringify([...next]))
         return next
       })
@@ -363,9 +371,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections((current) => {
-      const next = new Set(current)
-      if (next.has(sectionId)) next.delete(sectionId)
-      else next.add(sectionId)
+      const next = current.has(sectionId) ? new Set<string>() : new Set([sectionId])
       localStorage.setItem('auleka.sidebar.sections', JSON.stringify([...next]))
       return next
     })
@@ -389,12 +395,12 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           >
             <item.icon className="h-4 w-4 shrink-0" />
             <span className="flex-1 text-left">{item.label}</span>
-            <ChevronDown
-              className={cn('h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-180')}
+            <ChevronRight
+              className={cn('h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-90')}
             />
           </button>
           {isExpanded && (
-            <div className="mt-0.5 ml-4 pl-3 border-l border-sidebar-border space-y-0.5">
+            <div className="mt-0.5 ml-5 space-y-0.5 border-l border-primary/30 pl-2">
               {item.children.map((child) => (
                 <NavLink
                   key={child.path}
@@ -464,46 +470,67 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
       {/* Nav items, agrupados por sección */}
       <nav className="flex-1 px-2 py-3 overflow-y-auto">
-        {visibleSections.map((section, index) => (
-          <div key={section.id}>
+        {visibleSections.map((section, index) => {
+          const sectionIsOpen = expandedSections.has(section.id)
+          const sectionIsActive = section.items.some(isItemActive)
+          return (
+          <div
+            key={section.id}
+            className={cn(
+              section.label && 'mt-2 rounded-lg border border-transparent transition-colors',
+              section.label && sectionIsOpen && 'border-sidebar-border bg-sidebar-accent/20',
+              section.label && sectionIsActive && 'border-primary/35 bg-sidebar-accent/40',
+            )}
+          >
             {/* Encabezado: etiqueta + regla horizontal. Colapsado no cabe texto,
                 así que la separación es solo un guion centrado. */}
             {section.label && !collapsed && (
               <button
                 type="button"
                 onClick={() => toggleSection(section.id)}
-                className={cn('flex w-full items-center gap-2 rounded px-3 pb-1.5 text-left hover:bg-sidebar-accent/30', index > 0 ? 'pt-4' : 'pt-1')}
-                aria-expanded={expandedSections.has(section.id)}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-sidebar-accent/40',
+                  sectionIsActive && 'text-primary',
+                )}
+                aria-expanded={sectionIsOpen}
               >
                 {section.icon && (
                   <section.icon
                     className={cn(
                       'h-3.5 w-3.5 shrink-0',
-                      section.accent ? 'text-primary' : 'text-sidebar-foreground/40',
+                      section.accent || sectionIsActive ? 'text-primary' : 'text-sidebar-foreground/50',
                     )}
                   />
                 )}
                 <span
                   className={cn(
                     'text-[10px] font-semibold uppercase tracking-wider leading-none',
-                    section.accent ? 'text-primary' : 'text-sidebar-foreground/45',
+                    section.accent || sectionIsActive ? 'text-primary' : 'text-sidebar-foreground/55',
                   )}
                 >
                   {section.label}
                 </span>
-                <span className="flex-1 h-px bg-sidebar-border" />
-                <ChevronDown className={cn('h-3.5 w-3.5 text-sidebar-foreground/45 transition-transform', expandedSections.has(section.id) && 'rotate-180')} />
+                <span className="h-px flex-1 bg-sidebar-border" />
+                <ChevronRight
+                  className={cn(
+                    'h-3.5 w-3.5 shrink-0 text-sidebar-foreground/60 transition-transform',
+                    sectionIsOpen && 'rotate-90',
+                  )}
+                />
               </button>
             )}
             {section.label && collapsed && index > 0 && (
               <div className="my-2 mx-auto h-px w-6 bg-sidebar-border" />
             )}
 
-            {(!section.label || collapsed || expandedSections.has(section.id)) && (
-              <div className="space-y-0.5">{section.items.map(renderItem)}</div>
+            {(!section.label || collapsed || sectionIsOpen) && (
+              <div className={cn('space-y-0.5', section.label && !collapsed && 'mx-1 mb-1 border-l border-primary/25 pl-2')}>
+                {section.items.map(renderItem)}
+              </div>
             )}
           </div>
-        ))}
+          )
+        })}
       </nav>
     </div>
   )
