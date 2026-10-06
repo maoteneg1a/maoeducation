@@ -27,8 +27,6 @@ interface NavSection {
   /** Sin label = sin encabezado ni separador (el bloque de Inicio). */
   label?: string
   icon?: React.ElementType
-  /** Destaca el encabezado con el color de marca. */
-  accent?: boolean
   items: NavItem[]
 }
 
@@ -55,7 +53,6 @@ const NAV_SECTIONS: NavSection[] = [
     id: 'docencia',
     label: 'Aula',
     icon: Sparkles,
-    accent: true,
     items: [
       {
         label: 'Planificaciones',
@@ -400,7 +397,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             />
           </button>
           {isExpanded && (
-            <div className="mt-0.5 ml-5 space-y-0.5 border-l border-primary/30 pl-2">
+            <div className="ml-5 mt-1 space-y-0.5 border-l border-sidebar-foreground/25 py-0.5 pl-3">
               {item.children.map((child) => (
                 <NavLink
                   key={child.path}
@@ -408,9 +405,9 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                   onClick={onMobileClose}
                   className={({ isActive }) =>
                     cn(
-                      'block rounded-md px-3 py-1.5 text-xs transition-colors',
+                      'relative block rounded-md px-3 py-1.5 text-xs transition-colors before:absolute before:-left-[15px] before:top-1/2 before:h-1.5 before:w-1.5 before:-translate-y-1/2 before:rounded-full before:bg-sidebar-foreground/35',
                       isActive
-                        ? 'bg-sidebar-accent text-sidebar-foreground font-medium'
+                        ? 'bg-sidebar-accent text-sidebar-foreground font-medium before:bg-primary before:ring-2 before:ring-primary/25'
                         : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
                     )
                   }
@@ -498,14 +495,14 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                   <section.icon
                     className={cn(
                       'h-3.5 w-3.5 shrink-0',
-                      section.accent || sectionIsActive ? 'text-primary' : 'text-sidebar-foreground/50',
+                      sectionIsActive ? 'text-primary' : 'text-sidebar-foreground/55',
                     )}
                   />
                 )}
                 <span
                   className={cn(
                     'text-[10px] font-semibold uppercase tracking-wider leading-none',
-                    section.accent || sectionIsActive ? 'text-primary' : 'text-sidebar-foreground/55',
+                    sectionIsActive ? 'text-primary' : 'text-sidebar-foreground/60',
                   )}
                 >
                   {section.label}
@@ -524,7 +521,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             )}
 
             {(!section.label || collapsed || sectionIsOpen) && (
-              <div className={cn('space-y-0.5', section.label && !collapsed && 'mx-1 mb-1 border-l border-primary/25 pl-2')}>
+              <div className={cn('space-y-0.5', section.label && !collapsed && 'mx-2 mb-2 ml-3 border-l border-sidebar-foreground/20 pl-3')}>
                 {section.items.map(renderItem)}
               </div>
             )}
