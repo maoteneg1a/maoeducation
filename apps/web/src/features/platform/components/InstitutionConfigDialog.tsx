@@ -153,7 +153,7 @@ function SubjectsSection({ institutionId }: { institutionId: string }) {
     setEditing(subject)
     setForm({
       name: subject.name,
-      code: subject.code,
+      code: subject.code ?? '',
       isQualitative: subject.isQualitative ?? false,
       curriculumAreaId: subject.curriculumAreaId ?? NONE,
       competencyAreaId: subject.competencyAreaId ?? NONE,

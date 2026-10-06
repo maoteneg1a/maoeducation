@@ -15,8 +15,8 @@ export interface UpdateLevelDto {
 
 export interface CreateSubjectDto {
   name: string
-  code?: string
-  description?: string
+  code?: string | null
+  description?: string | null
   color?: string
   isQualitative?: boolean
   curriculumAreaId?: string | null
@@ -26,8 +26,8 @@ export interface CreateSubjectDto {
 
 export interface UpdateSubjectDto {
   name?: string
-  code?: string
-  description?: string
+  code?: string | null
+  description?: string | null
   color?: string
   isQualitative?: boolean
   curriculumAreaId?: string | null

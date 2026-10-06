@@ -93,6 +93,18 @@ export function useUpdateSubject() {
   })
 }
 
+export function useToggleSubject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: academicApi.toggleSubject,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: academicKeys.subjects })
+      toast.success('Estado de la materia actualizado')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
 // ---- Academic Years ----
 
 export function useAcademicYears() {
