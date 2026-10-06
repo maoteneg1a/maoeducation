@@ -1,0 +1,13 @@
+:root { font-family: Inter, system-ui, sans-serif; color: #172033; }
+body { margin: 0; width: 390px; background: #f7f9fc; }
+main { padding: 18px; }
+h1 { margin: 0 0 4px; font-size: 19px; }
+.muted, .status { color: #64748b; font-size: 12px; line-height: 1.45; }
+.file { display: block; margin: 14px 0; padding: 12px; border: 1px dashed #94a3b8; border-radius: 8px; background: white; cursor: pointer; font-size: 13px; }
+.file input { display: block; margin-top: 8px; width: 100%; }
+section { margin: 10px 0; padding: 10px; border: 1px solid #dbe3ef; border-radius: 8px; background: white; font-size: 12px; }
+button { width: 100%; margin-top: 8px; padding: 10px; border: 0; border-radius: 7px; background: #1769e0; color: white; font-weight: 600; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .45; }
+button.danger { background: #b42318; }
+.ok { color: #087443; }.warn { color: #a15c00; }.bad { color: #b42318; }
+ul { margin: 6px 0 0; padding-left: 18px; max-height: 180px; overflow: auto; }

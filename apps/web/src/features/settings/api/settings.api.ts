@@ -42,6 +42,7 @@ export interface GradingConfig {
   defaultExamWeight: number
   pedagogicRecovery: PedagogicRecoveryConfig
   activityGradeReinforcement: ActivityGradeReinforcementConfig
+  educarEcuadorExportEnabled: boolean
 }
 
 export interface AiConfig {

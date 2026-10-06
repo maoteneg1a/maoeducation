@@ -54,6 +54,8 @@ function extractGradingConfig(settings: unknown): GradingConfig {
       ...DEFAULT_GRADING_CONFIG.activityGradeReinforcement,
       ...(gc.activityGradeReinforcement ?? {}),
     },
+    educarEcuadorExportEnabled:
+      gc.educarEcuadorExportEnabled ?? DEFAULT_GRADING_CONFIG.educarEcuadorExportEnabled,
   }
 }
 
@@ -188,6 +190,8 @@ export class PrismaInstitutionRepository {
         ...current.activityGradeReinforcement,
         ...(dto.activityGradeReinforcement ?? {}),
       },
+      educarEcuadorExportEnabled:
+        dto.educarEcuadorExportEnabled ?? current.educarEcuadorExportEnabled,
     }
 
     const updated = await prisma.institution.update({
