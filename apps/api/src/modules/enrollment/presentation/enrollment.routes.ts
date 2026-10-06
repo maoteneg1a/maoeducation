@@ -110,7 +110,18 @@ export default async function enrollmentRoutes(app: FastifyInstance) {
     '/enrollments/students/bulk',
     { preHandler: [requirePermission('enrollment', 'manage', 'own')] },
     async (req, reply) => {
-      await assertParallelInScope(req, req.body.parallelId)
+      if (!Array.isArray(req.body.students) || req.body.students.length === 0) {
+        throw new BadRequestError('Incluye al menos un estudiante')
+      }
+      if (req.body.students.length > 500) {
+        throw new BadRequestError('Puedes importar máximo 500 estudiantes por archivo')
+      }
+      if (req.body.enroll) {
+        if (!req.body.parallelId || !req.body.academicYearId) {
+          throw new BadRequestError('Selecciona el año lectivo y el paralelo')
+        }
+        await assertParallelInScope(req, req.body.parallelId)
+      }
       const result = await repo.bulkCreateStudents(req.user.institutionId, req.body)
       return reply.status(201).send(result)
     },

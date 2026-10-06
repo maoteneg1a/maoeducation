@@ -31,7 +31,7 @@ export interface CreateStudentEnrollmentDto {
   academicYearId: string
 }
 
-/** Crear N estudiantes nuevos y matricularlos (importación masiva desde Excel). */
+/** Importar estudiantes desde Excel, con matrícula opcional. */
 export interface BulkCreateStudentsDto {
   students: Array<{
     firstName: string
@@ -39,6 +39,7 @@ export interface BulkCreateStudentsDto {
     dni: string
     birthDate?: string
   }>
-  parallelId: string
-  academicYearId: string
+  enroll?: boolean
+  parallelId?: string
+  academicYearId?: string
 }

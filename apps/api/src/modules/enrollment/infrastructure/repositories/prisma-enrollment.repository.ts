@@ -259,12 +259,15 @@ export class PrismaEnrollmentRepository {
   }
 
   async bulkCreateStudents(institutionId: string, dto: BulkCreateStudentsDto) {
-    const [parallel, year] = await Promise.all([
-      prisma.parallel.findFirst({ where: { id: dto.parallelId, institutionId } }),
-      prisma.academicYear.findFirst({ where: { id: dto.academicYearId, institutionId } }),
-    ])
-    if (!parallel) throw new NotFoundError('Paralelo no encontrado')
-    if (!year) throw new NotFoundError('Año académico no encontrado')
+    const shouldEnroll = dto.enroll === true
+    if (shouldEnroll) {
+      const [parallel, year] = await Promise.all([
+        prisma.parallel.findFirst({ where: { id: dto.parallelId, institutionId } }),
+        prisma.academicYear.findFirst({ where: { id: dto.academicYearId, institutionId } }),
+      ])
+      if (!parallel) throw new NotFoundError('Paralelo no encontrado')
+      if (!year) throw new NotFoundError('Año académico no encontrado')
+    }
 
     const studentRole = await prisma.role.findFirst({
       where: { institutionId, name: 'student' },
@@ -272,31 +275,73 @@ export class PrismaEnrollmentRepository {
     })
     if (!studentRole) throw new NotFoundError('Rol de estudiante no configurado')
 
-    const results: Array<{ firstName: string; lastName: string; dni: string; status: 'created' | 'skipped'; reason?: string }> = []
+    const results: Array<{
+      firstName: string
+      lastName: string
+      dni: string
+      status: 'created' | 'enrolled' | 'existing' | 'skipped'
+      reason?: string
+    }> = []
+    const seenDnis = new Set<string>()
 
     for (const s of dto.students) {
       const dni = s.dni?.trim()
       const firstName = s.firstName?.trim()
       const lastName = s.lastName?.trim()
 
-      if (!firstName || !lastName) {
-        results.push({ firstName: firstName ?? '', lastName: lastName ?? '', dni: dni ?? '', status: 'skipped', reason: 'Nombre incompleto' })
+      if (!firstName || !lastName || !/^\d{10}$/.test(dni ?? '')) {
+        const reason = !firstName || !lastName
+          ? 'Nombres y apellidos incompletos'
+          : 'La cédula debe tener 10 dígitos'
+        results.push({ firstName: firstName ?? '', lastName: lastName ?? '', dni: dni ?? '', status: 'skipped', reason })
         continue
       }
+      if (seenDnis.has(dni!)) {
+        results.push({ firstName, lastName, dni: dni!, status: 'skipped', reason: 'Cédula repetida en el archivo' })
+        continue
+      }
+      seenDnis.add(dni!)
 
-      // Skip duplicate DNI within institution
       const existing = await prisma.profile.findFirst({
         where: { dni, user: { institutionId } },
-        select: { id: true },
+        select: {
+          userId: true,
+          user: { select: { userRoles: { select: { role: { select: { name: true } } } } } },
+        },
       })
       if (existing) {
-        results.push({ firstName, lastName, dni, status: 'skipped', reason: 'Cédula ya registrada' })
+        const isStudent = existing.user.userRoles.some((ur) => ur.role.name === 'student')
+        if (!isStudent) {
+          results.push({ firstName, lastName, dni: dni!, status: 'skipped', reason: 'La cédula pertenece a otro tipo de usuario' })
+          continue
+        }
+        if (!shouldEnroll) {
+          results.push({ firstName, lastName, dni: dni!, status: 'existing', reason: 'Estudiante ya registrado' })
+          continue
+        }
+        const alreadyEnrolled = await prisma.studentEnrollment.findFirst({
+          where: { institutionId, studentId: existing.userId, academicYearId: dto.academicYearId! },
+        })
+        if (alreadyEnrolled) {
+          results.push({ firstName, lastName, dni: dni!, status: 'existing', reason: 'Ya está matriculado en este año lectivo' })
+          continue
+        }
+        await prisma.studentEnrollment.create({
+          data: {
+            institutionId,
+            studentId: existing.userId,
+            parallelId: dto.parallelId!,
+            academicYearId: dto.academicYearId!,
+            status: 'active',
+          },
+        })
+        results.push({ firstName, lastName, dni: dni!, status: 'enrolled' })
         continue
       }
 
       try {
-        const email = dni || `${firstName.toLowerCase()}.${lastName.toLowerCase()}.${Date.now()}`
-        const passwordHash = await bcrypt.hash(dni || email, 12)
+        const email = dni!
+        const passwordHash = await bcrypt.hash(dni!, 12)
 
         await prisma.$transaction(async (tx) => {
           const user = await tx.user.create({
@@ -308,24 +353,26 @@ export class PrismaEnrollmentRepository {
                 create: {
                   firstName,
                   lastName,
-                  dni: dni || undefined,
+                  dni,
                   birthDate: s.birthDate ? new Date(s.birthDate) : undefined,
                 },
               },
             },
           })
           await tx.userRole.create({ data: { userId: user.id, roleId: studentRole.id } })
-          await tx.studentEnrollment.create({
-            data: {
-              institutionId,
-              studentId: user.id,
-              parallelId: dto.parallelId,
-              academicYearId: dto.academicYearId,
-              status: 'active',
-            },
-          })
+          if (shouldEnroll) {
+            await tx.studentEnrollment.create({
+              data: {
+                institutionId,
+                studentId: user.id,
+                parallelId: dto.parallelId!,
+                academicYearId: dto.academicYearId!,
+                status: 'active',
+              },
+            })
+          }
         })
-        results.push({ firstName, lastName, dni, status: 'created' })
+        results.push({ firstName, lastName, dni: dni!, status: 'created' })
       } catch {
         results.push({ firstName, lastName, dni, status: 'skipped', reason: 'Error al crear' })
       }
@@ -333,6 +380,8 @@ export class PrismaEnrollmentRepository {
 
     return {
       created: results.filter((r) => r.status === 'created').length,
+      enrolled: results.filter((r) => r.status === 'enrolled').length + (shouldEnroll ? results.filter((r) => r.status === 'created').length : 0),
+      existing: results.filter((r) => r.status === 'existing').length,
       skipped: results.filter((r) => r.status === 'skipped').length,
       results,
     }
