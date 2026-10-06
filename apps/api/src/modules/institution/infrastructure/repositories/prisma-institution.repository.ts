@@ -50,6 +50,10 @@ function extractGradingConfig(settings: unknown): GradingConfig {
       ...DEFAULT_GRADING_CONFIG.pedagogicRecovery,
       ...(gc.pedagogicRecovery ?? {}),
     },
+    activityGradeReinforcement: {
+      ...DEFAULT_GRADING_CONFIG.activityGradeReinforcement,
+      ...(gc.activityGradeReinforcement ?? {}),
+    },
   }
 }
 
@@ -180,6 +184,10 @@ export class PrismaInstitutionRepository {
       promotion: { ...current.promotion, ...(dto.promotion ?? {}) },
       defaultExamWeight: dto.defaultExamWeight ?? current.defaultExamWeight,
       pedagogicRecovery: { ...current.pedagogicRecovery, ...(dto.pedagogicRecovery ?? {}) },
+      activityGradeReinforcement: {
+        ...current.activityGradeReinforcement,
+        ...(dto.activityGradeReinforcement ?? {}),
+      },
     }
 
     const updated = await prisma.institution.update({

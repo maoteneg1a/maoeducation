@@ -45,6 +45,11 @@ export interface PedagogicRecoveryConfig {
   mode: 'replace_if_higher' | 'average'
 }
 
+export interface ActivityGradeReinforcementConfig {
+  mode: 'replace' | 'average'
+  eligibleActivityTypeIds: string[]
+}
+
 export interface GradingConfig {
   gradingScaleMax: number
   qualitativeScale: QualitativeLevel[]
@@ -52,6 +57,7 @@ export interface GradingConfig {
   promotion: PromotionConfig
   defaultExamWeight: number
   pedagogicRecovery: PedagogicRecoveryConfig
+  activityGradeReinforcement: ActivityGradeReinforcementConfig
 }
 
 export interface UpdateGradingConfigDto {
@@ -61,6 +67,7 @@ export interface UpdateGradingConfigDto {
   promotion?: Partial<PromotionConfig>
   defaultExamWeight?: number
   pedagogicRecovery?: Partial<PedagogicRecoveryConfig>
+  activityGradeReinforcement?: Partial<ActivityGradeReinforcementConfig>
 }
 
 // ---- Asistente IA de planificaciones (configurable por institución) ----

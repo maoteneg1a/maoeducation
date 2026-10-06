@@ -1642,6 +1642,12 @@ model Grade {
   activityId    String    @map("activity_id")
   studentId     String    @map("student_id")
   score         Decimal?  @db.Decimal(5, 2)
+  // Refuerzo de CALIFICACIÓN por actividad. Independiente de PedagogicRecovery
+  // y de los planes/casos de refuerzo pedagógico.
+  baseScore              Decimal?  @map("base_score") @db.Decimal(5, 2)
+  reinforcementScore     Decimal?  @map("reinforcement_score") @db.Decimal(5, 2)
+  reinforcementMode      String?   @map("reinforcement_mode") @db.VarChar(30)
+  reinforcementRecordedAt DateTime? @map("reinforcement_recorded_at")
   isExcused     Boolean   @default(false) @map("is_excused")
   status        String    @default("entregado") @db.VarChar(20)
   notes         String?

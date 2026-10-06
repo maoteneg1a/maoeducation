@@ -47,6 +47,8 @@ export interface StudentGrade {
   studentName: string
   activityId: string
   score: number | null
+  reinforcementScore: number | null
+  effectiveScore: number | null
   status: GradeStatus
   isExcused: boolean
 }
@@ -54,7 +56,14 @@ export interface StudentGrade {
 interface GradeApiRow {
   student: { id: string; profile: { firstName: string; lastName: string } }
   enrollmentStatus: string
-  grade: { id: string; score: number | null; status?: string | null; notes?: string | null } | null
+  grade: {
+    id: string
+    score: number | null
+    baseScore?: number | null
+    reinforcementScore?: number | null
+    status?: string | null
+    notes?: string | null
+  } | null
 }
 
 export interface GradeInput {
@@ -63,6 +72,7 @@ export interface GradeInput {
   score: number | null
   status?: GradeStatus
   notes?: string
+  reinforcementScore?: number | null
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -120,7 +130,9 @@ export const activitiesApi = {
         studentId: r.student.id,
         studentName: `${r.student.profile.firstName} ${r.student.profile.lastName}`,
         activityId,
-        score: r.grade?.score ?? null,
+        score: r.grade?.baseScore ?? r.grade?.score ?? null,
+        reinforcementScore: r.grade?.reinforcementScore ?? null,
+        effectiveScore: r.grade?.score ?? null,
         status: (r.grade?.status as GradeStatus) ?? 'entregado',
         isExcused: false,
       })),

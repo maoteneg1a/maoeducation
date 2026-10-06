@@ -391,8 +391,42 @@ export class PrismaActivityRepository {
       if (closed) throw new ConflictError('El período está cerrado: no se pueden modificar las notas')
     }
 
+    const [activities, institution] = await Promise.all([
+      prisma.activity.findMany({
+        where: { id: { in: activityIds }, institutionId },
+        select: { id: true, activityTypeId: true, maxScore: true },
+      }),
+      prisma.institution.findUnique({ where: { id: institutionId }, select: { settings: true } }),
+    ])
+    const activityById = new Map(activities.map((activity) => [activity.id, activity]))
+    const settings = (institution?.settings ?? {}) as {
+      gradingConfig?: {
+        activityGradeReinforcement?: {
+          mode?: 'replace' | 'average'
+          eligibleActivityTypeIds?: string[]
+        }
+      }
+    }
+    const reinforcementConfig = settings.gradingConfig?.activityGradeReinforcement
+    const eligibleTypeIds = new Set(reinforcementConfig?.eligibleActivityTypeIds ?? [])
+    const configuredMode = reinforcementConfig?.mode ?? 'replace'
+
     const results = await Promise.all(
-      dto.grades.map((g) => {
+      dto.grades.map(async (g) => {
+        const activity = activityById.get(g.activityId)
+        if (!activity) throw new NotFoundError('Actividad no encontrada')
+        if (g.reinforcementScore !== undefined && g.reinforcementScore !== null) {
+          if (!eligibleTypeIds.has(activity.activityTypeId)) {
+            throw new ConflictError('El tipo de esta actividad no permite registrar nota de refuerzo')
+          }
+          if (g.reinforcementScore < 0 || g.reinforcementScore > Number(activity.maxScore)) {
+            throw new ConflictError('La nota de refuerzo está fuera del rango permitido')
+          }
+        }
+
+        const existing = await prisma.grade.findUnique({
+          where: { activityId_studentId: { activityId: g.activityId, studentId: g.studentId } },
+        })
         const status = g.status ?? 'entregado'
         // Regla de negocio del estado de entrega:
         //  - no_realizado → cuenta como 0 si no se ingresó otra nota
@@ -404,6 +438,21 @@ export class PrismaActivityRepository {
         } else if (status === 'excusado') {
           score = null
           isExcused = true
+        }
+
+        const baseScore = score
+        const reinforcementScore = g.reinforcementScore !== undefined
+          ? g.reinforcementScore
+          : existing?.reinforcementScore != null
+            ? Number(existing.reinforcementScore)
+            : null
+        const reinforcementMode = g.reinforcementScore !== undefined
+          ? (reinforcementScore == null ? null : configuredMode)
+          : existing?.reinforcementMode ?? null
+        if (baseScore != null && reinforcementScore != null) {
+          score = reinforcementMode === 'average'
+            ? (baseScore + reinforcementScore) / 2
+            : reinforcementScore
         }
 
         return prisma.grade.upsert({
@@ -418,6 +467,10 @@ export class PrismaActivityRepository {
             activityId: g.activityId,
             studentId: g.studentId,
             score,
+            baseScore: reinforcementScore == null ? null : baseScore,
+            reinforcementScore,
+            reinforcementMode,
+            reinforcementRecordedAt: reinforcementScore == null ? null : new Date(),
             status,
             isExcused,
             notes: g.notes,
@@ -425,6 +478,12 @@ export class PrismaActivityRepository {
           },
           update: {
             score,
+            baseScore: reinforcementScore == null ? null : baseScore,
+            reinforcementScore,
+            reinforcementMode,
+            ...(g.reinforcementScore !== undefined && {
+              reinforcementRecordedAt: reinforcementScore == null ? null : new Date(),
+            }),
             status,
             isExcused,
             notes: g.notes,

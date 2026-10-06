@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Plus, Sparkles, Trash2, BookOpen } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
@@ -14,10 +15,15 @@ import {
   useUpdatePlanningModel,
 } from '../hooks/useSettings'
 import type { BehaviorLevel, GradingConfig, PlanningModel, QualitativeLevel } from '../api/settings.api'
+import { activitiesApi } from '@/features/activities/api/activities.api'
 
 export function GradingConfigPage() {
   const { data, isLoading } = useGradingConfig()
   const update = useUpdateGradingConfig()
+  const { data: activityTypes = [] } = useQuery({
+    queryKey: ['activity-types'],
+    queryFn: activitiesApi.getTypes,
+  })
   const [cfg, setCfg] = useState<GradingConfig | null>(null)
 
   useEffect(() => {
@@ -186,6 +192,72 @@ export function GradingConfigPage() {
             </Select>
             <p className="text-xs text-muted-foreground mt-1">
               Afecta el total del período, el promedio anual y el boletín.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Refuerzo de calificación por actividad — independiente de planificaciones */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Nota de refuerzo por actividad</CardTitle>
+          <CardDescription>
+            Define en qué tipos de actividad se puede registrar una segunda nota y cómo se obtiene la nota final.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="max-w-sm space-y-1.5">
+            <Label>Forma de cálculo</Label>
+            <Select
+              value={cfg.activityGradeReinforcement?.mode ?? 'replace'}
+              onValueChange={(mode: 'replace' | 'average') =>
+                setCfg({
+                  ...cfg,
+                  activityGradeReinforcement: {
+                    mode,
+                    eligibleActivityTypeIds: cfg.activityGradeReinforcement?.eligibleActivityTypeIds ?? [],
+                  },
+                })
+              }
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="replace">Reemplaza la nota original</SelectItem>
+                <SelectItem value="average">Promedia nota original + refuerzo</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Tipos de actividad habilitados</Label>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {activityTypes.filter((type) => type.isActive).map((type) => {
+                const selected = cfg.activityGradeReinforcement?.eligibleActivityTypeIds?.includes(type.id) ?? false
+                return (
+                  <label key={type.id} className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={(event) => {
+                        const current = cfg.activityGradeReinforcement?.eligibleActivityTypeIds ?? []
+                        const eligibleActivityTypeIds = event.target.checked
+                          ? [...new Set([...current, type.id])]
+                          : current.filter((id) => id !== type.id)
+                        setCfg({
+                          ...cfg,
+                          activityGradeReinforcement: {
+                            mode: cfg.activityGradeReinforcement?.mode ?? 'replace',
+                            eligibleActivityTypeIds,
+                          },
+                        })
+                      }}
+                    />
+                    {type.name}
+                  </label>
+                )
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              La opción de refuerzo solo aparecerá al calificar actividades de los tipos seleccionados.
             </p>
           </div>
         </CardContent>
