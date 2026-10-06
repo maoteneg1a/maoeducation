@@ -302,7 +302,7 @@ function StudentCard({
         <div className="space-y-4 border-t px-4 py-3">
           {/* Materias */}
           <div className="overflow-x-auto rounded border">
-            <table className="w-full text-sm border-collapse">
+            <table className="w-full min-w-[640px] border-collapse text-sm">
               <thead>
                 <tr className="bg-muted/50">
                   <th className="border px-2 py-1.5 text-left">Materia</th>

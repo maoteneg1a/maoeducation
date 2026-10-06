@@ -952,7 +952,7 @@ export function EnrollmentPage() {
               <div className="space-y-2">
                 <p className="text-sm font-medium">Vista previa: {importRows.length} estudiante(s)</p>
                 <div className="max-h-64 overflow-auto rounded-md border">
-                  <table className="w-full text-sm">
+                  <table className="w-full min-w-[640px] text-sm">
                     <thead className="sticky top-0 bg-muted"><tr><th className="p-2 text-left">Cédula</th><th className="p-2 text-left">Nombres</th><th className="p-2 text-left">Apellidos</th><th className="p-2 text-left">Validación</th></tr></thead>
                     <tbody>
                       {importRows.map((row, index) => {
