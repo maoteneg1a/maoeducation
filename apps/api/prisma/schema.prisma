@@ -69,6 +69,7 @@ model Institution {
   multigradeSharedExperiences MultigradeSharedExperience[]
   subscription                Subscription?
   subscriptionPayments        SubscriptionPayment[]
+  announcements               Announcement[]
 
   @@map("institutions")
 }
@@ -103,6 +104,7 @@ model User {
   createdInsumos            Insumo[]               @relation("InsumoCreator")
   createdTasks              Task[]                 @relation("TaskCreator")
   uploadedAttachments       TaskAttachment[]       @relation("AttachmentUploader")
+  createdAnnouncements      Announcement[]         @relation("AnnouncementCreator")
   uploadedReceipts          SubscriptionPayment[]  @relation("SubscriptionPaymentUploader")
 
   // Relaciones como alumno
@@ -1491,6 +1493,30 @@ model PushSubscription {
 
   @@unique([userId, endpoint])
   @@map("push_subscriptions")
+}
+
+// Avisos institucionales breves para personal, estudiantes y familias.
+model Announcement {
+  id            String    @id @default(uuid())
+  institutionId String    @map("institution_id")
+  createdBy     String    @map("created_by")
+  title         String    @db.VarChar(200)
+  body          String
+  eventAt       DateTime? @map("event_at")
+  location      String?   @db.VarChar(200)
+  priority      String    @default("normal") @db.VarChar(20)
+  audience      String    @default("all") @db.VarChar(20)
+  parallelIds   Json      @default("[]") @map("parallel_ids")
+  publishedAt   DateTime  @default(now()) @map("published_at")
+  expiresAt     DateTime? @map("expires_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  creator     User        @relation("AnnouncementCreator", fields: [createdBy], references: [id])
+
+  @@index([institutionId, publishedAt])
+  @@map("announcements")
 }
 
 // Decisión de promoción del estudiante en el año lectivo

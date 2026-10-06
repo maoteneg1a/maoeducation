@@ -4,10 +4,11 @@ import { useAuthStore } from '@/store/auth.store'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
 import { Badge } from '@/shared/components/ui/badge'
-import { Users, BookOpen, GraduationCap, Calendar, AlertTriangle, MessageSquare, ClipboardList, TrendingUp } from 'lucide-react'
+import { Users, BookOpen, GraduationCap, Calendar, AlertTriangle, MessageSquare, ClipboardList, TrendingUp, Megaphone } from 'lucide-react'
 import { apiGet } from '@/shared/lib/api-client'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { PwaOnboardingBanner } from '@/shared/components/pwa/PwaOnboardingBanner'
+import { announcementsApi } from '@/features/announcements/api/announcements.api'
 
 interface DashboardStats {
   users: { total: number; students: number; teachers: number }
@@ -32,6 +33,11 @@ export function DashboardPage() {
   const user = useAuthStore((s) => s.user)
   const { hasRole } = usePermissions()
   const { data: stats, isLoading } = useDashboardStats()
+  const { data: announcements = [] } = useQuery({
+    queryKey: ['announcements'],
+    queryFn: announcementsApi.list,
+    staleTime: 60_000,
+  })
   const greeting = getGreeting()
 
   return (
@@ -92,6 +98,27 @@ export function DashboardPage() {
                   <div><span className="font-semibold">{stats.academic.activeYear.enrollments}</span> <span className="text-muted-foreground">matrículas</span></div>
                   <div><span className="font-semibold">{stats.academic.activeYear.periods}</span> <span className="text-muted-foreground">períodos</span></div>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {announcements.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Megaphone className="h-4 w-4 text-primary" /> Avisos recientes
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {announcements.slice(0, 3).map((notice) => (
+                  <a key={notice.id} href="/announcements" className="block rounded-md border p-3 transition-colors hover:bg-muted/50">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">{notice.title}</p>
+                      {notice.priority === 'important' && <Badge variant="warning">Importante</Badge>}
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{notice.body}</p>
+                  </a>
+                ))}
               </CardContent>
             </Card>
           )}

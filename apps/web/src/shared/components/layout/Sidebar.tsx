@@ -5,12 +5,13 @@ import {
   FileText, ChevronDown, X, UserPlus, ShieldCheck,
   ClipboardCheck, CalendarDays, Palette, Smile, Award, HeartHandshake, FolderOpen, NotebookPen, Puzzle,
   Sparkles, School, CreditCard,
+  Megaphone,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useUIStore } from '@/store/ui.store'
 import { useAuthStore } from '@/store/auth.store'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface NavItem {
   label: string
@@ -210,6 +211,11 @@ const NAV_SECTIONS: NavSection[] = [
         module: 'student_folder',
       },
       {
+        label: 'Avisos',
+        icon: Megaphone,
+        path: '/announcements',
+      },
+      {
         label: 'Mensajes',
         icon: MessageSquare,
         path: '/messages',
@@ -269,6 +275,14 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const { hasPermission } = usePermissions()
   const location   = useLocation()
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('auleka.sidebar.sections') ?? '[]')
+      return new Set(Array.isArray(saved) ? saved : ['docencia', 'institucional'])
+    } catch {
+      return new Set(['docencia', 'institucional'])
+    }
+  })
   const institution = useAuthStore((s) => s.user?.institution ?? null)
 
   const enabledModules = institution?.modules ?? null
@@ -297,6 +311,30 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         })),
     }))
     .filter((section) => section.items.length > 0)
+
+  useEffect(() => {
+    const activeSection = visibleSections.find((section) =>
+      section.items.some((item) => location.pathname.startsWith(item.path)),
+    )
+    if (activeSection?.label) {
+      setExpandedSections((current) => {
+        if (current.has(activeSection.id)) return current
+        const next = new Set(current).add(activeSection.id)
+        localStorage.setItem('auleka.sidebar.sections', JSON.stringify([...next]))
+        return next
+      })
+    }
+  }, [location.pathname])
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections((current) => {
+      const next = new Set(current)
+      if (next.has(sectionId)) next.delete(sectionId)
+      else next.add(sectionId)
+      localStorage.setItem('auleka.sidebar.sections', JSON.stringify([...next]))
+      return next
+    })
+  }
 
   const renderItem = (item: NavItem) => {
     const isActive = location.pathname.startsWith(item.path)
@@ -396,7 +434,12 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             {/* Encabezado: etiqueta + regla horizontal. Colapsado no cabe texto,
                 así que la separación es solo un guion centrado. */}
             {section.label && !collapsed && (
-              <div className={cn('flex items-center gap-2 px-3 pb-1.5', index > 0 ? 'pt-4' : 'pt-1')}>
+              <button
+                type="button"
+                onClick={() => toggleSection(section.id)}
+                className={cn('flex w-full items-center gap-2 rounded px-3 pb-1.5 text-left hover:bg-sidebar-accent/30', index > 0 ? 'pt-4' : 'pt-1')}
+                aria-expanded={expandedSections.has(section.id)}
+              >
                 {section.icon && (
                   <section.icon
                     className={cn(
@@ -414,13 +457,16 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                   {section.label}
                 </span>
                 <span className="flex-1 h-px bg-sidebar-border" />
-              </div>
+                <ChevronDown className={cn('h-3.5 w-3.5 text-sidebar-foreground/45 transition-transform', expandedSections.has(section.id) && 'rotate-180')} />
+              </button>
             )}
             {section.label && collapsed && index > 0 && (
               <div className="my-2 mx-auto h-px w-6 bg-sidebar-border" />
             )}
 
-            <div className="space-y-0.5">{section.items.map(renderItem)}</div>
+            {(!section.label || collapsed || expandedSections.has(section.id)) && (
+              <div className="space-y-0.5">{section.items.map(renderItem)}</div>
+            )}
           </div>
         ))}
       </nav>

@@ -426,6 +426,18 @@ export const router = createBrowserRouter([
       },
       // ---- Messaging ----
       {
+        path: 'announcements',
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/announcements/pages/AnnouncementsPage').then((m) => ({
+                Component: m.AnnouncementsPage,
+              })),
+          },
+        ],
+      },
+      {
         path: 'messages',
         children: [
           {
