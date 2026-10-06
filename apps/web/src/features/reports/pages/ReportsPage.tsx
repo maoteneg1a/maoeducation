@@ -127,6 +127,7 @@ function BulletinReportTab() {
   const [selectedParallelId, setSelectedParallelId] = React.useState('')
   const [selectedStudentId, setSelectedStudentId] = React.useState('')
   const [enabled, setEnabled] = React.useState(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false)
   const [globalForm, setGlobalForm] = React.useState<BulletinBranding>(DEFAULT_BRANDING)
   const [ownForm, setOwnForm] = React.useState<BulletinBranding>({ ...DEFAULT_BRANDING, enabled: false })
 
@@ -180,6 +181,7 @@ function BulletinReportTab() {
   const {
     data: report,
     isLoading,
+    isFetching: isGenerating,
     error: reportError,
     isError: reportIsError,
   } = useQuery({
@@ -212,6 +214,21 @@ function BulletinReportTab() {
       toast.success('Logo subido correctamente')
     } catch (err) {
       toast.error(getErrorMessage(err))
+    }
+  }
+
+  async function handlePdfDownload() {
+    setIsDownloadingPdf(true)
+    try {
+      await downloadBulletinPdf({
+        yearId: selectedYearId,
+        parallelId: selectedParallelId,
+        studentId: selectedStudentId,
+      })
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setIsDownloadingPdf(false)
     }
   }
 
@@ -326,9 +343,10 @@ function BulletinReportTab() {
             <Button
               onClick={() => setEnabled(true)}
               disabled={!selectedYearId || !selectedParallelId || !selectedStudentId}
+              loading={isGenerating}
               className="w-full sm:w-auto"
             >
-              Generar boletín
+              {isGenerating ? 'Generando boletín…' : 'Generar boletín'}
             </Button>
             {report && (
               <Button variant="outline" onClick={() => window.print()} className="w-full sm:w-auto print:hidden">
@@ -339,17 +357,12 @@ function BulletinReportTab() {
             {report && (
               <Button
                 variant="outline"
-                onClick={() =>
-                  downloadBulletinPdf({
-                    yearId: selectedYearId,
-                    parallelId: selectedParallelId,
-                    studentId: selectedStudentId,
-                  })
-                }
+                onClick={handlePdfDownload}
+                loading={isDownloadingPdf}
                 className="w-full sm:w-auto print:hidden"
               >
-                <Download className="h-4 w-4" />
-                Descargar PDF
+                {!isDownloadingPdf && <Download className="h-4 w-4" />}
+                {isDownloadingPdf ? 'Generando PDF…' : 'Descargar PDF'}
               </Button>
             )}
           </div>
@@ -827,7 +840,7 @@ function GradesReportTab() {
     enabled: !!selected,
   })
 
-  const { data: report, isLoading } = useQuery({
+  const { data: report, isLoading, isFetching: isGenerating } = useQuery({
     queryKey: ['report-grades', assignmentId, periodId],
     queryFn: () => getGradesReport({ courseAssignmentId: assignmentId, periodId }),
     enabled: enabled && !!assignmentId && !!periodId,
@@ -869,8 +882,8 @@ function GradesReportTab() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={() => setEnabled(true)} disabled={!assignmentId || !periodId} className="w-full sm:w-auto">
-          Generar reporte
+        <Button onClick={() => setEnabled(true)} disabled={!assignmentId || !periodId} loading={isGenerating} className="w-full sm:w-auto">
+          {isGenerating ? 'Generando calificaciones…' : 'Generar reporte'}
         </Button>
       </div>
 
@@ -958,7 +971,7 @@ function AttendanceReportTab() {
   const selectedAssignment = assignments.find((a) => a.id === assignmentId)
   const isDailyMode = selectedAssignment?.parallel.level.attendanceMode === 'daily'
 
-  const { data: report, isLoading } = useQuery({
+  const { data: report, isLoading, isFetching: isGenerating } = useQuery({
     queryKey: ['report-attendance', assignmentId, startDate, endDate],
     queryFn: () => isDailyMode
       ? getAttendanceReport({ parallelId: selectedAssignment!.parallel.id, startDate, endDate })
@@ -999,8 +1012,8 @@ function AttendanceReportTab() {
             setEnabled(false)
           }} className="w-full sm:w-40" />
         </div>
-        <Button onClick={() => setEnabled(true)} disabled={!assignmentId || !startDate || !endDate} className="w-full sm:w-auto">
-          Generar reporte
+        <Button onClick={() => setEnabled(true)} disabled={!assignmentId || !startDate || !endDate} loading={isGenerating} className="w-full sm:w-auto">
+          {isGenerating ? 'Generando asistencia…' : 'Generar reporte'}
         </Button>
       </div>
 
@@ -1090,7 +1103,7 @@ function EnrollmentReportTab() {
     enabled: !!yearId,
   })
 
-  const { data: report, isLoading } = useQuery({
+  const { data: report, isLoading, isFetching: isGenerating } = useQuery({
     queryKey: ['report-enrollment', yearId, parallelId],
     queryFn: () => getEnrollmentReport({ yearId, ...(parallelId ? { parallelId } : {}) }),
     enabled: enabled && !!yearId,
@@ -1133,8 +1146,8 @@ function EnrollmentReportTab() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={() => setEnabled(true)} disabled={!yearId} className="w-full sm:w-auto">
-          Generar nómina
+        <Button onClick={() => setEnabled(true)} disabled={!yearId} loading={isGenerating} className="w-full sm:w-auto">
+          {isGenerating ? 'Generando nómina…' : 'Generar nómina'}
         </Button>
       </div>
 
