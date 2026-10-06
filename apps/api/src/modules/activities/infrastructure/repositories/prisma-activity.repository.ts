@@ -10,6 +10,7 @@ import type {
   CreateActivityDto,
   UpdateActivityDto,
   BulkGradeDto,
+  BulkManualInsumoAverageDto,
   ListActivitiesQueryDto,
 } from '../../application/dtos/activity.dto'
 
@@ -493,6 +494,78 @@ export class PrismaActivityRepository {
       }),
     )
     return results
+  }
+
+  async bulkUpsertManualInsumoAverages(
+    institutionId: string,
+    dto: BulkManualInsumoAverageDto,
+    recordedBy: string,
+    roles: string[],
+  ) {
+    if (dto.items.length === 0) return []
+    const insumoIds = [...new Set(dto.items.map((item) => item.insumoId))]
+    const insumos = await prisma.insumo.findMany({
+      where: { id: { in: insumoIds }, institutionId },
+      include: {
+        academicPeriod: { select: { isClosed: true } },
+        courseAssignment: { select: { teacherId: true, parallelId: true, academicYearId: true } },
+      },
+    })
+    if (insumos.length !== insumoIds.length) throw new NotFoundError('Insumo no encontrado')
+    if (insumos.some((insumo) => insumo.academicPeriod.isClosed)) {
+      throw new ConflictError('El período está cerrado: no se pueden modificar los promedios')
+    }
+    const isTeacherOnly = roles.includes('teacher') && !roles.includes('admin') && !roles.includes('rector')
+    if (isTeacherOnly) {
+      const unauthorized = insumos.some((insumo) => insumo.courseAssignment.teacherId !== recordedBy)
+      if (unauthorized) throw new ConflictError('Solo puedes ingresar promedios de tus propias materias')
+    }
+    const studentIds = [...new Set(dto.items.map((item) => item.studentId))]
+    const validEnrollments = await prisma.studentEnrollment.findMany({
+      where: {
+        institutionId,
+        studentId: { in: studentIds },
+        OR: insumos.map((insumo) => ({
+          parallelId: insumo.courseAssignment.parallelId,
+          academicYearId: insumo.courseAssignment.academicYearId,
+        })),
+      },
+      select: { studentId: true, parallelId: true, academicYearId: true },
+    })
+    for (const item of dto.items) {
+      const insumo = insumos.find((candidate) => candidate.id === item.insumoId)!
+      const enrolled = validEnrollments.some((enrollment) =>
+        enrollment.studentId === item.studentId
+        && enrollment.parallelId === insumo.courseAssignment.parallelId
+        && enrollment.academicYearId === insumo.courseAssignment.academicYearId)
+      if (!enrolled) throw new ConflictError('El estudiante no pertenece al paralelo de este insumo')
+    }
+    const institution = await prisma.institution.findUnique({
+      where: { id: institutionId },
+      select: { settings: true },
+    })
+    const max = (institution?.settings as { gradingConfig?: { gradingScaleMax?: number } } | null)
+      ?.gradingConfig?.gradingScaleMax ?? 10
+
+    return prisma.$transaction(
+      dto.items.map((item) => {
+        if (item.score == null) {
+          return prisma.manualInsumoAverage.upsert({
+            where: { insumoId_studentId: { insumoId: item.insumoId, studentId: item.studentId } },
+            create: { institutionId, insumoId: item.insumoId, studentId: item.studentId, score: null, reason: item.reason, recordedBy },
+            update: { score: null, reason: item.reason, recordedBy },
+          })
+        }
+        if (!Number.isFinite(item.score) || item.score < 0 || item.score > max) {
+          throw new ConflictError(`El promedio manual debe estar entre 0 y ${max}`)
+        }
+        return prisma.manualInsumoAverage.upsert({
+          where: { insumoId_studentId: { insumoId: item.insumoId, studentId: item.studentId } },
+          create: { institutionId, insumoId: item.insumoId, studentId: item.studentId, score: item.score, reason: item.reason, recordedBy },
+          update: { score: item.score, reason: item.reason, recordedBy },
+        })
+      }),
+    )
   }
 
   async getStudentGrades(

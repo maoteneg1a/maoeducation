@@ -7,6 +7,7 @@ import {
   applyRecovery,
   activityKind,
   toQualitativeCode,
+  periodTotal,
   type InsumoGroupInput,
   type QualitativeBand,
 } from '../../../shared/domain/grade-math'
@@ -36,6 +37,24 @@ const DEFAULT_QUALITATIVE_VALUE_SCALE: QualitativeBand[] = [
 export class PrismaReportRepository {
   private avg(scores: (number | null)[]) {
     return average(scores)
+  }
+
+  private applyManualInsumoAverages(
+    summary: ReturnType<typeof computePeriodSummary>,
+    manualByInsumo: Map<string, number>,
+    examWeight: number,
+  ) {
+    const insumoAvgs = summary.insumoAvgs.map((item) => ({
+      ...item,
+      avg: manualByInsumo.get(item.id) ?? item.avg,
+    }))
+    const insumosBase = average(insumoAvgs.map((item) => item.avg))
+    return {
+      ...summary,
+      insumoAvgs,
+      insumosBase,
+      total: periodTotal(insumosBase, summary.summativeAvg, examWeight, summary.hasSummative),
+    }
   }
 
   private async gradingScaleMax(institutionId: string): Promise<number> {
@@ -136,6 +155,16 @@ export class PrismaReportRepository {
       ],
     })
 
+    const manualAverages = await prisma.manualInsumoAverage.findMany({
+      where: { institutionId, insumoId: { in: insumos.map((insumo) => insumo.id) }, score: { not: null } },
+      select: { studentId: true, insumoId: true, score: true, reason: true, updatedAt: true },
+    })
+    const manualByStudent = new Map<string, Map<string, number>>()
+    for (const item of manualAverages) {
+      if (!manualByStudent.has(item.studentId)) manualByStudent.set(item.studentId, new Map())
+      manualByStudent.get(item.studentId)!.set(item.insumoId, Number(item.score))
+    }
+
     // Build grade map: studentId -> activityId -> score
     const gradeMap = new Map<string, Map<string, number | null>>()
     for (const insumo of allInsumos) {
@@ -165,11 +194,20 @@ export class PrismaReportRepository {
             kind: activityKind(a.activityType.code),
           })),
         }))
-        const summary = { ...computePeriodSummary(groups, examWeight, gradingScaleMax), examWeight }
+        const studentManual = manualByStudent.get(e.studentId) ?? new Map<string, number>()
+        const summary = {
+          ...this.applyManualInsumoAverages(
+            computePeriodSummary(groups, examWeight, gradingScaleMax),
+            studentManual,
+            examWeight,
+          ),
+          examWeight,
+        }
         return {
           student: e.student,
           grades: grades.size > 0 ? Object.fromEntries(grades) : {},
           summary,
+          manualInsumoAverages: Object.fromEntries(studentManual),
         }
       }),
     }
@@ -252,12 +290,20 @@ export class PrismaReportRepository {
       ]
 
       const examWeight = assignment.examWeight
-      const summary = computePeriodSummary(groups, examWeight, gradingScaleMax)
+      const manualRows = await prisma.manualInsumoAverage.findMany({
+        where: { institutionId, studentId, insumoId: { in: insumos.map((insumo) => insumo.id) }, score: { not: null } },
+        select: { insumoId: true, score: true },
+      })
+      const summary = this.applyManualInsumoAverages(
+        computePeriodSummary(groups, examWeight, gradingScaleMax),
+        new Map(manualRows.map((row) => [row.insumoId, Number(row.score)])),
+        examWeight,
+      )
       const avgById = new Map(summary.insumoAvgs.map((i) => [i.id, i.avg]))
 
       // Columnas: solo insumos con al menos una actividad formativa.
       const insumoColumns = groups
-        .filter((g) => g.activities.some((a) => a.kind === 'regular'))
+        .filter((g) => g.activities.some((a) => a.kind === 'regular') || manualRows.some((row) => row.insumoId === g.id))
         .map((g) => ({ name: g.name, avg: avgById.get(g.id) ?? null }))
 
       results.push({
@@ -624,6 +670,25 @@ export class PrismaReportRepository {
         })
       : []
 
+    const bulletinManualAverages = assignmentIds.length > 0
+      ? await prisma.manualInsumoAverage.findMany({
+          where: {
+            institutionId,
+            studentId: query.studentId,
+            score: { not: null },
+            insumo: {
+              courseAssignmentId: { in: assignmentIds },
+              academicPeriodId: { in: periodIds },
+            },
+          },
+          select: {
+            insumoId: true,
+            score: true,
+            insumo: { select: { courseAssignmentId: true, academicPeriodId: true } },
+          },
+        })
+      : []
+
     // bucket: (asignación:periodo) -> (insumoId -> actividades) para calcular por categoría
     const bucket = new Map<string, Map<string, InsumoGroupInput>>()
     const ensureGroup = (key: string, insumoId: string): InsumoGroupInput => {
@@ -634,6 +699,9 @@ export class PrismaReportRepository {
     }
     for (const insumo of insumos) {
       const key = `${insumo.courseAssignmentId}:${insumo.academicPeriodId}`
+      // El grupo debe existir aunque todavía no haya actividades: un promedio
+      // ingresado manualmente también es una fuente válida para el boletín.
+      ensureGroup(key, insumo.id)
       for (const activity of insumo.activities) {
         ensureGroup(key, insumo.id).activities.push({
           score: activity.grades[0]?.score != null ? Number(activity.grades[0].score) : null,
@@ -691,7 +759,16 @@ export class PrismaReportRepository {
       const isQualitative = assignment.subject.isQualitative
       const periodGrades = periods.map((period) => {
         const groups = [...(bucket.get(`${assignment.id}:${period.id}`)?.values() ?? [])]
-        const s = computePeriodSummary(groups, assignment.examWeight, gradingScaleMax)
+        const manualMap = new Map(
+          bulletinManualAverages
+            .filter((row) => row.insumo.courseAssignmentId === assignment.id && row.insumo.academicPeriodId === period.id)
+            .map((row) => [row.insumoId, Number(row.score)]),
+        )
+        const s = this.applyManualInsumoAverages(
+          computePeriodSummary(groups, assignment.examWeight, gradingScaleMax),
+          manualMap,
+          assignment.examWeight,
+        )
         const pedRec = pedRecMap.get(`${assignment.id}:${period.id}`) ?? null
         const effectiveTotal = applyRecovery(s.total, pedRec, gradingCfg)
 

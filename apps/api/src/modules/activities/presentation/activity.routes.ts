@@ -11,6 +11,7 @@ import type {
   CreateActivityDto,
   UpdateActivityDto,
   BulkGradeDto,
+  BulkManualInsumoAverageDto,
   ListActivitiesQueryDto,
 } from '../application/dtos/activity.dto'
 
@@ -289,6 +290,20 @@ export default async function activityRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const grades = await repo.bulkUpsert(req.user.institutionId, req.body, req.user.sub)
       return reply.send(grades)
+    },
+  )
+
+  app.put<{ Body: BulkManualInsumoAverageDto }>(
+    '/grades/manual-insumo-averages/bulk',
+    { preHandler: [requirePermission('grades', 'write', 'own')] },
+    async (req, reply) => {
+      const result = await repo.bulkUpsertManualInsumoAverages(
+        req.user.institutionId,
+        req.body,
+        req.user.sub,
+        req.user.roles,
+      )
+      return reply.send(result)
     },
   )
 

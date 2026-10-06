@@ -138,6 +138,12 @@ export const activitiesApi = {
       })),
     ),
   bulkSaveGrades: (grades: GradeInput[]) => apiPut<void>('grades/bulk', { grades }),
+  bulkSaveManualInsumoAverages: (items: Array<{
+    studentId: string
+    insumoId: string
+    score: number | null
+    reason?: string
+  }>) => apiPut<void>('grades/manual-insumo-averages/bulk', { items }),
   getStudentGrades: (studentId: string, params?: object) =>
     apiGet<StudentGradesSummary>(`grades/student/${studentId}`, params as Record<string, string>),
   getGradesSummary: (courseAssignmentId: string, periodId: string) =>
