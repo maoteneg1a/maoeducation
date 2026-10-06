@@ -68,6 +68,15 @@ export interface MyGradesSubject {
   teacherName: string
   examWeight: number
   insumoColumns: Array<{ name: string; avg: number | null }>
+  activityGrades: Array<{
+    activityId: string
+    activityName: string
+    insumoName: string
+    previousScore: number | null
+    reinforcementScore: number | null
+    finalScore: number | null
+    maxScore: number
+  }>
   regularAvg: number | null
   examenAvg?: number | null
   proyectoAvg?: number | null

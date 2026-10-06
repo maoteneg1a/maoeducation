@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/shared/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog'
 import {
   Table,
   TableBody,
@@ -1046,9 +1047,22 @@ function StudentGradesView({ periodId }: { periodId: string }) {
 function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
   const { data: gradingConfig } = useGradingConfig()
   const gradingScaleMax = gradingConfig?.gradingScaleMax ?? 10
+  const [expanded, setExpanded] = React.useState<Set<string>>(new Set())
+  const [mobileSubject, setMobileSubject] = React.useState<MyGradesSubject | null>(null)
   // Collect all unique insumo column names (preserve order from first subject)
   const allInsumoNames = subjects[0]?.insumoColumns.map((c) => c.name) ?? []
+  const showExam = subjects.some((subject) => subject.examenAvg != null)
+  const showProject = subjects.some((subject) => subject.proyectoAvg != null)
+  const columnCount = 2 + allInsumoNames.length + (allInsumoNames.length > 0 ? 1 : 0) + (showExam ? 1 : 0) + (showProject ? 1 : 0)
 
+  function toggleDetails(assignmentId: string) {
+    setExpanded((current) => {
+      const next = new Set(current)
+      if (next.has(assignmentId)) next.delete(assignmentId)
+      else next.add(assignmentId)
+      return next
+    })
+  }
   return (
     <div className="overflow-x-auto rounded-lg border">
       <table className="text-sm border-collapse w-full">
@@ -1070,13 +1084,13 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
                 </div>
               </th>
             )}
-            {subjects.some((s) => s.examenAvg != null) && (
+            {showExam && (
               <th className="border border-border px-3 py-2 text-center font-semibold text-primary whitespace-nowrap">
                 Examen
                 <div className="text-[10px] font-normal text-muted-foreground">{Math.round((subjects[0]?.examWeight ?? 30) / 2)}%</div>
               </th>
             )}
-            {subjects.some((s) => s.proyectoAvg != null) && (
+            {showProject && (
               <th className="border border-border px-3 py-2 text-center font-semibold text-primary whitespace-nowrap">
                 Proyecto
                 <div className="text-[10px] font-normal text-muted-foreground">{Math.round((subjects[0]?.examWeight ?? 30) / 2)}%</div>
@@ -1088,11 +1102,27 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
           </tr>
         </thead>
         <tbody>
-          {subjects.map((s, i) => (
-            <tr key={s.assignmentId} className={cn('hover:bg-muted/20', i % 2 === 0 ? 'bg-white' : 'bg-muted/10')}>
+          {subjects.map((s, i) => {
+            const activities = s.activityGrades ?? []
+            const reinforcementCount = activities.filter((activity) => activity.reinforcementScore != null).length
+            const isExpanded = expanded.has(s.assignmentId)
+            return <React.Fragment key={s.assignmentId}>
+            <tr className={cn('hover:bg-muted/20', i % 2 === 0 ? 'bg-white' : 'bg-muted/10')}>
               <td className="sticky left-0 z-10 bg-inherit border border-border px-3 py-2 font-medium whitespace-nowrap">
                 <div>{s.subjectName}</div>
                 <div className="text-xs text-muted-foreground">{s.teacherName}</div>
+                {activities.length > 0 && (
+                  <button type="button" onClick={() => setMobileSubject(s)} className="mt-1 text-[11px] font-normal text-primary hover:underline sm:hidden">
+                    Ver actividades ({activities.length})
+                    {reinforcementCount > 0 && ` · ${reinforcementCount} con refuerzo`}
+                  </button>
+                )}
+                {activities.length > 0 && (
+                  <button type="button" onClick={() => toggleDetails(s.assignmentId)} className="mt-1 hidden text-[11px] font-normal text-primary hover:underline sm:block">
+                    {isExpanded ? 'Ocultar actividades' : `Ver actividades (${activities.length})`}
+                    {reinforcementCount > 0 && ` · ${reinforcementCount} con refuerzo`}
+                  </button>
+                )}
               </td>
               {allInsumoNames.map((name) => {
                 const col = s.insumoColumns.find((c) => c.name === name)
@@ -1110,14 +1140,14 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
                   </span>
                 </td>
               )}
-              {subjects.some((sub) => sub.examenAvg != null) && (
+              {showExam && (
                 <td className="border border-border px-3 py-2 text-center tabular-nums">
                   <span className={scoreColor(s.examenAvg ?? null, gradingScaleMax)}>
                     {s.examenAvg != null ? s.examenAvg.toFixed(2) : '—'}
                   </span>
                 </td>
               )}
-              {subjects.some((sub) => sub.proyectoAvg != null) && (
+              {showProject && (
                 <td className="border border-border px-3 py-2 text-center tabular-nums">
                   <span className={scoreColor(s.proyectoAvg ?? null, gradingScaleMax)}>
                     {s.proyectoAvg != null ? s.proyectoAvg.toFixed(2) : '—'}
@@ -1130,9 +1160,57 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
                 </span>
               </td>
             </tr>
-          ))}
+            {isExpanded && (
+              <tr className="bg-muted/5">
+                <td colSpan={columnCount} className="border border-border p-3">
+                  <div className="overflow-x-auto rounded-md border bg-background">
+                    <table className="w-full min-w-[620px] text-xs">
+                      <thead><tr className="bg-muted/30 text-muted-foreground">
+                        <th className="px-3 py-2 text-left font-medium">Actividad</th>
+                        <th className="px-3 py-2 text-left font-medium">Insumo</th>
+                        <th className="px-3 py-2 text-center font-medium">Nota anterior</th>
+                        <th className="px-3 py-2 text-center font-medium">Refuerzo</th>
+                        <th className="px-3 py-2 text-center font-medium">Nota final</th>
+                      </tr></thead>
+                      <tbody>{activities.map((activity) => (
+                        <tr key={activity.activityId} className="border-t">
+                          <td className="px-3 py-2 font-medium">{activity.activityName}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{activity.insumoName}</td>
+                          <td className="px-3 py-2 text-center tabular-nums">{activity.previousScore?.toFixed(2) ?? '—'}</td>
+                          <td className={cn('px-3 py-2 text-center tabular-nums', activity.reinforcementScore != null && 'font-medium text-primary')}>{activity.reinforcementScore?.toFixed(2) ?? '—'}</td>
+                          <td className="px-3 py-2 text-center font-semibold tabular-nums">{activity.finalScore?.toFixed(2) ?? '—'}</td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+            )}
+            </React.Fragment>
+          })}
         </tbody>
       </table>
+      <Dialog open={mobileSubject != null} onOpenChange={(open) => !open && setMobileSubject(null)}>
+        <DialogContent className="max-h-[85vh] w-[calc(100%_-_2rem)] overflow-y-auto rounded-lg p-4 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Actividades · {mobileSubject?.subjectName}</DialogTitle>
+            <DialogDescription>Detalle de notas del período seleccionado.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {(mobileSubject?.activityGrades ?? []).map((activity) => (
+              <div key={activity.activityId} className="rounded-lg border p-3">
+                <div className="font-medium">{activity.activityName}</div>
+                <div className="mb-3 text-xs text-muted-foreground">{activity.insumoName}</div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div><div className="text-[10px] text-muted-foreground">Nota anterior</div><div className="mt-1 font-medium tabular-nums">{activity.previousScore?.toFixed(2) ?? '—'}</div></div>
+                  <div><div className="text-[10px] text-muted-foreground">Refuerzo</div><div className={cn('mt-1 font-medium tabular-nums', activity.reinforcementScore != null && 'text-primary')}>{activity.reinforcementScore?.toFixed(2) ?? '—'}</div></div>
+                  <div><div className="text-[10px] text-muted-foreground">Nota final</div><div className="mt-1 font-bold tabular-nums">{activity.finalScore?.toFixed(2) ?? '—'}</div></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
