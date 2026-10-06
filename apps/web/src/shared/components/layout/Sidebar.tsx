@@ -33,11 +33,10 @@ interface NavSection {
 }
 
 /**
- * Navegación agrupada en dos productos, igual que MODULE_GROUPS en
- * shared/lib/modules.ts: planificación (lo que el docente prepara) y gestión
- * institucional (la administración de la escuela). Si agregas un ítem con
- * `module`, esa llave tiene que existir en ALL_MODULES o el diálogo de módulos
- * del panel de superadmin no podrá activarla.
+ * Navegación agrupada por flujo de trabajo. Las rutas, permisos y módulos se
+ * mantienen independientes del grupo visual para poder reorganizar el menú sin
+ * alterar el acceso. Si agregas un ítem con `module`, esa llave tiene que
+ * existir en ALL_MODULES o el panel de superadmin no podrá activarla.
  */
 const NAV_SECTIONS: NavSection[] = [
   {
@@ -52,7 +51,7 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     id: 'docencia',
-    label: 'Planificación docente',
+    label: 'Docencia',
     icon: Sparkles,
     accent: true,
     items: [
@@ -71,6 +70,19 @@ const NAV_SECTIONS: NavSection[] = [
         module: 'interdisciplinary_projects',
       },
       {
+        label: 'Actividades',
+        icon: BookOpen,
+        path: '/activities',
+        permission: 'activities:read',
+        module: 'activities',
+      },
+      {
+        label: 'Tareas',
+        icon: ClipboardCheck,
+        path: '/tasks',
+        module: 'tasks',
+      },
+      {
         label: 'Refuerzo y Adaptaciones',
         icon: HeartHandshake,
         path: '/reinforcement-plans',
@@ -80,85 +92,16 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    id: 'institucional',
-    label: 'Gestión institucional',
-    icon: School,
+    id: 'academico',
+    label: 'Gestión académica',
+    icon: GraduationCap,
     items: [
-      {
-        label: 'Usuarios',
-        icon: Users,
-        path: '/users',
-        permission: 'users:read',
-        module: 'users',
-      },
-      {
-        label: 'Roles y Permisos',
-        icon: ShieldCheck,
-        path: '/roles',
-        permission: 'users:manage',
-        module: 'roles',
-      },
-      {
-        label: 'Configuración',
-        icon: Settings,
-        path: '/academic',
-        permission: 'academic_config:manage',
-        module: 'academic',
-        children: [
-          // Estructura académica: para cuentas personales de profesor ya nace
-          // creada desde bootstrapInstitution al registrarse, así que no se
-          // expone en su sidebar (ver hideForPersonal más abajo y
-          // PersonalStructureGuard en router/index.tsx, que bloquea la ruta
-          // directa también). Calificación y Formato de Planificación SÍ se
-          // conservan: son plantillas/personalización, no estructura.
-          { label: 'Niveles',    path: '/academic/levels', hideForPersonal: true },
-          { label: 'Materias',   path: '/academic/subjects', hideForPersonal: true },
-          { label: 'Años lectivos', path: '/academic/years', hideForPersonal: true },
-          { label: 'Paralelos',  path: '/academic/parallels', hideForPersonal: true },
-          { label: 'Asignaciones', path: '/academic/assignments', hideForPersonal: true },
-          { label: 'Insumos por paralelo', path: '/academic/insumo-setup', hideForPersonal: true },
-          { label: 'Calificación y Asistente IA', path: '/settings/calificacion' },
-          { label: 'Formato de Planificación', path: '/settings/formato-planificacion' },
-          // Único punto de edición de grados/materias + modo multigrado
-          // para cuentas personales. No aplica a instituciones normales,
-          // que ya administran esto desde Niveles/Asignaciones.
-          { label: 'Mis grados y materias', path: '/settings/mis-grados', showOnlyForPersonal: true },
-        ],
-      },
-      {
-        label: 'Matrículas',
-        icon: UserPlus,
-        path: '/enrollment',
-        permission: 'enrollment:read',
-        module: 'enrollment',
-      },
-      {
-        label: 'Ficha de anamnesis',
-        icon: ClipboardCheck,
-        path: '/settings/anamnesis',
-        permission: 'anamnesis:manage',
-        module: 'anamnesis',
-      },
-      {
-        label: 'Actividades',
-        icon: BookOpen,
-        path: '/activities',
-        permission: 'activities:read',
-        module: 'activities',
-      },
       {
         label: 'Calificaciones',
         icon: GraduationCap,
         path: '/grades',
         permission: 'grades:read',
         module: 'grades',
-      },
-      {
-        label: 'Comportamiento',
-        icon: Smile,
-        path: '/behavior',
-        permission: 'grades:write',
-        module: 'behavior',
       },
       {
         label: 'Recuperación',
@@ -175,12 +118,6 @@ const NAV_SECTIONS: NavSection[] = [
         module: 'promotion',
       },
       {
-        label: 'Alertas académicas',
-        icon: AlertTriangle,
-        path: '/academic-alerts',
-        permission: 'reports:read',
-      },
-      {
         label: 'Asistencia',
         icon: ClipboardList,
         path: '/attendance',
@@ -190,6 +127,46 @@ const NAV_SECTIONS: NavSection[] = [
           { label: 'Registro', path: '/attendance' },
           { label: 'Justificaciones', path: '/attendance/justifications' },
         ],
+      },
+      {
+        label: 'Horario',
+        icon: Calendar,
+        path: '/schedules',
+        module: 'schedules',
+      },
+      {
+        label: 'Matrículas',
+        icon: UserPlus,
+        path: '/enrollment',
+        permission: 'enrollment:read',
+        module: 'enrollment',
+      },
+      {
+        label: 'Reportes',
+        icon: FileText,
+        path: '/reports',
+        permission: 'reports:read',
+        module: 'reports',
+      },
+    ],
+  },
+  {
+    id: 'seguimiento',
+    label: 'Seguimiento y convivencia',
+    icon: HeartHandshake,
+    items: [
+      {
+        label: 'Alertas académicas',
+        icon: AlertTriangle,
+        path: '/academic-alerts',
+        permission: 'reports:read',
+      },
+      {
+        label: 'Comportamiento',
+        icon: Smile,
+        path: '/behavior',
+        permission: 'grades:write',
+        module: 'behavior',
       },
       {
         label: 'Incidentes',
@@ -217,6 +194,20 @@ const NAV_SECTIONS: NavSection[] = [
         module: 'student_folder',
       },
       {
+        label: 'Ficha de anamnesis',
+        icon: ClipboardCheck,
+        path: '/settings/anamnesis',
+        permission: 'anamnesis:manage',
+        module: 'anamnesis',
+      },
+    ],
+  },
+  {
+    id: 'comunicacion',
+    label: 'Comunicación',
+    icon: MessageSquare,
+    items: [
+      {
         label: 'Avisos',
         icon: Megaphone,
         path: '/announcements',
@@ -228,29 +219,53 @@ const NAV_SECTIONS: NavSection[] = [
         module: 'messages',
       },
       {
-        label: 'Tareas',
-        icon: ClipboardCheck,
-        path: '/tasks',
-        module: 'tasks',
-      },
-      {
         label: 'Calendario',
         icon: CalendarDays,
         path: '/calendar',
         module: 'calendar',
       },
+    ],
+  },
+  {
+    id: 'administracion',
+    label: 'Administración',
+    icon: School,
+    items: [
       {
-        label: 'Horario',
-        icon: Calendar,
-        path: '/schedules',
-        module: 'schedules',
+        label: 'Configuración',
+        icon: Settings,
+        path: '/academic',
+        permission: 'academic_config:manage',
+        module: 'academic',
+        children: [
+          // Estructura académica: para cuentas personales de profesor ya nace
+          // creada desde bootstrapInstitution al registrarse, así que no se
+          // expone en su sidebar. Calificación y Formato de Planificación sí se
+          // conservan: son plantillas/personalización, no estructura.
+          { label: 'Niveles', path: '/academic/levels', hideForPersonal: true },
+          { label: 'Materias', path: '/academic/subjects', hideForPersonal: true },
+          { label: 'Años lectivos', path: '/academic/years', hideForPersonal: true },
+          { label: 'Paralelos', path: '/academic/parallels', hideForPersonal: true },
+          { label: 'Asignaciones', path: '/academic/assignments', hideForPersonal: true },
+          { label: 'Insumos por paralelo', path: '/academic/insumo-setup', hideForPersonal: true },
+          { label: 'Calificación y Asistente IA', path: '/settings/calificacion' },
+          { label: 'Formato de Planificación', path: '/settings/formato-planificacion' },
+          { label: 'Mis grados y materias', path: '/settings/mis-grados', showOnlyForPersonal: true },
+        ],
       },
       {
-        label: 'Reportes',
-        icon: FileText,
-        path: '/reports',
-        permission: 'reports:read',
-        module: 'reports',
+        label: 'Usuarios',
+        icon: Users,
+        path: '/users',
+        permission: 'users:read',
+        module: 'users',
+      },
+      {
+        label: 'Roles y Permisos',
+        icon: ShieldCheck,
+        path: '/roles',
+        permission: 'users:manage',
+        module: 'roles',
       },
       {
         label: 'Personalización',
@@ -284,9 +299,12 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('auleka.sidebar.sections') ?? '[]')
-      return new Set(Array.isArray(saved) ? saved : ['docencia', 'institucional'])
+      const sections = new Set<string>(Array.isArray(saved) ? saved : ['docencia', 'academico'])
+      // Migra la sección única anterior hacia el grupo académico principal.
+      if (sections.delete('institucional')) sections.add('academico')
+      return sections
     } catch {
-      return new Set(['docencia', 'institucional'])
+      return new Set(['docencia', 'academico'])
     }
   })
   const institution = useAuthStore((s) => s.user?.institution ?? null)
@@ -318,9 +336,15 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
     }))
     .filter((section) => section.items.length > 0)
 
+  const matchesRoute = (path: string) =>
+    location.pathname === path || location.pathname.startsWith(`${path}/`)
+
+  const isItemActive = (item: NavItem) =>
+    matchesRoute(item.path) || Boolean(item.children?.some((child) => matchesRoute(child.path)))
+
   useEffect(() => {
     const activeSection = visibleSections.find((section) =>
-      section.items.some((item) => location.pathname.startsWith(item.path)),
+      section.items.some(isItemActive),
     )
     if (activeSection?.label) {
       setExpandedSections((current) => {
@@ -330,6 +354,11 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         return next
       })
     }
+
+    const activeParent = visibleSections
+      .flatMap((section) => section.items)
+      .find((item) => item.children?.some((child) => matchesRoute(child.path)))
+    if (activeParent) setExpanded(activeParent.path)
   }, [location.pathname])
 
   const toggleSection = (sectionId: string) => {
@@ -343,7 +372,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   }
 
   const renderItem = (item: NavItem) => {
-    const isActive = location.pathname.startsWith(item.path)
+    const isActive = isItemActive(item)
     const isExpanded = expanded === item.path
 
     if (item.children && !collapsed) {
