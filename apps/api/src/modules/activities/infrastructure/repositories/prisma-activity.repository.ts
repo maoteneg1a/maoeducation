@@ -432,7 +432,7 @@ export class PrismaActivityRepository {
         // Regla de negocio del estado de entrega:
         //  - no_realizado → cuenta como 0 si no se ingresó otra nota
         //  - excusado     → se ignora en el promedio (score null + isExcused)
-        let score = g.score
+        let score = g.score == null ? null : Number(g.score)
         let isExcused = false
         if (status === 'no_realizado') {
           score = g.score ?? 0
@@ -443,7 +443,7 @@ export class PrismaActivityRepository {
 
         const baseScore = score
         const reinforcementScore = g.reinforcementScore !== undefined
-          ? g.reinforcementScore
+          ? (g.reinforcementScore == null ? null : Number(g.reinforcementScore))
           : existing?.reinforcementScore != null
             ? Number(existing.reinforcementScore)
             : null

@@ -66,6 +66,12 @@ interface GradeApiRow {
   } | null
 }
 
+function nullableNumber(value: number | string | null | undefined): number | null {
+  if (value == null) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 export interface GradeInput {
   studentId: string
   activityId: string
@@ -130,9 +136,9 @@ export const activitiesApi = {
         studentId: r.student.id,
         studentName: `${r.student.profile.firstName} ${r.student.profile.lastName}`,
         activityId,
-        score: r.grade?.baseScore ?? r.grade?.score ?? null,
-        reinforcementScore: r.grade?.reinforcementScore ?? null,
-        effectiveScore: r.grade?.score ?? null,
+        score: nullableNumber(r.grade?.baseScore ?? r.grade?.score),
+        reinforcementScore: nullableNumber(r.grade?.reinforcementScore),
+        effectiveScore: nullableNumber(r.grade?.score),
         status: (r.grade?.status as GradeStatus) ?? 'entregado',
         isExcused: false,
       })),

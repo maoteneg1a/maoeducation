@@ -93,8 +93,10 @@ interface GradeRowProps {
 }
 
 function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcementScore, reinforcementEnabled, reinforcementMode, isModified, onChange, onStatusChange, onReinforcementChange }: GradeRowProps) {
-  const displayScore = localScore !== undefined ? localScore : grade.score
-  const reinforcementScore = localReinforcementScore !== undefined ? localReinforcementScore : grade.reinforcementScore
+  const rawDisplayScore = localScore !== undefined ? localScore : grade.score
+  const rawReinforcementScore = localReinforcementScore !== undefined ? localReinforcementScore : grade.reinforcementScore
+  const displayScore = rawDisplayScore == null ? null : Number(rawDisplayScore)
+  const reinforcementScore = rawReinforcementScore == null ? null : Number(rawReinforcementScore)
   const effectiveScore = displayScore == null || reinforcementScore == null
     ? displayScore
     : reinforcementMode === 'average'
@@ -1403,7 +1405,9 @@ export function GradeEntryPage() {
     const gradesToSave: GradeInput[] = Array.from(modified).map((studentId) => ({
       studentId,
       activityId: selectedActivityId,
-      score: localGrades[studentId] ?? null,
+      score: Object.prototype.hasOwnProperty.call(localGrades, studentId)
+        ? localGrades[studentId]
+        : current.get(studentId)?.score ?? null,
       status: localStatus[studentId] ?? current.get(studentId)?.status ?? 'entregado',
       reinforcementScore: Object.prototype.hasOwnProperty.call(localReinforcementScores, studentId)
         ? localReinforcementScores[studentId]
