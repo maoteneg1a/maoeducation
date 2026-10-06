@@ -7,7 +7,7 @@ import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.m
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import { storage } from '../../../shared/infrastructure/services/storage.service'
 import { buildActaPdf } from '../application/services/acta-pdf.service'
-import { notifyGuardiansOfStudent } from '../../../shared/infrastructure/services/push.service'
+import { notifyGuardiansOfStudent, sendPushToUser } from '../../../shared/infrastructure/services/push.service'
 import type {
   AddEventDto,
   AssignDeceDto,
@@ -176,6 +176,15 @@ export default async function incidentRoutes(app: FastifyInstance) {
         req.user.institutionId,
         req.user.sub,
         `Representante(s) notificado(s): ${guardianIds.length}`,
+      )
+      void Promise.allSettled(
+        guardianIds.map((guardianId) =>
+          sendPushToUser(guardianId, {
+            title: 'Nuevo mensaje — Auleka',
+            body: subject,
+            url: '/messages',
+          }),
+        ),
       )
       return reply.send({ notified: guardianIds.length })
     },
