@@ -911,7 +911,7 @@ function GradesReportView({ data }: { data: GradesReportData }) {
       </div>
 
       <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full border-collapse text-xs">
+        <table className="w-full min-w-[640px] border-collapse text-xs">
           <thead>
             <tr className="bg-muted">
               <th className="w-8 border px-2 py-1.5 text-left font-medium">#</th>
@@ -1040,7 +1040,7 @@ function AttendanceReportView({ data }: { data: AttendanceReportData }) {
       </div>
 
       <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full border-collapse text-xs">
+        <table className="w-full min-w-[640px] border-collapse text-xs">
           <thead>
             <tr className="bg-muted">
               <th className="w-8 border px-2 py-1.5 text-left font-medium">#</th>
@@ -1174,7 +1174,7 @@ function EnrollmentReportView({ data }: { data: EnrollmentReportData }) {
             {parallel.level.name} — Paralelo {parallel.name} ({enrollments.length} estudiantes)
           </h3>
           <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full border-collapse text-xs">
+            <table className="w-full min-w-[640px] border-collapse text-xs">
               <thead>
                 <tr className="bg-muted">
                   <th className="w-8 border px-2 py-1.5 text-left font-medium">#</th>

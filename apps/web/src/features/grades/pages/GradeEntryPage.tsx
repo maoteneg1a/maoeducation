@@ -813,12 +813,12 @@ function AnnualSummaryTab({
         <span className="text-sm text-muted-foreground">
           Vista anual · {loaded.length} de {sortedPeriods.length} período(s) con datos
         </span>
-        <div className="flex self-start overflow-hidden rounded-md border text-xs">
+        <div className="grid w-full grid-cols-2 overflow-hidden rounded-md border text-xs sm:flex sm:w-auto sm:self-start">
           <button
             type="button"
             onClick={() => setView('byPeriod')}
             className={cn(
-              'px-3 py-1.5 font-medium transition-colors',
+              'px-2 py-1.5 text-center font-medium leading-tight transition-colors sm:px-3',
               view === 'byPeriod' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted',
             )}
           >
@@ -828,7 +828,7 @@ function AnnualSummaryTab({
             type="button"
             onClick={() => setView('detail')}
             className={cn(
-              'border-l px-3 py-1.5 font-medium transition-colors',
+              'border-l px-2 py-1.5 text-center font-medium leading-tight transition-colors sm:px-3',
               view === 'detail' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted',
             )}
           >
@@ -1143,7 +1143,53 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
     })
   }
   return (
-    <div className="overflow-x-auto rounded-lg border">
+    <>
+      <div className="space-y-3 sm:hidden">
+        {subjects.map((subject) => {
+          const activities = subject.activityGrades ?? []
+          const reinforcementCount = activities.filter((activity) => activity.reinforcementScore != null).length
+          const values = [
+            ...allInsumoNames.map((name) => ({
+              label: name,
+              value: subject.insumoColumns.find((column) => column.name === name)?.avg ?? null,
+            })),
+            ...(allInsumoNames.length > 0 ? [{ label: 'Formativa', value: subject.regularAvg }] : []),
+            ...(showExam ? [{ label: 'Examen', value: subject.examenAvg ?? null }] : []),
+            ...(showProject ? [{ label: 'Proyecto', value: subject.proyectoAvg ?? null }] : []),
+          ]
+
+          return (
+            <article key={subject.assignmentId} className="min-w-0 overflow-hidden rounded-lg border bg-background p-3 shadow-sm">
+              <h4 className="break-words text-sm font-semibold leading-snug">{subject.subjectName}</h4>
+              <p className="mt-0.5 break-words text-xs text-muted-foreground">{subject.teacherName}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {values.map(({ label, value }) => (
+                  <div key={label} className="min-w-0 rounded-md bg-muted/50 px-2 py-2 text-center">
+                    <div className="truncate text-[10px] text-muted-foreground" title={label}>{label}</div>
+                    <div className={cn('mt-0.5 font-semibold tabular-nums', scoreColor(value, gradingScaleMax))}>
+                      {value != null ? value.toFixed(2) : '—'}
+                    </div>
+                  </div>
+                ))}
+                <div className="col-span-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-2 text-center">
+                  <div className="text-[10px] font-medium text-muted-foreground">Total</div>
+                  <div className={cn('mt-0.5 text-base font-bold tabular-nums', scoreColor(subject.total, gradingScaleMax))}>
+                    {subject.total != null ? subject.total.toFixed(2) : '—'}
+                  </div>
+                </div>
+              </div>
+              {activities.length > 0 && (
+                <button type="button" onClick={() => setMobileSubject(subject)} className="mt-3 w-full rounded-md border px-3 py-2 text-xs font-medium text-primary">
+                  Ver actividades ({activities.length})
+                  {reinforcementCount > 0 && ` · ${reinforcementCount} con refuerzo`}
+                </button>
+              )}
+            </article>
+          )
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border sm:block">
       <table className="text-sm border-collapse w-full">
         <thead>
           <tr className="bg-muted/60">
@@ -1191,13 +1237,7 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
                 <div>{s.subjectName}</div>
                 <div className="text-xs text-muted-foreground">{s.teacherName}</div>
                 {activities.length > 0 && (
-                  <button type="button" onClick={() => setMobileSubject(s)} className="mt-1 text-[11px] font-normal text-primary hover:underline sm:hidden">
-                    Ver actividades ({activities.length})
-                    {reinforcementCount > 0 && ` · ${reinforcementCount} con refuerzo`}
-                  </button>
-                )}
-                {activities.length > 0 && (
-                  <button type="button" onClick={() => toggleDetails(s.assignmentId)} className="mt-1 hidden text-[11px] font-normal text-primary hover:underline sm:block">
+                  <button type="button" onClick={() => toggleDetails(s.assignmentId)} className="mt-1 text-[11px] font-normal text-primary hover:underline">
                     {isExpanded ? 'Ocultar actividades' : `Ver actividades (${activities.length})`}
                     {reinforcementCount > 0 && ` · ${reinforcementCount} con refuerzo`}
                   </button>
@@ -1269,6 +1309,7 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
           })}
         </tbody>
       </table>
+      </div>
       <Dialog open={mobileSubject != null} onOpenChange={(open) => !open && setMobileSubject(null)}>
         <DialogContent className="max-h-[85vh] w-[calc(100%_-_2rem)] overflow-y-auto rounded-lg p-4 sm:max-w-lg">
           <DialogHeader>
@@ -1290,7 +1331,7 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }
 
@@ -1325,12 +1366,12 @@ function StudentAnnualView({ periods }: { periods: AcademicPeriod[] }) {
         <span className="text-sm text-muted-foreground">
           Vista anual · {loaded.length} de {sortedPeriods.length} período(s) con datos
         </span>
-        <div className="flex self-start overflow-hidden rounded-md border text-xs">
+        <div className="grid w-full grid-cols-2 overflow-hidden rounded-md border text-xs sm:flex sm:w-auto sm:self-start">
           <button
             type="button"
             onClick={() => setView('byPeriod')}
             className={cn(
-              'px-3 py-1.5 font-medium transition-colors',
+              'px-2 py-1.5 text-center font-medium leading-tight transition-colors sm:px-3',
               view === 'byPeriod' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted',
             )}
           >
@@ -1340,7 +1381,7 @@ function StudentAnnualView({ periods }: { periods: AcademicPeriod[] }) {
             type="button"
             onClick={() => setView('detail')}
             className={cn(
-              'border-l px-3 py-1.5 font-medium transition-colors',
+              'border-l px-2 py-1.5 text-center font-medium leading-tight transition-colors sm:px-3',
               view === 'detail' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted',
             )}
           >
@@ -1396,7 +1437,37 @@ function StudentAnnualByPeriodGrid({
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border">
+    <>
+      <div className="space-y-3 sm:hidden">
+        {subjects.map((subject) => {
+          const perPeriod = periodData.map((period) => totalByKey.get(`${subject.assignmentId}:${period.period.id}`) ?? null)
+          const annual = mean(perPeriod)
+          return (
+            <article key={subject.assignmentId} className="min-w-0 overflow-hidden rounded-lg border bg-background p-3 shadow-sm">
+              <h4 className="break-words text-sm font-semibold leading-snug">{subject.subjectName}</h4>
+              <p className="mt-0.5 break-words text-xs text-muted-foreground">{subject.teacherName}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {periodData.map(({ period }, index) => (
+                  <div key={period.id} className="min-w-0 rounded-md bg-muted/50 px-2 py-2 text-center">
+                    <div className="truncate text-[10px] text-muted-foreground" title={period.name}>{period.name}</div>
+                    <div className={cn('mt-0.5 font-semibold tabular-nums', scoreColor(perPeriod[index], gradingScaleMax))}>
+                      {perPeriod[index] != null ? perPeriod[index]!.toFixed(2) : '—'}
+                    </div>
+                  </div>
+                ))}
+                <div className="col-span-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-2 text-center">
+                  <div className="text-[10px] font-medium text-muted-foreground">Promedio anual</div>
+                  <div className={cn('mt-0.5 text-base font-bold tabular-nums', scoreColor(annual, gradingScaleMax))}>
+                    {annual != null ? annual.toFixed(2) : '—'}
+                  </div>
+                </div>
+              </div>
+            </article>
+          )
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border sm:block">
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="bg-muted/60">
@@ -1434,7 +1505,8 @@ function StudentAnnualByPeriodGrid({
           })}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   )
 }
 
