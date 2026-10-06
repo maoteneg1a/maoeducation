@@ -17,7 +17,8 @@ export interface Level {
 export interface Subject {
   id: string
   name: string
-  code: string
+  code: string | null
+  description?: string | null
   isActive: boolean
   isQualitative?: boolean
   curriculumAreaId?: string | null
@@ -112,6 +113,7 @@ export const academicApi = {
     apiPost<Subject>('academic/subjects', data),
   updateSubject: (id: string, data: Partial<Omit<Subject, 'id'>>) =>
     apiPut<Subject>(`academic/subjects/${id}`, data),
+  toggleSubject: (id: string) => apiPatch<Subject>(`academic/subjects/${id}/toggle`),
 
   // Academic Years
   getYears: () => apiGet<AcademicYear[]>('academic/years'),
