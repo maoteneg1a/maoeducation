@@ -480,6 +480,29 @@ function ManualInsumoAveragesGrid({ data }: { data: GradesReportData }) {
   const [values, setValues] = React.useState(initial)
   const [changed, setChanged] = React.useState<Set<string>>(new Set())
   const [reason, setReason] = React.useState('')
+  const showExam = data.students.some((row) => row.summary.examenAvg != null)
+  const showProject = data.students.some((row) => row.summary.proyectoAvg != null)
+  const examWeight = data.assignment.examWeight ?? 30
+
+  function preview(row: GradesReportData['students'][number]) {
+    const insumoScores = insumos.map((insumo) => {
+      const key = `${row.student.id}:${insumo.id}`
+      return values[key] ?? row.summary.insumoAvgs.find((average) => average.id === insumo.id)?.avg ?? null
+    }).filter((score): score is number => score != null)
+    const formative = insumoScores.length > 0
+      ? insumoScores.reduce((sum, score) => sum + score, 0) / insumoScores.length
+      : null
+    const summativeScores = [row.summary.examenAvg, row.summary.proyectoAvg].filter((score): score is number => score != null)
+    const summative = summativeScores.length > 0
+      ? summativeScores.reduce((sum, score) => sum + score, 0) / summativeScores.length
+      : null
+    const total = row.summary.hasSummative
+      ? formative != null && summative != null
+        ? formative * ((100 - examWeight) / 100) + summative * (examWeight / 100)
+        : formative ?? summative
+      : formative
+    return { formative, total }
+  }
 
   const save = useMutation({
     mutationFn: () => activitiesApi.bulkSaveManualInsumoAverages([...changed].map((key) => {
@@ -524,16 +547,29 @@ function ManualInsumoAveragesGrid({ data }: { data: GradesReportData }) {
       </div>
       <Input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Motivo u observación (opcional)" />
       <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm">
-          <thead><tr className="bg-muted/50"><th className="min-w-52 px-3 py-2 text-left">Estudiante</th>{insumos.map((insumo) => <th key={insumo.id} className="min-w-32 px-3 py-2 text-center">{insumo.name}</th>)}</tr></thead>
-          <tbody>{data.students.map((row, rowIndex) => <tr key={row.student.id} className="border-t">
-            <td className="px-3 py-2 font-medium">{row.student.profile.lastName}, {row.student.profile.firstName}</td>
+        <table className="w-full min-w-max text-sm">
+          <thead><tr className="bg-muted/50">
+            <th className="sticky left-0 z-10 min-w-52 bg-muted px-3 py-2 text-left">Estudiante</th>
+            {insumos.map((insumo) => <th key={insumo.id} className="min-w-32 px-3 py-2 text-center text-primary"><div>{insumo.name}</div><div className="text-[10px] font-normal text-muted-foreground">editable</div></th>)}
+            <th className="min-w-24 bg-blue-50/60 px-3 py-2 text-center">Formativa</th>
+            {showExam && <th className="min-w-24 px-3 py-2 text-center">Examen</th>}
+            {showProject && <th className="min-w-24 px-3 py-2 text-center">Proyecto</th>}
+            <th className="min-w-24 bg-muted px-3 py-2 text-center">Total</th>
+          </tr></thead>
+          <tbody>{data.students.map((row, rowIndex) => {
+            const result = preview(row)
+            return <tr key={row.student.id} className="border-t">
+            <td className="sticky left-0 z-10 bg-background px-3 py-2 font-medium">{row.student.profile.lastName}, {row.student.profile.firstName}</td>
             {insumos.map((insumo, columnIndex) => {
               const key = `${row.student.id}:${insumo.id}`
               const calculated = row.summary.insumoAvgs.find((average) => average.id === insumo.id)?.avg
               return <td key={insumo.id} className="px-2 py-1.5"><Input type="number" min={0} max={max} step="0.01" className={cn('text-center', changed.has(key) && 'border-amber-400')} value={values[key] ?? ''} placeholder={calculated == null ? '—' : calculated.toFixed(2)} title={calculated == null ? 'Sin promedio calculado' : `Promedio calculado: ${calculated.toFixed(2)}`} onChange={(event) => update(rowIndex, columnIndex, event.target.value)} onPaste={(event) => paste(rowIndex, columnIndex, event)} /></td>
             })}
-          </tr>)}</tbody>
+            <td className="bg-blue-50/40 px-3 py-2 text-center font-semibold tabular-nums">{result.formative?.toFixed(2) ?? '—'}</td>
+            {showExam && <td className="px-3 py-2 text-center tabular-nums">{row.summary.examenAvg?.toFixed(2) ?? '—'}</td>}
+            {showProject && <td className="px-3 py-2 text-center tabular-nums">{row.summary.proyectoAvg?.toFixed(2) ?? '—'}</td>}
+            <td className="bg-muted/30 px-3 py-2 text-center font-bold tabular-nums">{result.total?.toFixed(2) ?? '—'}</td>
+          </tr>})}</tbody>
         </table>
       </div>
     </div>

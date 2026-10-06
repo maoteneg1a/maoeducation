@@ -8,6 +8,7 @@ import {
   activityKind,
   toQualitativeCode,
   periodTotal,
+  effectiveActivityScore,
   type InsumoGroupInput,
   type QualitativeBand,
 } from '../../../shared/domain/grade-math'
@@ -95,7 +96,7 @@ export class PrismaReportRepository {
           where: { isPublished: true },
           orderBy: { activityDate: 'asc' },
           include: {
-            grades: { where: { institutionId }, select: { studentId: true, score: true } },
+            grades: { where: { institutionId }, select: { studentId: true, score: true, baseScore: true, reinforcementScore: true, reinforcementMode: true } },
             activityType: { select: { code: true, name: true } },
           },
         },
@@ -112,7 +113,7 @@ export class PrismaReportRepository {
       },
       orderBy: { activityDate: 'asc' },
       include: {
-        grades: { where: { institutionId }, select: { studentId: true, score: true } },
+        grades: { where: { institutionId }, select: { studentId: true, score: true, baseScore: true, reinforcementScore: true, reinforcementMode: true } },
         activityType: { select: { code: true, name: true } },
       },
     })
@@ -171,7 +172,7 @@ export class PrismaReportRepository {
       for (const activity of insumo.activities) {
         for (const grade of activity.grades) {
           if (!gradeMap.has(grade.studentId)) gradeMap.set(grade.studentId, new Map())
-          gradeMap.get(grade.studentId)!.set(activity.id, grade.score != null ? Number(grade.score) : null)
+          gradeMap.get(grade.studentId)!.set(activity.id, effectiveActivityScore(grade))
         }
       }
     }
@@ -242,7 +243,7 @@ export class PrismaReportRepository {
           activities: {
             where: { isPublished: true },
             include: {
-              grades: { where: { studentId, institutionId }, select: { score: true, baseScore: true, reinforcementScore: true } },
+              grades: { where: { studentId, institutionId }, select: { score: true, baseScore: true, reinforcementScore: true, reinforcementMode: true } },
               activityType: { select: { code: true } },
             },
           },
@@ -258,7 +259,7 @@ export class PrismaReportRepository {
           insumoId: null,
         },
         include: {
-          grades: { where: { studentId, institutionId }, select: { score: true, baseScore: true, reinforcementScore: true } },
+          grades: { where: { studentId, institutionId }, select: { score: true, baseScore: true, reinforcementScore: true, reinforcementMode: true } },
           activityType: { select: { code: true } },
         },
       })
@@ -269,7 +270,7 @@ export class PrismaReportRepository {
           id: ins.id,
           name: ins.name,
           activities: ins.activities.map((a) => ({
-            score: a.grades[0]?.score != null ? Number(a.grades[0].score) : null,
+            score: effectiveActivityScore(a.grades[0]),
             maxScore: Number(a.maxScore),
             kind: activityKind(a.activityType.code),
           })),
@@ -280,7 +281,7 @@ export class PrismaReportRepository {
                 id: 'no-insumo',
                 name: 'Sin insumo',
                 activities: activitiesWithoutInsumo.map((a) => ({
-                  score: a.grades[0]?.score != null ? Number(a.grades[0].score) : null,
+                  score: effectiveActivityScore(a.grades[0]),
                   maxScore: Number(a.maxScore),
                   kind: activityKind(a.activityType.code),
                 })),
@@ -321,7 +322,7 @@ export class PrismaReportRepository {
               ? Number(grade.score)
               : null,
           reinforcementScore: grade?.reinforcementScore != null ? Number(grade.reinforcementScore) : null,
-          finalScore: grade?.score != null ? Number(grade.score) : null,
+          finalScore: effectiveActivityScore(grade),
           maxScore: Number(activity.maxScore),
         }
       })
@@ -660,7 +661,7 @@ export class PrismaReportRepository {
                 activityType: { select: { code: true } },
                 grades: {
                   where: { institutionId, studentId: query.studentId },
-                  select: { score: true },
+                  select: { score: true, baseScore: true, reinforcementScore: true, reinforcementMode: true },
                 },
               },
             },
@@ -685,7 +686,7 @@ export class PrismaReportRepository {
             activityType: { select: { code: true } },
             grades: {
               where: { institutionId, studentId: query.studentId },
-              select: { score: true },
+              select: { score: true, baseScore: true, reinforcementScore: true, reinforcementMode: true },
             },
           },
         })
@@ -725,7 +726,7 @@ export class PrismaReportRepository {
       ensureGroup(key, insumo.id)
       for (const activity of insumo.activities) {
         ensureGroup(key, insumo.id).activities.push({
-          score: activity.grades[0]?.score != null ? Number(activity.grades[0].score) : null,
+          score: effectiveActivityScore(activity.grades[0]),
           maxScore: Number(activity.maxScore),
           kind: activityKind(activity.activityType.code),
         })
@@ -734,7 +735,7 @@ export class PrismaReportRepository {
     for (const activity of activitiesWithoutInsumo) {
       const key = `${activity.courseAssignmentId}:${activity.academicPeriodId}`
       ensureGroup(key, 'no-insumo').activities.push({
-        score: activity.grades[0]?.score != null ? Number(activity.grades[0].score) : null,
+        score: effectiveActivityScore(activity.grades[0]),
         maxScore: Number(activity.maxScore),
         kind: activityKind(activity.activityType.code),
       })

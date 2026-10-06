@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computePeriodSummary, normalizeScore } from './grade-math'
+import { computePeriodSummary, effectiveActivityScore, normalizeScore } from './grade-math'
 
 describe('grade math institutional scale', () => {
   it('keeps a score over 5 on the configured /5 scale', () => {
@@ -43,5 +43,14 @@ describe('grade math institutional scale', () => {
     )
 
     expect(summary.insumosBase).toBeCloseTo(4)
+  })
+
+  it('recalculates an averaged reinforcement instead of trusting a stale stored score', () => {
+    expect(effectiveActivityScore({
+      score: '29.50',
+      baseScore: '5',
+      reinforcementScore: '9',
+      reinforcementMode: 'average',
+    })).toBe(7)
   })
 })

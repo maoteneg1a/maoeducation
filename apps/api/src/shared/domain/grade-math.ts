@@ -130,6 +130,21 @@ export function applyRecovery(
   return (periodTotal + recoveryScore) / 2
 }
 
+/** Recalcula la nota efectiva de una actividad para no depender de valores históricos inconsistentes. */
+export function effectiveActivityScore(grade?: {
+  score: unknown
+  baseScore?: unknown
+  reinforcementScore?: unknown
+  reinforcementMode?: string | null
+} | null): number | null {
+  if (!grade) return null
+  if (grade.reinforcementScore == null) return grade.score == null ? null : Number(grade.score)
+  const reinforcement = Number(grade.reinforcementScore)
+  const base = grade.baseScore == null ? null : Number(grade.baseScore)
+  if (base == null) return reinforcement
+  return grade.reinforcementMode === 'average' ? (base + reinforcement) / 2 : reinforcement
+}
+
 /**
  * Resumen canónico de un periodo para una asignación/estudiante:
  * base formativa (promedio por insumo), examen, proyecto, sumativa (promedio de ambos)
