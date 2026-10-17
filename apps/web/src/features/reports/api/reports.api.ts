@@ -112,7 +112,15 @@ export interface BulletinOptionsData {
   students: Array<{ id: string; profile: { firstName: string; lastName: string; dni?: string } }>
 }
 
+export interface BulletinGradeColumn {
+  key: 'regularAvg' | 'examenAvg' | 'proyectoAvg' | 'total'
+  label: string
+  weight: number | null
+}
+
 export interface BulletinSubject {
+  examWeight?: number
+  projectWeight?: number | null
   assignmentId: string
   subjectName: string
   isQualitative?: boolean
@@ -143,6 +151,7 @@ export interface StudentBulletinData {
   }
   student: { id: string; profile: { firstName: string; lastName: string; dni?: string } }
   periods: Array<{ id: string; name: string; periodNumber: number }>
+  gradingColumns?: BulletinGradeColumn[]
   subjects: BulletinSubject[]
   qualitativeSubjects?: BulletinSubject[]
   qualitativeValueScale?: Array<{ min: number; max: number; code: string }>

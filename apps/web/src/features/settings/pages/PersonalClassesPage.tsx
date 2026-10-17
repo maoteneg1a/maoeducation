@@ -158,7 +158,10 @@ export function PersonalClassesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="outline" asChild><Link to="/academic/years">Gestionar años lectivos y períodos</Link></Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" asChild><Link to="/academic/years">Gestionar años lectivos y períodos</Link></Button>
+            <Button variant="outline" asChild><Link to="/settings/calificacion">Configurar porcentajes de calificación</Link></Button>
+          </div>
         </CardContent>
       </Card>
 

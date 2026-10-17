@@ -324,8 +324,8 @@ function CompactGrid({ data, examWeight, canEditWeight, onEditWeight }: CompactG
   const kindOf = (code: string) => (code === 'exam' ? 'exam' : code === 'project' ? 'project' : 'regular')
 
   const allActs = insumos.flatMap((i) => i.activities)
-  const hasExam = allActs.some((a) => kindOf(a.activityType.code) === 'exam')
-  const hasProject = allActs.some((a) => kindOf(a.activityType.code) === 'project')
+  const hasExam = (data.assignment.examWeight - (data.assignment.projectWeight ?? data.assignment.examWeight / 2)) > 0 && allActs.some((a) => kindOf(a.activityType.code) === 'exam')
+  const hasProject = (data.assignment.projectWeight ?? data.assignment.examWeight / 2) > 0 && allActs.some((a) => kindOf(a.activityType.code) === 'project')
   const hasSummative = hasExam || hasProject
 
   // Insumos con nombre y al menos una actividad formativa (para columnas individuales)
@@ -936,8 +936,8 @@ function buildPeriodColumns(data: GradesReportData) {
     .filter((i) => i.activities.length > 0)
   const summaryByStudent = new Map(data.students.map((s) => [s.student.id, s.summary]))
   const hasRegular = allActs.some((a) => kindOf(a.activityType.code) === 'regular')
-  const hasExam = allActs.some((a) => kindOf(a.activityType.code) === 'exam')
-  const hasProject = allActs.some((a) => kindOf(a.activityType.code) === 'project')
+  const hasExam = (data.assignment.examWeight - (data.assignment.projectWeight ?? data.assignment.examWeight / 2)) > 0 && allActs.some((a) => kindOf(a.activityType.code) === 'exam')
+  const hasProject = (data.assignment.projectWeight ?? data.assignment.examWeight / 2) > 0 && allActs.some((a) => kindOf(a.activityType.code) === 'project')
   const colCount =
     regularInsumos.length + (hasRegular ? 1 : 0) + (hasExam ? 1 : 0) + (hasProject ? 1 : 0) + 1
   return { regularInsumos, summaryByStudent, hasRegular, hasExam, hasProject, colCount }
@@ -1142,8 +1142,8 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
   const [mobileSubject, setMobileSubject] = React.useState<MyGradesSubject | null>(null)
   // Collect all unique insumo column names (preserve order from first subject)
   const allInsumoNames = subjects[0]?.insumoColumns.map((c) => c.name) ?? []
-  const showExam = subjects.some((subject) => subject.examenAvg != null)
-  const showProject = subjects.some((subject) => subject.proyectoAvg != null)
+  const showExam = subjects.some((subject) => subject.examenAvg != null && subject.examWeight - (subject.projectWeight ?? subject.examWeight / 2) > 0)
+  const showProject = subjects.some((subject) => subject.proyectoAvg != null && (subject.projectWeight ?? subject.examWeight / 2) > 0)
   const subjectProjectWeight = (subject: MyGradesSubject) => subject.projectWeight ?? subject.examWeight / 2
   const weightLabel = (getWeight: (subject: MyGradesSubject) => number) => {
     const value = subjects[0] ? getWeight(subjects[0]) : 0

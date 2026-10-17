@@ -183,7 +183,8 @@ export function GradingConfigPage() {
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="formative-percent">Actividades / formativa (%)</Label>
-              <Input id="formative-percent" type="number" value={100 - cfg.defaultExamWeight} readOnly />
+              <Input id="formative-percent" type="number" min={0} max={100} step={1} value={100 - cfg.defaultExamWeight}
+                onChange={(e) => setCfg({ ...cfg, defaultExamWeight: 100 - Number(e.target.value) })} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="exam-percent">Examen (%)</Label>
@@ -197,7 +198,7 @@ export function GradingConfigPage() {
             </div>
           </div>
           <p className={weightsValid ? 'text-xs text-muted-foreground' : 'text-xs text-destructive'} role={weightsValid ? undefined : 'alert'}>
-            {weightsValid ? 'Los tres porcentajes suman 100%. Puedes usar 0% si no calificas examen o proyecto.' : 'Examen y proyecto deben sumar como máximo 100% y sus porcentajes no pueden ser negativos.'}
+            {weightsValid ? 'Los tres porcentajes suman 100%. Usa Proyecto 0% para no incluirlo. Al cambiar actividades, se ajusta el examen para completar 100%.' : 'Examen y proyecto deben sumar como máximo 100% y sus porcentajes no pueden ser negativos.'}
           </p>
         </CardContent>
       </Card>

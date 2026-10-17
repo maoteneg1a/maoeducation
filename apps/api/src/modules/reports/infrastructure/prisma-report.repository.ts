@@ -1,3 +1,4 @@
+import { bulletinGradeColumns } from '../application/services/bulletin-grade-columns'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { NotFoundError } from '../../../shared/domain/errors/app.errors'
 import { resolveGuardianStudentId } from '../../../shared/infrastructure/services/guardian-scope.service'
@@ -810,6 +811,8 @@ export class PrismaReportRepository {
       return {
         assignmentId: assignment.id,
         subjectName: assignment.subject.name,
+        examWeight: assignment.examWeight,
+        projectWeight: assignment.projectWeight ?? assignment.examWeight / 2,
         isQualitative,
         teacherName: assignment.teacher?.profile
           ? `${assignment.teacher.profile.firstName} ${assignment.teacher.profile.lastName}`
@@ -905,6 +908,7 @@ export class PrismaReportRepository {
       parallel,
       student: enrollment.student,
       periods: periods.map((p) => ({ id: p.id, name: p.name, periodNumber: p.periodNumber })),
+      gradingColumns: bulletinGradeColumns(subjects.filter((subject) => !subject.isQualitative)),
       subjects: academicSubjects,
       qualitativeSubjects,
       qualitativeValueScale,

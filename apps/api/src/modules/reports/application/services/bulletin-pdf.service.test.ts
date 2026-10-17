@@ -40,3 +40,16 @@ describe('buildBulletinPdf', () => {
     expect(pageObjects).toHaveLength(1)
   })
 })
+
+
+describe('bulletins with optional grading components', () => {
+  it.each([
+    { examWeight: 30, projectWeight: 0 },
+    { examWeight: 0, projectWeight: 0 },
+    { examWeight: 100, projectWeight: 100 },
+  ])('renders a single-page PDF when weights are %j', async (weights) => {
+    const pdf = await buildBulletinPdf({ ...DATA, subjects: DATA.subjects.map((subject) => ({ ...subject, ...weights })) })
+    expect(pdf.subarray(0, 4).toString()).toBe('%PDF')
+    expect(pdf.toString('latin1').match(/\/Type\s*\/Page\b/g) ?? []).toHaveLength(1)
+  })
+})

@@ -600,6 +600,17 @@ function BulletinReportView({ data }: { data: StudentBulletinData }) {
 
           {(() => {
             const academic = data.subjects
+            const columns = data.gradingColumns ?? [
+              { key: 'regularAvg' as const, label: 'Form.', weight: 70 },
+              { key: 'examenAvg' as const, label: 'Exam.', weight: 15 },
+              { key: 'proyectoAvg' as const, label: 'Proy.', weight: 15 },
+              { key: 'total' as const, label: 'Prom.', weight: null },
+            ]
+            const weightOf = (subject: BulletinSubject, key: string) => {
+              const sum = subject.examWeight ?? 30
+              const project = subject.projectWeight ?? sum / 2
+              return key === 'regularAvg' ? 100 - sum : key === 'examenAvg' ? sum - project : project
+            }
             const qualitative = data.qualitativeSubjects ?? []
             const gradeFor = (s: BulletinSubject, periodId: string) =>
               s.periodGrades.find((g) => g.periodId === periodId)
@@ -616,7 +627,7 @@ function BulletinReportView({ data }: { data: StudentBulletinData }) {
                     <th rowSpan={2} className="border px-2 py-1.5">N°</th>
                     <th rowSpan={2} className="border px-2 py-1.5 text-left">Asignatura</th>
                     {data.periods.map((period) => (
-                      <th key={period.id} colSpan={4} className="border px-2 py-1.5">
+                      <th key={period.id} colSpan={columns.length} className="border px-2 py-1.5">
                         {period.name.toUpperCase()}
                       </th>
                     ))}
@@ -626,10 +637,12 @@ function BulletinReportView({ data }: { data: StudentBulletinData }) {
                   <tr>
                     {data.periods.map((period) => (
                       <React.Fragment key={`${period.id}-headers`}>
-                        <th className="border px-1 py-1 font-normal">Form.<div className="text-[9px] text-gray-500">70%</div></th>
-                        <th className="border px-1 py-1 font-normal">Exam.<div className="text-[9px] text-gray-500">15%</div></th>
-                        <th className="border px-1 py-1 font-normal">Proy.<div className="text-[9px] text-gray-500">15%</div></th>
-                        <th className="border px-1 py-1">Prom.</th>
+                        {columns.map((column) => (
+                          <th key={column.key} className="border px-1 py-1 font-normal">
+                            {column.label}
+                            {column.key !== 'total' && <div className="text-[9px] text-gray-500">{column.weight == null ? 'según materia' : `${column.weight}%`}</div>}
+                          </th>
+                        ))}
                       </React.Fragment>
                     ))}
                   </tr>
@@ -643,10 +656,12 @@ function BulletinReportView({ data }: { data: StudentBulletinData }) {
                         const g = gradeFor(subject, period.id)
                         return (
                           <React.Fragment key={`${subject.assignmentId}-${period.id}`}>
-                            <td className="border px-1 py-1 text-center">{formatScore(g?.regularAvg ?? null)}</td>
-                            <td className="border px-1 py-1 text-center">{formatScore(g?.examenAvg ?? null)}</td>
-                            <td className="border px-1 py-1 text-center">{formatScore(g?.proyectoAvg ?? null)}</td>
-                            <td className="border px-1 py-1 text-center font-semibold">{formatScore(g?.total ?? null)}</td>
+                            {columns.map((column) => (
+                              <td key={column.key} className={`border px-1 py-1 text-center ${column.key === 'total' ? 'font-semibold' : ''}`}>
+                                {formatScore(column.key !== 'total' && weightOf(subject, column.key) === 0 ? null : g?.[column.key] ?? null)}
+                                {column.key !== 'total' && column.weight == null && <div className="text-[9px] text-gray-500">{weightOf(subject, column.key)}%</div>}
+                              </td>
+                            ))}
                           </React.Fragment>
                         )
                       })}
@@ -659,7 +674,7 @@ function BulletinReportView({ data }: { data: StudentBulletinData }) {
                     <td className="border px-2 py-1" />
                     <td className="border px-2 py-1 text-right">PROM.</td>
                     {data.periods.map((period) => (
-                      <td key={`gen-${period.id}`} colSpan={4} className="border px-2 py-1 text-center">
+                      <td key={`gen-${period.id}`} colSpan={columns.length} className="border px-2 py-1 text-center">
                         {formatScore(periodGeneral(period.id))}
                       </td>
                     ))}
@@ -672,7 +687,7 @@ function BulletinReportView({ data }: { data: StudentBulletinData }) {
                       <td className="border px-2 py-1 text-center">{academic.length + index + 1}</td>
                       <td className="border px-2 py-1 font-medium">{subject.subjectName}</td>
                       {data.periods.map((period) => (
-                        <td key={`q-${subject.assignmentId}-${period.id}`} colSpan={4} className="border px-2 py-1 text-center font-semibold">
+                        <td key={`q-${subject.assignmentId}-${period.id}`} colSpan={columns.length} className="border px-2 py-1 text-center font-semibold">
                           {gradeFor(subject, period.id)?.code ?? '—'}
                         </td>
                       ))}
