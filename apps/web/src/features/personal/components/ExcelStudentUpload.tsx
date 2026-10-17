@@ -162,8 +162,8 @@ export function ExcelStudentUpload({ onStudentsParsed }: Props) {
           <div className="bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600 border-b">
             {preview.length} estudiante{preview.length !== 1 ? 's' : ''} encontrado{preview.length !== 1 ? 's' : ''}
           </div>
-          <div className="max-h-48 overflow-y-auto">
-            <table className="w-full text-xs">
+          <div className="max-h-48 overflow-auto">
+            <table className="w-full min-w-[520px] text-xs">
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
                   <th className="text-left px-3 py-1.5 font-medium text-gray-500">Nombre</th>

@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, ConflictError } from '../../../../shared/domain/errors/app.errors'
 import { assertSkillsArePlanned, assertCompetenciesArePlanned } from '../../../../shared/infrastructure/services/planned-curriculum.service'
+import { effectiveActivityScore } from '../../../../shared/domain/grade-math'
 import type {
   CreateActivityTypeDto,
   UpdateActivityTypeDto,
@@ -636,7 +637,7 @@ export class PrismaActivityRepository {
             activityType: true,
             grades: {
               where: { institutionId },
-              select: { score: true, studentId: true },
+              select: { score: true, baseScore: true, reinforcementScore: true, reinforcementMode: true, studentId: true },
             },
           },
         },
@@ -649,10 +650,10 @@ export class PrismaActivityRepository {
       weight: insumo.weight,
       sortOrder: insumo.sortOrder,
       activities: insumo.activities.map((activity) => {
-        const scoredGrades = activity.grades.filter((g) => g.score !== null)
+        const scoredGrades = activity.grades.map((grade) => effectiveActivityScore(grade)).filter((score): score is number => score != null)
         const average =
           scoredGrades.length > 0
-            ? scoredGrades.reduce((sum, g) => sum + (g.score ? Number(g.score) : 0), 0) / scoredGrades.length
+            ? scoredGrades.reduce((sum, score) => sum + score, 0) / scoredGrades.length
             : null
 
         return {

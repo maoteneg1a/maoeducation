@@ -2,15 +2,16 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   Home, Users, Settings, BookOpen, GraduationCap,
   ClipboardList, AlertTriangle, MessageSquare, Calendar,
-  FileText, ChevronDown, X, UserPlus, ShieldCheck,
+  FileText, ChevronRight, X, UserPlus, ShieldCheck,
   ClipboardCheck, CalendarDays, Palette, Smile, Award, HeartHandshake, FolderOpen, NotebookPen, Puzzle,
   Sparkles, School, CreditCard,
+  Megaphone,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useUIStore } from '@/store/ui.store'
 import { useAuthStore } from '@/store/auth.store'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface NavItem {
   label: string
@@ -26,17 +27,16 @@ interface NavSection {
   /** Sin label = sin encabezado ni separador (el bloque de Inicio). */
   label?: string
   icon?: React.ElementType
-  /** Destaca el encabezado con el color de marca. */
-  accent?: boolean
   items: NavItem[]
 }
 
+const labelCollator = new Intl.Collator('es', { sensitivity: 'base' })
+
 /**
- * Navegación agrupada en dos productos, igual que MODULE_GROUPS en
- * shared/lib/modules.ts: planificación (lo que el docente prepara) y gestión
- * institucional (la administración de la escuela). Si agregas un ítem con
- * `module`, esa llave tiene que existir en ALL_MODULES o el diálogo de módulos
- * del panel de superadmin no podrá activarla.
+ * Navegación agrupada por flujo de trabajo. Las rutas, permisos y módulos se
+ * mantienen independientes del grupo visual para poder reorganizar el menú sin
+ * alterar el acceso. Si agregas un ítem con `module`, esa llave tiene que
+ * existir en ALL_MODULES o el panel de superadmin no podrá activarla.
  */
 const NAV_SECTIONS: NavSection[] = [
   {
@@ -51,9 +51,28 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     id: 'docencia',
-    label: 'Planificación docente',
+    label: 'Aula',
     icon: Sparkles,
-    accent: true,
+    items: [
+      {
+        label: 'Actividades',
+        icon: BookOpen,
+        path: '/activities',
+        permission: 'activities:read',
+        module: 'activities',
+      },
+      {
+        label: 'Tareas',
+        icon: ClipboardCheck,
+        path: '/tasks',
+        module: 'tasks',
+      },
+    ],
+  },
+  {
+    id: 'planificacion',
+    label: 'Planificación',
+    icon: NotebookPen,
     items: [
       {
         label: 'Planificaciones',
@@ -79,81 +98,16 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    id: 'institucional',
-    label: 'Gestión institucional',
-    icon: School,
+    id: 'academico',
+    label: 'Gestión académica',
+    icon: GraduationCap,
     items: [
-      {
-        label: 'Usuarios',
-        icon: Users,
-        path: '/users',
-        permission: 'users:read',
-        module: 'users',
-      },
-      {
-        label: 'Roles y Permisos',
-        icon: ShieldCheck,
-        path: '/roles',
-        permission: 'users:manage',
-        module: 'roles',
-      },
-      {
-        label: 'Configuración',
-        icon: Settings,
-        path: '/academic',
-        permission: 'academic_config:manage',
-        module: 'academic',
-        children: [
-          // Las cuentas personales administran sus clases en Mis grados y
-          // materias; años y períodos siguen disponibles para personalización.
-          { label: 'Niveles',    path: '/academic/levels', hideForPersonal: true },
-          { label: 'Materias',   path: '/academic/subjects', hideForPersonal: true },
-          { label: 'Años lectivos', path: '/academic/years' },
-          { label: 'Paralelos',  path: '/academic/parallels', hideForPersonal: true },
-          { label: 'Asignaciones', path: '/academic/assignments', hideForPersonal: true },
-          { label: 'Insumos por paralelo', path: '/academic/insumo-setup', hideForPersonal: true },
-          { label: 'Calificación y Asistente IA', path: '/settings/calificacion' },
-          { label: 'Formato de Planificación', path: '/settings/formato-planificacion' },
-          // Único punto de edición de grados/materias + modo multigrado
-          // para cuentas personales. No aplica a instituciones normales,
-          // que ya administran esto desde Niveles/Asignaciones.
-          { label: 'Mis grados y materias', path: '/settings/mis-grados', showOnlyForPersonal: true },
-        ],
-      },
-      {
-        label: 'Matrículas',
-        icon: UserPlus,
-        path: '/enrollment',
-        permission: 'enrollment:read',
-        module: 'enrollment',
-      },
-      {
-        label: 'Ficha de anamnesis',
-        icon: ClipboardCheck,
-        path: '/settings/anamnesis',
-        permission: 'anamnesis:manage',
-        module: 'anamnesis',
-      },
-      {
-        label: 'Actividades',
-        icon: BookOpen,
-        path: '/activities',
-        permission: 'activities:read',
-        module: 'activities',
-      },
       {
         label: 'Calificaciones',
         icon: GraduationCap,
         path: '/grades',
         permission: 'grades:read',
         module: 'grades',
-      },
-      {
-        label: 'Comportamiento',
-        icon: Smile,
-        path: '/behavior',
-        permission: 'grades:write',
-        module: 'behavior',
       },
       {
         label: 'Recuperación',
@@ -181,6 +135,46 @@ const NAV_SECTIONS: NavSection[] = [
         ],
       },
       {
+        label: 'Horario',
+        icon: Calendar,
+        path: '/schedules',
+        module: 'schedules',
+      },
+      {
+        label: 'Matrículas',
+        icon: UserPlus,
+        path: '/enrollment',
+        permission: 'enrollment:read',
+        module: 'enrollment',
+      },
+      {
+        label: 'Reportes',
+        icon: FileText,
+        path: '/reports',
+        permission: 'reports:read',
+        module: 'reports',
+      },
+    ],
+  },
+  {
+    id: 'seguimiento',
+    label: 'Seguimiento y convivencia',
+    icon: HeartHandshake,
+    items: [
+      {
+        label: 'Alertas académicas',
+        icon: AlertTriangle,
+        path: '/academic-alerts',
+        permission: 'reports:read',
+      },
+      {
+        label: 'Comportamiento',
+        icon: Smile,
+        path: '/behavior',
+        permission: 'grades:write',
+        module: 'behavior',
+      },
+      {
         label: 'Incidentes',
         icon: AlertTriangle,
         path: '/incidents',
@@ -206,16 +200,29 @@ const NAV_SECTIONS: NavSection[] = [
         module: 'student_folder',
       },
       {
+        label: 'Ficha de anamnesis',
+        icon: ClipboardCheck,
+        path: '/settings/anamnesis',
+        permission: 'anamnesis:manage',
+        module: 'anamnesis',
+      },
+    ],
+  },
+  {
+    id: 'comunicacion',
+    label: 'Comunicación',
+    icon: MessageSquare,
+    items: [
+      {
+        label: 'Avisos',
+        icon: Megaphone,
+        path: '/announcements',
+      },
+      {
         label: 'Mensajes',
         icon: MessageSquare,
         path: '/messages',
         module: 'messages',
-      },
-      {
-        label: 'Tareas',
-        icon: ClipboardCheck,
-        path: '/tasks',
-        module: 'tasks',
       },
       {
         label: 'Calendario',
@@ -223,18 +230,46 @@ const NAV_SECTIONS: NavSection[] = [
         path: '/calendar',
         module: 'calendar',
       },
+    ],
+  },
+  {
+    id: 'administracion',
+    label: 'Administración',
+    icon: School,
+    items: [
       {
-        label: 'Horario',
-        icon: Calendar,
-        path: '/schedules',
-        module: 'schedules',
+        label: 'Configuración',
+        icon: Settings,
+        path: '/academic',
+        permission: 'academic_config:manage',
+        module: 'academic',
+        children: [
+          // Las cuentas personales administran sus clases en Mis grados y
+          // materias; años y períodos siguen disponibles para personalización.
+          { label: 'Niveles', path: '/academic/levels', hideForPersonal: true },
+          { label: 'Materias', path: '/academic/subjects', hideForPersonal: true },
+          { label: 'Años lectivos', path: '/academic/years' },
+          { label: 'Paralelos', path: '/academic/parallels', hideForPersonal: true },
+          { label: 'Asignaciones', path: '/academic/assignments', hideForPersonal: true },
+          { label: 'Insumos por paralelo', path: '/academic/insumo-setup', hideForPersonal: true },
+          { label: 'Calificación y Asistente IA', path: '/settings/calificacion' },
+          { label: 'Formato de Planificación', path: '/settings/formato-planificacion' },
+          { label: 'Mis grados y materias', path: '/settings/mis-grados', showOnlyForPersonal: true },
+        ],
       },
       {
-        label: 'Reportes',
-        icon: FileText,
-        path: '/reports',
-        permission: 'reports:read',
-        module: 'reports',
+        label: 'Usuarios',
+        icon: Users,
+        path: '/users',
+        permission: 'users:read',
+        module: 'users',
+      },
+      {
+        label: 'Roles y Permisos',
+        icon: ShieldCheck,
+        path: '/roles',
+        permission: 'users:manage',
+        module: 'roles',
       },
       {
         label: 'Personalización',
@@ -265,6 +300,17 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const { hasPermission } = usePermissions()
   const location   = useLocation()
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('auleka.sidebar.sections') ?? '[]')
+      const savedSections = Array.isArray(saved) ? saved : []
+      const lastSaved = savedSections[savedSections.length - 1]
+      const lastOpen = lastSaved === 'institucional' ? 'academico' : lastSaved
+      return new Set<string>(lastOpen ? [lastOpen] : ['docencia'])
+    } catch {
+      return new Set(['docencia'])
+    }
+  })
   const institution = useAuthStore((s) => s.user?.institution ?? null)
 
   const enabledModules = institution?.modules ?? null
@@ -276,10 +322,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
   // Una sección sin ítems visibles desaparece con su encabezado — así una cuenta
   // personal sin módulos institucionales no muestra un título vacío. Los hijos
-  // de estructura académica (niveles/materias/años/paralelos/asignaciones) se
-  // ocultan además para cuentas personales — esa estructura ya nace creada
-  // desde bootstrapInstitution (ver PersonalStructureGuard, que bloquea
-  // también el acceso por URL directa a esas rutas).
+  // de estructura académica se filtran para cuentas personales: las clases
+  // se configuran en Mis grados y materias; años y períodos siguen visibles.
   const visibleSections = NAV_SECTIONS
     .map((section) => ({
       ...section,
@@ -289,13 +333,52 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           ...item,
           children: item.children?.filter(
             (c) => (!isPersonalAccount || !c.hideForPersonal) && (isPersonalAccount || !c.showOnlyForPersonal),
-          ),
-        })),
+          ).sort((a, b) => labelCollator.compare(a.label, b.label)),
+        }))
+        .sort((a, b) => labelCollator.compare(a.label, b.label)),
     }))
     .filter((section) => section.items.length > 0)
+    .sort((a, b) => {
+      if (!a.label) return -1
+      if (!b.label) return 1
+      return labelCollator.compare(a.label, b.label)
+    })
+
+  const matchesRoute = (path: string) =>
+    location.pathname === path || location.pathname.startsWith(`${path}/`)
+
+  const isItemActive = (item: NavItem) =>
+    matchesRoute(item.path) || Boolean(item.children?.some((child) => matchesRoute(child.path)))
+
+  useEffect(() => {
+    const activeSection = visibleSections.find((section) =>
+      section.items.some(isItemActive),
+    )
+    if (activeSection?.label) {
+      setExpandedSections((current) => {
+        if (current.size === 1 && current.has(activeSection.id)) return current
+        const next = new Set([activeSection.id])
+        localStorage.setItem('auleka.sidebar.sections', JSON.stringify([...next]))
+        return next
+      })
+    }
+
+    const activeParent = visibleSections
+      .flatMap((section) => section.items)
+      .find((item) => item.children?.some((child) => matchesRoute(child.path)))
+    if (activeParent) setExpanded(activeParent.path)
+  }, [location.pathname])
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections((current) => {
+      const next = current.has(sectionId) ? new Set<string>() : new Set([sectionId])
+      localStorage.setItem('auleka.sidebar.sections', JSON.stringify([...next]))
+      return next
+    })
+  }
 
   const renderItem = (item: NavItem) => {
-    const isActive = location.pathname.startsWith(item.path)
+    const isActive = isItemActive(item)
     const isExpanded = expanded === item.path
 
     if (item.children && !collapsed) {
@@ -312,12 +395,12 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           >
             <item.icon className="h-4 w-4 shrink-0" />
             <span className="flex-1 text-left">{item.label}</span>
-            <ChevronDown
-              className={cn('h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-180')}
+            <ChevronRight
+              className={cn('h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-90')}
             />
           </button>
           {isExpanded && (
-            <div className="mt-0.5 ml-4 pl-3 border-l border-sidebar-border space-y-0.5">
+            <div className="ml-5 mt-1 space-y-0.5 border-l border-sidebar-foreground/25 py-0.5 pl-3">
               {item.children.map((child) => (
                 <NavLink
                   key={child.path}
@@ -325,9 +408,9 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                   onClick={onMobileClose}
                   className={({ isActive }) =>
                     cn(
-                      'block rounded-md px-3 py-1.5 text-xs transition-colors',
+                      'relative block rounded-md px-3 py-1.5 text-xs transition-colors before:absolute before:-left-[15px] before:top-1/2 before:h-1.5 before:w-1.5 before:-translate-y-1/2 before:rounded-full before:bg-sidebar-foreground/35',
                       isActive
-                        ? 'bg-sidebar-accent text-sidebar-foreground font-medium'
+                        ? 'bg-sidebar-accent text-sidebar-foreground font-medium before:bg-primary before:ring-2 before:ring-primary/25'
                         : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
                     )
                   }
@@ -387,38 +470,67 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
       {/* Nav items, agrupados por sección */}
       <nav className="flex-1 px-2 py-3 overflow-y-auto">
-        {visibleSections.map((section, index) => (
-          <div key={section.id}>
+        {visibleSections.map((section, index) => {
+          const sectionIsOpen = expandedSections.has(section.id)
+          const sectionIsActive = section.items.some(isItemActive)
+          return (
+          <div
+            key={section.id}
+            className={cn(
+              section.label && 'mt-2 rounded-lg border border-transparent transition-colors',
+              section.label && sectionIsOpen && 'border-sidebar-border bg-sidebar-accent/20',
+              section.label && sectionIsActive && 'border-primary/35 bg-sidebar-accent/40',
+            )}
+          >
             {/* Encabezado: etiqueta + regla horizontal. Colapsado no cabe texto,
                 así que la separación es solo un guion centrado. */}
             {section.label && !collapsed && (
-              <div className={cn('flex items-center gap-2 px-3 pb-1.5', index > 0 ? 'pt-4' : 'pt-1')}>
+              <button
+                type="button"
+                onClick={() => toggleSection(section.id)}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-sidebar-accent/40',
+                  sectionIsActive && 'text-primary',
+                )}
+                aria-expanded={sectionIsOpen}
+              >
                 {section.icon && (
                   <section.icon
                     className={cn(
                       'h-3.5 w-3.5 shrink-0',
-                      section.accent ? 'text-primary' : 'text-sidebar-foreground/40',
+                      sectionIsActive ? 'text-primary' : 'text-sidebar-foreground/55',
                     )}
                   />
                 )}
                 <span
                   className={cn(
                     'text-[10px] font-semibold uppercase tracking-wider leading-none',
-                    section.accent ? 'text-primary' : 'text-sidebar-foreground/45',
+                    sectionIsActive ? 'text-primary' : 'text-sidebar-foreground/60',
                   )}
                 >
                   {section.label}
                 </span>
-                <span className="flex-1 h-px bg-sidebar-border" />
-              </div>
+                <span className="h-px flex-1 bg-sidebar-border" />
+                <ChevronRight
+                  className={cn(
+                    'h-3.5 w-3.5 shrink-0 text-sidebar-foreground/60 transition-transform',
+                    sectionIsOpen && 'rotate-90',
+                  )}
+                />
+              </button>
             )}
             {section.label && collapsed && index > 0 && (
               <div className="my-2 mx-auto h-px w-6 bg-sidebar-border" />
             )}
 
-            <div className="space-y-0.5">{section.items.map(renderItem)}</div>
+            {(!section.label || collapsed || sectionIsOpen) && (
+              <div className={cn('space-y-0.5', section.label && !collapsed && 'mx-2 mb-2 ml-3 border-l border-sidebar-foreground/20 pl-3')}>
+                {section.items.map(renderItem)}
+              </div>
+            )}
           </div>
-        ))}
+          )
+        })}
       </nav>
     </div>
   )

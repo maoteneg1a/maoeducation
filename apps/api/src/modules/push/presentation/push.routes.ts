@@ -11,6 +11,36 @@ export default async function pushRoutes(app: FastifyInstance) {
 
   app.addHook('preHandler', authMiddleware)
 
+  app.get<{ Querystring: { limit?: string } }>('/notifications', async (req, reply) => {
+    const requested = Number(req.query.limit ?? 30)
+    const limit = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), 100) : 30
+    const [items, unread] = await Promise.all([
+      prisma.userNotification.findMany({
+        where: { userId: req.user.sub },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      }),
+      prisma.userNotification.count({ where: { userId: req.user.sub, readAt: null } }),
+    ])
+    return reply.send({ items, unread })
+  })
+
+  app.patch<{ Params: { id: string } }>('/notifications/:id/read', async (req, reply) => {
+    await prisma.userNotification.updateMany({
+      where: { id: req.params.id, userId: req.user.sub },
+      data: { readAt: new Date() },
+    })
+    return reply.send({ ok: true })
+  })
+
+  app.patch('/notifications/read-all', async (req, reply) => {
+    await prisma.userNotification.updateMany({
+      where: { userId: req.user.sub, readAt: null },
+      data: { readAt: new Date() },
+    })
+    return reply.send({ ok: true })
+  })
+
   // POST /push/subscribe — registra o actualiza una suscripción push
   app.post<{ Body: { endpoint: string; keys: { p256dh: string; auth: string } } }>(
     '/push/subscribe',

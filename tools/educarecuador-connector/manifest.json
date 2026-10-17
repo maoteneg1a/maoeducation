@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Auleka · Conector Educar Ecuador",
+  "version": "0.1.0",
+  "description": "Previsualiza y carga en Educar Ecuador las calificaciones exportadas desde Auleka.",
+  "permissions": ["activeTab"],
+  "host_permissions": ["https://academico.educarecuador.gob.ec/*"],
+  "action": {
+    "default_title": "Conector Auleka",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://academico.educarecuador.gob.ec/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

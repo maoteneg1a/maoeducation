@@ -6,6 +6,7 @@ import {
   computePeriodSummary,
   applyRecovery,
   activityKind,
+  effectiveActivityScore,
   type InsumoGroupInput,
 } from '../../../../shared/domain/grade-math'
 import {
@@ -116,7 +117,7 @@ export class PrismaPedagogicRecoveryRepository {
               select: {
                 maxScore: true,
                 activityType: { select: { code: true } },
-                grades: { where: { institutionId, studentId: { in: studentIds } }, select: { studentId: true, score: true } },
+                grades: { where: { institutionId, studentId: { in: studentIds } }, select: { studentId: true, score: true, baseScore: true, reinforcementScore: true, reinforcementMode: true } },
               },
             },
           },
@@ -127,14 +128,14 @@ export class PrismaPedagogicRecoveryRepository {
             courseAssignmentId: true,
             maxScore: true,
             activityType: { select: { code: true } },
-            grades: { where: { institutionId, studentId: { in: studentIds } }, select: { studentId: true, score: true } },
+            grades: { where: { institutionId, studentId: { in: studentIds } }, select: { studentId: true, score: true, baseScore: true, reinforcementScore: true, reinforcementMode: true } },
           },
         }),
       ])
 
-      const consume = (rows: Array<{ insumoId: string; courseAssignmentId: string; maxScore: unknown; activityType: { code: string }; grades: Array<{ studentId: string; score: unknown }> }>) => {
+      const consume = (rows: Array<{ insumoId: string; courseAssignmentId: string; maxScore: unknown; activityType: { code: string }; grades: Array<{ studentId: string; score: unknown; baseScore: unknown; reinforcementScore: unknown; reinforcementMode: string | null }> }>) => {
         for (const act of rows) {
-          const gradeMap = new Map(act.grades.map((g) => [g.studentId, g.score]))
+          const gradeMap = new Map(act.grades.map((g) => [g.studentId, effectiveActivityScore(g)]))
           for (const sId of studentIds) {
             const raw = gradeMap.get(sId)
             const score = raw != null ? Number(raw) : null
@@ -243,7 +244,7 @@ export class PrismaPedagogicRecoveryRepository {
         select: {
           curriculumSkillId: true,
           curriculumSkill: { select: { code: true, description: true } },
-          grades: { select: { studentId: true, score: true, isExcused: true } },
+          grades: { select: { studentId: true, score: true, baseScore: true, reinforcementScore: true, reinforcementMode: true, isExcused: true } },
         },
       }),
       prisma.activity.findMany({
@@ -255,7 +256,7 @@ export class PrismaPedagogicRecoveryRepository {
         select: {
           competencyId: true,
           competency: { select: { code: true, text: true } },
-          grades: { select: { studentId: true, score: true, isExcused: true } },
+          grades: { select: { studentId: true, score: true, baseScore: true, reinforcementScore: true, reinforcementMode: true, isExcused: true } },
         },
       }),
     ])
@@ -271,7 +272,7 @@ export class PrismaPedagogicRecoveryRepository {
       code: string | undefined,
       description: string | undefined,
       kind: 'skill' | 'competency',
-      grades: { studentId: string; score: unknown; isExcused: boolean }[],
+      grades: Array<{ studentId: string; score: unknown; baseScore: unknown; reinforcementScore: unknown; reinforcementMode: string | null; isExcused: boolean }>,
     ) => {
       if (!itemId || !code) return
       if (!byItem.has(itemId)) {
@@ -279,9 +280,10 @@ export class PrismaPedagogicRecoveryRepository {
       }
       const entry = byItem.get(itemId)!
       for (const grade of grades) {
-        if (grade.isExcused || grade.score == null) continue
+        const score = effectiveActivityScore(grade)
+        if (grade.isExcused || score == null) continue
         const list = entry.scoresByStudent.get(grade.studentId) ?? []
-        list.push(Number(grade.score))
+        list.push(score)
         entry.scoresByStudent.set(grade.studentId, list)
       }
     }

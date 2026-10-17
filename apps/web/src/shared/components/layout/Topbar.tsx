@@ -8,6 +8,7 @@ import { Button } from '@/shared/components/ui/button'
 import { apiPost } from '@/shared/lib/api-client'
 import { ChangePasswordDialog } from '@/features/auth/components/ChangePasswordDialog'
 import { AiUsageBadge } from '@/features/ai-assistant/components/AiUsageBadge'
+import { NotificationCenter } from '@/features/notifications/components/NotificationCenter'
 
 interface TopbarProps {
   onMobileMenuClick: () => void
@@ -58,6 +59,7 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
       {/* User menu */}
       <div className="flex items-center gap-3">
         <AiUsageBadge />
+        <NotificationCenter />
 
         <div className="hidden sm:flex flex-col items-end">
           <span className="text-sm font-medium leading-none">{user?.fullName}</span>

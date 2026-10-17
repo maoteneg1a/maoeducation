@@ -56,7 +56,7 @@ export function DataTable<TData>({
   return (
     <div className="space-y-4">
       {(onSearch || action) && (
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           {onSearch && (
             <Input
               placeholder={searchPlaceholder}
@@ -64,12 +64,16 @@ export function DataTable<TData>({
               className="max-w-sm"
             />
           )}
-          {action && <div className={cn(!onSearch && 'ml-auto')}>{action}</div>}
+          {action && (
+            <div className={cn('w-full [&_button]:w-full sm:w-auto sm:[&_button]:w-auto', !onSearch && 'sm:ml-auto')}>
+              {action}
+            </div>
+          )}
         </div>
       )}
 
       <div className="rounded-md border">
-        <Table>
+        <Table className={cn(columns.length > 2 && 'min-w-[640px]')}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="hover:bg-transparent">

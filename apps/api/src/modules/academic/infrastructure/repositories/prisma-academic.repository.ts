@@ -95,6 +95,18 @@ export class PrismaAcademicRepository {
       })
       if (codeConflict) throw new ConflictError(`Ya existe una materia con el código "${dto.code}"`)
     }
+    if (dto.curriculumAreaId || dto.competencyAreaId) {
+      const linked = await prisma.subject.findFirst({
+        where: {
+          institutionId,
+          OR: [
+            ...(dto.curriculumAreaId ? [{ curriculumAreaId: dto.curriculumAreaId }] : []),
+            ...(dto.competencyAreaId ? [{ competencyAreaId: dto.competencyAreaId }] : []),
+          ],
+        },
+      })
+      if (linked) throw new ConflictError(`La materia oficial ya está agregada como "${linked.name}"`)
+    }
 
     return prisma.subject.create({
       data: {
@@ -126,6 +138,19 @@ export class PrismaAcademicRepository {
         where: { institutionId, code: dto.code, id: { not: id } },
       })
       if (codeConflict) throw new ConflictError(`Ya existe una materia con el código "${dto.code}"`)
+    }
+    if (dto.curriculumAreaId || dto.competencyAreaId) {
+      const linked = await prisma.subject.findFirst({
+        where: {
+          institutionId,
+          id: { not: id },
+          OR: [
+            ...(dto.curriculumAreaId ? [{ curriculumAreaId: dto.curriculumAreaId }] : []),
+            ...(dto.competencyAreaId ? [{ competencyAreaId: dto.competencyAreaId }] : []),
+          ],
+        },
+      })
+      if (linked) throw new ConflictError(`La materia oficial ya está agregada como "${linked.name}"`)
     }
 
     return prisma.subject.update({

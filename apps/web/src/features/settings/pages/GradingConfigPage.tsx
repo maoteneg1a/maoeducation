@@ -72,6 +72,31 @@ export function GradingConfigPage() {
 
       <AiAssistantConfigCard />
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Integración con Educar Ecuador</CardTitle>
+          <CardDescription>
+            Controla si los docentes pueden preparar el promedio final del trimestre para cargarlo en el portal oficial.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <label className="flex cursor-pointer items-start gap-3 rounded-md border p-4 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4"
+              checked={cfg.educarEcuadorExportEnabled ?? true}
+              onChange={(event) => setCfg({ ...cfg, educarEcuadorExportEnabled: event.target.checked })}
+            />
+            <span>
+              <strong>Mostrar “Enviar a Educar Ecuador”</strong>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Si se desactiva, el botón desaparece de la vista de resumen de calificaciones para toda la institución.
+              </span>
+            </span>
+          </label>
+        </CardContent>
+      </Card>
+
       {/* Escala cualitativa */}
       <Card>
         <CardHeader>

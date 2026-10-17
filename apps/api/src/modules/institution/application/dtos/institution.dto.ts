@@ -58,6 +58,8 @@ export interface GradingConfig {
   defaultExamWeight: number
   pedagogicRecovery: PedagogicRecoveryConfig
   activityGradeReinforcement: ActivityGradeReinforcementConfig
+  /** Muestra el conector para exportar promedios trimestrales a Educar Ecuador. */
+  educarEcuadorExportEnabled: boolean
 }
 
 export interface UpdateGradingConfigDto {
@@ -68,6 +70,7 @@ export interface UpdateGradingConfigDto {
   defaultExamWeight?: number
   pedagogicRecovery?: Partial<PedagogicRecoveryConfig>
   activityGradeReinforcement?: Partial<ActivityGradeReinforcementConfig>
+  educarEcuadorExportEnabled?: boolean
 }
 
 // ---- Asistente IA de planificaciones (configurable por institución) ----

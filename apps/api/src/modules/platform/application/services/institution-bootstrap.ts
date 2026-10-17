@@ -579,6 +579,7 @@ export const DEFAULT_GRADING_CONFIG = {
     mode: 'replace' as const,
     eligibleActivityTypeIds: [] as string[],
   },
+  educarEcuadorExportEnabled: true,
 } as const
 
 // Materias cualitativas por defecto (se califican con notas; en la libreta se

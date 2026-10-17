@@ -9,7 +9,7 @@ import { hexToHsl, hslToHex } from '@/shared/lib/utils'
 import { useInstitutionSettings, useUpdateBranding, useUploadLogo } from '../hooks/useSettings'
 
 const DEFAULT_PRIMARY_HEX = '#2563eb' // ~ hsl(221 83% 53%)
-const DEFAULT_SIDEBAR_HEX = '#1e293b' // ~ hsl(222 47% 11%)
+const DEFAULT_SIDEBAR_HEX = '#223047' // ~ hsl(217 33% 20%)
 
 export function BrandingPage() {
   const { data: settings, isLoading } = useInstitutionSettings()

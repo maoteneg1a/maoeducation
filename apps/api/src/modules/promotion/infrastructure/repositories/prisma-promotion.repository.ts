@@ -5,6 +5,7 @@ import {
   computePeriodSummary,
   applyRecovery,
   activityKind,
+  effectiveActivityScore,
   type InsumoGroupInput,
 } from '../../../../shared/domain/grade-math'
 import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
@@ -111,7 +112,7 @@ export class PrismaPromotionRepository {
             select: {
               maxScore: true,
               activityType: { select: { code: true } },
-              grades: { where: { institutionId, studentId: { in: studentIds } }, select: { studentId: true, score: true } },
+              grades: { where: { institutionId, studentId: { in: studentIds } }, select: { studentId: true, score: true, baseScore: true, reinforcementScore: true, reinforcementMode: true } },
             },
           },
         },
@@ -129,7 +130,7 @@ export class PrismaPromotionRepository {
           academicPeriodId: true,
           maxScore: true,
           activityType: { select: { code: true } },
-          grades: { where: { institutionId, studentId: { in: studentIds } }, select: { studentId: true, score: true } },
+          grades: { where: { institutionId, studentId: { in: studentIds } }, select: { studentId: true, score: true, baseScore: true, reinforcementScore: true, reinforcementMode: true } },
         },
       })
 
@@ -140,11 +141,11 @@ export class PrismaPromotionRepository {
           academicPeriodId: string
           maxScore: unknown
           activityType: { code: string }
-          grades: Array<{ studentId: string; score: unknown }>
+          grades: Array<{ studentId: string; score: unknown; baseScore: unknown; reinforcementScore: unknown; reinforcementMode: string | null }>
         }>,
       ) => {
         for (const act of rows) {
-          const gradeByStudent = new Map(act.grades.map((g) => [g.studentId, g.score]))
+          const gradeByStudent = new Map(act.grades.map((g) => [g.studentId, effectiveActivityScore(g)]))
           for (const sId of studentIds) {
             const raw = gradeByStudent.get(sId)
             const score = raw != null ? Number(raw) : null

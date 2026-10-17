@@ -4,7 +4,6 @@ import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.m
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { resolveGuardianStudentId } from '../../../shared/infrastructure/services/guardian-scope.service'
-import { ForbiddenError } from '../../../shared/domain/errors/app.errors'
 import type {
   CreateLevelDto,
   UpdateLevelDto,
@@ -73,24 +72,30 @@ export default async function academicRoutes(app: FastifyInstance) {
     },
   )
 
-  // Crear/editar/activar materias ya NO es tarea del admin de la institución
-  // — el catálogo de materias por institución lo gestiona el superadministrador
-  // de plataforma vía /platform/institutions/:id/subjects (ver platform.routes.ts).
-  // El admin de institución conserva GET (lectura, la necesita el selector de
-  // CourseAssignment para asignar profesor+materia+paralelo+año).
   app.post<{ Body: CreateSubjectDto }>(
     '/academic/subjects',
     { preHandler: [requirePermission('academic_config', 'manage')] },
-    async () => {
-      throw new ForbiddenError('La creación de materias ahora la gestiona el superadministrador de la plataforma')
+    async (req, reply) => {
+      const subject = await repo.createSubject(req.user.institutionId, req.body)
+      return reply.status(201).send(subject)
     },
   )
 
   app.put<{ Params: { id: string }; Body: UpdateSubjectDto }>(
     '/academic/subjects/:id',
     { preHandler: [requirePermission('academic_config', 'manage')] },
-    async () => {
-      throw new ForbiddenError('La edición de materias ahora la gestiona el superadministrador de la plataforma')
+    async (req, reply) => {
+      const subject = await repo.updateSubject(req.params.id, req.user.institutionId, req.body)
+      return reply.send(subject)
+    },
+  )
+
+  app.patch<{ Params: { id: string } }>(
+    '/academic/subjects/:id/toggle',
+    { preHandler: [requirePermission('academic_config', 'manage')] },
+    async (req, reply) => {
+      const subject = await repo.toggleSubject(req.params.id, req.user.institutionId)
+      return reply.send(subject)
     },
   )
 
