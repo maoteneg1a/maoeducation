@@ -572,6 +572,7 @@ export const DEFAULT_GRADING_CONFIG = {
     maxFailedSubjects: 1,
   },
   defaultExamWeight: 30,
+  defaultProjectWeight: 15,
   pedagogicRecovery: {
     mode: 'replace_if_higher' as const,
   },

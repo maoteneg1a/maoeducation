@@ -319,13 +319,13 @@ function CompactGrid({ data, examWeight, canEditWeight, onEditWeight }: CompactG
   const gradingScaleMax = gradingConfig?.gradingScaleMax ?? 10
   const { insumos, students } = data
   const regularWeight = 100 - examWeight
-  const halfWeight = Math.round(examWeight / 2)
+  const projectWeight = data.assignment.projectWeight ?? examWeight / 2
 
   const kindOf = (code: string) => (code === 'exam' ? 'exam' : code === 'project' ? 'project' : 'regular')
 
   const allActs = insumos.flatMap((i) => i.activities)
-  const hasExam = allActs.some((a) => kindOf(a.activityType.code) === 'exam')
-  const hasProject = allActs.some((a) => kindOf(a.activityType.code) === 'project')
+  const hasExam = (data.assignment.examWeight - (data.assignment.projectWeight ?? data.assignment.examWeight / 2)) > 0 && allActs.some((a) => kindOf(a.activityType.code) === 'exam')
+  const hasProject = (data.assignment.projectWeight ?? data.assignment.examWeight / 2) > 0 && allActs.some((a) => kindOf(a.activityType.code) === 'project')
   const hasSummative = hasExam || hasProject
 
   // Insumos con nombre y al menos una actividad formativa (para columnas individuales)
@@ -376,19 +376,22 @@ function CompactGrid({ data, examWeight, canEditWeight, onEditWeight }: CompactG
                       type="button"
                       onClick={onEditWeight}
                       className="text-muted-foreground hover:text-foreground transition-colors"
-                      title="Cambiar peso de la sumativa (examen + proyecto)"
+                      title="Cambiar porcentajes de examen y proyecto"
                     >
                       <Settings2 className="h-3 w-3" />
                     </button>
                   )}
                 </div>
-                <div className="text-[10px] font-normal text-muted-foreground">{halfWeight}%</div>
+                <div className="text-[10px] font-normal text-muted-foreground">{examWeight - projectWeight}%</div>
               </th>
             )}
             {hasProject && (
               <th className="border border-border px-3 py-2 text-center font-semibold text-primary whitespace-nowrap">
-                Proyecto
-                <div className="text-[10px] font-normal text-muted-foreground">{halfWeight}%</div>
+                <div className="flex items-center justify-center gap-1">
+                  Proyecto
+                  {canEditWeight && <button type="button" onClick={onEditWeight} className="text-muted-foreground hover:text-foreground" title="Cambiar porcentajes de examen y proyecto"><Settings2 className="h-3 w-3" /></button>}
+                </div>
+                <div className="text-[10px] font-normal text-muted-foreground">{projectWeight}%</div>
               </th>
             )}
             <th className="border border-border px-3 py-2 text-center font-semibold bg-muted whitespace-nowrap">
@@ -492,11 +495,8 @@ function ManualInsumoAveragesGrid({ data }: { data: GradesReportData }) {
     const formative = insumoScores.length > 0
       ? insumoScores.reduce((sum, score) => sum + score, 0) / insumoScores.length
       : null
-    const summativeScores = [row.summary.examenAvg, row.summary.proyectoAvg].filter((score): score is number => score != null)
-    const summative = summativeScores.length > 0
-      ? summativeScores.reduce((sum, score) => sum + score, 0) / summativeScores.length
-      : null
-    const total = row.summary.hasSummative
+    const summative = row.summary.summativeAvg
+    const total = examWeight === 0 ? formative : examWeight === 100 ? summative : row.summary.hasSummative
       ? formative != null && summative != null
         ? formative * ((100 - examWeight) / 100) + summative * (examWeight / 100)
         : formative ?? summative
@@ -597,6 +597,7 @@ function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
   const [view, setView] = React.useState<SummaryView>('compact')
   const [editingWeight, setEditingWeight] = React.useState(false)
   const [weightInput, setWeightInput] = React.useState('')
+  const [projectWeightInput, setProjectWeightInput] = React.useState('')
   const { data: gradingConfig } = useGradingConfig()
   const { hasPermission } = usePermissions()
   const canManage = hasPermission('academic_config:manage')
@@ -609,11 +610,14 @@ function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
   })
 
   const updateWeight = useMutation({
-    mutationFn: (w: number) => academicApi.updateExamWeight(courseAssignmentId, w),
+    mutationFn: (w: { total: number; project: number }) => academicApi.updateExamWeight(courseAssignmentId, w.total, w.project),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['grades-grid', courseAssignmentId, periodId] })
+      qc.invalidateQueries({ queryKey: ['grades-grid', courseAssignmentId] })
+      for (const key of ['my-grades', 'course-assignments', 'student-bulletin', 'report-grades', 'promotion', 'pedagogic-recovery']) {
+        qc.invalidateQueries({ queryKey: [key] })
+      }
       setEditingWeight(false)
-      toast.success('Peso del examen actualizado')
+      toast.success('Porcentajes de examen y proyecto actualizados')
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
@@ -670,17 +674,21 @@ function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
   }
 
   function handleOpenWeightEdit() {
-    setWeightInput(String(examWeight))
+    const project = data?.assignment.projectWeight ?? examWeight / 2
+    setWeightInput(String(examWeight - project))
+    setProjectWeightInput(String(project))
     setEditingWeight(true)
   }
 
   function handleSaveWeight() {
-    const val = parseInt(weightInput, 10)
-    if (isNaN(val) || val < 0 || val > 100) {
-      toast.error('El peso debe ser un número entre 0 y 100')
+    const exam = Number(weightInput)
+    const project = Number(projectWeightInput)
+    const total = exam + project
+    if (!weightInput.trim() || !projectWeightInput.trim() || !Number.isFinite(exam) || !Number.isFinite(project) || exam < 0 || project < 0 || !Number.isInteger(total) || total > 100) {
+      toast.error('Examen y proyecto deben sumar como máximo 100% y no pueden ser negativos')
       return
     }
-    updateWeight.mutate(val)
+    updateWeight.mutate({ total, project })
   }
 
   return (
@@ -690,7 +698,7 @@ function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
           <span>{data.students.length} estudiantes · {totalActivities} actividades</span>
           {editingWeight && (
             <div className="flex flex-wrap items-center gap-1 text-xs">
-              <span className="font-medium text-foreground">Peso examen:</span>
+              <span className="font-medium text-foreground">Examen:</span>
               <Input
                 type="number"
                 min={0}
@@ -706,7 +714,10 @@ function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
                   if (e.key === 'Escape') setEditingWeight(false)
                 }}
               />
-              <span>%</span>
+              <span>% · Proyecto:</span>
+              <Input type="number" min={0} max={100} step={1} value={projectWeightInput} aria-label="Porcentaje del proyecto"
+                onChange={(e) => setProjectWeightInput(e.target.value)} className="h-7 w-16 px-1 text-center text-sm" />
+              <span>% · Actividades: {100 - Number(weightInput) - Number(projectWeightInput)}%</span>
               <Button size="sm" className="h-6 px-2 text-xs" onClick={handleSaveWeight} disabled={updateWeight.isPending}>
                 OK
               </Button>
@@ -717,6 +728,7 @@ function SummaryTab({ courseAssignmentId, periodId }: SummaryTabProps) {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start">
+          {canManage && !editingWeight && <Button variant="outline" size="sm" onClick={handleOpenWeightEdit}><Settings2 className="h-4 w-4" /> Porcentajes</Button>}
           {(gradingConfig?.educarEcuadorExportEnabled ?? true) && (
             <Button type="button" variant="outline" size="sm" onClick={exportForEducarEcuador}>
               <ExternalLink className="h-4 w-4" />
@@ -924,8 +936,8 @@ function buildPeriodColumns(data: GradesReportData) {
     .filter((i) => i.activities.length > 0)
   const summaryByStudent = new Map(data.students.map((s) => [s.student.id, s.summary]))
   const hasRegular = allActs.some((a) => kindOf(a.activityType.code) === 'regular')
-  const hasExam = allActs.some((a) => kindOf(a.activityType.code) === 'exam')
-  const hasProject = allActs.some((a) => kindOf(a.activityType.code) === 'project')
+  const hasExam = (data.assignment.examWeight - (data.assignment.projectWeight ?? data.assignment.examWeight / 2)) > 0 && allActs.some((a) => kindOf(a.activityType.code) === 'exam')
+  const hasProject = (data.assignment.projectWeight ?? data.assignment.examWeight / 2) > 0 && allActs.some((a) => kindOf(a.activityType.code) === 'project')
   const colCount =
     regularInsumos.length + (hasRegular ? 1 : 0) + (hasExam ? 1 : 0) + (hasProject ? 1 : 0) + 1
   return { regularInsumos, summaryByStudent, hasRegular, hasExam, hasProject, colCount }
@@ -942,7 +954,7 @@ function AnnualDetailGrid({
   const { data: gradingConfig } = useGradingConfig()
   const gradingScaleMax = gradingConfig?.gradingScaleMax ?? 10
   const regularWeight = 100 - examWeight
-  const halfWeight = Math.round(examWeight / 2)
+  const projectWeight = periodData[0]?.data.assignment.projectWeight ?? examWeight / 2
   const cols = periodData.map((pd) => ({ period: pd.period, ...buildPeriodColumns(pd.data) }))
 
   const studentMap = new Map<string, { lastName: string; firstName: string }>()
@@ -1014,13 +1026,13 @@ function AnnualDetailGrid({
                 {c.hasExam && (
                   <th className="whitespace-nowrap border border-border px-3 py-1.5 text-center font-semibold text-primary">
                     Examen
-                    <div className="text-[10px] font-normal text-muted-foreground">{halfWeight}%</div>
+                    <div className="text-[10px] font-normal text-muted-foreground">{examWeight - projectWeight}%</div>
                   </th>
                 )}
                 {c.hasProject && (
                   <th className="whitespace-nowrap border border-border px-3 py-1.5 text-center font-semibold text-primary">
                     Proyecto
-                    <div className="text-[10px] font-normal text-muted-foreground">{halfWeight}%</div>
+                    <div className="text-[10px] font-normal text-muted-foreground">{projectWeight}%</div>
                   </th>
                 )}
                 <th
@@ -1130,8 +1142,13 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
   const [mobileSubject, setMobileSubject] = React.useState<MyGradesSubject | null>(null)
   // Collect all unique insumo column names (preserve order from first subject)
   const allInsumoNames = subjects[0]?.insumoColumns.map((c) => c.name) ?? []
-  const showExam = subjects.some((subject) => subject.examenAvg != null)
-  const showProject = subjects.some((subject) => subject.proyectoAvg != null)
+  const showExam = subjects.some((subject) => subject.examenAvg != null && subject.examWeight - (subject.projectWeight ?? subject.examWeight / 2) > 0)
+  const showProject = subjects.some((subject) => subject.proyectoAvg != null && (subject.projectWeight ?? subject.examWeight / 2) > 0)
+  const subjectProjectWeight = (subject: MyGradesSubject) => subject.projectWeight ?? subject.examWeight / 2
+  const weightLabel = (getWeight: (subject: MyGradesSubject) => number) => {
+    const value = subjects[0] ? getWeight(subjects[0]) : 0
+    return subjects.every((subject) => getWeight(subject) === value) ? `${value}%` : 'según materia'
+  }
   const columnCount = 2 + allInsumoNames.length + (allInsumoNames.length > 0 ? 1 : 0) + (showExam ? 1 : 0) + (showProject ? 1 : 0)
 
   function toggleDetails(assignmentId: string) {
@@ -1205,20 +1222,20 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
               <th className="border border-border px-3 py-2 text-center font-semibold text-primary bg-blue-50/50 whitespace-nowrap">
                 Formativa
                 <div className="text-[10px] font-normal text-muted-foreground">
-                  {subjects.some((s) => s.hasSummative) ? `${100 - (subjects[0]?.examWeight ?? 30)}%` : 'promedio'}
+                  {subjects.some((s) => s.hasSummative) ? weightLabel((s) => 100 - s.examWeight) : 'promedio'}
                 </div>
               </th>
             )}
             {showExam && (
               <th className="border border-border px-3 py-2 text-center font-semibold text-primary whitespace-nowrap">
                 Examen
-                <div className="text-[10px] font-normal text-muted-foreground">{Math.round((subjects[0]?.examWeight ?? 30) / 2)}%</div>
+                <div className="text-[10px] font-normal text-muted-foreground">{weightLabel((s) => s.examWeight - subjectProjectWeight(s))}</div>
               </th>
             )}
             {showProject && (
               <th className="border border-border px-3 py-2 text-center font-semibold text-primary whitespace-nowrap">
                 Proyecto
-                <div className="text-[10px] font-normal text-muted-foreground">{Math.round((subjects[0]?.examWeight ?? 30) / 2)}%</div>
+                <div className="text-[10px] font-normal text-muted-foreground">{weightLabel(subjectProjectWeight)}</div>
               </th>
             )}
             <th className="border border-border px-3 py-2 text-center font-semibold bg-muted whitespace-nowrap">

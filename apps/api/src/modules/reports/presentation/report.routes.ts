@@ -186,6 +186,8 @@ export default async function reportRoutes(app: FastifyInstance) {
         code?: string | null
       }
       type Subj = {
+        examWeight?: number
+        projectWeight?: number | null
         subjectName: string
         isQualitative?: boolean
         periodGrades: PG[]
@@ -195,6 +197,8 @@ export default async function reportRoutes(app: FastifyInstance) {
         finalCode?: string | null
       }
       const mapSubject = (s: Subj) => ({
+        examWeight: s.examWeight,
+        projectWeight: s.projectWeight,
         subjectName: s.subjectName,
         isQualitative: !!s.isQualitative,
         periodGrades: s.periodGrades.map((g) => ({

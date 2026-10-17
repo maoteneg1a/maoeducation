@@ -55,6 +55,9 @@ export interface GradingConfig {
   qualitativeScale: QualitativeLevel[]
   behaviorScale: BehaviorLevel[]
   promotion: PromotionConfig
+  /** Porcentaje del proyecto sobre la nota final. */
+  defaultProjectWeight: number
+  /** Peso conjunto de examen + proyecto, conservado por compatibilidad. */
   defaultExamWeight: number
   pedagogicRecovery: PedagogicRecoveryConfig
   activityGradeReinforcement: ActivityGradeReinforcementConfig
@@ -67,6 +70,7 @@ export interface UpdateGradingConfigDto {
   qualitativeScale?: QualitativeLevel[]
   behaviorScale?: BehaviorLevel[]
   promotion?: Partial<PromotionConfig>
+  defaultProjectWeight?: number
   defaultExamWeight?: number
   pedagogicRecovery?: Partial<PedagogicRecoveryConfig>
   activityGradeReinforcement?: Partial<ActivityGradeReinforcementConfig>

@@ -1,3 +1,4 @@
+import { bulletinGradeColumns } from '../application/services/bulletin-grade-columns'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { NotFoundError } from '../../../shared/domain/errors/app.errors'
 import { resolveGuardianStudentId } from '../../../shared/infrastructure/services/guardian-scope.service'
@@ -79,7 +80,7 @@ export class PrismaReportRepository {
         id: true,
         parallelId: true,
         academicYearId: true,
-        examWeight: true,
+        examWeight: true, projectWeight: true,
         subject: true,
         parallel: { include: { level: true } },
         teacher: { select: { id: true, profile: { select: { firstName: true, lastName: true } } } },
@@ -198,7 +199,7 @@ export class PrismaReportRepository {
         const studentManual = manualByStudent.get(e.studentId) ?? new Map<string, number>()
         const summary = {
           ...this.applyManualInsumoAverages(
-            computePeriodSummary(groups, examWeight, gradingScaleMax),
+            computePeriodSummary(groups, examWeight, gradingScaleMax, assignment.projectWeight ?? undefined),
             studentManual,
             examWeight,
           ),
@@ -296,7 +297,7 @@ export class PrismaReportRepository {
         select: { insumoId: true, score: true },
       })
       const summary = this.applyManualInsumoAverages(
-        computePeriodSummary(groups, examWeight, gradingScaleMax),
+        computePeriodSummary(groups, examWeight, gradingScaleMax, assignment.projectWeight ?? undefined),
         new Map(manualRows.map((row) => [row.insumoId, Number(row.score)])),
         examWeight,
       )
@@ -334,6 +335,7 @@ export class PrismaReportRepository {
           ? `${assignment.teacher.profile.firstName} ${assignment.teacher.profile.lastName}`
           : '',
         examWeight,
+        projectWeight: assignment.projectWeight ?? examWeight / 2,
         insumoColumns,
         activityGrades,
         regularAvg: summary.insumosBase,
@@ -632,7 +634,7 @@ export class PrismaReportRepository {
       },
       select: {
         id: true,
-        examWeight: true,
+        examWeight: true, projectWeight: true,
         subject: { select: { name: true, isQualitative: true } },
         teacher: { select: { profile: { select: { firstName: true, lastName: true } } } },
       },
@@ -787,7 +789,7 @@ export class PrismaReportRepository {
             .map((row) => [row.insumoId, Number(row.score)]),
         )
         const s = this.applyManualInsumoAverages(
-          computePeriodSummary(groups, assignment.examWeight, gradingScaleMax),
+          computePeriodSummary(groups, assignment.examWeight, gradingScaleMax, assignment.projectWeight ?? undefined),
           manualMap,
           assignment.examWeight,
         )
@@ -809,6 +811,8 @@ export class PrismaReportRepository {
       return {
         assignmentId: assignment.id,
         subjectName: assignment.subject.name,
+        examWeight: assignment.examWeight,
+        projectWeight: assignment.projectWeight ?? assignment.examWeight / 2,
         isQualitative,
         teacherName: assignment.teacher?.profile
           ? `${assignment.teacher.profile.firstName} ${assignment.teacher.profile.lastName}`
@@ -904,6 +908,7 @@ export class PrismaReportRepository {
       parallel,
       student: enrollment.student,
       periods: periods.map((p) => ({ id: p.id, name: p.name, periodNumber: p.periodNumber })),
+      gradingColumns: bulletinGradeColumns(subjects.filter((subject) => !subject.isQualitative)),
       subjects: academicSubjects,
       qualitativeSubjects,
       qualitativeValueScale,

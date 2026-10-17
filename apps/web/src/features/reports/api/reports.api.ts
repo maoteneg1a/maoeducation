@@ -4,6 +4,7 @@ export interface GradesReportData {
   assignment: {
     id: string
     examWeight: number
+    projectWeight?: number | null
     subject: { name: string }
     parallel: { name: string; level: { name: string } }
     teacher: { id: string; profile: { firstName: string; lastName: string } }
@@ -67,6 +68,7 @@ export interface MyGradesSubject {
   subjectName: string
   teacherName: string
   examWeight: number
+  projectWeight?: number | null
   insumoColumns: Array<{ name: string; avg: number | null }>
   activityGrades: Array<{
     activityId: string
@@ -110,7 +112,15 @@ export interface BulletinOptionsData {
   students: Array<{ id: string; profile: { firstName: string; lastName: string; dni?: string } }>
 }
 
+export interface BulletinGradeColumn {
+  key: 'regularAvg' | 'examenAvg' | 'proyectoAvg' | 'total'
+  label: string
+  weight: number | null
+}
+
 export interface BulletinSubject {
+  examWeight?: number
+  projectWeight?: number | null
   assignmentId: string
   subjectName: string
   isQualitative?: boolean
@@ -141,6 +151,7 @@ export interface StudentBulletinData {
   }
   student: { id: string; profile: { firstName: string; lastName: string; dni?: string } }
   periods: Array<{ id: string; name: string; periodNumber: number }>
+  gradingColumns?: BulletinGradeColumn[]
   subjects: BulletinSubject[]
   qualitativeSubjects?: BulletinSubject[]
   qualitativeValueScale?: Array<{ min: number; max: number; code: string }>

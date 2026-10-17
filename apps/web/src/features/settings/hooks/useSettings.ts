@@ -84,6 +84,9 @@ export function useUpdateGradingConfig() {
     mutationFn: (data: GradingConfig) => settingsApi.updateGradingConfig(data),
     onSuccess: (config) => {
       qc.setQueryData(settingsKeys.gradingConfig, config)
+      for (const key of ['grades-grid', 'my-grades', 'student-bulletin', 'report-grades', 'promotion', 'pedagogic-recovery', 'course-assignments']) {
+        qc.invalidateQueries({ queryKey: [key] })
+      }
       toast.success('Configuración de calificación guardada')
     },
     onError: (err) => toast.error(getErrorMessage(err)),

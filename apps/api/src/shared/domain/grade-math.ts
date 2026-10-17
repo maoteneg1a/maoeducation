@@ -6,9 +6,9 @@
  *  - La base FORMATIVA es el PROMEDIO DE LOS PROMEDIOS POR INSUMO (por categoría):
  *    cada insumo promedia sus actividades regulares, y la base promedia esos promedios.
  *    Cada insumo pesa igual (los pesos por-insumo NO se usan). Pondera 100 - summativeWeight (70%).
- *  - El restante (summativeWeight, 30%) = PROMEDIO de Examen y Proyecto:
+ *  - El restante (summativeWeight, 30%) se reparte entre Examen y Proyecto:
  *    examen = actividades tipo `exam`, proyecto = actividades tipo `project`.
- *    (Equivale a Examen 15% + Proyecto 15% cuando summativeWeight = 30.)
+ *    Por defecto se reparte por igual; projectWeight permite configurar el peso del proyecto.
  *  - Las actividades sin nota se IGNORAN (para un cero, se registra 0 explícito).
  */
 
@@ -91,6 +91,18 @@ export interface PeriodSummary {
   total: number | null
 }
 
+/** Pesos expresados como porcentaje de la nota final del período. */
+export function validPeriodWeights(summativeWeight: number, projectWeight: number): boolean {
+  return Number.isInteger(summativeWeight) && summativeWeight >= 0 && summativeWeight <= 100 &&
+    Number.isFinite(projectWeight) && projectWeight >= 0 && projectWeight <= summativeWeight
+}
+
+export function weightedSummativeAverage(exam: number | null, project: number | null, summativeWeight: number, projectWeight = summativeWeight / 2): number | null {
+  const examWeight = summativeWeight - projectWeight
+  const weight = (exam != null ? examWeight : 0) + (project != null ? projectWeight : 0)
+  return weight > 0 ? ((exam ?? 0) * examWeight + (project ?? 0) * projectWeight) / weight : null
+}
+
 /**
  * Total ponderado de un periodo: base formativa + sumativa (examen/proyecto) según su peso.
  * Si no hay sumativa, el total es la base formativa.
@@ -101,6 +113,8 @@ export function periodTotal(
   summativeWeight: number,
   hasSummative: boolean,
 ): number | null {
+  if (summativeWeight === 0) return regularAvg
+  if (summativeWeight === 100) return summativeAvg
   if (hasSummative) {
     const regularWeight = 100 - summativeWeight
     if (regularAvg != null && summativeAvg != null) {
@@ -147,13 +161,14 @@ export function effectiveActivityScore(grade?: {
 
 /**
  * Resumen canónico de un periodo para una asignación/estudiante:
- * base formativa (promedio por insumo), examen, proyecto, sumativa (promedio de ambos)
+ * base formativa (promedio por insumo), examen, proyecto, sumativa (promedio ponderado de ambos)
  * y total ponderado. `hasSummative` se basa en que existan actividades de examen o proyecto.
  */
 export function computePeriodSummary(
   groups: InsumoGroupInput[],
   summativeWeight: number,
   gradingScaleMax = 10,
+  projectWeight: number = summativeWeight / 2,
 ): PeriodSummary {
   const insumoAvgs = groups.map((g) => ({
     id: g.id,
@@ -167,8 +182,8 @@ export function computePeriodSummary(
   const projectActivities = all.filter((a) => a.kind === 'project')
   const examenAvg = average(examActivities.map((a) => normalizeScore(a.score, a.maxScore, gradingScaleMax)))
   const proyectoAvg = average(projectActivities.map((a) => normalizeScore(a.score, a.maxScore, gradingScaleMax)))
-  const summativeAvg = average([examenAvg, proyectoAvg])
-  const hasSummative = examActivities.length > 0 || projectActivities.length > 0
+  const summativeAvg = weightedSummativeAverage(examenAvg, proyectoAvg, summativeWeight, projectWeight)
+  const hasSummative = (summativeWeight > projectWeight && examActivities.length > 0) || (projectWeight > 0 && projectActivities.length > 0)
 
   const total = periodTotal(insumosBase, summativeAvg, summativeWeight, hasSummative)
   return { insumoAvgs, insumosBase, examenAvg, proyectoAvg, summativeAvg, hasSummative, total }

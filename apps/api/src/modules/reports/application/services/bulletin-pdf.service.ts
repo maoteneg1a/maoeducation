@@ -1,3 +1,4 @@
+import { bulletinGradeColumns, bulletinWeight, type BulletinWeights } from './bulletin-grade-columns'
 import fs from 'fs'
 import path from 'path'
 import PDFDocument from 'pdfkit'
@@ -11,7 +12,7 @@ interface PeriodGrade {
   total: number | null
   code: string | null
 }
-interface SubjectRow {
+interface SubjectRow extends BulletinWeights {
   subjectName: string
   isQualitative: boolean
   periodGrades: PeriodGrade[]
@@ -159,7 +160,8 @@ export function buildBulletinPdf(data: BulletinPdfData): Promise<Buffer> {
     const supleW = 34
     const finalW = 40
     const perPeriodW = (pageW - subjW - supleW - finalW) / Math.max(periods.length, 1)
-    const subW = perPeriodW / 4 // Form / Exam / Proy / Prom
+    const gradeColumns = bulletinGradeColumns(data.subjects)
+    const subW = perPeriodW / gradeColumns.length
     const rowH = 15
 
     const colX = (pi: number, sub: number) => left + subjW + pi * perPeriodW + sub * subW
@@ -180,7 +182,7 @@ export function buildBulletinPdf(data: BulletinPdfData): Promise<Buffer> {
     doc.text('PROM. FINAL', finalX, y + rowH - 6, { width: finalW, align: 'center' })
 
     // Cabecera fila 2 (sub-columnas)
-    const subLabels = ['Form.', 'Exam.', 'Proy.', 'Prom.']
+    const subLabels = gradeColumns.map((column) => column.key === 'total' ? column.label : `${column.label} ${column.weight == null ? '(varía)' : `${column.weight}%`}`)
     doc.fontSize(6)
     periods.forEach((_, pi) => {
       subLabels.forEach((lbl, si) => {
@@ -201,10 +203,10 @@ export function buildBulletinPdf(data: BulletinPdfData): Promise<Buffer> {
       doc.font('Helvetica').fontSize(7).text(s.subjectName, left + 3, y + 4, { width: subjW - 6, ellipsis: true })
       periods.forEach((p, pi) => {
         const g = s.periodGrades.find((x) => x.periodId === p.id)
-        cell(colX(pi, 0), subW, NUM(g?.regularAvg ?? null))
-        cell(colX(pi, 1), subW, NUM(g?.examenAvg ?? null))
-        cell(colX(pi, 2), subW, NUM(g?.proyectoAvg ?? null))
-        cell(colX(pi, 3), subW, NUM(g?.total ?? null), true)
+        gradeColumns.forEach((column, ci) => {
+          const value = column.key !== 'total' && bulletinWeight(s, column.key) === 0 ? null : g?.[column.key] ?? null
+          cell(colX(pi, ci), subW, NUM(value), column.key === 'total')
+        })
       })
       cell(supleX, supleW, NUM(s.supletorio))
       cell(finalX, finalW, NUM(s.promFinal), true)

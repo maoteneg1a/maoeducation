@@ -1,3 +1,4 @@
+import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
 import { randomBytes } from 'crypto'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, BadRequestError } from '../../../../shared/domain/errors/app.errors'
@@ -379,6 +380,7 @@ export async function reconcilePersonalClasses(
   const institution = await prisma.institution.findUnique({ where: { id: institutionId }, select: { settings: true } })
   const settings = (institution?.settings ?? {}) as Record<string, unknown>
   const planningModel = (settings.planningModel as PlanningModel | undefined) ?? 'destrezas'
+  const grading = await new PrismaInstitutionRepository().getGradingConfig(institutionId)
   const year = await getActiveYear(institutionId)
 
   const seen = new Set<string>()
@@ -431,7 +433,7 @@ export async function reconcilePersonalClasses(
         ? existing
         : await prisma.courseAssignment.update({ where: { id: existing.id }, data: { weeklyPeriodsOverride: override } })
       : await prisma.courseAssignment.create({
-          data: { institutionId, subjectId: subject.id, parallelId, teacherId, academicYearId: year.id, weeklyPeriodsOverride: override },
+          data: { institutionId, subjectId: subject.id, parallelId, teacherId, academicYearId: year.id, weeklyPeriodsOverride: override, examWeight: grading.defaultExamWeight, projectWeight: grading.defaultProjectWeight },
         })
     if (keepAssignmentIds.has(assignment.id)) throw new BadRequestError('La combinación de grado y materia está repetida')
     keepAssignmentIds.add(assignment.id)

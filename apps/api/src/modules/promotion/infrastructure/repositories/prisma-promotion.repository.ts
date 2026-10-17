@@ -84,7 +84,7 @@ export class PrismaPromotionRepository {
 
     const assignments = await prisma.courseAssignment.findMany({
       where: { institutionId, parallelId, academicYearId: yearId, isActive: true },
-      select: { id: true, examWeight: true, subject: { select: { name: true } } },
+      select: { id: true, examWeight: true, projectWeight: true, subject: { select: { name: true } } },
       orderBy: { subject: { name: 'asc' } },
     })
     const assignmentIds = assignments.map((a) => a.id)
@@ -203,7 +203,7 @@ export class PrismaPromotionRepository {
           const annualByPeriod = periodIds.map((pId) => {
             const groups = bucket.get(key(sId, a.id, pId))
             if (!groups) return null
-            const rawTotal = computePeriodSummary([...groups.values()], a.examWeight, gradingScaleMax).total
+            const rawTotal = computePeriodSummary([...groups.values()], a.examWeight, gradingScaleMax, a.projectWeight ?? undefined).total
             const pedRec = pedRecMap.get(`${sId}:${a.id}:${pId}`) ?? null
             return applyRecovery(rawTotal, pedRec, pedRecoveryMode)
           })

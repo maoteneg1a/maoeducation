@@ -1,3 +1,4 @@
+import { validPeriodWeights } from '../../../../shared/domain/grade-math'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { BadRequestError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
@@ -46,6 +47,7 @@ function extractGradingConfig(settings: unknown): GradingConfig {
         : (DEFAULT_GRADING_CONFIG.behaviorScale as unknown as GradingConfig['behaviorScale']),
     promotion: { ...DEFAULT_GRADING_CONFIG.promotion, ...(gc.promotion ?? {}) },
     defaultExamWeight: gc.defaultExamWeight ?? DEFAULT_GRADING_CONFIG.defaultExamWeight,
+    defaultProjectWeight: gc.defaultProjectWeight ?? (gc.defaultExamWeight ?? DEFAULT_GRADING_CONFIG.defaultExamWeight) / 2,
     pedagogicRecovery: {
       ...DEFAULT_GRADING_CONFIG.pedagogicRecovery,
       ...(gc.pedagogicRecovery ?? {}),
@@ -185,6 +187,7 @@ export class PrismaInstitutionRepository {
       behaviorScale: dto.behaviorScale ?? current.behaviorScale,
       promotion: { ...current.promotion, ...(dto.promotion ?? {}) },
       defaultExamWeight: dto.defaultExamWeight ?? current.defaultExamWeight,
+      defaultProjectWeight: dto.defaultProjectWeight ?? (dto.defaultExamWeight !== undefined && dto.defaultExamWeight !== current.defaultExamWeight ? dto.defaultExamWeight / 2 : current.defaultProjectWeight),
       pedagogicRecovery: { ...current.pedagogicRecovery, ...(dto.pedagogicRecovery ?? {}) },
       activityGradeReinforcement: {
         ...current.activityGradeReinforcement,
@@ -194,12 +197,21 @@ export class PrismaInstitutionRepository {
         dto.educarEcuadorExportEnabled ?? current.educarEcuadorExportEnabled,
     }
 
-    const updated = await prisma.institution.update({
-      where: { id: institutionId },
-      data: {
-        settings: { ...currentSettings, gradingConfig: next } as unknown as Prisma.InputJsonValue,
-      },
-      select: { settings: true },
+    if (!validPeriodWeights(next.defaultExamWeight, next.defaultProjectWeight)) {
+      throw new BadRequestError('Los porcentajes de examen y proyecto deben ser positivos o cero y sumar como máximo 100%.')
+    }
+    const updated = await prisma.$transaction(async (tx) => {
+      if (next.defaultExamWeight !== current.defaultExamWeight || next.defaultProjectWeight !== current.defaultProjectWeight) {
+        await tx.courseAssignment.updateMany({
+          where: { institutionId },
+          data: { examWeight: next.defaultExamWeight, projectWeight: next.defaultProjectWeight },
+        })
+      }
+      return tx.institution.update({
+        where: { id: institutionId },
+        data: { settings: { ...currentSettings, gradingConfig: next } as unknown as Prisma.InputJsonValue },
+        select: { settings: true },
+      })
     })
     return extractGradingConfig(updated.settings)
   }
