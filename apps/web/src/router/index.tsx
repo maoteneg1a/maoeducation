@@ -79,7 +79,7 @@ export const router = createBrowserRouter([
         ],
       },
       // ---- Academic Config ----
-      // Estructura académica (niveles, materias, años, paralelos, asignaciones,
+      // Estructura académica (niveles, materias, paralelos, asignaciones,
       // insumos): para cuentas personales de profesor nace de bootstrapInstitution
       // al registrarse — PersonalStructureGuard bloquea el acceso directo a estas
       // pantallas de administración (usan "Mis grados y materias" en su lugar).
@@ -88,6 +88,14 @@ export const router = createBrowserRouter([
         path: 'academic',
         element: <PermissionGuard permission="academic_config:manage" />,
         children: [
+          // Años y períodos personalizables también para cuentas personales.
+          {
+            path: 'years',
+            lazy: () =>
+              import('@/features/academic/pages/AcademicYearsPage').then((m) => ({
+                Component: m.AcademicYearsPage,
+              })),
+          },
           {
             element: <PersonalStructureGuard />,
             children: [
@@ -110,13 +118,6 @@ export const router = createBrowserRouter([
                 lazy: () =>
                   import('@/features/academic/pages/SubjectsPage').then((m) => ({
                     Component: m.SubjectsPage,
-                  })),
-              },
-              {
-                path: 'years',
-                lazy: () =>
-                  import('@/features/academic/pages/AcademicYearsPage').then((m) => ({
-                    Component: m.AcademicYearsPage,
                   })),
               },
               {

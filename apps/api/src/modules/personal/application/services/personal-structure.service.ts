@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, BadRequestError } from '../../../../shared/domain/errors/app.errors'
 import { findGradeByCode } from '../../../../shared/domain/grade-catalog'
@@ -14,7 +15,7 @@ import { resolveWorkload } from '../../../../shared/domain/workload-resolution'
 export type PlanningModel = 'destrezas' | 'competencias'
 
 /**
- * El docente nunca escribe el nombre de una materia a mano: elige de un
+ * Para materias oficiales, el docente elige de un
  * catálogo oficial (banco de destrezas o de competencias, según el
  * planningModel de la institución) y aquí resolvemos el/los área(s)
  * seleccionadas contra ese catálogo real — sin heurística de texto de ningún
@@ -139,7 +140,10 @@ export async function ensureParallelA(institutionId: string, levelId: string, ac
 
 export interface PersonalClassSelection {
   gradeCode: string
-  subjectAreaId: string
+  subjectAreaId?: string
+  subjectId?: string
+  customSubjectName?: string
+  customGradeName?: string
   /**
    * Períodos/semana reales de ESTA materia para este docente — solo hace
    * falta cuando CurricularWorkload.sourceType es OFFICIAL_GROUPED (varias
@@ -152,6 +156,41 @@ export interface PersonalClassSelection {
   weeklyPeriodsOverride?: number | null
 }
 
+/** Custom subjects intentionally have no official curriculum or workload links. */
+export async function resolvePersonalSubject(institutionId: string, planningModel: PlanningModel, selection: PersonalClassSelection) {
+  if (selection.subjectId) {
+    const subject = await prisma.subject.findFirst({ where: { id: selection.subjectId, institutionId } })
+    if (!subject) throw new NotFoundError('Materia no encontrada en tu cuenta')
+    return subject
+  }
+  if (selection.customSubjectName !== undefined) {
+    const name = selection.customSubjectName.trim()
+    if (!name || name.length > 150) throw new BadRequestError('La materia debe tener entre 1 y 150 caracteres')
+    const existing = await prisma.subject.findFirst({
+      where: { institutionId, name: { equals: name, mode: 'insensitive' }, curriculumAreaId: null, competencyAreaId: null },
+    })
+    return existing ?? prisma.subject.create({ data: { institutionId, name } })
+  }
+  if (!selection.subjectAreaId) throw new BadRequestError('Selecciona una materia o escribe una personalizada')
+  return getOrCreateSubjectForArea(institutionId, planningModel, selection.subjectAreaId)
+}
+
+export async function resolvePersonalLevel(institutionId: string, selection: PersonalClassSelection) {
+  if (selection.customGradeName !== undefined) {
+    const name = selection.customGradeName.trim()
+    if (!name || name.length > 100) throw new BadRequestError('El grado debe tener entre 1 y 100 caracteres')
+    const existing = await prisma.level.findFirst({
+      where: { institutionId, code: { startsWith: 'CUSTOM_' }, name: { equals: name, mode: 'insensitive' } },
+    })
+    return existing ?? prisma.level.create({ data: { institutionId, name, code: `CUSTOM_${randomBytes(6).toString('hex').toUpperCase()}`, sortOrder: 100 } })
+  }
+  const code = selection.gradeCode.trim().toUpperCase()
+  if (findGradeByCode(code)) return ensureLevelForGrade(institutionId, code)
+  const existing = await prisma.level.findFirst({ where: { institutionId, code } })
+  if (!existing) throw new BadRequestError('Grado no encontrado en tu cuenta')
+  return existing
+}
+
 export interface PersonalClassRow {
   gradeCode: string
   gradeName: string
@@ -161,6 +200,7 @@ export interface PersonalClassRow {
   subjectName: string
   /** id del área (competencia o curricular, según el planningModel activo) para preseleccionar en el selector. */
   subjectAreaId: string | null
+  isCustomSubject: boolean
   isMultigradeMember: boolean
   hasDependentData: boolean
   weeklyPeriodsOverride: number | null
@@ -170,6 +210,7 @@ export interface PersonalClassRow {
 
 export interface PersonalClassesState {
   yearId: string
+  yearName: string
   planningModel: PlanningModel
   multigradeEnabled: boolean
   allowSuperiorExtension: boolean
@@ -257,6 +298,7 @@ export async function listPersonalClasses(institutionId: string): Promise<Person
       subjectId: a.subjectId,
       subjectName: a.subject.name,
       subjectAreaId: areaId ?? null,
+      isCustomSubject: !a.subject.curriculumAreaId && !a.subject.competencyAreaId,
       isMultigradeMember: a.multigradeGroupMember !== null,
       hasDependentData: await hasDependentData(a.id),
       weeklyPeriodsOverride: a.weeklyPeriodsOverride,
@@ -269,6 +311,7 @@ export async function listPersonalClasses(institutionId: string): Promise<Person
 
   return {
     yearId: year.id,
+    yearName: year.name,
     planningModel,
     multigradeEnabled,
     allowSuperiorExtension,
@@ -305,15 +348,21 @@ export async function reconcilePersonalClasses(
 
   const seen = new Set<string>()
   for (const s of selections) {
-    const key = `${s.gradeCode.trim().toUpperCase()}::${s.subjectAreaId}`
+    const key = `${s.customGradeName?.trim().toUpperCase() || s.gradeCode.trim().toUpperCase()}::${s.subjectId || s.customSubjectName?.trim().toUpperCase() || s.subjectAreaId}`
     if (seen.has(key)) throw new BadRequestError(`La combinación grado "${s.gradeCode}" + materia está repetida`)
     seen.add(key)
   }
 
-  const egbSelections = selections.filter((s) => findGradeByCode(s.gradeCode.trim().toUpperCase())?.subnivel !== 'bgu')
+  const egbSelections = selections.filter((s) => {
+    const grade = !s.customGradeName && findGradeByCode(s.gradeCode.trim().toUpperCase())
+    return grade && grade.subnivel !== 'bgu'
+  })
   if (multigradeEnabled) {
     try {
-      resolveMultigradeSelections(egbSelections, allowSuperiorExtension)
+      resolveMultigradeSelections(egbSelections.map((s) => ({
+        gradeCode: s.gradeCode,
+        subjectAreaId: s.subjectAreaId || s.subjectId || s.customSubjectName?.trim() || '',
+      })), allowSuperiorExtension)
     } catch (error) {
       if (error instanceof MultigradeDomainError) throw new BadRequestError(error.message)
       throw error
@@ -326,8 +375,8 @@ export async function reconcilePersonalClasses(
   const blocked: ReconcilePersonalClassesResult['blocked'] = []
 
   for (const selection of selections) {
-    const gradeCode = selection.gradeCode.trim().toUpperCase()
-    const level = await ensureLevelForGrade(institutionId, gradeCode)
+    const level = await resolvePersonalLevel(institutionId, selection)
+    const gradeCode = level.code
 
     let parallelId = parallelIdByGrade.get(gradeCode)
     if (!parallelId) {
@@ -336,7 +385,7 @@ export async function reconcilePersonalClasses(
       parallelIdByGrade.set(gradeCode, parallelId)
     }
 
-    const subject = await getOrCreateSubjectForArea(institutionId, planningModel, selection.subjectAreaId)
+    const subject = await resolvePersonalSubject(institutionId, planningModel, selection)
 
     const existing = await prisma.courseAssignment.findFirst({
       where: { subjectId: subject.id, parallelId, academicYearId: year.id },
@@ -349,6 +398,7 @@ export async function reconcilePersonalClasses(
       : await prisma.courseAssignment.create({
           data: { institutionId, subjectId: subject.id, parallelId, teacherId, academicYearId: year.id, weeklyPeriodsOverride: override },
         })
+    if (keepAssignmentIds.has(assignment.id)) throw new BadRequestError('La combinación de grado y materia está repetida')
     keepAssignmentIds.add(assignment.id)
   }
 
@@ -397,7 +447,10 @@ export async function reconcilePersonalClasses(
     where: { institutionId, academicYearId: year.id, id: { in: [...keepAssignmentIds] } },
     include: { parallel: { include: { level: true } } },
   })
-  const egbKept = keptAssignments.filter((a) => a.parallel.level.subnivel !== 'bgu')
+  const egbKept = keptAssignments.filter((a) => {
+    const grade = findGradeByCode(a.parallel.level.code)
+    return grade && grade.subnivel !== 'bgu'
+  })
 
   if (multigradeEnabled && egbKept.length >= 2) {
     if (!group) {

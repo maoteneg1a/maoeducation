@@ -244,13 +244,11 @@ const NAV_SECTIONS: NavSection[] = [
         permission: 'academic_config:manage',
         module: 'academic',
         children: [
-          // Estructura académica: para cuentas personales de profesor ya nace
-          // creada desde bootstrapInstitution al registrarse, así que no se
-          // expone en su sidebar. Calificación y Formato de Planificación sí se
-          // conservan: son plantillas/personalización, no estructura.
+          // Las cuentas personales administran sus clases en Mis grados y
+          // materias; años y períodos siguen disponibles para personalización.
           { label: 'Niveles', path: '/academic/levels', hideForPersonal: true },
           { label: 'Materias', path: '/academic/subjects', hideForPersonal: true },
-          { label: 'Años lectivos', path: '/academic/years', hideForPersonal: true },
+          { label: 'Años lectivos', path: '/academic/years' },
           { label: 'Paralelos', path: '/academic/parallels', hideForPersonal: true },
           { label: 'Asignaciones', path: '/academic/assignments', hideForPersonal: true },
           { label: 'Insumos por paralelo', path: '/academic/insumo-setup', hideForPersonal: true },
@@ -324,10 +322,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
   // Una sección sin ítems visibles desaparece con su encabezado — así una cuenta
   // personal sin módulos institucionales no muestra un título vacío. Los hijos
-  // de estructura académica (niveles/materias/años/paralelos/asignaciones) se
-  // ocultan además para cuentas personales — esa estructura ya nace creada
-  // desde bootstrapInstitution (ver PersonalStructureGuard, que bloquea
-  // también el acceso por URL directa a esas rutas).
+  // de estructura académica se filtran para cuentas personales: las clases
+  // se configuran en Mis grados y materias; años y períodos siguen visibles.
   const visibleSections = NAV_SECTIONS
     .map((section) => ({
       ...section,

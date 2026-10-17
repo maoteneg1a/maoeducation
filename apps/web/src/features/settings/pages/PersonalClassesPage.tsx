@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Input } from '@/shared/components/ui/input'
 import { toast } from 'sonner'
 import { Plus, Trash2, AlertTriangle } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
@@ -9,7 +11,7 @@ import { getErrorMessage } from '@/shared/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 import { useCurriculumAreas } from '@/features/curriculum/hooks/useCurriculum'
 import { useCompetencyAreas } from '@/features/competency-curriculum/hooks/useCompetencyCurriculum'
-import { GRADE_OPTIONS, MULTIGRADE_GRADE_OPTIONS, isBgu } from '@/features/personal/lib/grade-options'
+import { GRADE_OPTIONS, MULTIGRADE_GRADE_OPTIONS } from '@/features/personal/lib/grade-options'
 import { usePersonalClasses, useSavePersonalClasses, useUpdatePlanningModel } from '@/features/personal/hooks/usePersonalClasses'
 import type { PersonalClassSelection } from '@/features/personal/api/personal.api'
 
@@ -17,6 +19,10 @@ interface EditableRow {
   key: string
   gradeCode: string
   subjectAreaId: string
+  subjectId?: string
+  subjectName?: string
+  customSubjectName?: string
+  customGradeName?: string
   courseAssignmentId?: string
   hasDependentData?: boolean
   weeklyPeriodsOverride: number | null
@@ -44,7 +50,10 @@ export function PersonalClassesPage() {
       data.rows.map((r) => ({
         key: r.courseAssignmentId,
         gradeCode: r.gradeCode,
-        subjectAreaId: r.subjectAreaId ?? '',
+        subjectAreaId: r.subjectAreaId ?? (r.isCustomSubject ? '__custom__' : `existing-${r.subjectId}`),
+        subjectId: r.subjectId,
+        subjectName: r.subjectName,
+        customSubjectName: r.isCustomSubject ? r.subjectName : undefined,
         courseAssignmentId: r.courseAssignmentId,
         hasDependentData: r.hasDependentData,
         weeklyPeriodsOverride: r.weeklyPeriodsOverride,
@@ -61,7 +70,7 @@ export function PersonalClassesPage() {
 
   if (isLoading || !data) return <PageLoader />
 
-  const egbRows = rows.filter((r) => r.gradeCode && !isBgu(r.gradeCode))
+  const egbRows = rows.filter((r) => MULTIGRADE_GRADE_OPTIONS.some((g) => g.value === r.gradeCode))
   const hasSuperiorGradeSelected = egbRows.some(
     (r) => MULTIGRADE_GRADE_OPTIONS.find((g) => g.value === r.gradeCode)?.superior,
   )
@@ -83,16 +92,26 @@ export function PersonalClassesPage() {
   }
 
   async function handleSave() {
-    const selections: PersonalClassSelection[] = rows
-      .filter((r) => r.gradeCode && r.subjectAreaId)
-      .map((r) => ({ gradeCode: r.gradeCode, subjectAreaId: r.subjectAreaId, weeklyPeriodsOverride: r.weeklyPeriodsOverride }))
+    if (rows.some((r) => !r.gradeCode || (r.gradeCode === '__custom__' && !r.customGradeName?.trim()) ||
+      (!r.subjectId && (r.subjectAreaId === '__custom__' ? !r.customSubjectName?.trim() : !r.subjectAreaId)))) {
+      toast.error('Completa el grado y la materia de cada fila antes de guardar')
+      return
+    }
+    const selections: PersonalClassSelection[] = rows.map((r) => ({
+      gradeCode: r.gradeCode,
+      customGradeName: r.gradeCode === '__custom__' ? r.customGradeName?.trim() : undefined,
+      subjectId: r.subjectId,
+      subjectAreaId: r.subjectAreaId !== '__custom__' ? r.subjectAreaId : undefined,
+      customSubjectName: !r.subjectId && r.subjectAreaId === '__custom__' ? r.customSubjectName?.trim() : undefined,
+      weeklyPeriodsOverride: r.weeklyPeriodsOverride,
+    }))
 
     if (selections.length === 0) {
       toast.error('Agrega al menos un grado con materia')
       return
     }
     if (multigradeEnabled) {
-      const egbSelections = selections.filter((s) => !isBgu(s.gradeCode))
+      const egbSelections = selections.filter((s) => MULTIGRADE_GRADE_OPTIONS.some((g) => g.value === s.gradeCode))
       if (egbSelections.length < 2) {
         toast.error('El modo multigrado necesita al menos 2 grados de Básica (BGU se planifica por separado)')
         return
@@ -133,6 +152,18 @@ export function PersonalClassesPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Año lectivo: {data.yearName}</CardTitle>
+          <CardDescription>
+            Configura años y períodos con los nombres y fechas de tu país. Los grados y materias de abajo corresponden al año activo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" asChild><Link to="/academic/years">Gestionar años lectivos y períodos</Link></Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Modelo de planificación</CardTitle>
           <CardDescription>
             Define qué banco curricular usas: por Destrezas (currículo tradicional) o por Competencias (CNC). Cambiarlo
@@ -157,7 +188,7 @@ export function PersonalClassesPage() {
         <CardHeader>
           <CardTitle>Grados y materias</CardTitle>
           <CardDescription>
-            Elige cada grado y su materia del catálogo oficial — cada combinación queda vinculada a su currículo.
+            Elige del catálogo oficial o escribe grados y materias personalizados para tu país. Las materias personalizadas quedan fuera de la malla curricular.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -165,11 +196,16 @@ export function PersonalClassesPage() {
             <div key={row.key} className="space-y-1">
               <div className="flex gap-2 items-start">
                 <select
+                  aria-label="Grado"
                   value={row.gradeCode}
                   onChange={(e) => setRow(row.key, { gradeCode: e.target.value })}
-                  className="flex-1 h-9 rounded-md border border-gray-200 px-2 text-sm text-gray-700"
+                  className="flex-1 min-w-0 h-9 rounded-md border border-gray-200 px-2 text-sm text-gray-700"
                 >
                   <option value="">Grado…</option>
+                  <option value="__custom__">Grado personalizado…</option>
+                  {data.rows.filter((r, i, all) => !GRADE_OPTIONS.some((g) => g.value === r.gradeCode) && all.findIndex((a) => a.gradeCode === r.gradeCode) === i).map((r) => (
+                    <option key={r.gradeCode} value={r.gradeCode}>{r.gradeName}</option>
+                  ))}
                   {GRADE_OPTIONS.map((g) => (
                     <option key={g.value} value={g.value}>
                       {g.label}
@@ -177,11 +213,16 @@ export function PersonalClassesPage() {
                   ))}
                 </select>
                 <select
+                  aria-label="Materia"
                   value={row.subjectAreaId}
-                  onChange={(e) => setRow(row.key, { subjectAreaId: e.target.value })}
-                  className="flex-1 h-9 rounded-md border border-gray-200 px-2 text-sm text-gray-700"
+                  onChange={(e) => setRow(row.key, { subjectAreaId: e.target.value, subjectId: undefined, needsWeeklyPeriodsOverride: false })}
+                  className="flex-1 min-w-0 h-9 rounded-md border border-gray-200 px-2 text-sm text-gray-700"
                 >
                   <option value="">Materia…</option>
+                  <option value="__custom__">Materia personalizada (fuera de la malla)…</option>
+                  {row.subjectId && row.subjectAreaId && row.subjectAreaId !== '__custom__' && !catalogAreas.some((a) => a.id === row.subjectAreaId) && (
+                    <option value={row.subjectAreaId}>{row.subjectName}</option>
+                  )}
                   {catalogAreas.map((area) => (
                     <option key={area.id} value={area.id}>
                       {area.name}
@@ -199,6 +240,17 @@ export function PersonalClassesPage() {
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </div>
+              {row.gradeCode === '__custom__' && (
+                <Input aria-label="Nombre del grado personalizado" maxLength={100} placeholder="Ej: Séptimo de primaria, Grade 8" value={row.customGradeName ?? ''}
+                  onChange={(e) => setRow(row.key, { customGradeName: e.target.value })} />
+              )}
+              {row.subjectAreaId === '__custom__' && (
+                <div className="space-y-1">
+                  <Input aria-label="Nombre de la materia personalizada" maxLength={150} placeholder="Ej: Robótica, Historia de Colombia" value={row.customSubjectName ?? ''}
+                    onChange={(e) => setRow(row.key, { customSubjectName: e.target.value, subjectId: undefined })} />
+                  <p className="text-xs text-muted-foreground">Fuera de la malla curricular. Puedes registrar actividades y calificaciones sin un área oficial.</p>
+                </div>
+              )}
               {row.needsWeeklyPeriodsOverride && (
                 <div className="flex items-center gap-2 pl-1">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
@@ -237,7 +289,7 @@ export function PersonalClassesPage() {
           <CardTitle>Modo multigrado</CardTitle>
           <CardDescription>
             Actívalo si dictas varios grados de Básica a la vez (unidocente/pluridocente). BGU siempre se planifica
-            por separado, aunque el modo esté activo.
+            por separado, aunque el modo esté activo. Los grados personalizados quedan fuera del grupo multigrado oficial.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

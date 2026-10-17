@@ -10,7 +10,10 @@ export interface PersonalRegisterDto {
 
 export interface PersonalClassSelection {
   gradeCode: string
-  subjectAreaId: string
+  subjectAreaId?: string
+  subjectId?: string
+  customSubjectName?: string
+  customGradeName?: string
   /** Períodos/semana reales de esta materia — solo aplica cuando la fila trae needsWeeklyPeriodsOverride. */
   weeklyPeriodsOverride?: number | null
 }
@@ -23,6 +26,7 @@ export interface PersonalClassRow {
   subjectId: string
   subjectName: string
   subjectAreaId: string | null
+  isCustomSubject: boolean
   isMultigradeMember: boolean
   hasDependentData: boolean
   weeklyPeriodsOverride: number | null
@@ -32,6 +36,7 @@ export interface PersonalClassRow {
 
 export interface PersonalClassesState {
   yearId: string
+  yearName: string
   planningModel: 'destrezas' | 'competencias'
   multigradeEnabled: boolean
   allowSuperiorExtension: boolean
