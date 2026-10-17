@@ -24,6 +24,10 @@ export function useSavePersonalClasses() {
     mutationFn: (dto: SavePersonalClassesDto) => personalApi.saveClasses(dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: personalClassesKeys.classes })
+      qc.invalidateQueries({ queryKey: ['course-assignments'] })
+      qc.invalidateQueries({ queryKey: ['subjects'] })
+      qc.invalidateQueries({ queryKey: ['levels'] })
+      qc.invalidateQueries({ queryKey: ['parallels'] })
     },
   })
 }

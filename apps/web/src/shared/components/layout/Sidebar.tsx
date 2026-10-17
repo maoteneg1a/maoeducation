@@ -104,15 +104,11 @@ const NAV_SECTIONS: NavSection[] = [
         permission: 'academic_config:manage',
         module: 'academic',
         children: [
-          // Estructura académica: para cuentas personales de profesor ya nace
-          // creada desde bootstrapInstitution al registrarse, así que no se
-          // expone en su sidebar (ver hideForPersonal más abajo y
-          // PersonalStructureGuard en router/index.tsx, que bloquea la ruta
-          // directa también). Calificación y Formato de Planificación SÍ se
-          // conservan: son plantillas/personalización, no estructura.
+          // Las cuentas personales administran sus clases en Mis grados y
+          // materias; años y períodos siguen disponibles para personalización.
           { label: 'Niveles',    path: '/academic/levels', hideForPersonal: true },
           { label: 'Materias',   path: '/academic/subjects', hideForPersonal: true },
-          { label: 'Años lectivos', path: '/academic/years', hideForPersonal: true },
+          { label: 'Años lectivos', path: '/academic/years' },
           { label: 'Paralelos',  path: '/academic/parallels', hideForPersonal: true },
           { label: 'Asignaciones', path: '/academic/assignments', hideForPersonal: true },
           { label: 'Insumos por paralelo', path: '/academic/insumo-setup', hideForPersonal: true },

@@ -120,6 +120,8 @@ export function useActivateYear() {
     mutationFn: (id: string) => academicApi.activateYear(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: academicKeys.years })
+      qc.invalidateQueries({ queryKey: ['personal-classes'] })
+      qc.invalidateQueries({ queryKey: ['course-assignments'] })
       toast.success('Año académico activado')
     },
     onError: (err) => toast.error(getErrorMessage(err)),

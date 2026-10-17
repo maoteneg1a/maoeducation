@@ -1,4 +1,6 @@
 import * as React from 'react'
+import { Link } from 'react-router-dom'
+import { useAuthStore } from '@/store/auth.store'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -188,7 +190,7 @@ function PeriodsPanel({ yearId }: { yearId: string }) {
         <p className="text-sm text-muted-foreground py-2">Cargando…</p>
       ) : periods.length === 0 ? (
         <p className="text-sm text-muted-foreground py-2">
-          No hay períodos. Agrega el primer trimestre o quimestre.
+          No hay períodos. Agrega el primer período con el nombre y las fechas que necesites.
         </p>
       ) : (
         <DataTable columns={columns} data={periods} emptyMessage="Sin períodos" />
@@ -311,6 +313,7 @@ const yearSchema = z.object({
 type YearForm = z.infer<typeof yearSchema>
 
 export function AcademicYearsPage() {
+  const isPersonalAccount = useAuthStore((s) => s.user?.institution?.accountType === 'personal')
   const { data: years = [], isLoading } = useAcademicYears()
   const createYear = useCreateYear()
   const activateYear = useActivateYear()
@@ -405,7 +408,7 @@ export function AcademicYearsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Años Académicos</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Gestiona los años y sus períodos académicos
+            {isPersonalAccount ? 'Crea tu calendario con los nombres y fechas de tu país.' : 'Gestiona los años y sus períodos académicos'}
           </p>
         </div>
         <Button onClick={() => setOpen(true)}>
@@ -413,6 +416,13 @@ export function AcademicYearsPage() {
           Nuevo Año
         </Button>
       </div>
+
+      {isPersonalAccount && (
+        <div className="rounded-lg border bg-muted/30 p-4 space-y-2 text-sm">
+          <p>Crea un año, agrega sus períodos y actívalo cuando quieras usarlo. Cada año tiene sus propios grados y materias.</p>
+          <Button variant="outline" size="sm" asChild><Link to="/settings/mis-grados">Configurar materias del año activo</Link></Button>
+        </div>
+      )}
 
       <div className="border rounded-lg overflow-hidden divide-y">
         {years.length === 0 ? (

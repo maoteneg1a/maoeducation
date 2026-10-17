@@ -442,6 +442,7 @@ function ActivityCard({
 // ---- Main Page ----
 
 export function ActivitiesPage() {
+  const isPersonalAccount = useAuthStore((s) => s.user?.institution?.accountType === 'personal')
   const { hasPermission } = usePermissions()
   // El profesor gestiona los insumos de SUS materias (insumos:write:own);
   // el admin también (insumos:write:all / academic_config:manage).
@@ -578,6 +579,14 @@ export function ActivitiesPage() {
           Nueva Actividad
         </Button>
       </div>
+
+      {isPersonalAccount && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 p-3">
+          <p className="text-sm text-muted-foreground">Personaliza tus clases, incluso fuera de la malla curricular.</p>
+          <Button variant="outline" size="sm" asChild><Link to="/settings/mis-grados">Crear materias y grados</Link></Button>
+          <Button variant="outline" size="sm" asChild><Link to="/academic/years">Años lectivos y períodos</Link></Button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">

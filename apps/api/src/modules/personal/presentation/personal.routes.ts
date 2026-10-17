@@ -4,18 +4,16 @@ import { randomBytes } from 'crypto'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { tokenService } from '../../../shared/infrastructure/services/token.service'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
-import { BadRequestError, ConflictError, NotFoundError, UnauthorizedError } from '../../../shared/domain/errors/app.errors'
+import { ConflictError, UnauthorizedError } from '../../../shared/domain/errors/app.errors'
 import { bootstrapInstitution } from '../../platform/application/services/institution-bootstrap'
-import { MultigradeDomainError, resolveMultigradeSelections } from '../../../shared/domain/multigrade'
+import { MultigradeDomainError } from '../../../shared/domain/multigrade'
 import { buildAuthInstitution } from '../../auth/application/services/auth-institution.mapper'
 import { PrismaAuthUserRepository } from '../../auth/infrastructure/repositories/prisma-auth-user.repository'
 import { sendVerificationEmail } from '../../../shared/infrastructure/services/email.service'
 import {
-  getOrCreateSubjectForArea,
   listPersonalClasses,
   reconcilePersonalClasses,
   type PersonalClassSelection,
-  type PlanningModel,
 } from '../application/services/personal-structure.service'
 
 const userRepo = new PrismaAuthUserRepository()
@@ -353,10 +351,13 @@ export default async function personalRoutes(app: FastifyInstance) {
               type: 'array',
               items: {
                 type: 'object',
-                required: ['gradeCode', 'subjectAreaId'],
+                required: ['gradeCode'],
                 properties: {
                   gradeCode: { type: 'string' },
                   subjectAreaId: { type: 'string' },
+                  subjectId: { type: 'string', minLength: 1 },
+                  customSubjectName: { type: 'string', minLength: 1, maxLength: 150 },
+                  customGradeName: { type: 'string', minLength: 1, maxLength: 100 },
                   weeklyPeriodsOverride: { type: ['number', 'null'] },
                 },
               },
