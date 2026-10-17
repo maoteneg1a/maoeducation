@@ -245,6 +245,41 @@ async function hasDependentData(courseAssignmentId: string): Promise<boolean> {
   return insumos + activities + plans + attendance + tasks + schedule > 0
 }
 
+/** Elimina únicamente aulas sin clases ni ningún registro académico asociado. */
+export async function cleanupUnusedPersonalParallels(institutionId: string, academicYearId: string) {
+  const unused = {
+    institutionId,
+    academicYearId,
+    courseAssignments: { none: {} },
+    enrollments: { none: {} },
+    attendanceRecords: { none: {} },
+    interdisciplinaryProjects: { none: {} },
+    multigradeGroupMembers: { none: {} },
+  }
+  const candidates = await prisma.parallel.findMany({
+    where: { institutionId, academicYearId, courseAssignments: { none: {} } },
+    select: {
+      id: true,
+      levelId: true,
+      _count: { select: {
+        enrollments: true,
+        attendanceRecords: true,
+        interdisciplinaryProjects: true,
+        multigradeGroupMembers: true,
+      } },
+    },
+  })
+  for (const parallel of candidates) {
+    if (Object.values(parallel._count).some((count) => count > 0)) continue
+    // Revalidar al borrar: puede haberse matriculado alguien desde la lectura.
+    const removed = await prisma.parallel.deleteMany({ where: { ...unused, id: parallel.id } })
+    if (removed.count === 0) continue
+    await prisma.level.deleteMany({
+      where: { id: parallel.levelId, institutionId, parallels: { none: {} } },
+    })
+  }
+}
+
 export async function listPersonalClasses(institutionId: string): Promise<PersonalClassesState> {
   const institution = await prisma.institution.findUnique({ where: { id: institutionId }, select: { settings: true } })
   const settings = (institution?.settings ?? {}) as Record<string, unknown>
@@ -422,24 +457,8 @@ export async function reconcilePersonalClasses(
     await prisma.courseAssignment.delete({ where: { id: a.id } })
   }
 
-  // 2b. Limpiar Paralelos (y su Level, si quedó sin ningún paralelo) que se
-  // quedaron sin ninguna asignación tras el paso anterior — evita acumular
-  // aulas fantasma como los "noveno A"/"NOVENO A" duplicados que motivaron
-  // esta reconciliación en primer lugar.
-  const orphanParallels = await prisma.parallel.findMany({
-    where: { institutionId, academicYearId: year.id, courseAssignments: { none: {} } },
-    select: { id: true, levelId: true },
-  })
-  for (const p of orphanParallels) {
-    await prisma.parallel.delete({ where: { id: p.id } })
-    const remaining = await prisma.parallel.count({ where: { levelId: p.levelId } })
-    if (remaining === 0) {
-      await prisma.level.delete({ where: { id: p.levelId } }).catch(() => {
-        // Otro año lectivo puede seguir apuntando a este Level indirectamente
-        // por historial — no forzar el borrado si Prisma reporta una FK viva.
-      })
-    }
-  }
+  // Quitar una materia no convierte un paralelo con estudiantes en un aula vacía.
+  await cleanupUnusedPersonalParallels(institutionId, year.id)
 
   // 3. Multigrado: sincronizar el grupo con las asignaciones EGB que queden.
   let group = await prisma.multigradeGroup.findFirst({ where: { institutionId, academicYearId: year.id } })

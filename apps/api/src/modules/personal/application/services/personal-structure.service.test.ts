@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const db = vi.hoisted(() => ({
   subject: { findFirst: vi.fn(), create: vi.fn() },
-  level: { findFirst: vi.fn(), create: vi.fn() },
+  level: { findFirst: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
+  parallel: { findMany: vi.fn(), deleteMany: vi.fn() },
 }))
 vi.mock('../../../../shared/infrastructure/database/prisma', () => ({ prisma: db }))
 
-import { resolvePersonalLevel, resolvePersonalSubject } from './personal-structure.service'
+import { cleanupUnusedPersonalParallels, resolvePersonalLevel, resolvePersonalSubject } from './personal-structure.service'
 
 beforeEach(() => vi.resetAllMocks())
 
@@ -62,5 +63,44 @@ describe('personal grades for other countries', () => {
     expect(await resolvePersonalLevel('personal', { gradeCode: 'CUSTOM_ABC' })).toEqual(level)
     expect(db.level.findFirst).toHaveBeenCalledWith({ where: { institutionId: 'personal', code: 'CUSTOM_ABC' } })
     expect(db.level.create).not.toHaveBeenCalled()
+  })
+})
+
+
+describe('saving personal classes with existing students', () => {
+  const emptyCounts = { enrollments: 0, attendanceRecords: 0, interdisciplinaryProjects: 0, multigradeGroupMembers: 0 }
+
+  it.each(Object.keys(emptyCounts))('keeps a parallel and its grade when it has %s', async (relation) => {
+    db.parallel.findMany.mockResolvedValue([{
+      id: 'existing-classroom', levelId: 'existing-grade', _count: { ...emptyCounts, [relation]: 1 },
+    }])
+    await expect(cleanupUnusedPersonalParallels('personal', 'year')).resolves.toBeUndefined()
+    expect(db.parallel.deleteMany).not.toHaveBeenCalled()
+    expect(db.level.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it('still cleans up genuinely empty classrooms and unused grades', async () => {
+    db.parallel.findMany.mockResolvedValue([{
+      id: 'empty-classroom', levelId: 'empty-grade', _count: emptyCounts,
+    }])
+    db.parallel.deleteMany.mockResolvedValue({ count: 1 })
+    await cleanupUnusedPersonalParallels('personal', 'year')
+    expect(db.parallel.deleteMany).toHaveBeenCalledWith({ where: {
+      id: 'empty-classroom', institutionId: 'personal', academicYearId: 'year',
+      courseAssignments: { none: {} }, enrollments: { none: {} }, attendanceRecords: { none: {} },
+      interdisciplinaryProjects: { none: {} }, multigradeGroupMembers: { none: {} },
+    } })
+    expect(db.level.deleteMany).toHaveBeenCalledWith({ where: {
+      id: 'empty-grade', institutionId: 'personal', parallels: { none: {} },
+    } })
+  })
+
+  it('keeps the grade if the classroom acquires dependent data before deletion', async () => {
+    db.parallel.findMany.mockResolvedValue([{
+      id: 'newly-enrolled-classroom', levelId: 'existing-grade', _count: emptyCounts,
+    }])
+    db.parallel.deleteMany.mockResolvedValue({ count: 0 })
+    await cleanupUnusedPersonalParallels('personal', 'year')
+    expect(db.level.deleteMany).not.toHaveBeenCalled()
   })
 })
