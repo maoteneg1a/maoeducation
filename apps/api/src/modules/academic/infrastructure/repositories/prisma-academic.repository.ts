@@ -1,3 +1,4 @@
+import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, ConflictError, BadRequestError } from '../../../../shared/domain/errors/app.errors'
 import { resolveWorkload } from '../../../../shared/domain/workload-resolution'
@@ -460,6 +461,7 @@ export class PrismaAcademicRepository {
       throw new ConflictError('Ya existe una asignación para esa materia en ese paralelo y año')
     }
 
+    const grading = await new PrismaInstitutionRepository().getGradingConfig(institutionId)
     return prisma.courseAssignment.create({
       data: {
         institutionId,
@@ -467,6 +469,8 @@ export class PrismaAcademicRepository {
         subjectId: dto.subjectId,
         teacherId: dto.teacherId,
         academicYearId: dto.academicYearId,
+        examWeight: grading.defaultExamWeight,
+        projectWeight: grading.defaultProjectWeight,
       },
       include: {
         parallel: { include: { level: true } },

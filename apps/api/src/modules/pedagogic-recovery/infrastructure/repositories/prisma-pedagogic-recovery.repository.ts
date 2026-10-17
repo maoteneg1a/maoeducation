@@ -86,7 +86,7 @@ export class PrismaPedagogicRecoveryRepository {
       }),
       prisma.courseAssignment.findMany({
         where: { institutionId, parallelId: query.parallelId, academicYearId: query.yearId, isActive: true },
-        select: { id: true, examWeight: true, subject: { select: { name: true } } },
+        select: { id: true, examWeight: true, projectWeight: true, subject: { select: { name: true } } },
         orderBy: { subject: { name: 'asc' } },
       }),
     ])
@@ -167,7 +167,7 @@ export class PrismaPedagogicRecoveryRepository {
 
         const groups = bucket.get(key(sId, a.id))
         const periodTotal = groups
-          ? computePeriodSummary([...groups.values()], a.examWeight, gradingScaleMax).total
+          ? computePeriodSummary([...groups.values()], a.examWeight, gradingScaleMax, a.projectWeight ?? undefined).total
           : null
         const rec = recMap.get(`${sId}:${a.id}`)
         const recoveryScore = rec?.score != null ? Number(rec.score) : null

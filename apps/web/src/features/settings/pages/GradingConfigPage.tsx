@@ -32,6 +32,10 @@ export function GradingConfigPage() {
 
   if (isLoading || !cfg) return <PageLoader />
 
+  const weightsValid = Number.isInteger(cfg.defaultExamWeight) && cfg.defaultExamWeight >= 0 && cfg.defaultExamWeight <= 100 &&
+    Number.isFinite(cfg.defaultProjectWeight) && cfg.defaultProjectWeight >= 0 && cfg.defaultProjectWeight <= cfg.defaultExamWeight
+  const examPercent = cfg.defaultExamWeight - cfg.defaultProjectWeight
+
   const setScale = (i: number, patch: Partial<QualitativeLevel>) =>
     setCfg({ ...cfg, qualitativeScale: cfg.qualitativeScale.map((l, idx) => (idx === i ? { ...l, ...patch } : l)) })
   const setBehavior = (i: number, patch: Partial<BehaviorLevel>) =>
@@ -65,7 +69,7 @@ export function GradingConfigPage() {
           <h1 className="text-2xl font-bold">Configuración de calificación</h1>
           <p className="text-sm text-muted-foreground">Escala cualitativa, comportamiento y reglas de promoción</p>
         </div>
-        <Button onClick={() => update.mutate(cfg)} loading={update.isPending}>Guardar</Button>
+        <Button onClick={() => update.mutate(cfg)} loading={update.isPending} disabled={!weightsValid}>Guardar</Button>
       </div>
 
       <PlanningModelConfigCard />
@@ -166,6 +170,38 @@ export function GradingConfigPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Porcentajes de la nota del período</CardTitle>
+          <CardDescription>
+            Define cuánto aportan las actividades, el examen y el proyecto a la nota final.
+            Al guardar cambios en estos porcentajes se recalculan los períodos de todas las materias.
+            Puedes ajustar una materia desde Calificaciones.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="formative-percent">Actividades / formativa (%)</Label>
+              <Input id="formative-percent" type="number" value={100 - cfg.defaultExamWeight} readOnly />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="exam-percent">Examen (%)</Label>
+              <Input id="exam-percent" type="number" min={0} max={100} step={1} value={examPercent}
+                onChange={(e) => setCfg({ ...cfg, defaultExamWeight: Number(e.target.value) + cfg.defaultProjectWeight })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="project-percent">Proyecto (%)</Label>
+              <Input id="project-percent" type="number" min={0} max={100} step={1} value={cfg.defaultProjectWeight}
+                onChange={(e) => setCfg({ ...cfg, defaultProjectWeight: Number(e.target.value), defaultExamWeight: examPercent + Number(e.target.value) })} />
+            </div>
+          </div>
+          <p className={weightsValid ? 'text-xs text-muted-foreground' : 'text-xs text-destructive'} role={weightsValid ? undefined : 'alert'}>
+            {weightsValid ? 'Los tres porcentajes suman 100%. Puedes usar 0% si no calificas examen o proyecto.' : 'Examen y proyecto deben sumar como máximo 100% y sus porcentajes no pueden ser negativos.'}
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Promoción */}
       <Card>
         <CardHeader>
@@ -175,8 +211,6 @@ export function GradingConfigPage() {
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <Field label="Nota mínima para aprobar" value={cfg.promotion.minToPass}
             onChange={(v) => setCfg({ ...cfg, promotion: { ...cfg.promotion, minToPass: v } })} />
-          <Field label="Examen por defecto (%)" value={cfg.defaultExamWeight}
-            onChange={(v) => setCfg({ ...cfg, defaultExamWeight: v })} />
           <Field label="Supletorio: desde" value={cfg.promotion.supletorioMin}
             onChange={(v) => setCfg({ ...cfg, promotion: { ...cfg.promotion, supletorioMin: v } })} />
           <Field label="Supletorio: hasta" value={cfg.promotion.supletorioMax}

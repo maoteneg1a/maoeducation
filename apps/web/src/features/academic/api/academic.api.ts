@@ -147,8 +147,8 @@ export const academicApi = {
   createAssignment: (data: Omit<CourseAssignment, 'id' | 'isActive' | 'teacherName' | 'subjectName' | 'parallelName'>) =>
     apiPost<CourseAssignment>('academic/course-assignments', data),
   deleteAssignment: (id: string) => apiDelete(`academic/course-assignments/${id}`),
-  updateExamWeight: (id: string, examWeight: number) =>
-    apiPatch<{ id: string; examWeight: number }>(`academic/course-assignments/${id}/exam-weight`, { examWeight }),
+  updateExamWeight: (id: string, examWeight: number, projectWeight?: number) =>
+    apiPatch<{ id: string; examWeight: number; projectWeight: number }>(`academic/course-assignments/${id}/exam-weight`, { examWeight, projectWeight }),
   getAssignmentWorkload: (id: string) =>
     apiGet<ResolvedWorkload>(`academic/course-assignments/${id}/workload`),
   updateWeeklyPeriodsOverride: (id: string, weeklyPeriodsOverride: number | null) =>

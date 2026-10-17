@@ -39,6 +39,7 @@ export interface GradingConfig {
   qualitativeScale: QualitativeLevel[]
   behaviorScale: BehaviorLevel[]
   promotion: PromotionConfig
+  defaultProjectWeight: number
   defaultExamWeight: number
   pedagogicRecovery: PedagogicRecoveryConfig
   activityGradeReinforcement: ActivityGradeReinforcementConfig

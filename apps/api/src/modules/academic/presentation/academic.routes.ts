@@ -1,3 +1,4 @@
+import { validPeriodWeights } from '../../../shared/domain/grade-math'
 import { FastifyInstance } from 'fastify'
 import { PrismaAcademicRepository } from '../infrastructure/repositories/prisma-academic.repository'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
@@ -285,13 +286,14 @@ export default async function academicRoutes(app: FastifyInstance) {
     },
   )
 
-  app.patch<{ Params: { id: string }; Body: { examWeight: number } }>(
+  app.patch<{ Params: { id: string }; Body: { examWeight: number; projectWeight?: number } }>(
     '/academic/course-assignments/:id/exam-weight',
     { preHandler: [requirePermission('academic_config', 'manage')] },
     async (req, reply) => {
       const { examWeight } = req.body
-      if (typeof examWeight !== 'number' || examWeight < 0 || examWeight > 100) {
-        return reply.status(400).send({ message: 'examWeight debe ser un número entre 0 y 100' })
+      const projectWeight = req.body.projectWeight ?? examWeight / 2
+      if (!validPeriodWeights(examWeight, projectWeight)) {
+        return reply.status(400).send({ message: 'Los porcentajes de examen y proyecto deben sumar como máximo 100%' })
       }
       const updated = await prisma.courseAssignment.findFirst({
         where: { id: req.params.id, institutionId: req.user.institutionId },
@@ -299,8 +301,8 @@ export default async function academicRoutes(app: FastifyInstance) {
       if (!updated) return reply.status(404).send({ message: 'Asignación no encontrada' })
       const result = await prisma.courseAssignment.update({
         where: { id: req.params.id },
-        data: { examWeight },
-        select: { id: true, examWeight: true },
+        data: { examWeight, projectWeight },
+        select: { id: true, examWeight: true, projectWeight: true },
       })
       return reply.send(result)
     },

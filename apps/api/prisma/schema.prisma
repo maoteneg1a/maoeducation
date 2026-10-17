@@ -734,7 +734,8 @@ model CourseAssignment {
   parallelId            String   @map("parallel_id")
   academicYearId        String   @map("academic_year_id")
   isActive              Boolean  @default(true) @map("is_active")
-  examWeight            Int      @default(30) @map("exam_weight")
+  examWeight            Int      @default(30) @map("exam_weight") // peso conjunto de examen + proyecto
+  projectWeight         Float?   @map("project_weight") // null conserva reparto 50/50 anterior
   // Períodos semanales institucionales — SOLO se usa cuando la carga oficial (CurricularWorkload)
   // es un bloque agrupado (ej. "ECA+EF"=5, "Currículo Integrador"=25) y la institución debe repartirlo
   // entre sus materias. Si la carga oficial ya es individual, este campo se ignora.

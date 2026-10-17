@@ -4,6 +4,7 @@ export interface GradesReportData {
   assignment: {
     id: string
     examWeight: number
+    projectWeight?: number | null
     subject: { name: string }
     parallel: { name: string; level: { name: string } }
     teacher: { id: string; profile: { firstName: string; lastName: string } }
@@ -67,6 +68,7 @@ export interface MyGradesSubject {
   subjectName: string
   teacherName: string
   examWeight: number
+  projectWeight?: number | null
   insumoColumns: Array<{ name: string; avg: number | null }>
   activityGrades: Array<{
     activityId: string
