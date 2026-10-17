@@ -29,6 +29,7 @@ import { formatDate } from '@/shared/lib/utils'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth.store'
+import { PersonalParallelsDialog } from '@/features/personal/components/PersonalParallelsDialog'
 import { academicApi } from '@/features/academic/api/academic.api'
 import {
   listEnrollments,
@@ -369,6 +370,7 @@ function StudentPicker({
 // ---- Main Page ----
 
 export function EnrollmentPage() {
+  const isPersonalAccount = useAuthStore((s) => s.user?.institution?.accountType === 'personal')
   const navigate = useNavigate()
   const qcRoot = useQueryClient()
   // Filter state
@@ -796,6 +798,19 @@ export function EnrollmentPage() {
             </SelectContent>
           </Select>
         </div>
+        {isPersonalAccount && seesAllParallels && (
+          <PersonalParallelsDialog
+            parallels={visibleParallels}
+            yearName={years.find((year) => year.id === yearId)?.name}
+            disabled={!yearId}
+            onDeleted={(id) => {
+              if (parallelId === id) setParallelId('')
+              if (singleParallelId === id) setSingleParallelId('')
+              if (bulkParallelId === id) setBulkParallelId('')
+              if (importParallelId === id) setImportParallelId('')
+            }}
+          />
+        )}
       </div>
 
       {/* Table */}

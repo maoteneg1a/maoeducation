@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs'
 import { randomBytes } from 'crypto'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { tokenService } from '../../../shared/infrastructure/services/token.service'
+import { deletePersonalParallel } from '../application/services/personal-parallels.service'
+import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { ConflictError, UnauthorizedError } from '../../../shared/domain/errors/app.errors'
 import { bootstrapInstitution } from '../../platform/application/services/institution-bootstrap'
@@ -318,6 +320,15 @@ export default async function personalRoutes(app: FastifyInstance) {
         data: { settings: { ...settings, planningModel: req.body.planningModel } },
       })
       return reply.send({ planningModel: req.body.planningModel })
+    },
+  )
+
+  app.delete<{ Params: { id: string } }>(
+    '/personal/parallels/:id',
+    { preHandler: [authMiddleware, requirePermission('academic_config', 'manage')] },
+    async (req, reply) => {
+      await deletePersonalParallel(req.user.institutionId, req.params.id)
+      return reply.status(204).send()
     },
   )
 

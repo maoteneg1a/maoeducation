@@ -1,4 +1,4 @@
-import { apiClient } from '@/shared/lib/api-client'
+import { apiClient, apiDelete } from '@/shared/lib/api-client'
 
 export interface PersonalRegisterDto {
   firstName: string
@@ -74,6 +74,8 @@ export const personalApi = {
 
   resendVerification: (email: string) =>
     apiClient.post('personal/resend-verification', { json: { email } }).json<{ message: string }>(),
+
+  deleteParallel: (id: string) => apiDelete(`personal/parallels/${id}`),
 
   getClasses: () => apiClient.get('personal/classes').json<PersonalClassesState>(),
 

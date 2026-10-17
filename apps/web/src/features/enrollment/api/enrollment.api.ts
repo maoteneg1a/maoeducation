@@ -26,7 +26,7 @@ export interface Parallel {
   name: string
   level: { id: string; name: string }
   academicYear: { id: string; name: string; isActive: boolean }
-  _count: { enrollments: number }
+  _count: { enrollments: number; courseAssignments?: number }
 }
 
 export interface StudentOption {
