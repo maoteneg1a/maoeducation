@@ -14,17 +14,23 @@ import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { cn, getErrorMessage } from '@/shared/lib/utils'
 import { getParallels, getYears, type Parallel } from '@/features/enrollment/api/enrollment.api'
-import { announcementsApi, type Announcement, type AnnouncementAudience, type CreateAnnouncementInput } from '../api/announcements.api'
+import { announcementsApi, type Announcement, type AnnouncementAudience, type CommunicationType, type CreateAnnouncementInput } from '../api/announcements.api'
 
 const audienceLabels: Record<AnnouncementAudience, string> = {
   all: 'Toda la institución',
   staff: 'Personal',
+  authorities: 'Autoridades',
+  teachers: 'Docentes',
   families: 'Estudiantes y familias',
   parallels: 'Paralelos seleccionados',
 }
 
+const communicationTypeLabels: Record<CommunicationType, string> = {
+  announcement: 'Aviso', meeting: 'Reunión', convocation: 'Convocatoria', socialization: 'Socialización', training: 'Capacitación', circular: 'Circular',
+}
+
 const emptyForm: CreateAnnouncementInput = {
-  title: '', body: '', priority: 'normal', audience: 'all', parallelIds: [],
+  title: '', body: '', communicationType: 'announcement', priority: 'normal', audience: 'all', parallelIds: [],
 }
 
 function eventStatus(eventAt?: string | null) {
@@ -123,6 +129,15 @@ export function AnnouncementsPage() {
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   })
+  const rsvp = useMutation({
+    mutationFn: ({ id, response }: { id: string; response: 'confirmed' | 'declined' }) => announcementsApi.rsvp(id, response),
+    onSuccess: (_result, variables) => {
+      qc.invalidateQueries({ queryKey: ['announcements'] })
+      setSelected((current) => current?.id === variables.id ? { ...current, myResponse: variables.response, myResponseAt: new Date().toISOString() } : current)
+      toast.success(variables.response === 'confirmed' ? 'Asistencia confirmada' : 'Respuesta registrada')
+    },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
 
   const openDetail = (notice: Announcement) => {
     setSelected(notice)
@@ -196,6 +211,7 @@ export function AnnouncementsPage() {
                       {!notice.isRead && <Badge>Nuevo</Badge>}
                       {notice.isRead && <span className="flex items-center gap-1 text-[11px] text-muted-foreground"><CheckCircle2 className="h-3 w-3" /> Leído</span>}
                       {notice.priority === 'important' && <Badge variant="warning">Importante</Badge>}
+                      <Badge variant="outline">{communicationTypeLabels[notice.communicationType] ?? 'Aviso'}</Badge>
                       {timing && <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', timing.className)}>{timing.label}</span>}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">{audienceLabels[notice.audience]}</p>
@@ -214,6 +230,7 @@ export function AnnouncementsPage() {
                   {notice.eventAt && <span className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{new Date(notice.eventAt).toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short' })}</span>}
                   {notice.location && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{notice.location}</span>}
                   {notice.attachmentName && <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> Documento adjunto</span>}
+                  {notice.myResponse === 'confirmed' && <span className="font-medium text-emerald-700">Asistencia confirmada</span>}
                 </div>
               </CardContent>
             </Card>
@@ -235,6 +252,7 @@ export function AnnouncementsPage() {
               <DialogHeader className="text-left">
                 <div className="flex flex-wrap items-center gap-2">
                   {selected.priority === 'important' && <Badge variant="warning">Importante</Badge>}
+                  <Badge variant="outline">{communicationTypeLabels[selected.communicationType] ?? 'Aviso'}</Badge>
                   {eventStatus(selected.eventAt) && (
                     <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', eventStatus(selected.eventAt)?.className)}>
                       {eventStatus(selected.eventAt)?.label}
@@ -257,6 +275,16 @@ export function AnnouncementsPage() {
                 </div>
               )}
 
+              {['meeting', 'convocation', 'socialization', 'training'].includes(selected.communicationType) && (
+                <div className="rounded-lg border bg-muted/30 p-4">
+                  <div className="mb-2 text-sm font-medium">¿Participarás en esta actividad?</div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant={selected.myResponse === 'confirmed' ? 'default' : 'outline'} loading={rsvp.isPending} onClick={() => rsvp.mutate({ id: selected.id, response: 'confirmed' })}>Sí, asistiré</Button>
+                    <Button size="sm" variant={selected.myResponse === 'declined' ? 'secondary' : 'outline'} loading={rsvp.isPending} onClick={() => rsvp.mutate({ id: selected.id, response: 'declined' })}>No podré asistir</Button>
+                  </div>
+                </div>
+              )}
+
               {selected.attachmentUrl && (
                 <button type="button" onClick={() => downloadAttachment(selected)} className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50">
                   <span className="rounded-md bg-primary/10 p-2 text-primary"><FileText className="h-5 w-5" /></span>
@@ -276,6 +304,7 @@ export function AnnouncementsPage() {
             <div className="space-y-1.5"><Label>Título *</Label><Input value={form.title} maxLength={200} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="Ej. Campaña de vacunación" /></div>
             <div className="space-y-1.5"><Label>Descripción *</Label><textarea className="min-h-28 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} /></div>
             <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5"><Label>Tipo de comunicación</Label><Select value={form.communicationType} onValueChange={(communicationType: CommunicationType) => setForm({ ...form, communicationType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(communicationTypeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1.5"><Label>Fecha y hora del evento</Label><Input type="datetime-local" value={form.eventAt ?? ''} onChange={(event) => setForm({ ...form, eventAt: event.target.value || null })} /></div>
               <div className="space-y-1.5"><Label>Lugar</Label><Input value={form.location ?? ''} onChange={(event) => setForm({ ...form, location: event.target.value })} /></div>
               <div className="space-y-1.5"><Label>Prioridad</Label><Select value={form.priority} onValueChange={(priority: 'normal' | 'important') => setForm({ ...form, priority })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="normal">Normal</SelectItem><SelectItem value="important">Importante</SelectItem></SelectContent></Select></div>
