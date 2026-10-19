@@ -1,3 +1,4 @@
+import { buildCommitmentDocument, parseCommitmentInput, resolveActaTemplate, type ActaContext, type CommitmentDocument } from '../../application/services/commitment-document'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { ConflictError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
@@ -339,32 +340,60 @@ export class PrismaIncidentRepository {
 
   // ─── Actas de compromiso ────────────────────────────────────────────────
 
+  private async actaContext(tx: Prisma.TransactionClient, id: string, institutionId: string) {
+    const incident = await tx.disciplinaryIncident.findFirst({
+      where: { id, institutionId },
+      include: { ...listRelations, events: detailRelations.events, attachments: detailRelations.attachments },
+    })
+    if (!incident) throw new NotFoundError('Incidente no encontrado')
+    const institution = await tx.institution.findUnique({ where: { id: institutionId }, select: { name: true, settings: true } })
+    if (!institution) throw new NotFoundError('Institución no encontrada')
+    const enrollment = await tx.studentEnrollment.findFirst({
+      where: { institutionId, studentId: incident.studentId, academicYear: { startDate: { lte: incident.incidentDate }, endDate: { gte: incident.incidentDate } } },
+      include: { parallel: { include: { level: true } }, academicYear: true },
+    })
+    const guardians = await tx.guardianStudent.findMany({
+      where: { studentId: incident.studentId, guardian: { institutionId } },
+      include: { guardian: { select: personSelect } },
+    })
+    const settings = (institution.settings ?? {}) as { branding?: { logoUrl?: string } }
+    const context: ActaContext = {
+      institutionName: institution.name, logoUrl: settings.branding?.logoUrl ?? null, incidentId: incident.id,
+      studentName: fullName(incident.student, 'No registrado'), studentDni: incident.student.profile?.dni ?? null,
+      classroom: enrollment ? `${enrollment.parallel.level.name} ${enrollment.parallel.name} · ${enrollment.academicYear.name}` : null,
+      guardians: guardians.map((link) => ({ name: fullName(link.guardian, 'No registrado'), dni: link.guardian.profile?.dni ?? null, relationship: link.relationship })),
+      incidentDate: incident.incidentDate.toISOString().slice(0, 10), incidentTypeName: incident.incidentType?.name ?? incident.category,
+      severity: incident.incidentType?.severity ?? incident.severity, description: incident.description, workflowState: incident.workflowState,
+      reporterName: fullName(incident.reporter, 'No registrado'), assignedDeceName: incident.assignedDece ? fullName(incident.assignedDece) : null,
+      guardianNotifiedAt: incident.guardianNotifiedAt?.toISOString() ?? null, resolutionNotes: incident.resolutionNotes,
+      timeline: incident.events.map((event) => ({ id: event.id, type: event.type, description: event.description, createdAt: event.createdAt.toISOString(), actorName: fullName(event.actor, 'No registrado') })),
+      evidence: incident.attachments.map((attachment) => ({ id: attachment.id, fileName: attachment.fileName, createdAt: attachment.createdAt.toISOString(), uploaderName: fullName(attachment.uploader, 'No registrado') })),
+    }
+    return { context, template: resolveActaTemplate(institution.settings) }
+  }
+
   async createCommitment(id: string, institutionId: string, actorId: string, dto: CreateCommitmentDto) {
-    await this.ensureExists(id, institutionId)
+    const input = parseCommitmentInput(dto)
     return prisma.$transaction(async (tx) => {
+      const { context, template } = await this.actaContext(tx, id, institutionId)
+      const document = buildCommitmentDocument(context, template, input.document)
+      document.generalTerms = input.terms
+      document.followUpDate = input.followUpDate ?? null
+      const terms = input.terms || document.details.agreements.map((agreement, index) => `${index + 1}. ${agreement.action} — Responsable: ${agreement.responsible}`).join('\n')
       const commitment = await tx.incidentCommitment.create({
         data: {
-          incidentId: id,
-          institutionId,
-          terms: dto.terms,
-          followUpDate: dto.followUpDate ? new Date(dto.followUpDate) : null,
-          signatories: (dto.signatories ?? {}) as Prisma.InputJsonValue,
-          createdBy: actorId,
+          incidentId: id, institutionId, terms,
+          followUpDate: input.followUpDate ? new Date(input.followUpDate) : null,
+          signatories: (input.signatories ?? {}) as Prisma.InputJsonValue,
+          documentData: document as unknown as Prisma.InputJsonValue, createdBy: actorId,
         },
         include: { creator: { select: personSelect } },
       })
       await tx.incidentEvent.create({
-        data: {
-          incidentId: id,
-          institutionId,
-          actorId,
-          type: 'commitment_created',
-          description: 'Acta de compromiso creada',
-          metadata: { commitmentId: commitment.id },
-        },
+        data: { incidentId: id, institutionId, actorId, type: 'commitment_created', description: 'Acta de compromiso creada', metadata: { commitmentId: commitment.id } },
       })
       return commitment
-    })
+    }, { timeout: 20_000 })
   }
 
   async listCommitments(id: string, institutionId: string) {
@@ -392,7 +421,11 @@ export class PrismaIncidentRepository {
       },
     })
     if (!commitment) throw new NotFoundError('Acta no encontrada')
-    return commitment
+    if (commitment.documentData) {
+      return { ...commitment, document: commitment.documentData as unknown as CommitmentDocument, contextIsCurrent: false }
+    }
+    const current = await prisma.$transaction(async (tx) => this.actaContext(tx, incidentId, institutionId), { timeout: 20_000 })
+    return { ...commitment, document: buildCommitmentDocument(current.context, current.template), contextIsCurrent: true }
   }
 
   // ─── Evidencias ─────────────────────────────────────────────────────────

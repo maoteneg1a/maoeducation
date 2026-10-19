@@ -1905,6 +1905,7 @@ model IncidentCommitment {
   followUpDate  DateTime? @map("follow_up_date") @db.Date
   status        String    @default("draft") @db.VarChar(20) // draft | signed
   signatories   Json      @default("{}")
+  documentData  Json?     @map("document_data")
   createdBy     String    @map("created_by")
   signedAt      DateTime? @map("signed_at")
   createdAt     DateTime  @default(now()) @map("created_at")

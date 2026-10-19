@@ -194,18 +194,19 @@ export default async function incidentRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>(
     '/incidents/:id/commitments',
     { preHandler: [requirePermission('incidents', 'read')] },
-    async (req, reply) => reply.send(await repo.listCommitments(req.params.id, req.user.institutionId)),
+    async (req, reply) => {
+      await repo.getById(req.params.id, req.user.institutionId, { userId: req.user.sub, roles: req.user.roles, permissions: req.user.permissions })
+      return reply.send(await repo.listCommitments(req.params.id, req.user.institutionId))
+    },
   )
 
   app.post<{ Params: { id: string }; Body: CreateCommitmentDto }>(
     '/incidents/:id/commitments',
     { preHandler: [requirePermission('incidents', 'write')] },
-    async (req, reply) =>
-      reply
-        .status(201)
-        .send(
-          await repo.createCommitment(req.params.id, req.user.institutionId, req.user.sub, req.body),
-        ),
+    async (req, reply) => {
+      await repo.getById(req.params.id, req.user.institutionId, { userId: req.user.sub, roles: req.user.roles, permissions: req.user.permissions })
+      return reply.status(201).send(await repo.createCommitment(req.params.id, req.user.institutionId, req.user.sub, req.body))
+    },
   )
 
   // PDF del acta
@@ -213,9 +214,11 @@ export default async function incidentRoutes(app: FastifyInstance) {
     '/incidents/:id/commitments/:cid/pdf',
     { preHandler: [requirePermission('incidents', 'read')] },
     async (req, reply) => {
+      await repo.getById(req.params.id, req.user.institutionId, { userId: req.user.sub, roles: req.user.roles, permissions: req.user.permissions })
       const c = await repo.getCommitmentForPdf(req.params.id, req.params.cid, req.user.institutionId)
       const instSettings = (c.institution.settings ?? {}) as { branding?: { logoUrl?: string | null } }
       const pdf = await buildActaPdf({
+        document: c.document, contextIsCurrent: c.contextIsCurrent, reference: c.id, status: c.status,
         institutionName: c.institution.name,
         logoUrl: instSettings.branding?.logoUrl ?? null,
         studentName: personName(c.incident.student),

@@ -1,3 +1,7 @@
+import { getActaTemplate, saveActaTemplate } from '../../incidents/application/services/acta-template.service'
+import { parseActaTemplate } from '../../incidents/application/services/commitment-document'
+import { sampleActaPdfData } from '../../incidents/application/services/acta-preview'
+import { buildActaPdf } from '../../incidents/application/services/acta-pdf.service'
 import { FastifyInstance } from 'fastify'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
@@ -115,6 +119,24 @@ export default async function institutionRoutes(app: FastifyInstance) {
     { preHandler: [requirePermission('academic_config', 'manage')] },
     async (req, reply) => {
       return reply.send(await repo.updateGradingConfig(req.user.institutionId, req.body))
+    },
+  )
+
+  app.get('/institution/document-templates/incident-commitment',
+    { preHandler: [requirePermission('incidents', 'read')] },
+    async (req, reply) => reply.send(await getActaTemplate(req.user.institutionId)),
+  )
+  app.put<{ Body: unknown }>('/institution/document-templates/incident-commitment',
+    { preHandler: [requirePermission('institution_config', 'manage')] },
+    async (req, reply) => reply.send(await saveActaTemplate(req.user.institutionId, req.body)),
+  )
+  app.post<{ Body: unknown }>('/institution/document-templates/incident-commitment/preview',
+    { preHandler: [requirePermission('institution_config', 'manage')] },
+    async (req, reply) => {
+      const template = parseActaTemplate(req.body)
+      const institution = await repo.getSettings(req.user.institutionId)
+      const pdf = await buildActaPdf(sampleActaPdfData(institution.name, institution.branding.logoUrl ?? null, template))
+      return reply.header('Content-Type', 'application/pdf').header('Content-Disposition', 'attachment; filename="vista-previa-acta.pdf"').send(pdf)
     },
   )
 

@@ -103,7 +103,19 @@ export const notifyGuardian = (id: string) =>
 export const listCommitments = (id: string) =>
   apiGet<IncidentCommitment[]>(`incidents/${id}/commitments`)
 
-export const createCommitment = (id: string, data: { terms: string; followUpDate?: string }) =>
+export interface CommitmentDetails {
+  meetingPlace?: string
+  meetingDate?: string
+  purpose?: string
+  participants: Array<{ name: string; role: string; dni?: string }>
+  agreements: Array<{ action: string; responsible: string; dueDate?: string; verification?: string }>
+  observations?: string
+  includeTimeline?: boolean
+  timelineEventIds?: string[]
+  includeEvidenceList?: boolean
+}
+
+export const createCommitment = (id: string, data: { terms: string; followUpDate?: string; document?: CommitmentDetails }) =>
   apiPost<IncidentCommitment>(`incidents/${id}/commitments`, data)
 
 export async function downloadCommitmentPdf(incidentId: string, commitmentId: string) {

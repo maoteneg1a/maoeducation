@@ -1,3 +1,4 @@
+import { ActaTemplateCard } from '../components/ActaTemplateCard'
 import { useEffect, useRef, useState } from 'react'
 import { Building2, Upload } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
@@ -54,7 +55,7 @@ export function BrandingPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Personalización</h1>
-        <p className="text-sm text-slate-500">Logo, nombre y colores de tu institución</p>
+        <p className="text-sm text-slate-500">Logo, nombre, colores y documentos de tu institución</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -157,9 +158,11 @@ export function BrandingPage() {
 
       <div className="flex justify-end">
         <Button onClick={handleSave} loading={updateBranding.isPending}>
-          Guardar cambios
+          Guardar identidad y colores
         </Button>
       </div>
+
+      <ActaTemplateCard />
     </div>
   )
 }

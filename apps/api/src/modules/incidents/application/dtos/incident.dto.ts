@@ -1,3 +1,4 @@
+import type { ActaInput } from '../services/commitment-document'
 export interface CreateIncidentDto {
   studentId: string
   incidentDate: string // YYYY-MM-DD
@@ -54,6 +55,7 @@ export interface AddEventDto {
 }
 
 export interface CreateCommitmentDto {
+  document?: ActaInput
   terms: string
   followUpDate?: string
   signatories?: Record<string, unknown>
