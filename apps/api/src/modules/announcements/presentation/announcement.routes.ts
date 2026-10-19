@@ -25,6 +25,7 @@ interface CreateAnnouncementBody {
 
 const STAFF_ROLES = ['admin', 'rector', 'teacher', 'inspector', 'dece']
 const AUTHORITY_ROLES = ['admin', 'rector', 'inspector', 'dece']
+const COMMUNICATION_MANAGER_ROLES = AUTHORITY_ROLES
 const TEACHER_ROLES = ['teacher']
 const COMMUNICATION_TYPES: CommunicationType[] = ['announcement', 'meeting', 'convocation', 'socialization', 'training', 'circular']
 const FLYER_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
@@ -53,6 +54,10 @@ function isVisibleToUser(
   if (row.audience === 'teachers') return roles.some((role) => TEACHER_ROLES.includes(role))
   if (row.audience === 'families') return roles.includes('student') || roles.includes('guardian')
   return targetParallelIds(row.parallelIds).some((id) => parallels.includes(id))
+}
+
+function canManageCommunications(roles: string[]) {
+  return roles.some((role) => COMMUNICATION_MANAGER_ROLES.includes(role))
 }
 
 async function userParallelIds(userId: string, institutionId: string, roles: string[]) {
@@ -145,7 +150,7 @@ export default async function announcementRoutes(app: FastifyInstance) {
     })
     rows.sort((a, b) => Number(b.priority === 'important') - Number(a.priority === 'important'))
     const parallels = await userParallelIds(sub, institutionId, roles)
-    const visible = rows.filter((row) => isVisibleToUser(row, roles, parallels))
+    const visible = canManageCommunications(roles) ? rows : rows.filter((row) => isVisibleToUser(row, roles, parallels))
     return reply.send(visible.map((row) => {
       const { reads, rsvps, flyerStoredName: _flyerStoredName, attachmentStoredName: _attachmentStoredName, ...announcement } = row
       void _flyerStoredName
@@ -211,7 +216,7 @@ export default async function announcementRoutes(app: FastifyInstance) {
       throw new BadRequestError('Esta comunicación no requiere confirmación')
     }
     const parallels = await userParallelIds(req.user.sub, req.user.institutionId, req.user.roles)
-    if (!isVisibleToUser(row, req.user.roles, parallels)) {
+    if (!canManageCommunications(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels)) {
       throw new ForbiddenError('No tienes acceso a este aviso')
     }
     const response = req.body?.response
@@ -230,7 +235,7 @@ export default async function announcementRoutes(app: FastifyInstance) {
     })
     if (!row) throw new NotFoundError('Aviso no encontrado')
     const parallels = await userParallelIds(req.user.sub, req.user.institutionId, req.user.roles)
-    if (!isVisibleToUser(row, req.user.roles, parallels)) {
+    if (!canManageCommunications(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels)) {
       throw new ForbiddenError('No tienes acceso a este aviso')
     }
     const read = await prisma.announcementRead.upsert({
@@ -294,7 +299,7 @@ export default async function announcementRoutes(app: FastifyInstance) {
       if (!row) throw new NotFoundError('Aviso no encontrado')
       if (req.params.kind !== 'flyer' && req.params.kind !== 'attachment') throw new BadRequestError('Tipo de archivo inválido')
       const parallels = await userParallelIds(req.user.sub, req.user.institutionId, req.user.roles)
-      if (!isPrivilegedStaff(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels)) {
+      if (!canManageCommunications(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels)) {
         throw new ForbiddenError('No tienes acceso a este aviso')
       }
       const isFlyer = req.params.kind === 'flyer'
