@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { CommitmentForm } from '../components/CommitmentForm'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -17,7 +18,7 @@ import { getErrorMessage } from '@/shared/lib/utils'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import {
   getIncident, changeIncidentState, assignDece, addIncidentEvent, notifyGuardian,
-  listCommitments, createCommitment, downloadCommitmentPdf, uploadEvidence, deleteEvidence,
+  listCommitments, downloadCommitmentPdf, uploadEvidence, deleteEvidence,
   getUsers, getIncidentAttachmentUrl, type Incident,
 } from '../api/incidents.api'
 
@@ -59,8 +60,6 @@ export function IncidentDetailPage() {
   const [newState, setNewState] = useState('')
   const [deceId, setDeceId] = useState('')
   const [note, setNote] = useState('')
-  const [terms, setTerms] = useState('')
-  const [followUpDate, setFollowUpDate] = useState('')
 
   const incidentQ = useQuery({ queryKey: ['incident', id], queryFn: () => getIncident(id) })
   const commitmentsQ = useQuery({ queryKey: ['incident-commitments', id], queryFn: () => listCommitments(id) })
@@ -93,11 +92,6 @@ export function IncidentDetailPage() {
   const mNotify = useMutation({
     mutationFn: () => notifyGuardian(id),
     onSuccess: (r) => { toast.success(`Representante(s) notificado(s): ${r.notified}`); refresh() },
-    onError: (e) => toast.error(getErrorMessage(e)),
-  })
-  const mCommit = useMutation({
-    mutationFn: () => createCommitment(id, { terms, followUpDate: followUpDate || undefined }),
-    onSuccess: () => { toast.success('Acta creada'); setTerms(''); setFollowUpDate(''); refresh() },
     onError: (e) => toast.error(getErrorMessage(e)),
   })
   const mUpload = useMutation({
@@ -206,7 +200,7 @@ export function IncidentDetailPage() {
                       {' · '}{personName(c.creator)}
                     </p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => downloadCommitmentPdf(id, c.id)}>
+                  <Button size="sm" variant="outline" onClick={() => downloadCommitmentPdf(id, c.id).catch((e) => toast.error(getErrorMessage(e)))}>
                     <Download className="mr-1.5 h-4 w-4" /> PDF
                   </Button>
                 </div>
@@ -215,25 +209,8 @@ export function IncidentDetailPage() {
                 <p className="text-sm text-muted-foreground">Sin actas.</p>
               )}
 
-              {canWrite && (
-                <div className="space-y-2 border-t pt-3">
-                  <Label htmlFor="terms">Nueva acta de compromiso</Label>
-                  <textarea
-                    id="terms" rows={3} value={terms} onChange={(e) => setTerms(e.target.value)}
-                    placeholder="Términos y compromisos acordados..."
-                    className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-                  />
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <input
-                      type="date" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)}
-                      className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm sm:w-auto"
-                    />
-                    <Button size="sm" disabled={!terms || mCommit.isPending} onClick={() => mCommit.mutate()}>
-                      Crear acta
-                    </Button>
-                  </div>
-                </div>
-              )}
+              {canWrite && <CommitmentForm incident={inc} onCreated={refresh} />}
+
             </CardContent>
           </Card>
         </div>
