@@ -7,6 +7,8 @@ export interface AccessTokenPayload {
   institutionId: string
   roles: string[]
   permissions: string[]
+  /** Presente solo en tokens de suplantación: id del superadmin que suplanta. */
+  impersonatedBy?: string
   iat?: number
   exp?: number
 }
@@ -21,14 +23,16 @@ export interface RefreshTokenPayload {
 export interface PlatformTokenPayload {
   sub: string
   scope: 'platform'
+  /** owner | support | billing (tokens viejos sin rol = owner) */
+  role?: string
   iat?: number
   exp?: number
 }
 
 export class TokenService {
-  signAccess(payload: Omit<AccessTokenPayload, 'iat' | 'exp'>): string {
+  signAccess(payload: Omit<AccessTokenPayload, 'iat' | 'exp'>, opts?: { expiresIn?: string }): string {
     return jwt.sign(payload, env.JWT_SECRET, {
-      expiresIn: env.JWT_ACCESS_EXPIRES as jwt.SignOptions['expiresIn'],
+      expiresIn: (opts?.expiresIn ?? env.JWT_ACCESS_EXPIRES) as jwt.SignOptions['expiresIn'],
     })
   }
 
@@ -54,7 +58,7 @@ export class TokenService {
     }
   }
 
-  signPlatformAccess(payload: { sub: string }): string {
+  signPlatformAccess(payload: { sub: string; role?: string }): string {
     return jwt.sign({ ...payload, scope: 'platform' }, env.JWT_SECRET, {
       expiresIn: env.JWT_ACCESS_EXPIRES as jwt.SignOptions['expiresIn'],
     })

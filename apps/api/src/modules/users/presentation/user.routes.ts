@@ -1,4 +1,6 @@
 import { FastifyInstance } from 'fastify'
+import { assertPlanCapacity } from '../../../shared/infrastructure/services/plan-limits.service'
+import { audit } from '../../../shared/infrastructure/services/audit.service'
 import { PrismaUserRepository } from '../infrastructure/repositories/prisma-user.repository'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
@@ -67,8 +69,92 @@ export default async function userRoutes(app: FastifyInstance) {
       },
     },
     async (req, reply) => {
+      if (req.body.roleNames?.includes('teacher')) await assertPlanCapacity(req.user.institutionId, 'teachers', 1)
       const user = await repo.create(req.user.institutionId, req.body)
       return reply.status(201).send(user)
+    },
+  )
+
+  /**
+   * Importación masiva de personal (docentes, inspección, DECE) desde Excel/CSV.
+   * Mismas reglas que el alta individual (cédula única, contraseña por defecto =
+   * cédula). Procesa fila por fila y devuelve el resultado de cada una.
+   */
+  app.post<{
+    Body: { roleName: string; users: Array<{ dni: string; firstName: string; lastName: string; email?: string; phone?: string }> }
+  }>(
+    '/users/bulk',
+    {
+      preHandler: [requirePermission('users', 'manage', 'all')],
+      schema: {
+        body: {
+          type: 'object',
+          required: ['roleName', 'users'],
+          properties: {
+            roleName: { type: 'string', enum: ['teacher', 'inspector', 'dece'] },
+            users: {
+              type: 'array',
+              minItems: 1,
+              maxItems: 300,
+              items: {
+                type: 'object',
+                required: ['dni', 'firstName', 'lastName'],
+                properties: {
+                  dni: { type: 'string' },
+                  firstName: { type: 'string' },
+                  lastName: { type: 'string' },
+                  email: { type: 'string' },
+                  phone: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      if (req.body.roleName === 'teacher') await assertPlanCapacity(req.user.institutionId, 'teachers', req.body.users.length)
+      const results: Array<{ dni: string; fullName: string; status: 'created' | 'skipped'; reason?: string }> = []
+      const seen = new Set<string>()
+      for (const row of req.body.users) {
+        const dni = String(row.dni ?? '').replace(/\D/g, '')
+        const firstName = row.firstName?.trim() ?? ''
+        const lastName = row.lastName?.trim() ?? ''
+        const fullName = `${firstName} ${lastName}`.trim()
+        const email = row.email?.trim().toLowerCase() || dni
+        if (seen.has(dni)) {
+          results.push({ dni, fullName, status: 'skipped', reason: 'Cédula repetida en el archivo' })
+          continue
+        }
+        seen.add(dni)
+        if (row.email?.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+          results.push({ dni, fullName, status: 'skipped', reason: 'Correo inválido' })
+          continue
+        }
+        try {
+          await repo.create(req.user.institutionId, {
+            dni,
+            firstName,
+            lastName,
+            email,
+            phone: row.phone?.trim() || undefined,
+            roleNames: [req.body.roleName],
+          })
+          results.push({ dni, fullName, status: 'created' })
+        } catch (err) {
+          results.push({ dni, fullName, status: 'skipped', reason: err instanceof Error ? err.message : 'Error al crear' })
+        }
+      }
+      await audit(req, {
+        action: 'users.bulk_import',
+        resourceType: 'user',
+        newValue: { roleName: req.body.roleName, created: results.filter((r) => r.status === 'created').length, total: results.length },
+      })
+      return reply.status(201).send({
+        created: results.filter((r) => r.status === 'created').length,
+        skipped: results.filter((r) => r.status === 'skipped').length,
+        results,
+      })
     },
   )
 
@@ -78,6 +164,13 @@ export default async function userRoutes(app: FastifyInstance) {
     async (req, reply) => {
       await assertStudentFichaAccess(req, req.params.id)
       const user = await repo.update(req.params.id, req.user.institutionId, req.body)
+      const { password, ...changes } = req.body as UpdateUserDto & { password?: string }
+      await audit(req, {
+        action: 'user.update',
+        resourceType: 'user',
+        resourceId: req.params.id,
+        newValue: { ...changes, ...(password ? { password: '[cambiada]' } : {}) } as Record<string, string | number | boolean | null>,
+      })
       return reply.send(user)
     },
   )
@@ -87,6 +180,7 @@ export default async function userRoutes(app: FastifyInstance) {
     { preHandler: [requirePermission('users', 'manage', 'all')] },
     async (req, reply) => {
       await repo.deactivate(req.params.id, req.user.institutionId)
+      await audit(req, { action: 'user.deactivate', resourceType: 'user', resourceId: req.params.id })
       return reply.status(204).send()
     },
   )
@@ -146,6 +240,7 @@ export default async function userRoutes(app: FastifyInstance) {
       })
       if (!role) return reply.status(404).send({ message: 'Rol no encontrado' })
       if (role.name === 'admin') return reply.status(403).send({ message: 'No se pueden modificar los permisos del administrador' })
+      const before = await prisma.rolePermission.findMany({ where: { roleId: role.id }, select: { permissionId: true } })
 
       await prisma.$transaction([
         prisma.rolePermission.deleteMany({ where: { roleId: role.id } }),
@@ -154,6 +249,14 @@ export default async function userRoutes(app: FastifyInstance) {
           skipDuplicates: true,
         }),
       ])
+
+      await audit(req, {
+        action: 'role.update_permissions',
+        resourceType: 'role',
+        resourceId: role.id,
+        oldValue: { role: role.name, permissionIds: before.map((b) => b.permissionId) },
+        newValue: { role: role.name, permissionIds: req.body.permissionIds },
+      })
 
       const updated = await prisma.role.findUnique({
         where: { id: role.id },

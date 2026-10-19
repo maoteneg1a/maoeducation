@@ -21,6 +21,7 @@ import {
   type MessageAttachment,
   type UserOption,
 } from '../api/messaging.api'
+import { openProtectedFile } from '@/shared/lib/protected-file'
 
 function formatDate(d: string) {
   return new Date(d).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
@@ -34,17 +35,16 @@ function formatBytes(b: number) {
 
 function AttachmentChip({ a }: { a: MessageAttachment }) {
   return (
-    <a
-      href={getMessageAttachmentUrl(a.storedName)}
-      target="_blank"
-      rel="noreferrer"
+    <button
+      type="button"
+      onClick={() => openProtectedFile(getMessageAttachmentUrl(a.storedName), a.fileName).catch(() => toast.error('No se pudo abrir el archivo'))}
       className="flex items-center gap-1.5 px-2 py-1 rounded border bg-background hover:bg-accent/60 text-xs transition-colors"
     >
       <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
       <span className="truncate max-w-[160px]">{a.fileName}</span>
       <span className="text-muted-foreground shrink-0">({formatBytes(a.fileSize)})</span>
       <Download className="h-3 w-3 shrink-0 text-muted-foreground" />
-    </a>
+    </button>
   )
 }
 

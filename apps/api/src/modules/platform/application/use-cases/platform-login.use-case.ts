@@ -21,7 +21,7 @@ export class PlatformLoginUseCase {
       throw new UnauthorizedError('Credenciales inválidas')
     }
 
-    const accessToken = this.tokenService.signPlatformAccess({ sub: admin.id })
+    const accessToken = this.tokenService.signPlatformAccess({ sub: admin.id, role: admin.role })
     const refreshToken = this.tokenService.signRefresh({ sub: admin.id })
 
     await this.repo.updateAdminLastLogin(admin.id)
@@ -29,7 +29,7 @@ export class PlatformLoginUseCase {
     return {
       accessToken,
       refreshToken,
-      admin: { id: admin.id, email: admin.email, name: admin.name },
+      admin: { id: admin.id, email: admin.email, name: admin.name, role: admin.role },
     }
   }
 }

@@ -32,6 +32,7 @@ import {
   useCreateParentMeeting,
 } from '../hooks/useParentMeetings'
 import type { ParentMeeting } from '../api/parent-meetings.api'
+import { todayLocalISO } from '@/shared/lib/utils'
 
 const NO_STUDENT = '__none__'
 
@@ -57,7 +58,7 @@ const personName = (p: { profile: { firstName: string; lastName: string } } | nu
   p?.profile ? `${p.profile.firstName} ${p.profile.lastName}` : '—'
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10)
+  return todayLocalISO()
 }
 
 export function ParentMeetingsPage() {

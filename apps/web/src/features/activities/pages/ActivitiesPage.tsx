@@ -37,7 +37,8 @@ import {
 } from '@/shared/components/ui/dialog'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
-import { formatDate, getErrorMessage } from '@/shared/lib/utils'
+import { formatDate, getErrorMessage, todayLocalISO } from '@/shared/lib/utils'
+import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
 import { activitiesApi, type Activity, type ActivityType, type Insumo } from '../api/activities.api'
 import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
 import { useAuthStore } from '@/store/auth.store'
@@ -104,7 +105,8 @@ function useUpdateActivity(courseAssignmentId: string, periodId: string) {
 function usePublishActivity(courseAssignmentId: string, periodId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => activitiesApi.publishActivity(id),
+    mutationFn: ({ id, isPublished }: { id: string; isPublished: boolean }) =>
+      activitiesApi.publishActivity(id, isPublished),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: activityKeys.activities(courseAssignmentId, periodId) })
       qc.invalidateQueries({ queryKey: ['grades-grid', courseAssignmentId, periodId] })
@@ -235,10 +237,14 @@ function InsumoManager({ insumos, courseAssignmentId, periodId, canWrite }: Insu
     }
   }
 
-  function handleDelete(insumo: Insumo) {
-    if (confirm(`¿Eliminar el insumo "${insumo.name}"? Las actividades asignadas quedarán sin insumo.`)) {
-      deleteInsumo.mutate(insumo.id)
-    }
+  async function handleDelete(insumo: Insumo) {
+    const ok = await confirmDialog({
+      title: `¿Eliminar el insumo "${insumo.name}"?`,
+      description: 'Solo se puede eliminar si no tiene actividades asignadas. Si las tiene, primero muévelas a otro insumo.',
+      confirmText: 'Eliminar',
+      destructive: true,
+    })
+    if (ok) deleteInsumo.mutate(insumo.id)
   }
 
   return (
@@ -345,7 +351,7 @@ interface ActivityCardProps {
   activity: Activity
   types: ActivityType[]
   onEdit: (activity: Activity) => void
-  onTogglePublish: (id: string) => void
+  onTogglePublish: (id: string, isPublished: boolean) => void
   onDelete: (id: string) => void
   isPublishing: boolean
   isDeleting: boolean
@@ -367,12 +373,14 @@ function ActivityCard({
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-sm font-semibold leading-snug">{activity.name}</CardTitle>
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Siempre visibles en pantallas táctiles (sin hover); en escritorio aparecen al pasar el mouse. */}
+          <div className="flex items-center gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
             <Button
               variant="ghost"
               size="icon"
               className="h-7 w-7"
               onClick={() => onEdit(activity)}
+              aria-label="Editar actividad"
             >
               <Edit2 className="h-3.5 w-3.5" />
             </Button>
@@ -380,7 +388,9 @@ function ActivityCard({
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={() => onTogglePublish(activity.id)}
+              onClick={() => onTogglePublish(activity.id, !activity.isPublished)}
+              aria-label={activity.isPublished ? 'Ocultar a estudiantes' : 'Publicar a estudiantes'}
+              title={activity.isPublished ? 'Ocultar a estudiantes' : 'Publicar a estudiantes'}
               loading={isPublishing}
             >
               {activity.isPublished ? (
@@ -395,6 +405,7 @@ function ActivityCard({
               className="h-7 w-7 text-destructive hover:text-destructive"
               onClick={() => onDelete(activity.id)}
               loading={isDeleting}
+              aria-label="Eliminar actividad"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -492,7 +503,7 @@ export function ActivitiesPage() {
       curriculumSkillId: '',
       competencyId: '',
       maxScore: gradingScaleMax,
-      activityDate: new Date().toISOString().split('T')[0],
+      activityDate: todayLocalISO(),
       description: '',
     },
   })
@@ -506,7 +517,7 @@ export function ActivitiesPage() {
       curriculumSkillId: '',
       competencyId: '',
       maxScore: gradingScaleMax,
-      activityDate: new Date().toISOString().split('T')[0],
+      activityDate: todayLocalISO(),
       description: '',
     })
     setOpen(true)
@@ -543,10 +554,14 @@ export function ActivitiesPage() {
     }
   }
 
-  function handleDelete(id: string) {
-    if (confirm('¿Eliminar esta actividad?')) {
-      deleteActivity.mutate(id)
-    }
+  async function handleDelete(id: string) {
+    const ok = await confirmDialog({
+      title: '¿Eliminar esta actividad?',
+      description: 'Solo se puede eliminar si todavía no tiene notas registradas. Esta acción no se puede deshacer.',
+      confirmText: 'Eliminar',
+      destructive: true,
+    })
+    if (ok) deleteActivity.mutate(id)
   }
 
   // Group activities by insumo
@@ -678,7 +693,7 @@ export function ActivitiesPage() {
                             activity={act}
                             types={types}
                             onEdit={openEdit}
-                            onTogglePublish={(id) => publishActivity.mutate(id)}
+                            onTogglePublish={(id, isPublished) => publishActivity.mutate({ id, isPublished })}
                             onDelete={handleDelete}
                             isPublishing={publishActivity.isPending}
                             isDeleting={deleteActivity.isPending}
@@ -704,7 +719,7 @@ export function ActivitiesPage() {
                         activity={act}
                         types={types}
                         onEdit={openEdit}
-                        onTogglePublish={(id) => publishActivity.mutate(id)}
+                        onTogglePublish={(id, isPublished) => publishActivity.mutate({ id, isPublished })}
                         onDelete={handleDelete}
                         isPublishing={publishActivity.isPending}
                         isDeleting={deleteActivity.isPending}

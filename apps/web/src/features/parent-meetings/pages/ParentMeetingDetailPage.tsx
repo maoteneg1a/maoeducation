@@ -13,6 +13,7 @@ import {
   useDeleteParentMeeting,
 } from '../hooks/useParentMeetings'
 import { downloadActaPdf } from '../api/parent-meetings.api'
+import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
 
 const personName = (p: { profile: { firstName: string; lastName: string } } | null | undefined) =>
   p?.profile ? `${p.profile.firstName} ${p.profile.lastName}` : '—'
@@ -49,8 +50,13 @@ export function ParentMeetingDetailPage() {
 
   if (isLoading || !meeting) return <PageLoader />
 
-  function handleDelete() {
-    if (!confirm('¿Eliminar esta atención? Esta acción no se puede deshacer.')) return
+  async function handleDelete() {
+    if (!(await confirmDialog({
+      title: 'Eliminar atención',
+      description: '¿Eliminar esta atención? Esta acción no se puede deshacer.',
+      confirmText: 'Eliminar',
+      destructive: true,
+    }))) return
     deleteMutation.mutate(id, { onSuccess: () => navigate('/parent-meetings') })
   }
 

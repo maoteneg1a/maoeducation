@@ -695,20 +695,19 @@ interface RegimeCalendar {
   periods: { periodNumber: number; name: string; startDate: string; endDate: string }[]
 }
 
-function regimeCalendar(regime: AcademicRegime): RegimeCalendar {
-  if (regime === 'SIERRA_AMAZONIA') {
-    return {
-      yearName: '2026-2027',
-      startDate: '2026-09-01',
-      endDate: '2027-07-09',
-      periods: [
-        { periodNumber: 1, name: 'Primer Trimestre', startDate: '2026-09-01', endDate: '2026-12-11' },
-        { periodNumber: 2, name: 'Segundo Trimestre', startDate: '2026-12-14', endDate: '2027-03-26' },
-        { periodNumber: 3, name: 'Tercer Trimestre', startDate: '2027-03-29', endDate: '2027-07-09' },
-      ],
-    }
-  }
-  return {
+/** Plantilla base (año lectivo 2026-2027); se desplaza al año lectivo vigente. */
+const REGIME_TEMPLATES: Record<AcademicRegime, RegimeCalendar> = {
+  SIERRA_AMAZONIA: {
+    yearName: '2026-2027',
+    startDate: '2026-09-01',
+    endDate: '2027-07-09',
+    periods: [
+      { periodNumber: 1, name: 'Primer Trimestre', startDate: '2026-09-01', endDate: '2026-12-11' },
+      { periodNumber: 2, name: 'Segundo Trimestre', startDate: '2026-12-14', endDate: '2027-03-26' },
+      { periodNumber: 3, name: 'Tercer Trimestre', startDate: '2027-03-29', endDate: '2027-07-09' },
+    ],
+  },
+  COSTA_GALAPAGOS: {
     yearName: '2026-2027',
     startDate: '2026-05-04',
     endDate: '2027-02-24',
@@ -717,12 +716,41 @@ function regimeCalendar(regime: AcademicRegime): RegimeCalendar {
       { periodNumber: 2, name: 'Segundo Trimestre', startDate: '2026-08-17', endDate: '2026-11-13' },
       { periodNumber: 3, name: 'Tercer Trimestre', startDate: '2026-11-16', endDate: '2027-02-24' },
     ],
+  },
+}
+const TEMPLATE_START_YEAR = 2026
+
+function shiftYears(isoDate: string, offset: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  return `${y + offset}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+/**
+ * Calendario del año lectivo VIGENTE según la fecha actual: el primer año cuya
+ * fecha de fin todavía no pasó. Antes estaba fijo en 2026-2027 y una institución
+ * creada en 2028 nacía con un año ya terminado.
+ */
+export function regimeCalendar(regime: AcademicRegime, today: Date = new Date()): RegimeCalendar {
+  const tpl = REGIME_TEMPLATES[regime] ?? REGIME_TEMPLATES.SIERRA_AMAZONIA
+  const todayIso = today.toISOString().slice(0, 10)
+  let offset = today.getUTCFullYear() - 1 - TEMPLATE_START_YEAR
+  while (shiftYears(tpl.endDate, offset) < todayIso) offset++
+  const startYear = TEMPLATE_START_YEAR + offset
+  return {
+    yearName: `${startYear}-${startYear + 1}`,
+    startDate: shiftYears(tpl.startDate, offset),
+    endDate: shiftYears(tpl.endDate, offset),
+    periods: tpl.periods.map((p) => ({
+      ...p,
+      startDate: shiftYears(p.startDate, offset),
+      endDate: shiftYears(p.endDate, offset),
+    })),
   }
 }
 
 export async function bootstrapInstitution(
   tx: Prisma.TransactionClient,
-  institution: { name: string; code: string },
+  institution: { name: string; code: string; isTestInstitution?: boolean },
   admin: BootstrapAdminInput,
   regime: AcademicRegime = 'SIERRA_AMAZONIA',
 ): Promise<BootstrapInstitutionResult> {
@@ -732,8 +760,11 @@ export async function bootstrapInstitution(
       name: institution.name,
       code: institution.code,
       // isTestInstitution habilita el botón "Sembrar datos de prueba" en el panel de
-      // superadmin — el admin lo apaga cuando la institución ya es una escuela real.
-      settings: { gradingConfig: DEFAULT_GRADING_CONFIG, isTestInstitution: true } as unknown as Prisma.InputJsonValue,
+      // superadmin. Es opt-in al crear: una escuela real nunca nace como "de prueba".
+      settings: {
+        gradingConfig: DEFAULT_GRADING_CONFIG,
+        isTestInstitution: institution.isTestInstitution ?? false,
+      } as unknown as Prisma.InputJsonValue,
     },
   })
 

@@ -12,6 +12,7 @@ import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { useSubmitPayment } from '../hooks/useSubscription'
+import { todayLocalISO } from '@/shared/lib/utils'
 
 const ACCEPT = 'image/png,image/jpeg,image/webp,image/heic,application/pdf'
 const MAX_BYTES = 8 * 1024 * 1024
@@ -23,7 +24,7 @@ interface Props {
 
 /** Hoy = valor por defecto de la fecha de transferencia. */
 function today(): string {
-  return new Date().toISOString().slice(0, 10)
+  return todayLocalISO()
 }
 
 export function UploadReceiptDialog({ open, onClose }: Props) {

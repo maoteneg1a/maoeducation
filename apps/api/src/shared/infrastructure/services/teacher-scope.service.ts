@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify'
 import { prisma } from '../database/prisma'
-import { ForbiddenError } from '../../domain/errors/app.errors'
+import { resolveGuardianStudentId } from './guardian-scope.service'
+import { ForbiddenError, NotFoundError } from '../../domain/errors/app.errors'
 
 /** Roles que ven la información de cualquier estudiante de la institución. */
 const PRIVILEGED_ROLES = ['admin', 'rector', 'dece', 'inspector']
@@ -83,4 +84,45 @@ export async function assertStudentFichaAccess(
     if (ok) return
   }
   throw new ForbiddenError()
+}
+
+/**
+ * Garantiza que el actor puede operar sobre una asignación (docente × materia × paralelo):
+ * - staff privilegiado: siempre (si pertenece a la institución).
+ * - docente: escritura solo en sus propias asignaciones; lectura también si es tutor del paralelo.
+ * - cualquier otro rol: prohibido.
+ * Es la aplicación del scope `own` para notas, actividades y asistencia por materia.
+ */
+export async function assertCourseAssignmentAccess(
+  req: FastifyRequest,
+  courseAssignmentId: string,
+  mode: 'read' | 'write',
+): Promise<{ parallelId: string; academicYearId: string; teacherId: string }> {
+  const { sub, institutionId, roles } = req.user
+  const ca = await prisma.courseAssignment.findFirst({
+    where: { id: courseAssignmentId, institutionId },
+    select: { parallelId: true, academicYearId: true, teacherId: true, parallel: { select: { tutorId: true } } },
+  })
+  if (!ca) throw new NotFoundError('Asignación de curso no encontrada')
+  const result = { parallelId: ca.parallelId, academicYearId: ca.academicYearId, teacherId: ca.teacherId }
+  if (isPrivilegedStaff(roles)) return result
+  if (ca.teacherId === sub) return result
+  if (mode === 'read' && ca.parallel.tutorId === sub) return result
+  throw new ForbiddenError('No tienes acceso a esta asignatura')
+}
+
+/**
+ * Resuelve qué estudiante puede consultar el actor:
+ * - estudiante: solo a sí mismo.
+ * - representante: a sus representados.
+ * - personal: según assertStudentFichaAccess (privilegiado o docente del paralelo).
+ */
+export async function resolveViewableStudentId(req: FastifyRequest, studentId: string): Promise<string> {
+  const { roles, sub } = req.user
+  if (roles.includes('student') && studentId === sub) return sub
+  if (roles.includes('guardian') && !isPrivilegedStaff(roles) && !roles.includes('teacher')) {
+    return resolveGuardianStudentId(sub, studentId)
+  }
+  await assertStudentFichaAccess(req, studentId)
+  return studentId
 }

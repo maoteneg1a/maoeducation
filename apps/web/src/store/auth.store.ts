@@ -32,12 +32,18 @@ export interface AuthUser {
   tutorParallelIds: string[]
 }
 
+/** Sesión abierta por un superadmin con "Ingresar como" (token sin refresh, vence solo). */
+export interface ImpersonationInfo {
+  expiresAt: string
+}
+
 interface AuthState {
   user: AuthUser | null
+  impersonation: ImpersonationInfo | null
   accessToken: string | null
   // Para representantes con más de un hijo: el alumno activo seleccionado
   guardianStudentId: string | null
-  setAuth: (user: AuthUser, token: string) => void
+  setAuth: (user: AuthUser, token: string, impersonation?: ImpersonationInfo | null) => void
   setAccessToken: (token: string) => void
   setInstitution: (institution: AuthInstitution) => void
   setGuardianStudentId: (id: string) => void
@@ -51,20 +57,26 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       accessToken: null,
       guardianStudentId: null,
+      impersonation: null,
 
-      setAuth: (user, accessToken) => set({ user, accessToken }),
+      setAuth: (user, accessToken, impersonation = null) => set({ user, accessToken, impersonation }),
       setAccessToken: (accessToken) => set({ accessToken }),
       setInstitution: (institution) => {
         const user = get().user
         if (user) set({ user: { ...user, institution } })
       },
       setGuardianStudentId: (id) => set({ guardianStudentId: id }),
-      clearAuth: () => set({ user: null, accessToken: null, guardianStudentId: null }),
+      clearAuth: () => set({ user: null, accessToken: null, guardianStudentId: null, impersonation: null }),
       isAuthenticated: () => !!get().accessToken && !!get().user,
     }),
     {
       name: 'mao-auth',
-      partialize: (s) => ({ user: s.user, accessToken: s.accessToken, guardianStudentId: s.guardianStudentId }),
+      partialize: (s) => ({
+        user: s.user,
+        accessToken: s.accessToken,
+        guardianStudentId: s.guardianStudentId,
+        impersonation: s.impersonation,
+      }),
     },
   ),
 )

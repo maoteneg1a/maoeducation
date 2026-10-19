@@ -35,6 +35,40 @@ export interface AcademicYear {
   isActive: boolean
 }
 
+export type RolloverPendingPolicy = 'skip' | 'promote' | 'repeat'
+
+export interface RolloverPreview {
+  sourceYear: string
+  periods: Array<{ name: string; startDate: string; endDate: string }>
+  parallels: number
+  assignments: number
+  students: { toEnroll: number; promoted: number; repeats: number; pending: number; skippedPending: number; graduating: number }
+  byParallel: Array<{ label: string; students: number }>
+}
+
+export interface RolloverInput {
+  name: string
+  startDate: string
+  endDate: string
+  copyAssignments: boolean
+  copyTutors: boolean
+  enrollStudents: boolean
+  pendingPolicy: RolloverPendingPolicy
+  activate: boolean
+}
+
+export interface RolloverResult {
+  yearId: string
+  name: string
+  periods: number
+  parallels: number
+  assignments: number
+  enrolled: number
+  graduating: number
+  skippedPending: number
+  activated: boolean
+}
+
 export interface AcademicPeriod {
   id: string
   name: string
@@ -120,6 +154,10 @@ export const academicApi = {
   createYear: (data: Omit<AcademicYear, 'id' | 'isActive'>) =>
     apiPost<AcademicYear>('academic/years', data),
   activateYear: (id: string) => apiPatch<AcademicYear>(`academic/years/${id}/activate`),
+  rolloverPreview: (yearId: string, params: { startDate: string; pendingPolicy: RolloverPendingPolicy }) =>
+    apiGet<RolloverPreview>(`academic/years/${yearId}/rollover-preview`, params),
+  rollover: (yearId: string, data: RolloverInput) =>
+    apiPost<RolloverResult>(`academic/years/${yearId}/rollover`, data, { timeout: 120_000 }),
 
   // Periods
   getPeriods: (yearId: string) =>
@@ -147,6 +185,8 @@ export const academicApi = {
   createAssignment: (data: Omit<CourseAssignment, 'id' | 'isActive' | 'teacherName' | 'subjectName' | 'parallelName'>) =>
     apiPost<CourseAssignment>('academic/course-assignments', data),
   deleteAssignment: (id: string) => apiDelete(`academic/course-assignments/${id}`),
+  changeAssignmentTeacher: (id: string, teacherId: string) =>
+    apiPatch<{ id: string; teacherId: string }>(`academic/course-assignments/${id}/teacher`, { teacherId }),
   updateExamWeight: (id: string, examWeight: number, projectWeight?: number) =>
     apiPatch<{ id: string; examWeight: number; projectWeight: number }>(`academic/course-assignments/${id}/exam-weight`, { examWeight, projectWeight }),
   getAssignmentWorkload: (id: string) =>

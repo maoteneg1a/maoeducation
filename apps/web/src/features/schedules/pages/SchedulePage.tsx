@@ -30,6 +30,7 @@ import {
   getAssignments,
   type ScheduleEntry,
 } from '../api/schedules.api'
+import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
 
 const DAYS = [
   { value: 1, label: 'Lunes' },
@@ -163,8 +164,8 @@ export function SchedulePage() {
     })
   }
 
-  function handleDelete(entry: ScheduleEntry) {
-    if (!window.confirm(`¿Eliminar este bloque de horario?`)) return
+  async function handleDelete(entry: ScheduleEntry) {
+    if (!(await confirmDialog({ title: '¿Eliminar este bloque de horario?', confirmText: 'Eliminar', destructive: true }))) return
     deleteMutation.mutate(entry.id)
   }
 

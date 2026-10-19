@@ -24,6 +24,7 @@ import {
   type StudentAbsenceRecord,
 } from '@/features/attendance/api/attendance.api'
 import { apiPost } from '@/shared/lib/api-client'
+import { JustificationRequestsInbox } from '../components/JustificationRequestsInbox'
 
 function createJustification(payload: {
   studentId: string
@@ -130,6 +131,8 @@ export function JustificationsPage() {
           Busca un estudiante y selecciona las ausencias a justificar
         </p>
       </div>
+
+      <JustificationRequestsInbox />
 
       {/* Student search */}
       <div className="relative max-w-md">

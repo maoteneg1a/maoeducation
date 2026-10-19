@@ -176,9 +176,8 @@ export const getUsers = (params?: Record<string, string>) =>
 export const getReportableStudents = () =>
   apiGet<Array<{ id: string; fullName: string; dni: string | null }>>('incidents/students')
 
-const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
-/** URL de descarga de una evidencia (sirve desde la API: disco o R2). */
+/** Ruta autenticada del adjunto (se descarga con openProtectedFile). */
 export function getIncidentAttachmentUrl(storedName: string) {
-  return `${API_BASE}/uploads/incidents/${storedName}`
+  return `files/incidents/${storedName}`
 }

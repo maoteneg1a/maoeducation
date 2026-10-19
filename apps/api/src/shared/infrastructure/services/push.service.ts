@@ -87,6 +87,7 @@ export async function notifyGuardiansOfCourseAssignment(
       institutionId: assignment.institutionId,
       parallelId: assignment.parallelId,
       academicYearId: assignment.academicYearId,
+      status: 'active', // no notificar a familias de estudiantes retirados
     },
     select: {
       student: {

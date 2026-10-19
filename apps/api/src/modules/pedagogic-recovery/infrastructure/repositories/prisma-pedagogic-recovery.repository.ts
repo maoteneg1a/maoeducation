@@ -1,5 +1,5 @@
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
-import { NotFoundError, BadRequestError } from '../../../../shared/domain/errors/app.errors'
+import { NotFoundError, BadRequestError, ConflictError } from '../../../../shared/domain/errors/app.errors'
 import { assertSkillsArePlanned, assertCompetenciesArePlanned } from '../../../../shared/infrastructure/services/planned-curriculum.service'
 import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
 import {
@@ -190,10 +190,11 @@ export class PrismaPedagogicRecoveryRepository {
 
   async save(institutionId: string, dto: SavePedagogicRecoveryDto, recordedBy: string) {
     const period = await prisma.academicPeriod.findFirst({
-      where: { id: dto.academicPeriodId },
-      select: { id: true },
+      where: { id: dto.academicPeriodId, academicYear: { institutionId } },
+      select: { id: true, isClosed: true },
     })
     if (!period) throw new NotFoundError('Período no encontrado')
+    if (period.isClosed) throw new ConflictError('El período está cerrado: no se pueden modificar las notas de recuperación')
 
     if (dto.score == null) {
       await prisma.pedagogicRecovery.deleteMany({

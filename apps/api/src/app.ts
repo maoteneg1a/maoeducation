@@ -5,29 +5,14 @@ import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import multipart from '@fastify/multipart'
 import compress from '@fastify/compress'
+import rateLimit from '@fastify/rate-limit'
 import fp from 'fastify-plugin'
 import { env } from './config/env'
 import { errorPlugin } from './shared/infrastructure/plugins/error.plugin'
 import { registerRoutes } from './shared/infrastructure/routes'
-import { storage } from './shared/infrastructure/services/storage.service'
-
-// Content-Type por extensión para la descarga de adjuntos.
-const CONTENT_TYPES: Record<string, string> = {
-  '.pdf': 'application/pdf',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.svg': 'image/svg+xml',
-  '.txt': 'text/plain; charset=utf-8',
-  '.csv': 'text/csv; charset=utf-8',
-  '.doc': 'application/msword',
-  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  '.xls': 'application/vnd.ms-excel',
-  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  '.zip': 'application/zip',
-}
+import { storage, CONTENT_TYPES } from './shared/infrastructure/services/storage.service'
+import type { Prisma } from '@prisma/client'
+import { audit, redactSecrets } from './shared/infrastructure/services/audit.service'
 
 export function buildApp() {
   const app = Fastify({
@@ -39,10 +24,27 @@ export function buildApp() {
           : undefined,
     },
     genReqId: () => crypto.randomUUID(),
+    trustProxy: env.TRUST_PROXY ? env.TRUST_PROXY === 'true' : env.NODE_ENV === 'production',
   })
 
   // Security
   app.register(helmet, { contentSecurityPolicy: false })
+
+  // Rate limiting global por IP (generoso: un colegio comparte IP por NAT).
+  // Rutas sensibles (login, IA) definen límites más estrictos en config.rateLimit.
+  app.register(rateLimit, {
+    global: true,
+    max: 1200,
+    timeWindow: '1 minute',
+    allowList: (req) => req.url === '/health',
+    errorResponseBuilder: (_req, ctx) => ({
+      statusCode: 429,
+      error: {
+        code: 'RATE_LIMITED',
+        message: `Demasiadas solicitudes. Intenta de nuevo en ${Math.ceil(ctx.ttl / 1000)} s.`,
+      },
+    }),
+  })
 
   // Compresión de respuestas (gzip/brotli). Reduce el tamaño del JSON ~70-80%,
   // baja el costo de egress y mejora la latencia. Solo comprime respuestas
@@ -68,16 +70,53 @@ export function buildApp() {
   // File uploads (max 10 MB)
   app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } })
 
-  // Descarga de adjuntos. Una sola ruta que sirve tanto desde disco (dev) como
-  // desde el bucket S3/R2 (prod), según el driver de storage. Reemplaza al
-  // servido estático para que el frontend no cambie sus URLs (/uploads/...).
+  // Descarga pública de archivos NO sensibles (recursos PDF generados por la IA
+  // embebidos en planificaciones). Los adjuntos privados (tareas, mensajes,
+  // incidentes) se sirven por /api/v1/files/* con autenticación; el resto de
+  // carpetas (comprobantes, firmas, comunicados) tienen rutas dedicadas.
+  const PUBLIC_UPLOAD_PREFIXES = ['planning-resources/']
   app.get<{ Params: { '*': string } }>('/uploads/*', async (req, reply) => {
     const key = req.params['*']
+    if (!PUBLIC_UPLOAD_PREFIXES.some((p) => key.startsWith(p)) || key.includes('..')) {
+      return reply.status(404).send({ message: 'Archivo no encontrado' })
+    }
     const stream = await storage.getStream(key)
     if (!stream) return reply.status(404).send({ message: 'Archivo no encontrado' })
     reply.header('Content-Type', CONTENT_TYPES[path.extname(key).toLowerCase()] ?? 'application/octet-stream')
     reply.header('Cache-Control', 'public, max-age=86400')
     return reply.send(stream)
+  })
+
+  // Toda escritura hecha durante una suplantación queda auditada (quién, qué ruta, resultado).
+  app.addHook('onResponse', async (req, reply) => {
+    const user = (req as { user?: { impersonatedBy?: string } }).user
+    if (!user?.impersonatedBy || req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return
+    await audit(req, {
+      action: 'impersonation.request',
+      resourceType: 'http_request',
+      newValue: { method: req.method, url: req.routeOptions?.url ?? req.url, statusCode: reply.statusCode },
+    })
+  })
+
+  // Toda acción de escritura del superadmin (consola /platform) queda auditada
+  // con la ruta, los parámetros y el body (sin contraseñas).
+  app.addHook('onResponse', async (req, reply) => {
+    const platformAdmin = (req as { platformAdmin?: { sub: string } }).platformAdmin
+    if (!platformAdmin || req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return
+    if (reply.statusCode >= 400) return
+    const route = req.routeOptions?.url ?? req.url
+    const params = (req.params ?? {}) as Record<string, string>
+    const institutionId =
+      route.startsWith('/api/v1/platform/institutions/:id') ? params.id
+        : route.startsWith('/api/v1/platform/subscriptions/:institutionId') ? params.institutionId
+          : null
+    await audit(req, {
+      action: `platform.${req.method.toLowerCase()} ${route.replace('/api/v1/platform/', '')}`.slice(0, 100),
+      resourceType: 'platform_action',
+      resourceId: params.userId ?? params.subjectId ?? params.id ?? params.institutionId ?? null,
+      institutionId,
+      newValue: { params, body: redactSecrets(req.body) } as Prisma.InputJsonValue,
+    })
   })
 
   // Error handler global

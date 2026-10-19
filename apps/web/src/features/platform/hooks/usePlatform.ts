@@ -15,6 +15,11 @@ import {
   type ApprovePaymentPayload,
   type PaymentReviewStatus,
   type SetValidityPayload,
+  type SubscriptionLimits,
+  type CreateTeamMemberPayload,
+  type UpdateTeamMemberPayload,
+  type CreateAnnouncementPayload,
+  type UpdateLeadPayload,
 } from '../api/platform.api'
 
 export const platformKeys = {
@@ -22,6 +27,28 @@ export const platformKeys = {
   admins: (institutionId: string) => ['platform-institution-admins', institutionId] as const,
   aiConfig: (institutionId: string) => ['platform-institution-ai-config', institutionId] as const,
   subjects: (institutionId: string) => ['platform-institution-subjects', institutionId] as const,
+  overview: (institutionId: string) => ['platform-institution-overview', institutionId] as const,
+  team: ['platform-team'] as const,
+  announcements: ['platform-announcements'] as const,
+  alerts: ['platform-alerts'] as const,
+  leads: ['platform-leads'] as const,
+}
+
+// ─── Rol del admin de plataforma ────────────────────────────────────────────
+// Solo oculta acciones en la UI; el servidor valida igual.
+
+export type PlatformCapability = 'all' | 'notes' | 'announcements' | 'impersonate' | 'leads' | 'billing' | 'team'
+
+const ROLE_CAPABILITIES: Record<'support' | 'billing', PlatformCapability[]> = {
+  support: ['notes', 'announcements', 'impersonate', 'leads'],
+  billing: ['billing', 'notes'],
+}
+
+export function usePlatformRole() {
+  const role = usePlatformAuthStore((s) => s.admin?.role) ?? 'owner'
+  const can = (cap: PlatformCapability) =>
+    role === 'owner' || (cap !== 'all' && cap !== 'team' && ROLE_CAPABILITIES[role].includes(cap))
+  return { role, isOwner: role === 'owner', can }
 }
 
 export function usePlatformLogin() {
@@ -299,6 +326,136 @@ export function useSetSubscriptionSuspended() {
     onSuccess: (_data, vars) => {
       refresh()
       toast.success(vars.suspended ? 'Cuenta suspendida' : 'Cuenta reactivada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+// ─── Ficha 360° ─────────────────────────────────────────────────────────────
+
+export function useInstitutionOverview(institutionId: string) {
+  return useQuery({
+    queryKey: platformKeys.overview(institutionId),
+    queryFn: () => platformApi.getInstitutionOverview(institutionId),
+    enabled: !!institutionId,
+  })
+}
+
+export function useAddInstitutionNote(institutionId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: string) => platformApi.addInstitutionNote(institutionId, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: platformKeys.overview(institutionId) })
+      toast.success('Nota agregada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useDeleteInstitutionNote(institutionId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (noteId: string) => platformApi.deleteInstitutionNote(institutionId, noteId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: platformKeys.overview(institutionId) })
+      toast.success('Nota eliminada')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useSetSubscriptionLimits(institutionId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: SubscriptionLimits) => platformApi.setSubscriptionLimits(institutionId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: platformKeys.overview(institutionId) })
+      qc.invalidateQueries({ queryKey: subscriptionKeys.subscriptions })
+      toast.success('Límites actualizados')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+// ─── Equipo ─────────────────────────────────────────────────────────────────
+
+export function usePlatformTeam() {
+  return useQuery({ queryKey: platformKeys.team, queryFn: platformApi.getTeam })
+}
+
+export function useCreateTeamMember() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreateTeamMemberPayload) => platformApi.createTeamMember(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: platformKeys.team })
+      toast.success('Miembro del equipo creado')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useUpdateTeamMember() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateTeamMemberPayload }) =>
+      platformApi.updateTeamMember(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: platformKeys.team })
+      toast.success('Miembro del equipo actualizado')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+// ─── Avisos ─────────────────────────────────────────────────────────────────
+
+export function usePlatformAnnouncements() {
+  return useQuery({ queryKey: platformKeys.announcements, queryFn: platformApi.getAnnouncements })
+}
+
+export function useCreateAnnouncement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreateAnnouncementPayload) => platformApi.createAnnouncement(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: platformKeys.announcements })
+      toast.success('Aviso publicado')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+export function useDeleteAnnouncement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => platformApi.deleteAnnouncement(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: platformKeys.announcements })
+      toast.success('Aviso eliminado')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
+// ─── Alertas y leads ────────────────────────────────────────────────────────
+
+export function usePlatformAlerts() {
+  return useQuery({ queryKey: platformKeys.alerts, queryFn: platformApi.getAlerts, refetchInterval: 60_000 })
+}
+
+export function usePlatformLeads(options?: { refetchInterval?: number; enabled?: boolean }) {
+  return useQuery({ queryKey: platformKeys.leads, queryFn: platformApi.getLeads, ...options })
+}
+
+export function useUpdateLead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateLeadPayload }) => platformApi.updateLead(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: platformKeys.leads })
+      qc.invalidateQueries({ queryKey: platformKeys.alerts })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })

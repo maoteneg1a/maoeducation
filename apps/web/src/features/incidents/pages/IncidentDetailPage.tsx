@@ -21,6 +21,7 @@ import {
   listCommitments, downloadCommitmentPdf, uploadEvidence, deleteEvidence,
   getUsers, getIncidentAttachmentUrl, type Incident,
 } from '../api/incidents.api'
+import { openProtectedFile } from '@/shared/lib/protected-file'
 
 const WORKFLOW_STATES = [
   'reportado', 'en_revision', 'derivado_dece', 'medidas_definidas',
@@ -259,12 +260,13 @@ export function IncidentDetailPage() {
             <CardContent className="space-y-2">
               {(inc.attachments ?? []).map((a) => (
                 <div key={a.id} className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm">
-                  <a
-                    href={getIncidentAttachmentUrl(a.storedName)} target="_blank" rel="noreferrer"
-                    className="truncate text-primary hover:underline"
+                  <button
+                    type="button"
+                    onClick={() => openProtectedFile(getIncidentAttachmentUrl(a.storedName), a.fileName).catch(() => toast.error('No se pudo abrir el archivo'))}
+                    className="truncate text-left text-primary hover:underline"
                   >
                     {a.fileName}
-                  </a>
+                  </button>
                   {canWrite && (
                     <Button size="sm" variant="ghost" onClick={() => mDeleteAtt.mutate(a.id)}>
                       <Trash2 className="h-4 w-4" />

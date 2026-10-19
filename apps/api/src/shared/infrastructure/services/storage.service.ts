@@ -8,6 +8,24 @@ import {
   GetObjectCommand,
 } from '@aws-sdk/client-s3'
 
+// Content-Type por extensión para la descarga de adjuntos.
+export const CONTENT_TYPES: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.txt': 'text/plain; charset=utf-8',
+  '.csv': 'text/csv; charset=utf-8',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.zip': 'application/zip',
+}
+
 /**
  * Almacenamiento de archivos con dos drivers:
  *  - "local": disco (apps/api/uploads/...). Útil en desarrollo. OJO: en hostings

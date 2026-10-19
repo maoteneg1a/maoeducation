@@ -2,7 +2,7 @@ import * as React from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useSearchParams } from 'react-router-dom'
-import { Save, GraduationCap, BarChart3, Settings2, ExternalLink } from 'lucide-react'
+import { Save, GraduationCap, BarChart3, Settings2, ExternalLink, CheckCheck, Keyboard } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Badge } from '@/shared/components/ui/badge'
@@ -33,6 +33,7 @@ import { useGuardianStudentId } from '@/features/guardian/components/ChildSwitch
 import { academicApi, type AcademicPeriod } from '@/features/academic/api/academic.api'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useGradingConfig } from '@/features/settings/hooks/useSettings'
+import { useUnsavedChanges } from '@/shared/hooks/useUnsavedChanges'
 
 // ---- Query keys ----
 const gradeKeys = {
@@ -88,12 +89,24 @@ interface GradeRowProps {
   reinforcementEnabled: boolean
   reinforcementMode: 'replace' | 'average'
   isModified: boolean
+  rowIndex: number
   onChange: (studentId: string, value: number | null) => void
+  /** Pegar una columna (Excel/Sheets) desde esta fila hacia abajo. */
+  onPasteColumn: (rowIndex: number, values: string[]) => void
   onStatusChange: (studentId: string, status: GradeStatus) => void
   onReinforcementChange: (studentId: string, value: number | null) => void
 }
 
-function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcementScore, reinforcementEnabled, reinforcementMode, isModified, onChange, onStatusChange, onReinforcementChange }: GradeRowProps) {
+/** Enter/↓ baja a la siguiente nota, ↑ sube — como en una hoja de cálculo. */
+function focusScoreInput(rowIndex: number) {
+  const el = document.querySelector<HTMLInputElement>(`input[data-grade-row="${rowIndex}"]`)
+  if (el) {
+    el.focus()
+    el.select()
+  }
+}
+
+function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcementScore, reinforcementEnabled, reinforcementMode, isModified, rowIndex, onChange, onPasteColumn, onStatusChange, onReinforcementChange }: GradeRowProps) {
   const rawDisplayScore = localScore !== undefined ? localScore : grade.score
   const rawReinforcementScore = localReinforcementScore !== undefined ? localReinforcementScore : grade.reinforcementScore
   const displayScore = rawDisplayScore == null ? null : Number(rawDisplayScore)
@@ -106,6 +119,7 @@ function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcement
   const status = localStatus ?? grade.status
   // El puntaje solo se edita cuando hubo entrega (a tiempo o tarde).
   const scoreEditable = status === 'entregado' || status === 'atrasado'
+  const outOfRange = displayScore != null && (Number.isNaN(displayScore) || displayScore < 0 || displayScore > maxScore)
 
   return (
     <TableRow className={cn(isModified && 'bg-amber-50/50')}>
@@ -120,20 +134,42 @@ function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcement
             inputMode="decimal"
             pattern="[0-9]*[.,]?[0-9]*"
             disabled={!scoreEditable}
+            data-grade-row={rowIndex}
+            aria-label={`Nota de ${grade.studentName}`}
+            aria-invalid={outOfRange || undefined}
             value={status === 'excusado' ? '' : displayScore ?? ''}
             onChange={(e) => {
-              const val = e.target.value === '' ? null : parseFloat(e.target.value)
+              const val = e.target.value === '' ? null : parseFloat(e.target.value.replace(',', '.'))
               onChange(grade.studentId, val)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                e.preventDefault()
+                focusScoreInput(rowIndex + 1)
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                focusScoreInput(rowIndex - 1)
+              }
+            }}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData('text')
+              const values = text.split(/\r?\n/).map((v) => v.trim()).filter((v, i, arr) => v !== '' || i < arr.length - 1)
+              if (values.length > 1) {
+                e.preventDefault()
+                onPasteColumn(rowIndex, values)
+              }
             }}
             className={cn(
               'w-20 text-center text-base md:w-24 md:text-sm',
               isModified && 'border-amber-400 focus-visible:ring-amber-400',
+              outOfRange && 'border-destructive focus-visible:ring-destructive',
               !scoreEditable && 'bg-muted text-muted-foreground',
             )}
             placeholder={status === 'excusado' ? 'Exc.' : '—'}
           />
           <span className="text-xs text-muted-foreground">/ {maxScore}</span>
         </div>
+        {outOfRange && <p className="mt-1 text-[11px] text-destructive">Debe estar entre 0 y {maxScore}</p>}
       </TableCell>
       {reinforcementEnabled && (
         <TableCell>
@@ -1647,6 +1683,10 @@ export function GradeEntryPage() {
       toast.info('No hay cambios pendientes')
       return
     }
+    if (invalidCount > 0) {
+      toast.error(`Hay ${invalidCount} ${invalidCount === 1 ? 'nota fuera de rango' : 'notas fuera de rango'} (0 a ${maxScore}). Corrígelas antes de guardar.`)
+      return
+    }
     const current = new Map(grades.map((g) => [g.studentId, g]))
     const gradesToSave: GradeInput[] = Array.from(modified).map((studentId) => ({
       studentId,
@@ -1670,6 +1710,58 @@ export function GradeEntryPage() {
   }
 
   const canShowGrades = !!selectedAssignmentId && !!selectedPeriodId && !!selectedActivityId
+  const maxScore = selectedActivity?.maxScore ?? 10
+
+  const { confirmDiscard } = useUnsavedChanges(modified.size > 0)
+  /** Envuelve un cambio de filtro: si hay notas sin guardar, pide confirmación. */
+  const guarded = (setter: (v: string) => void, current: string) => async (value: string) => {
+    if (value === current || !(await confirmDiscard())) return
+    setter(value)
+  }
+
+  const scoreOf = (g: StudentGrade) =>
+    Object.prototype.hasOwnProperty.call(localGrades, g.studentId) ? localGrades[g.studentId] : g.score
+  const statusOf = (g: StudentGrade) => localStatus[g.studentId] ?? g.status
+  const invalidCount = grades.filter((g) => {
+    const v = scoreOf(g)
+    return v != null && (Number.isNaN(Number(v)) || Number(v) < 0 || Number(v) > maxScore)
+  }).length
+  const gradedCount = grades.filter((g) => scoreOf(g) != null || statusOf(g) === 'excusado').length
+
+  function handlePasteColumn(startIndex: number, values: string[]) {
+    const targets = grades.slice(startIndex, startIndex + values.length)
+    targets.forEach((g, i) => {
+      if (statusOf(g) === 'excusado' || statusOf(g) === 'no_realizado') return
+      const raw = values[i].replace(',', '.')
+      handleScoreChange(g.studentId, raw === '' ? null : parseFloat(raw))
+    })
+    toast.success(`${targets.length} notas pegadas`)
+  }
+
+  function markAllDelivered() {
+    grades.forEach((g) => {
+      if (statusOf(g) !== 'entregado') handleStatusChange(g.studentId, 'entregado')
+    })
+  }
+
+  const [fillValue, setFillValue] = React.useState('')
+  function fillBlanks() {
+    const v = parseFloat(fillValue.replace(',', '.'))
+    if (Number.isNaN(v) || v < 0 || v > maxScore) {
+      toast.error(`Ingresa un valor entre 0 y ${maxScore}`)
+      return
+    }
+    let n = 0
+    grades.forEach((g) => {
+      const st = statusOf(g)
+      if (scoreOf(g) == null && (st === 'entregado' || st === 'atrasado')) {
+        handleScoreChange(g.studentId, v)
+        n++
+      }
+    })
+    toast.success(n === 0 ? 'No hay notas vacías' : `${n} notas completadas con ${v}`)
+    setFillValue('')
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1731,7 +1823,7 @@ export function GradeEntryPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
         {!isStudentOrGuardian && (
           <div className="w-full sm:w-64">
-            <Select value={selectedAssignmentId} onValueChange={setSelectedAssignmentId}>
+            <Select value={selectedAssignmentId} onValueChange={guarded(setSelectedAssignmentId, selectedAssignmentId)}>
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar asignación" />
               </SelectTrigger>
@@ -1749,7 +1841,7 @@ export function GradeEntryPage() {
         <div className="w-full sm:w-44">
           <Select
             value={selectedPeriodId}
-            onValueChange={setSelectedPeriodId}
+            onValueChange={guarded(setSelectedPeriodId, selectedPeriodId)}
             disabled={!isStudentOrGuardian && !selectedAssignmentId}
           >
             <SelectTrigger>
@@ -1772,7 +1864,7 @@ export function GradeEntryPage() {
           <div className="w-full sm:w-52">
             <Select
               value={selectedActivityId}
-              onValueChange={setSelectedActivityId}
+              onValueChange={guarded(setSelectedActivityId, selectedActivityId)}
               disabled={!selectedPeriodId}
             >
               <SelectTrigger>
@@ -1782,6 +1874,9 @@ export function GradeEntryPage() {
                 {activitiesList.map((a) => (
                   <SelectItem key={a.id} value={a.id}>
                     {a.name}
+                    {a._count && (
+                      <span className="ml-1.5 text-xs text-muted-foreground">· {a._count.grades} calificadas</span>
+                    )}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1843,7 +1938,7 @@ export function GradeEntryPage() {
               <div>
                 <p className="break-words text-sm font-semibold">{selectedActivity?.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  Puntaje máximo: {selectedActivity?.maxScore} pts
+                  Puntaje máximo: {selectedActivity?.maxScore} pts · {gradedCount}/{grades.length} calificados
                   {modified.size > 0 && (
                     <span className="ml-2 text-amber-600">
                       · {modified.size} {modified.size === 1 ? 'cambio pendiente' : 'cambios pendientes'}
@@ -1873,8 +1968,38 @@ export function GradeEntryPage() {
             </Button>
           </div>
 
+          {/* Acciones masivas */}
+          <div className="flex flex-col gap-2 rounded-md border bg-muted/30 p-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <Button type="button" variant="outline" size="sm" onClick={markAllDelivered}>
+              <CheckCheck className="h-4 w-4" />
+              Todos entregados
+            </Button>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                max={maxScore}
+                step={0.01}
+                inputMode="decimal"
+                value={fillValue}
+                onChange={(e) => setFillValue(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && fillBlanks()}
+                placeholder="Nota"
+                aria-label="Nota para completar vacíos"
+                className="h-8 w-20 text-center text-sm"
+              />
+              <Button type="button" variant="outline" size="sm" onClick={fillBlanks} disabled={!fillValue}>
+                Completar vacíos
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground sm:ml-auto">
+              <Keyboard className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+              Enter/↓ siguiente · ↑ anterior · pega una columna desde Excel
+            </p>
+          </div>
+
           {/* Grade table */}
-          <Card>
+          <Card className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -1887,11 +2012,13 @@ export function GradeEntryPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {grades.map((grade) => (
+                {grades.map((grade, index) => (
                   <GradeRow
                     key={grade.studentId}
                     grade={grade}
-                    maxScore={selectedActivity?.maxScore ?? 10}
+                    rowIndex={index}
+                    onPasteColumn={handlePasteColumn}
+                    maxScore={maxScore}
                     localScore={localGrades[grade.studentId]}
                     localStatus={localStatus[grade.studentId]}
                     localReinforcementScore={localReinforcementScores[grade.studentId]}

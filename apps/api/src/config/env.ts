@@ -9,6 +9,9 @@ const schema = z.object({
   JWT_ACCESS_EXPIRES:   z.string().default('15m'),
   JWT_REFRESH_EXPIRES:  z.string().default('7d'),
   LOG_LEVEL:            z.string().default('info'),
+  // Detrás de un proxy (Railway, Cloudflare) para que req.ip sea la IP real del
+  // cliente — necesario para el rate limiting. Por defecto activo en producción.
+  TRUST_PROXY:          z.enum(['true', 'false']).optional(),
   FRONTEND_URL:         z.string().url().optional(),
   // Orígenes permitidos por CORS en producción, separados por coma.
   // Ej: "https://auleka.com,https://app.auleka.com"

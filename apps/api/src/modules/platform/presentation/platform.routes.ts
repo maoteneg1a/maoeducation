@@ -1,7 +1,8 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { AUTH_RATE_LIMIT } from '../../../shared/infrastructure/plugins/rate-limit'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { tokenService } from '../../../shared/infrastructure/services/token.service'
-import { platformAuthMiddleware } from '../../../shared/infrastructure/middleware/platform-auth.middleware'
+import { platformAuthMiddleware, requirePlatformRole } from '../../../shared/infrastructure/middleware/platform-auth.middleware'
 import { UnauthorizedError } from '../../../shared/domain/errors/app.errors'
 import { PrismaPlatformRepository } from '../infrastructure/repositories/prisma-platform.repository'
 import { PrismaInstitutionRepository } from '../../institution/infrastructure/repositories/prisma-institution.repository'
@@ -65,6 +66,7 @@ export default async function platformRoutes(app: FastifyInstance) {
   app.post<{ Body: PlatformLoginBody }>(
     '/platform/login',
     {
+      config: { rateLimit: AUTH_RATE_LIMIT },
       schema: {
         body: {
           type: 'object',
@@ -97,6 +99,8 @@ export default async function platformRoutes(app: FastifyInstance) {
 
   // ----- Instituciones (protegido) -----
   const protectedOpts = { preHandler: [platformAuthMiddleware] }
+  // Escrituras sobre instituciones: solo owner.
+  const ownerOpts = { preHandler: [platformAuthMiddleware, requirePlatformRole()] }
 
   app.get('/platform/institutions', protectedOpts, async (_req, reply) => {
     return reply.send(await listInstitutions.execute())
@@ -105,7 +109,7 @@ export default async function platformRoutes(app: FastifyInstance) {
   app.post<{ Body: CreateInstitutionBody }>(
     '/platform/institutions',
     {
-      ...protectedOpts,
+      ...ownerOpts,
       schema: {
         body: {
           type: 'object',
@@ -115,6 +119,7 @@ export default async function platformRoutes(app: FastifyInstance) {
             code: { type: 'string', minLength: 2 },
             admin: adminUserBody,
             regime: { type: 'string', enum: ['SIERRA_AMAZONIA', 'COSTA_GALAPAGOS'] },
+            isTestInstitution: { type: 'boolean' },
           },
         },
       },
@@ -127,7 +132,7 @@ export default async function platformRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { id: string } }>(
     '/platform/institutions/:id/toggle',
-    protectedOpts,
+    ownerOpts,
     async (req, reply) => {
       return reply.send(await toggleInstitution.execute(req.params.id))
     },
@@ -136,12 +141,19 @@ export default async function platformRoutes(app: FastifyInstance) {
   app.patch<{ Params: { id: string }; Body: { modules: string[] } }>(
     '/platform/institutions/:id/modules',
     {
-      ...protectedOpts,
+      ...ownerOpts,
       schema: {
         body: {
           type: 'object',
           required: ['modules'],
-          properties: { modules: { type: 'array', items: { type: 'string' } } },
+          properties: {
+            modules: {
+              type: 'array',
+              maxItems: 80,
+              uniqueItems: true,
+              items: { type: 'string', pattern: '^[a-z][a-z0-9_]{1,49}$' },
+            },
+          },
         },
       },
     },
@@ -164,7 +176,7 @@ export default async function platformRoutes(app: FastifyInstance) {
   app.patch<{ Params: { id: string }; Body: { isTestInstitution: boolean } }>(
     '/platform/institutions/:id/test-flag',
     {
-      ...protectedOpts,
+      ...ownerOpts,
       schema: {
         body: {
           type: 'object',
@@ -195,7 +207,7 @@ export default async function platformRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string } }>(
     '/platform/institutions/:id/seed-test-data',
-    protectedOpts,
+    ownerOpts,
     async (req, reply) => {
       return reply.send(await seedTestData(req.params.id))
     },
@@ -233,7 +245,21 @@ export default async function platformRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string }; Body: CreateSubjectDto }>(
     '/platform/institutions/:id/subjects',
-    protectedOpts,
+    { ...ownerOpts, schema: { body: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['name'],
+          properties: {
+            name: { type: 'string', minLength: 1, maxLength: 150 },
+            code: { type: ['string', 'null'], maxLength: 30 },
+            description: { type: ['string', 'null'], maxLength: 1000 },
+            color: { type: 'string', maxLength: 20 },
+            isQualitative: { type: 'boolean' },
+            curriculumAreaId: { type: ['string', 'null'] },
+            competencyAreaId: { type: ['string', 'null'] },
+            workloadCode: { type: ['string', 'null'], maxLength: 50 },
+          },
+        } } },
     async (req, reply) => {
       const subject = await academicRepo.createSubject(req.params.id, req.body)
       return reply.status(201).send(subject)
@@ -242,7 +268,20 @@ export default async function platformRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { id: string; subjectId: string }; Body: UpdateSubjectDto }>(
     '/platform/institutions/:id/subjects/:subjectId',
-    protectedOpts,
+    { ...ownerOpts, schema: { body: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            name: { type: 'string', minLength: 1, maxLength: 150 },
+            code: { type: ['string', 'null'], maxLength: 30 },
+            description: { type: ['string', 'null'], maxLength: 1000 },
+            color: { type: 'string', maxLength: 20 },
+            isQualitative: { type: 'boolean' },
+            curriculumAreaId: { type: ['string', 'null'] },
+            competencyAreaId: { type: ['string', 'null'] },
+            workloadCode: { type: ['string', 'null'], maxLength: 50 },
+          },
+        } } },
     async (req, reply) => {
       const subject = await academicRepo.updateSubject(req.params.subjectId, req.params.id, req.body)
       return reply.send(subject)
@@ -251,7 +290,7 @@ export default async function platformRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { id: string; subjectId: string } }>(
     '/platform/institutions/:id/subjects/:subjectId/toggle',
-    protectedOpts,
+    ownerOpts,
     async (req, reply) => {
       const subject = await academicRepo.toggleSubject(req.params.subjectId, req.params.id)
       return reply.send(subject)
@@ -279,7 +318,7 @@ export default async function platformRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string }; Body: CreateInstitutionAdminBody }>(
     '/platform/institutions/:id/admins',
-    { ...protectedOpts, schema: { body: adminUserBody } },
+    { ...ownerOpts, schema: { body: adminUserBody } },
     async (req, reply) => {
       const result = await createAdmin.execute(req.params.id, req.body)
       return reply.status(201).send(result)
@@ -289,7 +328,7 @@ export default async function platformRoutes(app: FastifyInstance) {
   app.patch<{ Params: { id: string; userId: string }; Body: UpdateInstitutionAdminBody }>(
     '/platform/institutions/:id/admins/:userId',
     {
-      ...protectedOpts,
+      ...ownerOpts,
       schema: {
         body: {
           type: 'object',

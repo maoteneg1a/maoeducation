@@ -6,7 +6,7 @@ export interface PlatformLoginDto {
 export interface PlatformLoginResponseDto {
   accessToken: string
   refreshToken: string
-  admin: { id: string; email: string; name: string }
+  admin: { id: string; email: string; name: string; role: string }
 }
 
 export interface CreateInstitutionAdminInput {
@@ -22,6 +22,8 @@ export interface CreateInstitutionDto {
   admin: CreateInstitutionAdminInput
   /** Régimen académico ecuatoriano — determina las fechas del año lectivo y sus 3 trimestres creados automáticamente. */
   regime?: 'SIERRA_AMAZONIA' | 'COSTA_GALAPAGOS'
+  /** Habilita "Sembrar datos de prueba". Por defecto false: una escuela real no nace de prueba. */
+  isTestInstitution?: boolean
 }
 
 export interface InstitutionListItemDto {

@@ -10,6 +10,9 @@ import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { PwaOnboardingBanner } from '@/shared/components/pwa/PwaOnboardingBanner'
 import { announcementsApi } from '@/features/announcements/api/announcements.api'
 import { FamilyToday } from '../components/FamilyToday'
+import { TeacherToday } from '../components/TeacherToday'
+import { SetupChecklist } from '../components/SetupChecklist'
+import { roleLabel } from '@/shared/lib/roles'
 
 interface DashboardStats {
   users: { total: number; students: number; teachers: number }
@@ -77,6 +80,8 @@ export function DashboardPage() {
       ) : (
         <>
           {/* Stats row */}
+          {isInstitutionAdmin && user?.institution?.accountType !== 'personal' && <SetupChecklist />}
+
           {stats && isInstitutionAdmin && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
               <NumberCard icon={Users} label="Usuarios activos" value={stats.users.total} />
@@ -128,6 +133,7 @@ export function DashboardPage() {
 
           {/* Per-role module links */}
           {isInstitutionAdmin && <AdminModules />}
+          {hasRole('teacher') && !isInstitutionAdmin && <TeacherToday />}
           {hasRole('teacher') && !isInstitutionAdmin && <TeacherModules unread={stats?.messages.unread} />}
           {hasRole('inspector') && !isInstitutionAdmin && <InspectorModules pending={stats?.incidents.pending} unread={stats?.messages.unread} />}
           {hasRole('dece') && !isInstitutionAdmin && <DeceModules openCases={stats?.dece.openCases} followUps={stats?.dece.followUps} unread={stats?.messages.unread} />}
@@ -286,13 +292,3 @@ function getGreeting(): string {
   return 'Buenas noches'
 }
 
-function roleLabel(role: string): string {
-  const labels: Record<string, string> = {
-    admin: 'Administrador',
-    teacher: 'Profesor',
-    inspector: 'Inspector',
-    student: 'Alumno',
-    guardian: 'Padre/Representante',
-  }
-  return labels[role] ?? role
-}

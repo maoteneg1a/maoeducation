@@ -1,8 +1,22 @@
 import { FastifyInstance } from 'fastify'
+import type { Prisma } from '@prisma/client'
+import { audit } from '../../../shared/infrastructure/services/audit.service'
 import { PrismaActivityRepository } from '../infrastructure/repositories/prisma-activity.repository'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
+import { BadRequestError } from '../../../shared/domain/errors/app.errors'
+import {
+  assertCourseAssignmentAccess,
+  assertParallelInScope,
+  resolveViewableStudentId,
+} from '../../../shared/infrastructure/services/teacher-scope.service'
+import {
+  assertActivityAccess,
+  assertActivitiesWritable,
+  assertInsumoAccess,
+  assertParallelInsumoAdmin,
+} from './activity-access'
 import type {
   CreateActivityTypeDto,
   UpdateActivityTypeDto,
@@ -64,6 +78,7 @@ export default async function activityRoutes(app: FastifyInstance) {
     '/insumos',
     { preHandler: [requirePermission('insumos', 'read', 'own')] },
     async (req, reply) => {
+      await assertCourseAssignmentAccess(req, req.query.courseAssignmentId, 'read')
       const insumos = await repo.listInsumos(
         req.user.institutionId,
         req.query.courseAssignmentId,
@@ -77,6 +92,7 @@ export default async function activityRoutes(app: FastifyInstance) {
     '/insumos',
     { preHandler: [requirePermission('insumos', 'write', 'own')] },
     async (req, reply) => {
+      await assertCourseAssignmentAccess(req, req.body.courseAssignmentId, 'write')
       const insumo = await repo.createInsumo(req.user.institutionId, req.body, req.user.sub)
       return reply.status(201).send(insumo)
     },
@@ -86,6 +102,7 @@ export default async function activityRoutes(app: FastifyInstance) {
     '/insumos/:id',
     { preHandler: [requirePermission('insumos', 'write', 'own')] },
     async (req, reply) => {
+      await assertInsumoAccess(req, req.params.id, 'write')
       const insumo = await repo.updateInsumo(req.params.id, req.user.institutionId, req.body)
       return reply.send(insumo)
     },
@@ -95,6 +112,7 @@ export default async function activityRoutes(app: FastifyInstance) {
     '/insumos/:id',
     { preHandler: [requirePermission('insumos', 'write', 'own')] },
     async (req, reply) => {
+      await assertInsumoAccess(req, req.params.id, 'write')
       await repo.deleteInsumo(req.params.id, req.user.institutionId)
       return reply.status(204).send()
     },
@@ -114,6 +132,7 @@ export default async function activityRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { parallelId, academicYearId, periodId, insumos: template } = req.body
       const { institutionId, sub: userId } = req.user
+      await assertParallelInsumoAdmin(req, parallelId)
 
       const assignments = await prisma.courseAssignment.findMany({
         where: { institutionId, parallelId, academicYearId },
@@ -121,40 +140,43 @@ export default async function activityRoutes(app: FastifyInstance) {
       })
       if (assignments.length === 0) return reply.status(404).send({ message: 'No se encontraron asignaciones para este paralelo' })
 
-      const period = await prisma.academicPeriod.findFirst({ where: { id: periodId } })
+      const period = await prisma.academicPeriod.findFirst({ where: { id: periodId, academicYear: { institutionId } } })
       if (!period) return reply.status(404).send({ message: 'Período no encontrado' })
 
       // Parametrización GENERAL (base): agrega/actualiza los insumos de la plantilla
       // en todas las materias del paralelo, SIN borrar los insumos propios que cada
       // profesor haya configurado en su materia (aditivo, no destructivo).
+      const existingAll = await prisma.insumo.findMany({
+        where: { institutionId, courseAssignmentId: { in: assignments.map((a) => a.id) }, academicPeriodId: periodId },
+        select: { id: true, name: true, courseAssignmentId: true },
+      })
+      const operations: Prisma.PrismaPromise<unknown>[] = []
       for (const assignment of assignments) {
-        const existing = await prisma.insumo.findMany({
-          where: { institutionId, courseAssignmentId: assignment.id, academicPeriodId: periodId },
-          select: { id: true, name: true },
-        })
-
+        const existing = existingAll.filter((e) => e.courseAssignmentId === assignment.id)
         for (const tpl of template) {
           const match = existing.find((e) => e.name === tpl.name)
-          if (match) {
-            await prisma.insumo.update({
-              where: { id: match.id },
-              data: { weight: tpl.weight ?? null, sortOrder: tpl.sortOrder },
-            })
-          } else {
-            await prisma.insumo.create({
-              data: {
-                institutionId,
-                courseAssignmentId: assignment.id,
-                academicPeriodId: periodId,
-                name: tpl.name,
-                weight: tpl.weight ?? null,
-                sortOrder: tpl.sortOrder,
-                createdBy: userId,
-              },
-            })
-          }
+          operations.push(
+            match
+              ? prisma.insumo.update({
+                  where: { id: match.id },
+                  data: { weight: tpl.weight ?? null, sortOrder: tpl.sortOrder },
+                })
+              : prisma.insumo.create({
+                  data: {
+                    institutionId,
+                    courseAssignmentId: assignment.id,
+                    academicPeriodId: periodId,
+                    name: tpl.name,
+                    weight: tpl.weight ?? null,
+                    sortOrder: tpl.sortOrder,
+                    createdBy: userId,
+                  },
+                }),
+          )
         }
       }
+      // Todo o nada: una sola transacción para todas las materias del paralelo.
+      await prisma.$transaction(operations)
 
       return reply.status(200).send({ message: 'Insumos aplicados correctamente', assignments: assignments.length })
     },
@@ -167,6 +189,7 @@ export default async function activityRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { parallelId, academicYearId, periodId } = req.query
       const { institutionId } = req.user
+      await assertParallelInScope(req, parallelId)
 
       // Todas las materias del paralelo (no solo la primera): así la plantilla
       // refleja los insumos ya creados aunque se hayan agregado materias nuevas.
@@ -210,6 +233,7 @@ export default async function activityRoutes(app: FastifyInstance) {
     '/activities',
     { preHandler: [requirePermission('activities', 'read', 'own')] },
     async (req, reply) => {
+      await assertCourseAssignmentAccess(req, req.query.courseAssignmentId, 'read')
       const activities = await repo.list(req.user.institutionId, req.query)
       return reply.send(activities)
     },
@@ -219,6 +243,7 @@ export default async function activityRoutes(app: FastifyInstance) {
     '/activities',
     { preHandler: [requirePermission('activities', 'write', 'own')] },
     async (req, reply) => {
+      await assertCourseAssignmentAccess(req, req.body.courseAssignmentId, 'write')
       const activity = await repo.create(req.user.institutionId, req.body, req.user.sub)
       return reply.status(201).send(activity)
     },
@@ -228,6 +253,7 @@ export default async function activityRoutes(app: FastifyInstance) {
     '/activities/:id',
     { preHandler: [requirePermission('activities', 'read', 'own')] },
     async (req, reply) => {
+      await assertActivityAccess(req, req.params.id, 'read')
       const activity = await repo.getById(req.params.id, req.user.institutionId)
       return reply.send(activity)
     },
@@ -237,16 +263,18 @@ export default async function activityRoutes(app: FastifyInstance) {
     '/activities/:id',
     { preHandler: [requirePermission('activities', 'write', 'own')] },
     async (req, reply) => {
+      await assertActivityAccess(req, req.params.id, 'write')
       const activity = await repo.update(req.params.id, req.user.institutionId, req.body)
       return reply.send(activity)
     },
   )
 
-  app.patch<{ Params: { id: string } }>(
+  app.patch<{ Params: { id: string }; Body: { isPublished?: boolean } | undefined }>(
     '/activities/:id/publish',
     { preHandler: [requirePermission('activities', 'write', 'own')] },
     async (req, reply) => {
-      const activity = await repo.publish(req.params.id, req.user.institutionId)
+      await assertActivityAccess(req, req.params.id, 'write')
+      const activity = await repo.publish(req.params.id, req.user.institutionId, req.body?.isPublished ?? true)
       return reply.send(activity)
     },
   )
@@ -255,6 +283,13 @@ export default async function activityRoutes(app: FastifyInstance) {
     '/activities/:id/insumo',
     { preHandler: [requirePermission('activities', 'write', 'own')] },
     async (req, reply) => {
+      const { courseAssignmentId } = await assertActivityAccess(req, req.params.id, 'write')
+      if (req.body.insumoId) {
+        const insumo = await assertInsumoAccess(req, req.body.insumoId, 'write')
+        if (insumo.courseAssignmentId !== courseAssignmentId) {
+          throw new BadRequestError('El insumo pertenece a otra asignatura')
+        }
+      }
       const activity = await repo.assignInsumo(
         req.params.id,
         req.user.institutionId,
@@ -268,6 +303,7 @@ export default async function activityRoutes(app: FastifyInstance) {
     '/activities/:id',
     { preHandler: [requirePermission('activities', 'write', 'own')] },
     async (req, reply) => {
+      await assertActivityAccess(req, req.params.id, 'write')
       await repo.delete(req.params.id, req.user.institutionId)
       return reply.status(204).send()
     },
@@ -279,6 +315,7 @@ export default async function activityRoutes(app: FastifyInstance) {
     '/grades',
     { preHandler: [requirePermission('grades', 'read', 'own')] },
     async (req, reply) => {
+      await assertActivityAccess(req, req.query.activityId, 'read')
       const grades = await repo.getByActivity(req.query.activityId, req.user.institutionId)
       return reply.send(grades)
     },
@@ -288,7 +325,37 @@ export default async function activityRoutes(app: FastifyInstance) {
     '/grades/bulk',
     { preHandler: [requirePermission('grades', 'write', 'own')] },
     async (req, reply) => {
+      if (!Array.isArray(req.body?.grades)) throw new BadRequestError('grades requerido')
+      await assertActivitiesWritable(req, req.body.grades.map((g) => g.activityId))
+      const previous = await prisma.grade.findMany({
+        where: {
+          institutionId: req.user.institutionId,
+          activityId: { in: [...new Set(req.body.grades.map((g) => g.activityId))] },
+          studentId: { in: [...new Set(req.body.grades.map((g) => g.studentId))] },
+        },
+        select: { activityId: true, studentId: true, score: true, status: true },
+      })
       const grades = await repo.bulkUpsert(req.user.institutionId, req.body, req.user.sub)
+      // Auditoría: solo las notas que realmente cambiaron (valor anterior → nuevo).
+      const before = new Map(previous.map((g) => [`${g.activityId}:${g.studentId}`, g]))
+      const changes = grades
+        .map((g) => {
+          const old = before.get(`${g.activityId}:${g.studentId}`)
+          const from = old?.score == null ? null : Number(old.score)
+          const to = g.score == null ? null : Number(g.score)
+          return from === to && old?.status === g.status
+            ? null
+            : { activityId: g.activityId, studentId: g.studentId, from, to, status: g.status }
+        })
+        .filter((c): c is NonNullable<typeof c> => c !== null)
+      if (changes.length > 0) {
+        await audit(req, {
+          action: 'grades.bulk_update',
+          resourceType: 'grade',
+          resourceId: changes.length === 1 ? changes[0].activityId : null,
+          newValue: { count: changes.length, changes: changes.slice(0, 200) },
+        })
+      }
       return reply.send(grades)
     },
   )
@@ -314,8 +381,9 @@ export default async function activityRoutes(app: FastifyInstance) {
     '/grades/student/:studentId',
     { preHandler: [requirePermission('grades', 'read', 'own')] },
     async (req, reply) => {
+      const studentId = await resolveViewableStudentId(req, req.params.studentId)
       const grades = await repo.getStudentGrades(
-        req.params.studentId,
+        studentId,
         req.user.institutionId,
         req.query.courseAssignmentId,
         req.query.periodId,
@@ -328,6 +396,7 @@ export default async function activityRoutes(app: FastifyInstance) {
     '/grades/summary',
     { preHandler: [requirePermission('grades', 'read', 'own')] },
     async (req, reply) => {
+      await assertCourseAssignmentAccess(req, req.query.courseAssignmentId, 'read')
       const summary = await repo.getGradesSummary(
         req.user.institutionId,
         req.query.courseAssignmentId,

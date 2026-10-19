@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/shared/components/ui/select'
 import { Card } from '@/shared/components/ui/card'
+import { useUnsavedChanges } from '@/shared/hooks/useUnsavedChanges'
 import {
   Table,
   TableBody,
@@ -112,6 +113,24 @@ export function BehaviorEntryPage() {
     setModified((prev) => new Set(prev).add(studentId))
   }
 
+  const { confirmDiscard } = useUnsavedChanges(modified.size > 0)
+  const guarded = (setter: (v: string) => void, current: string) => async (value: string) => {
+    if (value === current || !(await confirmDiscard())) return
+    setter(value)
+  }
+
+  /** Asigna el mismo código a todos los estudiantes que aún no tienen nota. */
+  function applyToBlanks(code: string) {
+    let n = 0
+    rows.forEach((item) => {
+      if (getRecord(item).code == null) {
+        updateRecord(item.studentId, { code })
+        n++
+      }
+    })
+    toast.success(n === 0 ? 'Todos ya tienen comportamiento' : `${code} aplicado a ${n} estudiantes sin nota`)
+  }
+
   function handleSaveAll() {
     if (modified.size === 0) {
       toast.info('No hay cambios pendientes')
@@ -140,7 +159,7 @@ export function BehaviorEntryPage() {
       {/* Filtros */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
         <div className="w-full sm:w-64">
-          <Select value={selectedParallelId} onValueChange={setSelectedParallelId}>
+          <Select value={selectedParallelId} onValueChange={guarded(setSelectedParallelId, selectedParallelId)}>
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar paralelo" />
             </SelectTrigger>
@@ -155,7 +174,7 @@ export function BehaviorEntryPage() {
         </div>
 
         <div className="w-full sm:w-44">
-          <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
+          <Select value={selectedPeriodId} onValueChange={guarded(setSelectedPeriodId, selectedPeriodId)}>
             <SelectTrigger>
               <SelectValue placeholder="Período" />
             </SelectTrigger>
@@ -201,6 +220,19 @@ export function BehaviorEntryPage() {
                 </span>
               )}
             </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Select value="" onValueChange={applyToBlanks}>
+              <SelectTrigger className="w-full sm:w-56" aria-label="Aplicar un código a los estudiantes sin nota">
+                <SelectValue placeholder="Aplicar a los que no tienen nota…" />
+              </SelectTrigger>
+              <SelectContent>
+                {behaviorScale.map((b) => (
+                  <SelectItem key={b.code} value={b.code}>
+                    {b.code} · {b.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               onClick={handleSaveAll}
               loading={bulkSave.isPending}
@@ -215,9 +247,10 @@ export function BehaviorEntryPage() {
                 </Badge>
               )}
             </Button>
+            </div>
           </div>
 
-          <Card>
+          <Card className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">

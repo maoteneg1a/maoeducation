@@ -15,6 +15,7 @@ import { usePermissions } from '@/shared/hooks/usePermissions'
 import { cn, getErrorMessage } from '@/shared/lib/utils'
 import { getParallels, getYears, type Parallel } from '@/features/enrollment/api/enrollment.api'
 import { announcementsApi, type Announcement, type AnnouncementAudience, type CommunicationType, type CreateAnnouncementInput, type AnnouncementTracking } from '../api/announcements.api'
+import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
 
 const audienceLabels: Record<AnnouncementAudience, string> = {
   all: 'Toda la institución',
@@ -222,7 +223,9 @@ export function AnnouncementsPage() {
                     <p className="mt-1 text-xs text-muted-foreground">{audienceLabels[notice.audience]}</p>
                   </button>
                   {canManage && (
-                    <Button variant="ghost" size="sm" title="Eliminar aviso" onClick={() => confirm('¿Eliminar este aviso?') && remove.mutate(notice.id)}>
+                    <Button variant="ghost" size="sm" title="Eliminar aviso" onClick={async () => {
+                      if (await confirmDialog({ title: '¿Eliminar este aviso?', confirmText: 'Eliminar', destructive: true })) remove.mutate(notice.id)
+                    }}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   )}

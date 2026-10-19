@@ -1,8 +1,9 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
-import { NotFoundError, ConflictError } from '../../../../shared/domain/errors/app.errors'
+import { NotFoundError, ConflictError, ValidationError } from '../../../../shared/domain/errors/app.errors'
 import { assertSkillsArePlanned, assertCompetenciesArePlanned } from '../../../../shared/infrastructure/services/planned-curriculum.service'
 import { effectiveActivityScore } from '../../../../shared/domain/grade-math'
+import { STUDENT_ENROLLMENT_ORDER } from '../../../../shared/infrastructure/services/enrollment-query'
 import type {
   CreateActivityTypeDto,
   UpdateActivityTypeDto,
@@ -14,6 +15,8 @@ import type {
   BulkManualInsumoAverageDto,
   ListActivitiesQueryDto,
 } from '../../application/dtos/activity.dto'
+
+const GRADE_STATUSES = new Set(['entregado', 'no_realizado', 'atrasado', 'excusado'])
 
 export class PrismaActivityRepository {
   // ─── Activity Types ────────────────────────────────────────────────────────
@@ -287,13 +290,14 @@ export class PrismaActivityRepository {
     })
   }
 
-  async publish(id: string, institutionId: string) {
+  /** Publica u oculta la actividad para estudiantes/representantes. */
+  async publish(id: string, institutionId: string, isPublished = true) {
     const activity = await prisma.activity.findFirst({ where: { id, institutionId } })
     if (!activity) throw new NotFoundError('Actividad no encontrada')
 
     return prisma.activity.update({
       where: { id },
-      data: { isPublished: true },
+      data: { isPublished },
     })
   }
 
@@ -354,6 +358,7 @@ export class PrismaActivityRepository {
     // Get all enrolled students in the parallel/year
     const enrollments = await prisma.studentEnrollment.findMany({
       where: { institutionId, parallelId, academicYearId },
+      orderBy: STUDENT_ENROLLMENT_ORDER,
       include: {
         student: {
           select: {
@@ -370,8 +375,11 @@ export class PrismaActivityRepository {
     })
     const gradeMap = new Map(grades.map((g) => [g.studentId, g]))
 
-    // Merge: every student gets a grade entry (or null)
-    return enrollments.map((enrollment) => ({
+    // Merge: cada estudiante activo recibe su nota (o null). Los retirados solo
+    // aparecen si ya tenían nota registrada (historial), para no ensuciar la lista.
+    return enrollments
+      .filter((enrollment) => enrollment.status === 'active' || gradeMap.has(enrollment.studentId))
+      .map((enrollment) => ({
       student: enrollment.student,
       enrollmentStatus: enrollment.status,
       grade: gradeMap.get(enrollment.studentId) ?? null,
@@ -413,8 +421,45 @@ export class PrismaActivityRepository {
     const eligibleTypeIds = new Set(reinforcementConfig?.eligibleActivityTypeIds ?? [])
     const configuredMode = reinforcementConfig?.mode ?? 'replace'
 
-    const results = await Promise.all(
-      dto.grades.map(async (g) => {
+    // Validación previa (todo o nada): estados válidos, notas dentro de 0..máx
+    // y estudiantes matriculados en el paralelo de la actividad.
+    const enrollmentsByActivity = new Map<string, Set<string>>()
+    const activityCtx = await prisma.activity.findMany({
+      where: { id: { in: activityIds }, institutionId },
+      select: { id: true, courseAssignment: { select: { parallelId: true, academicYearId: true } } },
+    })
+    for (const a of activityCtx) {
+      const enrolled = await prisma.studentEnrollment.findMany({
+        where: { institutionId, parallelId: a.courseAssignment.parallelId, academicYearId: a.courseAssignment.academicYearId },
+        select: { studentId: true },
+      })
+      enrollmentsByActivity.set(a.id, new Set(enrolled.map((e) => e.studentId)))
+    }
+    for (const g of dto.grades) {
+      const activity = activityById.get(g.activityId)
+      if (!activity) throw new NotFoundError('Actividad no encontrada')
+      const max = Number(activity.maxScore)
+      if (g.status !== undefined && !GRADE_STATUSES.has(g.status)) {
+        throw new ValidationError(`Estado de entrega inválido: ${g.status}`)
+      }
+      if (g.score != null && (!Number.isFinite(Number(g.score)) || Number(g.score) < 0 || Number(g.score) > max)) {
+        throw new ValidationError(`La nota debe estar entre 0 y ${max}`)
+      }
+      if (!enrollmentsByActivity.get(g.activityId)?.has(g.studentId)) {
+        throw new ValidationError('Hay estudiantes que no pertenecen al paralelo de la actividad')
+      }
+    }
+
+    const existingGrades = await prisma.grade.findMany({
+      where: {
+        institutionId,
+        activityId: { in: activityIds },
+        studentId: { in: [...new Set(dto.grades.map((g) => g.studentId))] },
+      },
+    })
+    const existingByKey = new Map(existingGrades.map((g) => [`${g.activityId}:${g.studentId}`, g]))
+
+    const operations = dto.grades.map((g) => {
         const activity = activityById.get(g.activityId)
         if (!activity) throw new NotFoundError('Actividad no encontrada')
         if (g.reinforcementScore !== undefined && g.reinforcementScore !== null) {
@@ -426,9 +471,7 @@ export class PrismaActivityRepository {
           }
         }
 
-        const existing = await prisma.grade.findUnique({
-          where: { activityId_studentId: { activityId: g.activityId, studentId: g.studentId } },
-        })
+        const existing = existingByKey.get(`${g.activityId}:${g.studentId}`)
         const status = g.status ?? 'entregado'
         // Regla de negocio del estado de entrega:
         //  - no_realizado → cuenta como 0 si no se ingresó otra nota
@@ -492,9 +535,9 @@ export class PrismaActivityRepository {
             gradedBy: gradedById,
           },
         })
-      }),
-    )
-    return results
+      })
+    // Una sola transacción: si algo falla no quedan notas guardadas a medias.
+    return prisma.$transaction(operations)
   }
 
   async bulkUpsertManualInsumoAverages(

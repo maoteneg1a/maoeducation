@@ -45,7 +45,7 @@ async function main() {
       (tx) =>
         bootstrapInstitution(
           tx,
-          { name: INSTITUTION_NAME, code: INSTITUTION_CODE },
+          { name: INSTITUTION_NAME, code: INSTITUTION_CODE, isTestInstitution: true },
           {
             email: 'admin@panama.edu.ec',
             password: DEFAULT_PASSWORD,

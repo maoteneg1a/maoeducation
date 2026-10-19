@@ -21,7 +21,7 @@ import {
 } from '@/shared/components/ui/sheet'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
-import { getErrorMessage, cn } from '@/shared/lib/utils'
+import { getErrorMessage, cn, todayLocalISO } from '@/shared/lib/utils'
 import {
   tasksApi, getAttachmentUrl, type Task, type CreateTaskPayload, type TaskAttachment,
 } from '../api/tasks.api'
@@ -30,6 +30,8 @@ import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults
 import type { AcademicPeriod } from '@/features/academic/api/academic.api'
 import { useAuthStore } from '@/store/auth.store'
 import { usePermissions } from '@/shared/hooks/usePermissions'
+import { openProtectedFile } from '@/shared/lib/protected-file'
+import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -80,7 +82,7 @@ function AttachmentList({
   const [deleting, setDeleting] = React.useState<string | null>(null)
 
   async function handleDelete(att: TaskAttachment) {
-    if (!confirm(`¿Eliminar "${att.fileName}"?`)) return
+    if (!(await confirmDialog({ title: `¿Eliminar "${att.fileName}"?`, confirmText: 'Eliminar', destructive: true }))) return
     setDeleting(att.id)
     try {
       await tasksApi.deleteAttachment(taskId, att.id)
@@ -106,15 +108,14 @@ function AttachmentList({
             <p className="text-sm font-medium truncate">{att.fileName}</p>
             <p className="text-[11px] text-muted-foreground">{formatBytes(att.fileSize)}</p>
           </div>
-          <a
-            href={getAttachmentUrl(att.storedName)}
-            target="_blank"
-            rel="noopener noreferrer"
-            download={att.fileName}
+          <button
+            type="button"
+            aria-label={`Descargar ${att.fileName}`}
+            onClick={() => openProtectedFile(getAttachmentUrl(att.storedName), att.fileName, { download: true }).catch(() => toast.error('No se pudo descargar el archivo'))}
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <Download className="h-4 w-4" />
-          </a>
+          </button>
           {canDelete && (
             <button
               type="button"
@@ -269,7 +270,15 @@ function TaskDetailSheet({ task, isTeacher, onClose, onEdit, onPublish, onDelete
               )}
               {task.activity ? (
                 <Button asChild size="sm" variant="outline" className="gap-1.5">
-                  <Link to="/grades"><GraduationCap className="h-3.5 w-3.5" /> Calificar</Link>
+                  <Link
+                    to={`/grades?${new URLSearchParams({
+                      assignmentId: task.courseAssignmentId,
+                      ...(task.activity.academicPeriodId && { periodId: task.activity.academicPeriodId }),
+                      activityId: task.activity.id,
+                    }).toString()}`}
+                  >
+                    <GraduationCap className="h-3.5 w-3.5" /> Calificar
+                  </Link>
                 </Button>
               ) : (
                 <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { onConvert(task); onClose() }}>
@@ -300,7 +309,8 @@ function TaskDetailSheet({ task, isTeacher, onClose, onEdit, onPublish, onDelete
 interface TaskFormProps {
   open: boolean
   onClose: () => void
-  onSave: (data: CreateTaskPayload) => void
+  /** `gradable`: tras crear la tarea, abrir el paso de "crear como actividad calificable". */
+  onSave: (data: CreateTaskPayload, opts: { gradable: boolean }) => void
   isPending: boolean
   assignments: Array<{ id: string; subject: { name: string }; parallel: { name: string; level: { name: string } } }>
   defaultAssignmentId?: string
@@ -313,6 +323,7 @@ function TaskFormDialog({ open, onClose, onSave, isPending, assignments, default
   const [description, setDescription] = React.useState('')
   const [dueDate, setDueDate] = React.useState('')
   const [publishAt, setPublishAt] = React.useState('')
+  const [gradable, setGradable] = React.useState(true)
 
   React.useEffect(() => {
     if (open) {
@@ -320,14 +331,18 @@ function TaskFormDialog({ open, onClose, onSave, isPending, assignments, default
       setTitle(initial?.title ?? '')
       setDescription(initial?.description ?? '')
       setDueDate(initial?.dueDate ? initial.dueDate.slice(0, 10) : '')
-      setPublishAt(initial?.publishAt ? initial.publishAt.slice(0, 10) : new Date().toISOString().slice(0, 10))
+      setPublishAt(initial?.publishAt ? initial.publishAt.slice(0, 10) : todayLocalISO())
+      setGradable(true)
     }
   }, [open, initial, defaultAssignmentId])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim() || !dueDate || !assignmentId) { toast.error('Completa los campos requeridos'); return }
-    onSave({ courseAssignmentId: assignmentId, title: title.trim(), description: description.trim() || undefined, dueDate, publishAt: publishAt || undefined })
+    onSave(
+      { courseAssignmentId: assignmentId, title: title.trim(), description: description.trim() || undefined, dueDate, publishAt: publishAt || undefined },
+      { gradable: !initial && gradable },
+    )
   }
 
   return (
@@ -375,6 +390,22 @@ function TaskFormDialog({ open, onClose, onSave, isPending, assignments, default
               <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
           </div>
+          {!initial && (
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4"
+                checked={gradable}
+                onChange={(e) => setGradable(e.target.checked)}
+              />
+              <span>
+                Es calificable
+                <span className="block text-xs text-muted-foreground">
+                  Al crearla te pedimos el insumo y puntaje para que aparezca directo en Notas.
+                </span>
+              </span>
+            </label>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={isPending}>{isPending ? 'Guardando…' : initial ? 'Guardar cambios' : 'Crear tarea'}</Button>
@@ -647,8 +678,14 @@ export function TasksPage() {
   }
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateTaskPayload) => tasksApi.create(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }); setShowForm(false); toast.success('Tarea creada') },
+    mutationFn: ({ data }: { data: CreateTaskPayload; gradable: boolean }) => tasksApi.create(data),
+    onSuccess: (created, { gradable }) => {
+      qc.invalidateQueries({ queryKey: ['tasks'] })
+      setShowForm(false)
+      toast.success('Tarea creada')
+      // Flujo en un paso: la tarea calificable pasa directo a "crear como actividad".
+      if (gradable) setConverting(created)
+    },
     onError: (e) => toast.error(getErrorMessage(e)),
   })
 
@@ -768,7 +805,15 @@ export function TasksPage() {
         onClose={closeTaskDetail}
         onEdit={(t) => { setEditing(t); setShowForm(true) }}
         onPublish={(t) => publishMutation.mutate(t.id)}
-        onDelete={(t) => { if (confirm('¿Eliminar esta tarea?')) deleteMutation.mutate(t.id) }}
+        onDelete={async (t) => {
+          const ok = await confirmDialog({
+            title: '¿Eliminar esta tarea?',
+            description: 'Se eliminará para estudiantes y familias, junto con sus adjuntos.',
+            confirmText: 'Eliminar',
+            destructive: true,
+          })
+          if (ok) deleteMutation.mutate(t.id)
+        }}
         onConvert={(t) => setConverting(t)}
         onAttachmentChange={() => qc.invalidateQueries({ queryKey: ['tasks'] })}
       />
@@ -786,7 +831,7 @@ export function TasksPage() {
       <TaskFormDialog
         open={showForm}
         onClose={() => { setShowForm(false); setEditing(null) }}
-        onSave={(data) => editing ? updateMutation.mutate({ id: editing.id, data }) : createMutation.mutate(data)}
+        onSave={(data, { gradable }) => editing ? updateMutation.mutate({ id: editing.id, data }) : createMutation.mutate({ data, gradable })}
         isPending={createMutation.isPending || updateMutation.isPending}
         assignments={canWriteTasks
           ? assignments.filter((a) => a.subject && a.parallel).map((a) => ({ id: a.id, subject: a.subject!, parallel: a.parallel! }))

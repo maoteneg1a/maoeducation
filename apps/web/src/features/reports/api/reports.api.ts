@@ -215,6 +215,17 @@ export async function uploadBulletinLogo(scope: 'global' | 'own', file: File) {
   return apiClient.post(`reports/bulletin-branding/${scope}/logo`, { body: form }).json<{ url: string }>()
 }
 
+/** Todas las libretas de un paralelo en un solo PDF. Puede tardar con paralelos grandes. */
+export async function downloadParallelBulletinsPdf(params: { yearId: string; parallelId: string }) {
+  const blob = await apiClient.get('reports/bulletin/parallel/pdf', { searchParams: params, timeout: 180_000 }).blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'libretas-paralelo.pdf'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export async function downloadBulletinPdf(params: { yearId: string; parallelId: string; studentId: string }) {
   const blob = await apiClient.get('reports/bulletin/pdf', { searchParams: params }).blob()
   const url = URL.createObjectURL(blob)

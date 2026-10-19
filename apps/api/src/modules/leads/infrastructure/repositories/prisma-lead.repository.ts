@@ -27,4 +27,12 @@ export class PrismaLeadRepository implements ILeadRepository {
   async updateStatus(id: string, status: string): Promise<Lead> {
     return prisma.lead.update({ where: { id }, data: { status } })
   }
+
+  /** Seguimiento comercial (CRM): estado, notas, responsable, próximo contacto, conversión. */
+  async update(
+    id: string,
+    data: Partial<Pick<Lead, 'status' | 'notes' | 'ownerAdminId' | 'nextFollowUpAt' | 'convertedInstitutionId'>>,
+  ): Promise<Lead> {
+    return prisma.lead.update({ where: { id }, data })
+  }
 }
