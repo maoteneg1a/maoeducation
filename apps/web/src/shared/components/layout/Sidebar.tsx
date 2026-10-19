@@ -7,6 +7,7 @@ import {
   ClipboardCheck, CalendarDays, Palette, Smile, Award, HeartHandshake, FolderOpen, NotebookPen, Puzzle,
   Sparkles, School, CreditCard,
   Megaphone,
+  ScrollText,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { usePermissions } from '@/shared/hooks/usePermissions'
@@ -14,16 +15,18 @@ import { useUIStore } from '@/store/ui.store'
 import { useAuthStore } from '@/store/auth.store'
 import { useEffect, useState } from 'react'
 
-interface NavItem {
+export interface NavItem {
   label: string
   icon: React.ElementType
   path: string
   permission?: string
   module?: string
+  /** Visible solo para estos roles (además del permiso). */
+  roles?: string[]
   children?: Array<{ label: string; path: string; hideForPersonal?: boolean; showOnlyForPersonal?: boolean }>
 }
 
-interface NavSection {
+export interface NavSection {
   id: string
   /** Sin label = sin encabezado ni separador (el bloque de Inicio). */
   label?: string
@@ -39,7 +42,7 @@ const labelCollator = new Intl.Collator('es', { sensitivity: 'base' })
  * alterar el acceso. Si agregas un ítem con `module`, esa llave tiene que
  * existir en ALL_MODULES o el panel de superadmin no podrá activarla.
  */
-const NAV_SECTIONS: NavSection[] = [
+export const NAV_SECTIONS: NavSection[] = [
   {
     id: 'inicio',
     items: [
@@ -162,6 +165,15 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Seguimiento y convivencia',
     icon: HeartHandshake,
     items: [
+      {
+        // Inspección y DECE revisan justificaciones (y solicitudes de las familias)
+        // aunque no tomen asistencia; el docente las tiene dentro de Asistencia.
+        label: 'Justificaciones',
+        icon: ClipboardCheck,
+        path: '/attendance/justifications',
+        roles: ['inspector', 'dece'],
+        module: 'attendance',
+      },
       {
         label: 'Alertas académicas',
         icon: AlertTriangle,
@@ -291,6 +303,12 @@ const NAV_SECTIONS: NavSection[] = [
         module: 'branding',
       },
       {
+        label: 'Auditoría',
+        icon: ScrollText,
+        path: '/settings/auditoria',
+        permission: 'institution_config:manage',
+      },
+      {
         // Sin `module` a propósito: si se pudiera desactivar, una institución
         // bloqueada por falta de pago se quedaría sin forma de pagar.
         label: 'Suscripción',
@@ -302,27 +320,13 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ]
 
-interface SidebarProps {
-  mobileOpen: boolean
-  onMobileClose: () => void
-}
-
-export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
-  const collapsed  = useUIStore((s) => s.sidebarCollapsed)
-  const { hasPermission } = usePermissions()
-  const location   = useLocation()
-  const [expanded, setExpanded] = useState<string | null>(null)
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('auleka.sidebar.sections') ?? '[]')
-      const savedSections = Array.isArray(saved) ? saved : []
-      const lastSaved = savedSections[savedSections.length - 1]
-      const lastOpen = lastSaved === 'institucional' ? 'academico' : lastSaved
-      return new Set<string>(lastOpen ? [lastOpen] : ['docencia'])
-    } catch {
-      return new Set(['docencia'])
-    }
-  })
+/**
+ * Secciones de navegación visibles para el usuario actual: aplica permisos,
+ * módulos habilitados de la institución, visibilidad DECE y los filtros de
+ * cuentas personales. Lo comparten el Sidebar y la paleta de comandos.
+ */
+export function useVisibleNavSections(): NavSection[] {
+  const { hasPermission, hasAnyRole } = usePermissions()
   const institution = useAuthStore((s) => s.user?.institution ?? null)
 
   const deceContext = useDeceContext()
@@ -332,13 +336,14 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const isVisible = (item: NavItem) =>
     (item.path !== '/dece' || deceContext.data?.visible === true) &&
     (!item.permission || hasPermission(item.permission)) &&
+    (!item.roles || hasAnyRole(...item.roles)) &&
     (!item.module || !enabledModules || enabledModules.includes(item.module))
 
   // Una sección sin ítems visibles desaparece con su encabezado — así una cuenta
   // personal sin módulos institucionales no muestra un título vacío. Los hijos
   // de estructura académica se filtran para cuentas personales: las clases
   // se configuran en Mis grados y materias; años y períodos siguen visibles.
-  const visibleSections = NAV_SECTIONS
+  return NAV_SECTIONS
     .map((section) => ({
       ...section,
       items: section.items
@@ -357,6 +362,30 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       if (!b.label) return 1
       return labelCollator.compare(a.label, b.label)
     })
+}
+
+interface SidebarProps {
+  mobileOpen: boolean
+  onMobileClose: () => void
+}
+
+export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
+  const collapsed  = useUIStore((s) => s.sidebarCollapsed)
+  const location   = useLocation()
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('auleka.sidebar.sections') ?? '[]')
+      const savedSections = Array.isArray(saved) ? saved : []
+      const lastSaved = savedSections[savedSections.length - 1]
+      const lastOpen = lastSaved === 'institucional' ? 'academico' : lastSaved
+      return new Set<string>(lastOpen ? [lastOpen] : ['docencia'])
+    } catch {
+      return new Set(['docencia'])
+    }
+  })
+  const institution = useAuthStore((s) => s.user?.institution ?? null)
+  const visibleSections = useVisibleNavSections()
 
   const matchesRoute = (path: string) =>
     location.pathname === path || location.pathname.startsWith(`${path}/`)
@@ -400,8 +429,9 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         <div key={item.path}>
           <button
             onClick={() => setExpanded(isExpanded ? null : item.path)}
+            aria-expanded={isExpanded}
             className={cn(
-              'w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+              'w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar',
               isActive
                 ? 'bg-sidebar-accent text-sidebar-foreground font-medium'
                 : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
@@ -422,7 +452,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                   onClick={onMobileClose}
                   className={({ isActive }) =>
                     cn(
-                      'relative block rounded-md px-3 py-1.5 text-xs transition-colors before:absolute before:-left-[15px] before:top-1/2 before:h-1.5 before:w-1.5 before:-translate-y-1/2 before:rounded-full before:bg-sidebar-foreground/35',
+                      'relative block rounded-md px-3 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar before:absolute before:-left-[15px] before:top-1/2 before:h-1.5 before:w-1.5 before:-translate-y-1/2 before:rounded-full before:bg-sidebar-foreground/35',
                       isActive
                         ? 'bg-sidebar-accent text-sidebar-foreground font-medium before:bg-primary before:ring-2 before:ring-primary/25'
                         : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
@@ -444,9 +474,10 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         to={item.path}
         onClick={onMobileClose}
         title={collapsed ? item.label : undefined}
+        aria-label={collapsed ? item.label : undefined}
         className={({ isActive }) =>
           cn(
-            'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+            'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar',
             collapsed && 'justify-center px-0',
             isActive
               ? 'bg-sidebar-accent text-sidebar-foreground font-medium'
@@ -503,7 +534,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                 type="button"
                 onClick={() => toggleSection(section.id)}
                 className={cn(
-                  'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-sidebar-accent/40',
+                  'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar',
                   sectionIsActive && 'text-primary',
                 )}
                 aria-expanded={sectionIsOpen}
@@ -553,6 +584,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
     <>
       {/* Desktop sidebar */}
       <aside
+        aria-label="Navegación principal"
         className={cn(
           'hidden md:flex flex-col bg-sidebar border-r border-sidebar-border transition-all duration-200 shrink-0',
           collapsed ? 'w-14' : 'w-60',
@@ -564,13 +596,14 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       {/* Mobile overlay drawer */}
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
-          <div className="absolute inset-0 bg-black/50" onClick={onMobileClose} />
-          <aside className="relative z-10 flex flex-col w-72 bg-sidebar h-full shadow-xl">
+          <div className="absolute inset-0 bg-black/50" onClick={onMobileClose} aria-hidden="true" />
+          <aside aria-label="Navegación principal" className="relative z-10 flex flex-col w-72 bg-sidebar h-full shadow-xl">
             <button
               onClick={onMobileClose}
-              className="absolute top-3.5 right-3 text-sidebar-foreground/60 hover:text-sidebar-foreground p-1"
+              aria-label="Cerrar menú"
+              className="absolute top-3.5 right-3 rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
             {sidebarContent}
           </aside>

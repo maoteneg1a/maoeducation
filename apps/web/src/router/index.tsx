@@ -12,27 +12,33 @@ import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { PlatformPrivateRoute } from './PlatformPrivateRoute'
 import { PlatformLayout } from '@/shared/components/layout/PlatformLayout'
 import { PlatformLoginPage } from '@/features/platform/pages/PlatformLoginPage'
+import { RouteErrorBoundary } from '@/shared/components/feedback/RouteErrorBoundary'
 
 export const router = createBrowserRouter([
   {
     path: '/login',
     element: <LoginPage />,
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/personal/register',
     element: <PersonalRegisterPage />,
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/personal/login',
     element: <PersonalLoginPage />,
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/personal/check-email',
     element: <PersonalCheckEmailPage />,
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/personal/verify-email',
     element: <PersonalVerifyEmailPage />,
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/',
@@ -41,6 +47,7 @@ export const router = createBrowserRouter([
         <AppLayout />
       </PrivateRoute>
     ),
+    errorElement: <RouteErrorBoundary />,
     children: [
       { path: 'dece', lazy: () => import('@/features/dece/pages/DecePage').then((m) => ({ Component: m.DecePage })) },
       { path: 'dece/cases/:id', lazy: () => import('@/features/dece/pages/DeceCasePage').then((m) => ({ Component: m.DeceCasePage })) },
@@ -506,6 +513,19 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      {
+        path: 'settings/auditoria',
+        element: <PermissionGuard permission="institution_config:manage" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/settings/pages/AuditLogPage').then((m) => ({
+                Component: m.AuditLogPage,
+              })),
+          },
+        ],
+      },
       // ---- Suscripción ----
       // Va por permiso, NO por módulo: un módulo desactivable dejaría a una
       // institución bloqueada por falta de pago sin forma de pagar.
@@ -596,6 +616,7 @@ export const router = createBrowserRouter([
   {
     path: '/platform/login',
     element: <PlatformLoginPage />,
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/platform',
@@ -604,6 +625,7 @@ export const router = createBrowserRouter([
         <PlatformLayout />
       </PlatformPrivateRoute>
     ),
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         index: true,
@@ -617,6 +639,34 @@ export const router = createBrowserRouter([
         lazy: () =>
           import('@/features/platform/pages/InstitutionAdminsPage').then((m) => ({
             Component: m.InstitutionAdminsPage,
+          })),
+      },
+      {
+        path: 'institutions/:id',
+        lazy: () =>
+          import('@/features/platform/pages/InstitutionDetailPage').then((m) => ({
+            Component: m.InstitutionDetailPage,
+          })),
+      },
+      {
+        path: 'team',
+        lazy: () =>
+          import('@/features/platform/pages/TeamPage').then((m) => ({
+            Component: m.TeamPage,
+          })),
+      },
+      {
+        path: 'announcements',
+        lazy: () =>
+          import('@/features/platform/pages/PlatformAnnouncementsPage').then((m) => ({
+            Component: m.PlatformAnnouncementsPage,
+          })),
+      },
+      {
+        path: 'audit',
+        lazy: () =>
+          import('@/features/platform/pages/PlatformAuditPage').then((m) => ({
+            Component: m.PlatformAuditPage,
           })),
       },
       {
