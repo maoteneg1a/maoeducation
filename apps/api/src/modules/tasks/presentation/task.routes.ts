@@ -22,7 +22,7 @@ export default async function taskRoutes(app: FastifyInstance) {
     { preHandler: [requirePermission('tasks', 'read', 'own')] },
     async (req, reply) => {
       const { institutionId, sub: userId, roles } = req.user
-      const isAdmin = roles.includes('admin') || roles.includes('inspector')
+      const isAdmin = roles.includes('admin') || roles.includes('rector') || roles.includes('inspector')
       const isTeacher = roles.includes('teacher')
 
       let tasks

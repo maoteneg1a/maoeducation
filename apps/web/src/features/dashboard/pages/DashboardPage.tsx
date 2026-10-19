@@ -33,6 +33,7 @@ function useDashboardStats() {
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user)
   const { hasRole } = usePermissions()
+  const isInstitutionAdmin = hasRole('admin') || hasRole('rector')
   const { data: stats, isLoading } = useDashboardStats()
   const { data: announcements = [] } = useQuery({
     queryKey: ['announcements'],
@@ -75,7 +76,7 @@ export function DashboardPage() {
       ) : (
         <>
           {/* Stats row */}
-          {stats && hasRole('admin') && (
+          {stats && isInstitutionAdmin && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
               <NumberCard icon={Users} label="Usuarios activos" value={stats.users.total} />
               <NumberCard icon={GraduationCap} label="Estudiantes" value={stats.users.students} />
@@ -85,7 +86,7 @@ export function DashboardPage() {
           )}
 
           {/* Active year card */}
-          {stats?.academic.activeYear && hasRole('admin') && (
+          {stats?.academic.activeYear && isInstitutionAdmin && (
             <Card className="border-primary/20 bg-primary/5">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -125,10 +126,10 @@ export function DashboardPage() {
           )}
 
           {/* Per-role module links */}
-          {hasRole('admin') && <AdminModules />}
-          {hasRole('teacher') && !hasRole('admin') && <TeacherModules unread={stats?.messages.unread} />}
-          {hasRole('inspector') && !hasRole('admin') && <InspectorModules pending={stats?.incidents.pending} unread={stats?.messages.unread} />}
-          {(hasRole('student') || hasRole('guardian')) && !hasRole('admin') && !hasRole('teacher') && !hasRole('inspector') && (
+          {isInstitutionAdmin && <AdminModules />}
+          {hasRole('teacher') && !isInstitutionAdmin && <TeacherModules unread={stats?.messages.unread} />}
+          {hasRole('inspector') && !isInstitutionAdmin && <InspectorModules pending={stats?.incidents.pending} unread={stats?.messages.unread} />}
+          {(hasRole('student') || hasRole('guardian')) && !isInstitutionAdmin && !hasRole('teacher') && !hasRole('inspector') && (
             <>
               <FamilyToday />
               <StudentModules unread={stats?.messages.unread} />

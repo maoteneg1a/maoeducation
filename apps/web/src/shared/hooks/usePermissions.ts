@@ -8,10 +8,10 @@ export function usePermissions() {
 
   const hasPermission = useCallback(
     (required: string) => {
-      if (roles.includes('admin')) return true
-
       const parts = required.split(':')
       const [reqResource, reqAction, reqScope] = parts
+      if (roles.includes('admin')) return true
+      if (roles.includes('rector') && !['platform', 'subscription', 'leads'].includes(reqResource)) return true
 
       return permissions.some((p) => {
         const [pResource, pAction, pScope] = p.split(':')

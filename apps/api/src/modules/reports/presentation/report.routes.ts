@@ -322,7 +322,7 @@ export default async function reportRoutes(app: FastifyInstance) {
     '/reports/bulletin-branding/:scope/logo',
     async (req, reply) => {
       const scope = req.params.scope === 'global' ? 'global' : 'own'
-      const canEditGlobal = req.user.roles.includes('admin') || req.user.permissions.some((p) => p.startsWith('academic_config:manage'))
+      const canEditGlobal = req.user.roles.includes('admin') || req.user.roles.includes('rector') || req.user.permissions.some((p) => p.startsWith('academic_config:manage'))
       if (scope === 'global' && !canEditGlobal) return reply.status(403).send({ message: 'Sin permiso para editar la configuración global' })
 
       const data = await req.file()

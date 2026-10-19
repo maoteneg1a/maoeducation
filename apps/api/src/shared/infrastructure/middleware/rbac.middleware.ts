@@ -13,6 +13,9 @@ export function requirePermission(resource: string, action: string, scope?: 'own
     const { roles, permissions } = req.user
 
     if (roles.includes('admin')) return
+    // Rectoría administra la institución como autoridad máxima. Las cuentas
+    // de plataforma y suscripciones siguen siendo exclusivas de admin.
+    if (roles.includes('rector') && !['platform', 'subscription', 'leads'].includes(resource)) return
 
     const required = scope ? `${resource}:${action}:${scope}` : null
 

@@ -82,7 +82,7 @@ export default async function messageRoutes(app: FastifyInstance) {
     const q = req.query.q?.trim() ?? ''
     const { sub: userId, institutionId, roles: callerRoles } = req.user
 
-    const isAdminRole = callerRoles.includes('admin')
+    const isAdminRole = callerRoles.includes('admin') || callerRoles.includes('rector')
     const isTeacher = callerRoles.includes('teacher')
     const isGuardian = callerRoles.includes('guardian')
     const isStudentOrGuardian = callerRoles.some((r) => r === 'student' || r === 'guardian')
