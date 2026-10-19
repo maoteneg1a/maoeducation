@@ -1,4 +1,6 @@
 import { FastifyInstance } from 'fastify'
+import { audit } from '../../../shared/infrastructure/services/audit.service'
+import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { PrismaPromotionRepository } from '../infrastructure/repositories/prisma-promotion.repository'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
@@ -32,7 +34,19 @@ export default async function promotionRoutes(app: FastifyInstance) {
     '/promotion/decision',
     { preHandler: [requirePermission('grades', 'write')] },
     async (req, reply) => {
-      return reply.send(await repo.saveDecision(req.user.institutionId, req.body, req.user.sub))
+      const before = await prisma.promotionDecision.findUnique({
+        where: { studentId_academicYearId: { studentId: req.body.studentId, academicYearId: req.body.academicYearId } },
+        select: { status: true },
+      })
+      const result = await repo.saveDecision(req.user.institutionId, req.body, req.user.sub)
+      await audit(req, {
+        action: 'promotion.decision',
+        resourceType: 'student',
+        resourceId: req.body.studentId,
+        oldValue: { status: before?.status ?? null },
+        newValue: { status: req.body.status, notes: req.body.notes ?? null, academicYearId: req.body.academicYearId },
+      })
+      return reply.send(result)
     },
   )
 }

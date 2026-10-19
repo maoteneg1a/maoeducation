@@ -390,7 +390,7 @@ export class PrismaEnrollmentRepository {
   async findById(id: string, institutionId: string) {
     const enrollment = await prisma.studentEnrollment.findFirst({
       where: { id, institutionId },
-      select: { id: true, parallelId: true },
+      select: { id: true, parallelId: true, status: true },
     })
     if (!enrollment) throw new NotFoundError('Matrícula no encontrada')
     return enrollment

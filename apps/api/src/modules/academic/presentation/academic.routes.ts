@@ -1,5 +1,13 @@
 import { validPeriodWeights } from '../../../shared/domain/grade-math'
 import { FastifyInstance } from 'fastify'
+import type { Prisma } from '@prisma/client'
+import { audit } from '../../../shared/infrastructure/services/audit.service'
+import {
+  executeRollover,
+  previewRollover,
+  type PendingPolicy,
+  type RolloverOptions,
+} from '../application/services/year-rollover.service'
 import { PrismaAcademicRepository } from '../infrastructure/repositories/prisma-academic.repository'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
@@ -135,6 +143,68 @@ export default async function academicRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const result = await repo.activateYear(req.params.id, req.user.institutionId)
       return reply.send(result[1])
+    },
+  )
+
+  // ─── Cierre / apertura de año (rollover) ───────────────────────────────────
+
+  app.get<{ Params: { id: string }; Querystring: { startDate: string; pendingPolicy?: PendingPolicy } }>(
+    '/academic/years/:id/rollover-preview',
+    {
+      preHandler: [requirePermission('academic_config', 'manage')],
+      schema: {
+        querystring: {
+          type: 'object',
+          required: ['startDate'],
+          properties: {
+            startDate: { type: 'string', format: 'date' },
+            pendingPolicy: { type: 'string', enum: ['skip', 'promote', 'repeat'] },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      return reply.send(
+        await previewRollover(req.user.institutionId, req.params.id, {
+          startDate: req.query.startDate,
+          pendingPolicy: req.query.pendingPolicy ?? 'skip',
+        }),
+      )
+    },
+  )
+
+  app.post<{ Params: { id: string }; Body: RolloverOptions }>(
+    '/academic/years/:id/rollover',
+    {
+      preHandler: [requirePermission('academic_config', 'manage')],
+      schema: {
+        body: {
+          type: 'object',
+          required: ['name', 'startDate', 'endDate'],
+          additionalProperties: false,
+          properties: {
+            name: { type: 'string', minLength: 1, maxLength: 50 },
+            startDate: { type: 'string', format: 'date' },
+            endDate: { type: 'string', format: 'date' },
+            copyAssignments: { type: 'boolean', default: true },
+            copyTutors: { type: 'boolean', default: true },
+            enrollStudents: { type: 'boolean', default: true },
+            pendingPolicy: { type: 'string', enum: ['skip', 'promote', 'repeat'], default: 'skip' },
+            activate: { type: 'boolean', default: false },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      const result = await executeRollover(req.user.institutionId, req.params.id, req.body)
+      await audit(req, {
+        action: 'academic_year.rollover',
+        resourceType: 'academic_year',
+        resourceId: result.yearId,
+        oldValue: { sourceYearId: req.params.id },
+        newValue: { ...result, options: req.body } as unknown as Prisma.InputJsonValue,
+      })
+      return reply.status(201).send(result)
     },
   )
 
@@ -303,6 +373,27 @@ export default async function academicRoutes(app: FastifyInstance) {
         where: { id: req.params.id },
         data: { examWeight, projectWeight },
         select: { id: true, examWeight: true, projectWeight: true },
+      })
+      return reply.send(result)
+    },
+  )
+
+  app.patch<{ Params: { id: string }; Body: { teacherId: string } }>(
+    '/academic/course-assignments/:id/teacher',
+    {
+      preHandler: [requirePermission('academic_config', 'manage')],
+      schema: {
+        body: { type: 'object', required: ['teacherId'], properties: { teacherId: { type: 'string', minLength: 1 } } },
+      },
+    },
+    async (req, reply) => {
+      const result = await repo.changeAssignmentTeacher(req.params.id, req.user.institutionId, req.body.teacherId)
+      await audit(req, {
+        action: 'course_assignment.change_teacher',
+        resourceType: 'course_assignment',
+        resourceId: req.params.id,
+        oldValue: { teacherId: result.previousTeacherId },
+        newValue: { teacherId: result.teacherId },
       })
       return reply.send(result)
     },

@@ -1,4 +1,6 @@
 import { FastifyInstance } from 'fastify'
+import { assertPlanCapacity } from '../../../shared/infrastructure/services/plan-limits.service'
+import { audit } from '../../../shared/infrastructure/services/audit.service'
 import { PrismaEnrollmentRepository } from '../infrastructure/repositories/prisma-enrollment.repository'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
@@ -72,6 +74,7 @@ export default async function enrollmentRoutes(app: FastifyInstance) {
     { preHandler: [requirePermission('enrollment', 'manage', 'own')] },
     async (req, reply) => {
       await assertParallelInScope(req, req.body.parallelId)
+      await assertPlanCapacity(req.user.institutionId, 'students', 1)
       const enrollment = await repo.create(req.user.institutionId, req.body)
       return reply.status(201).send(enrollment)
     },
@@ -91,6 +94,7 @@ export default async function enrollmentRoutes(app: FastifyInstance) {
         throw new BadRequestError('La cédula debe tener 10 dígitos')
       }
       await assertParallelInScope(req, parallelId)
+      await assertPlanCapacity(req.user.institutionId, 'students', 1)
       const enrollment = await repo.createStudentAndEnroll(req.user.institutionId, req.body)
       return reply.status(201).send(enrollment)
     },
@@ -101,6 +105,7 @@ export default async function enrollmentRoutes(app: FastifyInstance) {
     { preHandler: [requirePermission('enrollment', 'manage', 'own')] },
     async (req, reply) => {
       await assertParallelInScope(req, req.body.parallelId)
+      await assertPlanCapacity(req.user.institutionId, 'students', req.body.studentIds?.length ?? 0)
       const result = await repo.bulkCreate(req.user.institutionId, req.body)
       return reply.status(201).send(result)
     },
@@ -121,6 +126,7 @@ export default async function enrollmentRoutes(app: FastifyInstance) {
           throw new BadRequestError('Selecciona el año lectivo y el paralelo')
         }
         await assertParallelInScope(req, req.body.parallelId)
+        await assertPlanCapacity(req.user.institutionId, 'students', req.body.students.length)
       }
       const result = await repo.bulkCreateStudents(req.user.institutionId, req.body)
       return reply.status(201).send(result)
@@ -134,6 +140,13 @@ export default async function enrollmentRoutes(app: FastifyInstance) {
       const current = await repo.findById(req.params.id, req.user.institutionId)
       await assertParallelInScope(req, current.parallelId)
       const enrollment = await repo.updateStatus(req.params.id, req.user.institutionId, req.body)
+      await audit(req, {
+        action: 'enrollment.status_change',
+        resourceType: 'student_enrollment',
+        resourceId: req.params.id,
+        oldValue: { status: current.status },
+        newValue: { ...req.body } as Record<string, string | null>,
+      })
       return reply.send(enrollment)
     },
   )

@@ -1,7 +1,10 @@
 import { FastifyInstance } from 'fastify'
 import { PrismaReportRepository } from '../infrastructure/prisma-report.repository'
 import { PrismaInstitutionRepository } from '../../institution/infrastructure/repositories/prisma-institution.repository'
-import { buildBulletinPdf } from '../application/services/bulletin-pdf.service'
+import { buildBulletinPdf, buildBulletinsPdf, type BulletinPdfData } from '../application/services/bulletin-pdf.service'
+import { assertParallelInScope } from '../../../shared/infrastructure/services/teacher-scope.service'
+import { STUDENT_ENROLLMENT_ORDER } from '../../../shared/infrastructure/services/enrollment-query'
+import { NotFoundError } from '../../../shared/domain/errors/app.errors'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
@@ -93,6 +96,96 @@ async function getBranding(institutionId: string, userId: string) {
   }
 }
 
+/** Datos de la libreta en el formato del generador PDF (compartido por libreta individual y por paralelo). */
+async function bulletinPdfData(
+  user: { institutionId: string; sub: string; roles: string[] },
+  query: BulletinReportQuery,
+): Promise<BulletinPdfData> {
+    const [branding, bulletin, gradingConfig] = await Promise.all([
+      getBranding(user.institutionId, user.sub),
+      repo.getStudentBulletin(user.institutionId, query, {
+        userId: user.sub,
+        roles: user.roles,
+      }),
+      institutionRepo.getGradingConfig(user.institutionId),
+    ])
+    const b = branding.effective
+    const tutor = bulletin.parallel?.tutor?.profile
+    type PG = {
+      periodId: string
+      regularAvg: number | null
+      examenAvg: number | null
+      proyectoAvg: number | null
+      total: number | null
+      code?: string | null
+    }
+    type Subj = {
+      examWeight?: number
+      projectWeight?: number | null
+      subjectName: string
+      isQualitative?: boolean
+      periodGrades: PG[]
+      supletorio?: number | null
+      promFinal?: number | null
+      finalAverage: number | null
+      finalCode?: string | null
+    }
+    const mapSubject = (s: Subj) => ({
+      examWeight: s.examWeight,
+      projectWeight: s.projectWeight,
+      subjectName: s.subjectName,
+      isQualitative: !!s.isQualitative,
+      periodGrades: s.periodGrades.map((g) => ({
+        periodId: g.periodId,
+        regularAvg: g.regularAvg,
+        examenAvg: g.examenAvg,
+        proyectoAvg: g.proyectoAvg,
+        total: g.total,
+        code: g.code ?? null,
+      })),
+      supletorio: s.supletorio ?? null,
+      promFinal: s.promFinal ?? s.finalAverage,
+      finalCode: s.finalCode ?? null,
+    })
+    return {
+      institutionName: b.institutionName || bulletin.institution?.name || '',
+      title: b.title ?? '',
+      logoUrl: b.logoUrl || null,
+      directorName: b.directorName ?? '',
+      directorRole: b.directorRole ?? '',
+      teacherLabel: b.teacherLabel ?? '',
+      studentName: `${bulletin.student.profile?.lastName ?? ''} ${bulletin.student.profile?.firstName ?? ''}`.trim(),
+      studentDni: bulletin.student.profile?.dni ?? null,
+      studentCode: bulletin.student.profile?.dni ?? null,
+      parallelName: bulletin.parallel?.name ?? '',
+      levelName: bulletin.parallel?.level?.name ?? '',
+      tutorName: tutor ? `${tutor.firstName} ${tutor.lastName}` : '',
+      yearName: bulletin.academicYear?.name ?? '',
+      periods: bulletin.periods.map((p: { id: string; name: string }) => ({ id: p.id, name: p.name })),
+      subjects: (bulletin.subjects as Subj[]).map(mapSubject),
+      qualitativeSubjects: ((bulletin.qualitativeSubjects ?? []) as Subj[]).map(mapSubject),
+      overallAverage: bulletin.overallAverage ?? null,
+      qualitativeScale: gradingConfig.qualitativeScale,
+      qualitativeValueScale: bulletin.qualitativeValueScale ?? [],
+      attendanceByPeriod: (bulletin.attendanceByPeriod ?? []).map((a: {
+        periodId: string; justifiedAbsences: number; unjustifiedAbsences: number; attendedDays: number; lateCount: number
+      }) => ({
+        periodId: a.periodId,
+        justifiedAbsences: a.justifiedAbsences,
+        unjustifiedAbsences: a.unjustifiedAbsences,
+        attendedDays: a.attendedDays,
+        lateCount: a.lateCount,
+      })),
+      behaviorByPeriod: (bulletin.behaviorByPeriod ?? []).map((bp: {
+        periodId: string; code: string | null; notes: string | null
+      }) => ({
+        periodId: bp.periodId,
+        code: bp.code,
+        notes: bp.notes,
+      })),
+    }
+}
+
 export default async function reportRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware)
 
@@ -167,93 +260,50 @@ export default async function reportRoutes(app: FastifyInstance) {
   app.get<{ Querystring: BulletinReportQuery }>(
     '/reports/bulletin/pdf',
     async (req, reply) => {
-      const [branding, bulletin, gradingConfig] = await Promise.all([
-        getBranding(req.user.institutionId, req.user.sub),
-        repo.getStudentBulletin(req.user.institutionId, req.query, {
-          userId: req.user.sub,
-          roles: req.user.roles,
-        }),
-        institutionRepo.getGradingConfig(req.user.institutionId),
-      ])
-      const b = branding.effective
-      const tutor = bulletin.parallel?.tutor?.profile
-      type PG = {
-        periodId: string
-        regularAvg: number | null
-        examenAvg: number | null
-        proyectoAvg: number | null
-        total: number | null
-        code?: string | null
-      }
-      type Subj = {
-        examWeight?: number
-        projectWeight?: number | null
-        subjectName: string
-        isQualitative?: boolean
-        periodGrades: PG[]
-        supletorio?: number | null
-        promFinal?: number | null
-        finalAverage: number | null
-        finalCode?: string | null
-      }
-      const mapSubject = (s: Subj) => ({
-        examWeight: s.examWeight,
-        projectWeight: s.projectWeight,
-        subjectName: s.subjectName,
-        isQualitative: !!s.isQualitative,
-        periodGrades: s.periodGrades.map((g) => ({
-          periodId: g.periodId,
-          regularAvg: g.regularAvg,
-          examenAvg: g.examenAvg,
-          proyectoAvg: g.proyectoAvg,
-          total: g.total,
-          code: g.code ?? null,
-        })),
-        supletorio: s.supletorio ?? null,
-        promFinal: s.promFinal ?? s.finalAverage,
-        finalCode: s.finalCode ?? null,
-      })
-      const pdf = await buildBulletinPdf({
-        institutionName: b.institutionName || bulletin.institution?.name || '',
-        title: b.title ?? '',
-        logoUrl: b.logoUrl || null,
-        directorName: b.directorName ?? '',
-        directorRole: b.directorRole ?? '',
-        teacherLabel: b.teacherLabel ?? '',
-        studentName: `${bulletin.student.profile?.lastName ?? ''} ${bulletin.student.profile?.firstName ?? ''}`.trim(),
-        studentDni: bulletin.student.profile?.dni ?? null,
-        studentCode: bulletin.student.profile?.dni ?? null,
-        parallelName: bulletin.parallel?.name ?? '',
-        levelName: bulletin.parallel?.level?.name ?? '',
-        tutorName: tutor ? `${tutor.firstName} ${tutor.lastName}` : '',
-        yearName: bulletin.academicYear?.name ?? '',
-        periods: bulletin.periods.map((p: { id: string; name: string }) => ({ id: p.id, name: p.name })),
-        subjects: (bulletin.subjects as Subj[]).map(mapSubject),
-        qualitativeSubjects: ((bulletin.qualitativeSubjects ?? []) as Subj[]).map(mapSubject),
-        overallAverage: bulletin.overallAverage ?? null,
-        qualitativeScale: gradingConfig.qualitativeScale,
-        qualitativeValueScale: bulletin.qualitativeValueScale ?? [],
-        attendanceByPeriod: (bulletin.attendanceByPeriod ?? []).map((a: {
-          periodId: string; justifiedAbsences: number; unjustifiedAbsences: number; attendedDays: number; lateCount: number
-        }) => ({
-          periodId: a.periodId,
-          justifiedAbsences: a.justifiedAbsences,
-          unjustifiedAbsences: a.unjustifiedAbsences,
-          attendedDays: a.attendedDays,
-          lateCount: a.lateCount,
-        })),
-        behaviorByPeriod: (bulletin.behaviorByPeriod ?? []).map((bp: {
-          periodId: string; code: string | null; notes: string | null
-        }) => ({
-          periodId: bp.periodId,
-          code: bp.code,
-          notes: bp.notes,
-        })),
-      })
-      const studentSlug = `${bulletin.student.profile?.lastName ?? 'boletin'}`.replace(/\s+/g, '_')
+      const data = await bulletinPdfData(req.user, req.query)
+      const pdf = await buildBulletinPdf(data)
+      const studentSlug = (data.studentName || 'boletin').replace(/\s+/g, '_')
       return reply
         .header('Content-Type', 'application/pdf')
         .header('Content-Disposition', `attachment; filename="boletin-${studentSlug}.pdf"`)
+        .send(pdf)
+    },
+  )
+
+  // Todas las libretas de un paralelo en un solo PDF (una por página).
+  app.get<{ Querystring: { yearId: string; parallelId: string } }>(
+    '/reports/bulletin/parallel/pdf',
+    {
+      schema: {
+        querystring: {
+          type: 'object',
+          required: ['yearId', 'parallelId'],
+          properties: { yearId: { type: 'string' }, parallelId: { type: 'string' } },
+        },
+      },
+    },
+    async (req, reply) => {
+      await assertParallelInScope(req, req.query.parallelId)
+      const enrollments = await prisma.studentEnrollment.findMany({
+        where: {
+          institutionId: req.user.institutionId,
+          parallelId: req.query.parallelId,
+          academicYearId: req.query.yearId,
+          status: 'active',
+        },
+        orderBy: STUDENT_ENROLLMENT_ORDER,
+        select: { studentId: true, parallel: { select: { name: true, level: { select: { name: true } } } } },
+      })
+      if (enrollments.length === 0) throw new NotFoundError('El paralelo no tiene estudiantes activos')
+      const list: BulletinPdfData[] = []
+      for (const e of enrollments) {
+        list.push(await bulletinPdfData(req.user, { yearId: req.query.yearId, parallelId: req.query.parallelId, studentId: e.studentId }))
+      }
+      const pdf = await buildBulletinsPdf(list)
+      const slug = `${enrollments[0].parallel.level.name}_${enrollments[0].parallel.name}`.replace(/\s+/g, '_')
+      return reply
+        .header('Content-Type', 'application/pdf')
+        .header('Content-Disposition', `attachment; filename="libretas-${slug}.pdf"`)
         .send(pdf)
     },
   )

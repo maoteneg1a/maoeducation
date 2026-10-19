@@ -487,9 +487,45 @@ export class PrismaAcademicRepository {
   }
 
   async deleteAssignment(id: string, institutionId: string) {
-    const assignment = await prisma.courseAssignment.findFirst({ where: { id, institutionId } })
+    const assignment = await prisma.courseAssignment.findFirst({
+      where: { id, institutionId },
+      include: { _count: { select: { activities: true, attendance: true, tasks: true, insumos: true, schedule: true } } },
+    })
     if (!assignment) throw new NotFoundError('Asignación no encontrada')
-    await prisma.courseAssignment.delete({ where: { id } })
+    const c = assignment._count
+    if (c.activities > 0 || c.attendance > 0 || c.tasks > 0) {
+      throw new ConflictError(
+        'Esta asignación ya tiene actividades, asistencia o tareas registradas. Para reemplazar al docente usa "Cambiar docente" en lugar de eliminarla.',
+      )
+    }
+    // Sin historial académico: se limpian insumos y horario vacíos y se elimina.
+    await prisma.$transaction([
+      prisma.insumo.deleteMany({ where: { courseAssignmentId: id } }),
+      prisma.scheduleEntry.deleteMany({ where: { courseAssignmentId: id } }),
+      prisma.courseAssignment.delete({ where: { id } }),
+    ])
+  }
+
+  /**
+   * Reemplazo de docente (suplencia, renuncia): conserva actividades, notas,
+   * asistencia y horario — solo cambia quién dicta la materia.
+   */
+  async changeAssignmentTeacher(id: string, institutionId: string, teacherId: string) {
+    const [assignment, teacher] = await Promise.all([
+      prisma.courseAssignment.findFirst({ where: { id, institutionId }, select: { id: true, teacherId: true } }),
+      prisma.user.findFirst({
+        where: { id: teacherId, institutionId, isActive: true, userRoles: { some: { role: { name: 'teacher' } } } },
+        select: { id: true },
+      }),
+    ])
+    if (!assignment) throw new NotFoundError('Asignación no encontrada')
+    if (!teacher) throw new NotFoundError('Docente no encontrado o inactivo')
+    const updated = await prisma.courseAssignment.update({
+      where: { id },
+      data: { teacherId },
+      select: { id: true, teacherId: true },
+    })
+    return { ...updated, previousTeacherId: assignment.teacherId }
   }
 
   async updateAssignmentWeeklyPeriodsOverride(id: string, institutionId: string, weeklyPeriodsOverride: number | null) {
