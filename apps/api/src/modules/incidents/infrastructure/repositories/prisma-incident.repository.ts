@@ -62,7 +62,7 @@ export class PrismaIncidentRepository {
    * (incidents:read:all / write:all / manage:all).
    */
   private hasAllScope(actor: IncidentActor): boolean {
-    if (actor.roles.includes('admin')) return true
+    if (actor.roles.includes('admin') || actor.roles.includes('rector')) return true
     return actor.permissions.some((p) => {
       const [resource, action, scope] = p.split(':')
       const resourceMatch = resource === 'incidents' || resource === '*'

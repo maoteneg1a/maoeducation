@@ -480,7 +480,7 @@ export class PrismaReportRepository {
     query: BulletinOptionsQuery,
     caller: { userId: string; roles: string[] },
   ) {
-    const isAdminLike = caller.roles.includes('admin') || caller.roles.includes('inspector')
+    const isAdminLike = caller.roles.includes('admin') || caller.roles.includes('rector') || caller.roles.includes('inspector')
     const isTeacher = caller.roles.includes('teacher') && !isAdminLike
 
     let assignments: Array<{
@@ -606,7 +606,7 @@ export class PrismaReportRepository {
     })
     if (!enrollment) throw new NotFoundError('Estudiante no matriculado en el paralelo seleccionado')
 
-    if (caller.roles.includes('teacher') && !caller.roles.includes('admin') && !caller.roles.includes('inspector')) {
+    if (caller.roles.includes('teacher') && !caller.roles.includes('admin') && !caller.roles.includes('rector') && !caller.roles.includes('inspector')) {
       const canAccess = await prisma.courseAssignment.findFirst({
         where: {
           institutionId,

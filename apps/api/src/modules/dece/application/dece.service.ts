@@ -85,6 +85,7 @@ export class DeceService {
       .map((link) => link.role.name)
     const canConfigure =
       roles.includes('admin') ||
+      roles.includes('rector') ||
       user.userRoles.some(
         (link) =>
           link.role.institutionId === institutionId &&

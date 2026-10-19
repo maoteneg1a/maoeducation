@@ -39,7 +39,7 @@ export class PrismaParentMeetingRepository {
    * admin, o cualquier permiso de parent_meetings con scope `all`.
    */
   private hasAllScope(actor: ParentMeetingActor): boolean {
-    if (actor.roles.includes('admin')) return true
+    if (actor.roles.includes('admin') || actor.roles.includes('rector')) return true
     return actor.permissions.some((p) => {
       const [resource, action, scope] = p.split(':')
       const resourceMatch = resource === 'parent_meetings' || resource === '*'

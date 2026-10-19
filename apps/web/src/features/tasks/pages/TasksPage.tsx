@@ -604,7 +604,7 @@ export function TasksPage() {
   const { hasPermission } = usePermissions()
   const [searchParams, setSearchParams] = useSearchParams()
   const isTeacher = user?.roles.includes('teacher') ?? false
-  const isAdmin = (user?.roles.includes('admin') || user?.roles.includes('inspector')) ?? false
+  const isAdmin = (user?.roles.includes('admin') || user?.roles.includes('rector') || user?.roles.includes('inspector')) ?? false
   const canWriteTasks = hasPermission('tasks:write')
   const qc = useQueryClient()
 

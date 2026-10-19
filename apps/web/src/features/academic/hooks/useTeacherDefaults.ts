@@ -21,7 +21,7 @@ export function useTeacherDefaults() {
   // Filter to teacher's own assignments
   const assignments = React.useMemo(() => {
     if (!user) return allAssignments
-    if (user.roles.includes('admin') || user.roles.includes('inspector')) return allAssignments
+    if (user.roles.includes('admin') || user.roles.includes('rector') || user.roles.includes('inspector')) return allAssignments
     return allAssignments.filter((a) => a.teacherId === user.id)
   }, [allAssignments, user])
 
