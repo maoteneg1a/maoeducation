@@ -90,31 +90,32 @@ model User {
   userRoles   UserRole[]
 
   // Relaciones como actor
-  teacherAssignments        CourseAssignment[]     @relation("TeacherAssignments")
-  multigradeGroupsAsTeacher MultigradeGroup[]      @relation("MultigradeGroupTeacher")
-  createdActivities         Activity[]             @relation("ActivityCreator")
-  recordedGrades            Grade[]                @relation("GradeRecorder")
-  recordedManualInsumoAverages ManualInsumoAverage[] @relation("ManualInsumoAverageRecorder")
-  recordedAttendance        AttendanceRecord[]     @relation("AttendanceRecorder")
-  reportedIncidents         DisciplinaryIncident[] @relation("IncidentReporter")
-  createdJustifications     AbsenceJustification[] @relation("JustificationCreator")
-  sentMessages              Message[]              @relation("MessageSender")
-  messageRecipients         MessageRecipient[]
-  createdThreads            MessageThread[]        @relation("ThreadCreator")
-  createdInsumos            Insumo[]               @relation("InsumoCreator")
-  createdTasks              Task[]                 @relation("TaskCreator")
-  uploadedAttachments       TaskAttachment[]       @relation("AttachmentUploader")
-  createdAnnouncements      Announcement[]         @relation("AnnouncementCreator")
-  announcementReads         AnnouncementRead[]
-  uploadedReceipts          SubscriptionPayment[]  @relation("SubscriptionPaymentUploader")
+  teacherAssignments           CourseAssignment[]     @relation("TeacherAssignments")
+  multigradeGroupsAsTeacher    MultigradeGroup[]      @relation("MultigradeGroupTeacher")
+  createdActivities            Activity[]             @relation("ActivityCreator")
+  recordedGrades               Grade[]                @relation("GradeRecorder")
+  recordedManualInsumoAverages ManualInsumoAverage[]  @relation("ManualInsumoAverageRecorder")
+  recordedAttendance           AttendanceRecord[]     @relation("AttendanceRecorder")
+  reportedIncidents            DisciplinaryIncident[] @relation("IncidentReporter")
+  createdJustifications        AbsenceJustification[] @relation("JustificationCreator")
+  sentMessages                 Message[]              @relation("MessageSender")
+  messageRecipients            MessageRecipient[]
+  createdThreads               MessageThread[]        @relation("ThreadCreator")
+  createdInsumos               Insumo[]               @relation("InsumoCreator")
+  createdTasks                 Task[]                 @relation("TaskCreator")
+  uploadedAttachments          TaskAttachment[]       @relation("AttachmentUploader")
+  createdAnnouncements         Announcement[]         @relation("AnnouncementCreator")
+  announcementReads            AnnouncementRead[]
+  announcementRsvps            AnnouncementRsvp[]
+  uploadedReceipts             SubscriptionPayment[]  @relation("SubscriptionPaymentUploader")
 
   // Relaciones como alumno
-  studentEnrollments    StudentEnrollment[]    @relation("StudentEnrollments")
-  studentGrades         Grade[]                @relation("StudentGrades")
-  studentManualInsumoAverages ManualInsumoAverage[] @relation("StudentManualInsumoAverage")
-  studentAttendance     AttendanceRecord[]     @relation("StudentAttendance")
-  studentIncidents      DisciplinaryIncident[] @relation("StudentIncidents")
-  studentJustifications AbsenceJustification[] @relation("StudentJustifications")
+  studentEnrollments          StudentEnrollment[]    @relation("StudentEnrollments")
+  studentGrades               Grade[]                @relation("StudentGrades")
+  studentManualInsumoAverages ManualInsumoAverage[]  @relation("StudentManualInsumoAverage")
+  studentAttendance           AttendanceRecord[]     @relation("StudentAttendance")
+  studentIncidents            DisciplinaryIncident[] @relation("StudentIncidents")
+  studentJustifications       AbsenceJustification[] @relation("StudentJustifications")
 
   // Relaciones de incidentes (debido proceso)
   deceIncidents               DisciplinaryIncident[] @relation("IncidentDece")
@@ -411,11 +412,11 @@ model Subject {
   workloadCode     String?  @map("workload_code") @db.VarChar(30)
   createdAt        DateTime @default(now()) @map("created_at")
 
-  institution            Institution             @relation(fields: [institutionId], references: [id])
-  curriculumArea         CurriculumArea?         @relation(fields: [curriculumAreaId], references: [id])
-  competencyArea         CompetencyArea?         @relation(fields: [competencyAreaId], references: [id])
-  courseAssignments      CourseAssignment[]
-  multigradeGroupMembers MultigradeGroupMember[]
+  institution                 Institution                  @relation(fields: [institutionId], references: [id])
+  curriculumArea              CurriculumArea?              @relation(fields: [curriculumAreaId], references: [id])
+  competencyArea              CompetencyArea?              @relation(fields: [competencyAreaId], references: [id])
+  courseAssignments           CourseAssignment[]
+  multigradeGroupMembers      MultigradeGroupMember[]
   multigradeSharedExperiences MultigradeSharedExperience[]
 
   @@unique([institutionId, code])
@@ -1515,34 +1516,53 @@ model UserNotification {
 
 // Avisos institucionales breves para personal, estudiantes y familias.
 model Announcement {
-  id            String    @id @default(uuid())
-  institutionId String    @map("institution_id")
-  createdBy     String    @map("created_by")
-  title         String    @db.VarChar(200)
-  body          String
-  eventAt       DateTime? @map("event_at")
-  location      String?   @db.VarChar(200)
-  priority      String    @default("normal") @db.VarChar(20)
-  audience      String    @default("all") @db.VarChar(20)
-  parallelIds   Json      @default("[]") @map("parallel_ids")
-  publishedAt   DateTime  @default(now()) @map("published_at")
-  expiresAt     DateTime? @map("expires_at")
-  flyerName     String?   @map("flyer_name") @db.VarChar(255)
-  flyerStoredName String? @map("flyer_stored_name") @db.VarChar(255)
-  flyerMimeType String?   @map("flyer_mime_type") @db.VarChar(100)
-  attachmentName String?  @map("attachment_name") @db.VarChar(255)
-  attachmentStoredName String? @map("attachment_stored_name") @db.VarChar(255)
-  attachmentMimeType String? @map("attachment_mime_type") @db.VarChar(100)
-  attachmentSize Int?     @map("attachment_size")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id                   String    @id @default(uuid())
+  institutionId        String    @map("institution_id")
+  createdBy            String    @map("created_by")
+  title                String    @db.VarChar(200)
+  body                 String
+  communicationType    String    @default("announcement") @map("communication_type") @db.VarChar(30)
+  eventAt              DateTime? @map("event_at")
+  location             String?   @db.VarChar(200)
+  priority             String    @default("normal") @db.VarChar(20)
+  audience             String    @default("all") @db.VarChar(20)
+  parallelIds          Json      @default("[]") @map("parallel_ids")
+  publishedAt          DateTime  @default(now()) @map("published_at")
+  expiresAt            DateTime? @map("expires_at")
+  flyerName            String?   @map("flyer_name") @db.VarChar(255)
+  flyerStoredName      String?   @map("flyer_stored_name") @db.VarChar(255)
+  flyerMimeType        String?   @map("flyer_mime_type") @db.VarChar(100)
+  attachmentName       String?   @map("attachment_name") @db.VarChar(255)
+  attachmentStoredName String?   @map("attachment_stored_name") @db.VarChar(255)
+  attachmentMimeType   String?   @map("attachment_mime_type") @db.VarChar(100)
+  attachmentSize       Int?      @map("attachment_size")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  creator     User        @relation("AnnouncementCreator", fields: [createdBy], references: [id])
+  institution Institution        @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  creator     User               @relation("AnnouncementCreator", fields: [createdBy], references: [id])
   reads       AnnouncementRead[]
+  rsvps       AnnouncementRsvp[]
 
   @@index([institutionId, publishedAt])
   @@map("announcements")
+}
+
+model AnnouncementRsvp {
+  announcementId String    @map("announcement_id")
+  userId         String    @map("user_id")
+  response       String    @default("pending") @db.VarChar(20)
+  respondedAt    DateTime? @map("responded_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([announcementId, userId])
+  @@index([announcementId, response])
+  @@index([userId, updatedAt])
+  @@map("announcement_rsvps")
 }
 
 model AnnouncementRead {
@@ -1651,10 +1671,10 @@ model Insumo {
   createdBy          String   @map("created_by")
   createdAt          DateTime @default(now()) @map("created_at")
 
-  institution      Institution      @relation(fields: [institutionId], references: [id])
-  courseAssignment CourseAssignment @relation(fields: [courseAssignmentId], references: [id])
-  academicPeriod   AcademicPeriod   @relation(fields: [academicPeriodId], references: [id])
-  creator          User             @relation("InsumoCreator", fields: [createdBy], references: [id])
+  institution      Institution           @relation(fields: [institutionId], references: [id])
+  courseAssignment CourseAssignment      @relation(fields: [courseAssignmentId], references: [id])
+  academicPeriod   AcademicPeriod        @relation(fields: [academicPeriodId], references: [id])
+  creator          User                  @relation("InsumoCreator", fields: [createdBy], references: [id])
   activities       Activity[]
   manualAverages   ManualInsumoAverage[]
 
@@ -1729,24 +1749,24 @@ model Activity {
 }
 
 model Grade {
-  id            String    @id @default(uuid())
-  institutionId String    @map("institution_id")
-  activityId    String    @map("activity_id")
-  studentId     String    @map("student_id")
-  score         Decimal?  @db.Decimal(5, 2)
+  id                      String    @id @default(uuid())
+  institutionId           String    @map("institution_id")
+  activityId              String    @map("activity_id")
+  studentId               String    @map("student_id")
+  score                   Decimal?  @db.Decimal(5, 2)
   // Refuerzo de CALIFICACIÓN por actividad. Independiente de PedagogicRecovery
   // y de los planes/casos de refuerzo pedagógico.
-  baseScore              Decimal?  @map("base_score") @db.Decimal(5, 2)
-  reinforcementScore     Decimal?  @map("reinforcement_score") @db.Decimal(5, 2)
-  reinforcementMode      String?   @map("reinforcement_mode") @db.VarChar(30)
+  baseScore               Decimal?  @map("base_score") @db.Decimal(5, 2)
+  reinforcementScore      Decimal?  @map("reinforcement_score") @db.Decimal(5, 2)
+  reinforcementMode       String?   @map("reinforcement_mode") @db.VarChar(30)
   reinforcementRecordedAt DateTime? @map("reinforcement_recorded_at")
-  isExcused     Boolean   @default(false) @map("is_excused")
-  status        String    @default("entregado") @db.VarChar(20)
-  notes         String?
-  gradedBy      String?   @map("graded_by")
-  gradedAt      DateTime? @map("graded_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  isExcused               Boolean   @default(false) @map("is_excused")
+  status                  String    @default("entregado") @db.VarChar(20)
+  notes                   String?
+  gradedBy                String?   @map("graded_by")
+  gradedAt                DateTime? @map("graded_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
 
   institution Institution @relation(fields: [institutionId], references: [id])
   activity    Activity    @relation(fields: [activityId], references: [id])

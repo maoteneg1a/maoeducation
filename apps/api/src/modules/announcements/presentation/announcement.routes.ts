@@ -8,11 +8,13 @@ import { isPrivilegedStaff } from '../../../shared/infrastructure/services/teach
 import { sendPushToUser } from '../../../shared/infrastructure/services/push.service'
 import { storage } from '../../../shared/infrastructure/services/storage.service'
 
-type Audience = 'all' | 'staff' | 'families' | 'parallels'
+type Audience = 'all' | 'staff' | 'authorities' | 'teachers' | 'families' | 'parallels'
+type CommunicationType = 'announcement' | 'meeting' | 'convocation' | 'socialization' | 'training' | 'circular'
 
 interface CreateAnnouncementBody {
   title: string
   body: string
+  communicationType?: CommunicationType
   eventAt?: string | null
   location?: string | null
   priority?: 'normal' | 'important'
@@ -22,6 +24,9 @@ interface CreateAnnouncementBody {
 }
 
 const STAFF_ROLES = ['admin', 'rector', 'teacher', 'inspector', 'dece']
+const AUTHORITY_ROLES = ['admin', 'rector', 'inspector', 'dece']
+const TEACHER_ROLES = ['teacher']
+const COMMUNICATION_TYPES: CommunicationType[] = ['announcement', 'meeting', 'convocation', 'socialization', 'training', 'circular']
 const FLYER_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const DOCUMENT_MIME_TYPES = new Set([
   'application/pdf',
@@ -44,6 +49,8 @@ function isVisibleToUser(
 ) {
   if (row.audience === 'all') return true
   if (row.audience === 'staff') return roles.some((role) => STAFF_ROLES.includes(role))
+  if (row.audience === 'authorities') return roles.some((role) => AUTHORITY_ROLES.includes(role))
+  if (row.audience === 'teachers') return roles.some((role) => TEACHER_ROLES.includes(role))
   if (row.audience === 'families') return roles.includes('student') || roles.includes('guardian')
   return targetParallelIds(row.parallelIds).some((id) => parallels.includes(id))
 }
@@ -89,6 +96,13 @@ async function recipientsFor(
       select: { id: true },
     })
   }
+  if (audience === 'authorities' || audience === 'teachers') {
+    const allowedRoles = audience === 'authorities' ? AUTHORITY_ROLES : TEACHER_ROLES
+    return prisma.user.findMany({
+      where: { institutionId, isActive: true, userRoles: { some: { role: { name: { in: allowedRoles } } } } },
+      select: { id: true },
+    })
+  }
   if (audience === 'families') {
     return prisma.user.findMany({
       where: { institutionId, isActive: true, userRoles: { some: { role: { name: { in: ['student', 'guardian'] } } } } },
@@ -124,21 +138,24 @@ export default async function announcementRoutes(app: FastifyInstance) {
       include: {
         creator: { select: { profile: { select: { firstName: true, lastName: true } } } },
         reads: { where: { userId: sub }, select: { readAt: true } },
+        rsvps: { where: { userId: sub }, select: { response: true, respondedAt: true } },
       },
       orderBy: { publishedAt: 'desc' },
       take: 100,
     })
     rows.sort((a, b) => Number(b.priority === 'important') - Number(a.priority === 'important'))
     const parallels = await userParallelIds(sub, institutionId, roles)
-    const visible = isPrivilegedStaff(roles) ? rows : rows.filter((row) => isVisibleToUser(row, roles, parallels))
+    const visible = rows.filter((row) => isVisibleToUser(row, roles, parallels))
     return reply.send(visible.map((row) => {
-      const { reads, flyerStoredName: _flyerStoredName, attachmentStoredName: _attachmentStoredName, ...announcement } = row
+      const { reads, rsvps, flyerStoredName: _flyerStoredName, attachmentStoredName: _attachmentStoredName, ...announcement } = row
       void _flyerStoredName
       void _attachmentStoredName
       return {
         ...announcement,
         isRead: reads.length > 0,
         readAt: reads[0]?.readAt ?? null,
+        myResponse: rsvps[0]?.response ?? null,
+        myResponseAt: rsvps[0]?.respondedAt ?? null,
         flyerUrl: row.flyerStoredName ? `/announcements/${row.id}/flyer` : null,
         attachmentUrl: row.attachmentStoredName ? `/announcements/${row.id}/attachment` : null,
       }
@@ -152,7 +169,9 @@ export default async function announcementRoutes(app: FastifyInstance) {
     const body = req.body.body?.trim()
     if (!title || !body) throw new BadRequestError('Título y descripción son obligatorios')
     const audience = req.body.audience ?? 'all'
-    if (!['all', 'staff', 'families', 'parallels'].includes(audience)) throw new BadRequestError('Audiencia inválida')
+    if (!['all', 'staff', 'authorities', 'teachers', 'families', 'parallels'].includes(audience)) throw new BadRequestError('Audiencia inválida')
+    const communicationType = req.body.communicationType ?? 'announcement'
+    if (!COMMUNICATION_TYPES.includes(communicationType)) throw new BadRequestError('Tipo de comunicación inválido')
     const parallelIds = [...new Set(req.body.parallelIds ?? [])]
     if (audience === 'parallels' && parallelIds.length === 0) throw new BadRequestError('Selecciona al menos un paralelo')
     if (parallelIds.length) {
@@ -165,6 +184,7 @@ export default async function announcementRoutes(app: FastifyInstance) {
         createdBy: sub,
         title,
         body,
+        communicationType,
         eventAt: req.body.eventAt ? new Date(req.body.eventAt) : null,
         location: req.body.location?.trim() || null,
         priority: req.body.priority === 'important' ? 'important' : 'normal',
@@ -184,13 +204,33 @@ export default async function announcementRoutes(app: FastifyInstance) {
     return reply.status(201).send(announcement)
   })
 
+  app.post<{ Params: { id: string }; Body: { response?: string } }>('/announcements/:id/rsvp', async (req, reply) => {
+    const row = await prisma.announcement.findFirst({ where: { id: req.params.id, institutionId: req.user.institutionId } })
+    if (!row) throw new NotFoundError('Aviso no encontrado')
+    if (!['meeting', 'convocation', 'socialization', 'training'].includes(row.communicationType)) {
+      throw new BadRequestError('Esta comunicación no requiere confirmación')
+    }
+    const parallels = await userParallelIds(req.user.sub, req.user.institutionId, req.user.roles)
+    if (!isVisibleToUser(row, req.user.roles, parallels)) {
+      throw new ForbiddenError('No tienes acceso a este aviso')
+    }
+    const response = req.body?.response
+    if (response !== 'confirmed' && response !== 'declined') throw new BadRequestError('Respuesta inválida')
+    const rsvp = await prisma.announcementRsvp.upsert({
+      where: { announcementId_userId: { announcementId: row.id, userId: req.user.sub } },
+      create: { announcementId: row.id, userId: req.user.sub, response, respondedAt: new Date() },
+      update: { response, respondedAt: new Date() },
+    })
+    return reply.send(rsvp)
+  })
+
   app.post<{ Params: { id: string } }>('/announcements/:id/read', async (req, reply) => {
     const row = await prisma.announcement.findFirst({
       where: { id: req.params.id, institutionId: req.user.institutionId },
     })
     if (!row) throw new NotFoundError('Aviso no encontrado')
     const parallels = await userParallelIds(req.user.sub, req.user.institutionId, req.user.roles)
-    if (!isPrivilegedStaff(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels)) {
+    if (!isVisibleToUser(row, req.user.roles, parallels)) {
       throw new ForbiddenError('No tienes acceso a este aviso')
     }
     const read = await prisma.announcementRead.upsert({
