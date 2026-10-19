@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify'
+import { AUTH_RATE_LIMIT } from '../../../shared/infrastructure/plugins/rate-limit'
 import { authController } from './controllers/auth.controller'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { loginSchema } from './validators/auth.schema'
@@ -7,6 +8,7 @@ export default async function authRoutes(app: FastifyInstance) {
   app.post(
     '/auth/login',
     {
+      config: { rateLimit: AUTH_RATE_LIMIT },
       schema: {
         body: {
           type: 'object',

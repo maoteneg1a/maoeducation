@@ -4,6 +4,7 @@ import { buildReinforcementPlanPdf } from '../application/services/reinforcement
 import { buildReinforcementCasePdf } from '../application/services/reinforcement-case-pdf.service'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
+import { assertCourseAssignmentAccess } from '../../../shared/infrastructure/services/teacher-scope.service'
 import type {
   CreateReinforcementPlanDto,
   ListReinforcementPlansQuery,
@@ -41,6 +42,7 @@ export default async function pedagogicRecoveryRoutes(app: FastifyInstance) {
     '/pedagogic-recovery',
     { preHandler: [requirePermission('grades', 'write')] },
     async (req, reply) => {
+      await assertCourseAssignmentAccess(req, req.body.courseAssignmentId, 'write')
       const result = await repo.save(req.user.institutionId, req.body, req.user.sub)
       return reply.send(result)
     },

@@ -1,6 +1,12 @@
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, BadRequestError } from '../../../../shared/domain/errors/app.errors'
 import type { BulkAttendanceDto, CreateJustificationDto } from '../../application/dtos/attendance.dto'
+import { STUDENT_ENROLLMENT_ORDER } from '../../../../shared/infrastructure/services/enrollment-query'
+
+const VALID_STATUSES = new Set(['present', 'absent', 'late', 'excused'])
+
+/** Estudiantes con nuevo estado ausente/tarde (para notificar solo cambios reales). */
+export type AttendanceSaveResult = { saved: number; newlyFlagged: Array<{ studentId: string; status: string }> }
 
 export class PrismaAttendanceRepository {
   async getByDate(institutionId: string, courseAssignmentId: string, date: string) {
@@ -17,7 +23,9 @@ export class PrismaAttendanceRepository {
         institutionId,
         parallelId: courseAssignment.parallelId,
         academicYearId: courseAssignment.academicYearId,
+        status: 'active',
       },
+      orderBy: STUDENT_ENROLLMENT_ORDER,
       include: {
         student: {
           select: {
@@ -44,17 +52,28 @@ export class PrismaAttendanceRepository {
     }))
   }
 
-  async bulkUpsert(institutionId: string, dto: BulkAttendanceDto, recordedById: string) {
+  async bulkUpsert(
+    institutionId: string,
+    dto: BulkAttendanceDto,
+    recordedById: string,
+  ): Promise<AttendanceSaveResult> {
     if (!dto.courseAssignmentId) throw new BadRequestError('courseAssignmentId requerido')
-    const parsedDate = new Date(dto.date)
+    const parsedDate = parseAttendanceDate(dto.date)
     const courseAssignmentId = dto.courseAssignmentId
 
     const courseAssignment = await prisma.courseAssignment.findFirst({
       where: { id: courseAssignmentId, institutionId },
+      select: { parallelId: true, academicYearId: true },
     })
     if (!courseAssignment) throw new NotFoundError('Asignación de curso no encontrada')
+    await assertStudentsEnrolled(institutionId, courseAssignment.parallelId, courseAssignment.academicYearId, dto.records)
 
-    const results = await Promise.all(
+    const previous = await prisma.attendanceRecord.findMany({
+      where: { institutionId, courseAssignmentId, date: parsedDate, studentId: { in: dto.records.map((r) => r.studentId) } },
+      select: { studentId: true, status: true },
+    })
+
+    await prisma.$transaction(
       dto.records.map((r) =>
         prisma.attendanceRecord.upsert({
           where: {
@@ -82,7 +101,7 @@ export class PrismaAttendanceRepository {
       ),
     )
 
-    return results
+    return { saved: dto.records.length, newlyFlagged: newlyFlagged(previous, dto.records) }
   }
 
   /** Asistencia diaria por paralelo (un registro por estudiante/día). */
@@ -94,7 +113,8 @@ export class PrismaAttendanceRepository {
     if (!parallel) throw new NotFoundError('Paralelo no encontrado')
 
     const enrollments = await prisma.studentEnrollment.findMany({
-      where: { institutionId, parallelId, academicYearId: parallel.academicYearId },
+      where: { institutionId, parallelId, academicYearId: parallel.academicYearId, status: 'active' },
+      orderBy: STUDENT_ENROLLMENT_ORDER,
       include: {
         student: {
           select: {
@@ -116,15 +136,28 @@ export class PrismaAttendanceRepository {
     }))
   }
 
-  async bulkUpsertDaily(institutionId: string, dto: BulkAttendanceDto, recordedById: string) {
+  async bulkUpsertDaily(
+    institutionId: string,
+    dto: BulkAttendanceDto,
+    recordedById: string,
+  ): Promise<AttendanceSaveResult> {
     if (!dto.parallelId) throw new BadRequestError('parallelId requerido')
-    const parsedDate = new Date(dto.date)
+    const parsedDate = parseAttendanceDate(dto.date)
     const parallelId = dto.parallelId
 
-    const parallel = await prisma.parallel.findFirst({ where: { id: parallelId, institutionId } })
+    const parallel = await prisma.parallel.findFirst({
+      where: { id: parallelId, institutionId },
+      select: { academicYearId: true },
+    })
     if (!parallel) throw new NotFoundError('Paralelo no encontrado')
+    await assertStudentsEnrolled(institutionId, parallelId, parallel.academicYearId, dto.records)
 
-    return Promise.all(
+    const previous = await prisma.attendanceRecord.findMany({
+      where: { institutionId, parallelId, date: parsedDate, studentId: { in: dto.records.map((r) => r.studentId) } },
+      select: { studentId: true, status: true },
+    })
+
+    await prisma.$transaction(
       dto.records.map((r) =>
         prisma.attendanceRecord.upsert({
           where: {
@@ -143,6 +176,8 @@ export class PrismaAttendanceRepository {
         }),
       ),
     )
+
+    return { saved: dto.records.length, newlyFlagged: newlyFlagged(previous, dto.records) }
   }
 
   async getStudentSummary(institutionId: string, studentId: string, courseAssignmentId?: string) {
@@ -291,4 +326,37 @@ export class PrismaAttendanceRepository {
 
     return justification
   }
+}
+
+function parseAttendanceDate(date: string): Date {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new BadRequestError('Fecha inválida (formato YYYY-MM-DD)')
+  return new Date(date)
+}
+
+/** Rechaza estados inválidos y estudiantes que no están matriculados (activos) en el paralelo. */
+async function assertStudentsEnrolled(
+  institutionId: string,
+  parallelId: string,
+  academicYearId: string,
+  records: BulkAttendanceDto['records'],
+): Promise<void> {
+  if (!Array.isArray(records) || records.length === 0) throw new BadRequestError('No hay registros para guardar')
+  for (const r of records) {
+    if (!VALID_STATUSES.has(r.status)) throw new BadRequestError(`Estado de asistencia inválido: ${r.status}`)
+  }
+  const ids = [...new Set(records.map((r) => r.studentId))]
+  const count = await prisma.studentEnrollment.count({
+    where: { institutionId, parallelId, academicYearId, status: 'active', studentId: { in: ids } },
+  })
+  if (count !== ids.length) throw new BadRequestError('Hay estudiantes que no pertenecen a este paralelo')
+}
+
+function newlyFlagged(
+  previous: Array<{ studentId: string; status: string }>,
+  records: BulkAttendanceDto['records'],
+): Array<{ studentId: string; status: string }> {
+  const before = new Map(previous.map((p) => [p.studentId, p.status]))
+  return records
+    .filter((r) => (r.status === 'absent' || r.status === 'late') && before.get(r.studentId) !== r.status)
+    .map((r) => ({ studentId: r.studentId, status: r.status }))
 }

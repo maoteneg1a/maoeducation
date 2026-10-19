@@ -15,7 +15,7 @@ const taskInclude = {
   creator: {
     select: { id: true, profile: { select: { firstName: true, lastName: true } } },
   },
-  activity: { select: { id: true, isPublished: true } },
+  activity: { select: { id: true, isPublished: true, academicPeriodId: true } },
   attachments: {
     orderBy: { createdAt: 'asc' as const },
     select: {

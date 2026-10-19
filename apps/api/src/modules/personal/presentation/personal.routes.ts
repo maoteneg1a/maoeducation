@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify'
+import { AUTH_RATE_LIMIT } from '../../../shared/infrastructure/plugins/rate-limit'
 import bcrypt from 'bcryptjs'
 import { randomBytes } from 'crypto'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
@@ -116,6 +117,7 @@ export default async function personalRoutes(app: FastifyInstance) {
   }>(
     '/personal/register',
     {
+      config: { rateLimit: AUTH_RATE_LIMIT },
       schema: {
         body: {
           type: 'object',
@@ -196,6 +198,7 @@ export default async function personalRoutes(app: FastifyInstance) {
   app.post<{ Body: { email: string; password: string } }>(
     '/personal/login',
     {
+      config: { rateLimit: AUTH_RATE_LIMIT },
       schema: {
         body: {
           type: 'object',
@@ -262,6 +265,7 @@ export default async function personalRoutes(app: FastifyInstance) {
   app.post<{ Body: { email: string } }>(
     '/personal/resend-verification',
     {
+      config: { rateLimit: AUTH_RATE_LIMIT },
       schema: {
         body: { type: 'object', required: ['email'], properties: { email: { type: 'string' } } },
       },

@@ -39,6 +39,10 @@ export async function registerRoutes(app: FastifyInstance) {
 
   app.register(import('../../modules/push/presentation/push.routes'), { prefix: '/api/v1' })
   app.register(import('../../modules/personal/presentation/personal.routes'), { prefix: '/api/v1' })
+  app.register(import('../../modules/files/file.routes'), { prefix: '/api/v1' })
+  app.register(import('../../modules/audit/audit.routes'), { prefix: '/api/v1' })
+  app.register(import('../../modules/calendar/calendar.routes'), { prefix: '/api/v1' })
+  app.register(import('../../modules/platform/presentation/platform-console.routes'), { prefix: '/api/v1' })
 
   // Health check
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }))

@@ -16,5 +16,11 @@ export async function authMiddleware(req: FastifyRequest, _reply: FastifyReply):
   }
 
   const token = authHeader.slice(7)
-  req.user = tokenService.verifyAccess(token)
+  const payload = tokenService.verifyAccess(token)
+  // Los tokens de plataforma se firman con el mismo secreto pero no están
+  // atados a una institución: nunca deben pasar por rutas de tenant.
+  if ((payload as { scope?: string }).scope === 'platform' || !payload.institutionId) {
+    throw new UnauthorizedError('Token inválido o expirado')
+  }
+  req.user = payload
 }

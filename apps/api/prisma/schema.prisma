@@ -57,6 +57,8 @@ model Institution {
   scheduleEntries             ScheduleEntry[]
   reportTemplates             ReportTemplate[]
   auditLogs                   AuditLog[]
+  calendarEvents              CalendarEvent[]
+  platformNotes               InstitutionNote[]
   insumos                     Insumo[]
   tasks                       Task[]
   customCurriculumSkills      CurriculumSkill[]
@@ -1826,6 +1828,11 @@ model AbsenceJustification {
   reason        String
   documentUrl   String?  @map("document_url") @db.VarChar(500)
   justifiedBy   String   @map("justified_by")
+  /// approved (registrada por el personal) | pending (solicitada por la familia) | rejected
+  status        String   @default("approved") @db.VarChar(20)
+  reviewedBy    String?  @map("reviewed_by")
+  reviewedAt    DateTime? @map("reviewed_at")
+  reviewNotes   String?  @map("review_notes")
   createdAt     DateTime @default(now()) @map("created_at")
 
   institution       Institution               @relation(fields: [institutionId], references: [id])
@@ -1833,6 +1840,7 @@ model AbsenceJustification {
   justifier         User                      @relation("JustificationCreator", fields: [justifiedBy], references: [id])
   attendanceRecords JustificationAttendance[]
 
+  @@index([institutionId, status])
   @@map("absence_justifications")
 }
 
@@ -2106,6 +2114,10 @@ model AuditLog {
   id            String   @id @default(uuid())
   institutionId String?  @map("institution_id")
   userId        String?  @map("user_id")
+  /// Superadmin de plataforma que ejecutó la acción (acciones de consola /platform).
+  platformAdminId String? @map("platform_admin_id")
+  /// Si la acción se hizo suplantando a `userId`, el superadmin que suplantaba.
+  impersonatorId  String? @map("impersonator_id")
   action        String   @db.VarChar(100)
   resourceType  String   @map("resource_type") @db.VarChar(100)
   resourceId    String?  @map("resource_id")
@@ -2119,6 +2131,8 @@ model AuditLog {
 
   @@index([resourceType, resourceId])
   @@index([userId, createdAt])
+  @@index([institutionId, createdAt])
+  @@index([platformAdminId, createdAt])
   @@map("audit_logs")
 }
 
@@ -2176,6 +2190,8 @@ model PlatformAdmin {
   email        String    @unique @db.VarChar(255)
   passwordHash String    @map("password_hash") @db.VarChar(255)
   name         String    @db.VarChar(150)
+  /// owner (todo) | support (ver, suplantar, notas) | billing (suscripciones y pagos)
+  role         String    @default("owner") @db.VarChar(20)
   isActive     Boolean   @default(true) @map("is_active")
   lastLoginAt  DateTime? @map("last_login_at")
   createdAt    DateTime  @default(now()) @map("created_at")
@@ -2197,7 +2213,12 @@ model Lead {
   studentsCount   Int?     @map("students_count")
   message         String?  @db.Text
   source          String   @default("landing") @db.VarChar(50)
-  status          String   @default("new") @db.VarChar(30) // new | contacted | demo | won | lost
+  status          String   @default("new") @db.VarChar(30) // new | contacted | demo_scheduled | closed_won | closed_lost
+  /// CRM: notas internas, responsable y próximo seguimiento.
+  notes           String?  @db.Text
+  ownerAdminId    String?  @map("owner_admin_id")
+  nextFollowUpAt  DateTime? @map("next_follow_up_at")
+  convertedInstitutionId String? @map("converted_institution_id")
   createdAt       DateTime @default(now()) @map("created_at")
 
   @@index([status, createdAt])
@@ -2255,6 +2276,9 @@ model Subscription {
   /// Corte manual del superadmin: bloquea sin importar las fechas.
   suspendedAt   DateTime? @map("suspended_at")
   notes         String?   @db.Text
+  /// Límites del plan (null = sin límite). Se validan al matricular / crear docentes.
+  maxStudents   Int?      @map("max_students")
+  maxTeachers   Int?      @map("max_teachers")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
@@ -2385,4 +2409,65 @@ model DeceAuditLog {
   actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
   @@index([institutionId, caseId, createdAt])
   @@map("dece_audit_logs")
+}
+
+// ============================================================
+// CALENDARIO INSTITUCIONAL (feriados, exámenes, eventos)
+// ============================================================
+
+model CalendarEvent {
+  id            String    @id @default(uuid())
+  institutionId String    @map("institution_id")
+  title         String    @db.VarChar(200)
+  description   String?
+  /// holiday | exam | event | meeting | other
+  type          String    @default("event") @db.VarChar(20)
+  startDate     DateTime  @map("start_date") @db.Date
+  endDate       DateTime? @map("end_date") @db.Date
+  /// all | staff | families
+  audience      String    @default("all") @db.VarChar(20)
+  createdBy     String    @map("created_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  institution Institution @relation(fields: [institutionId], references: [id])
+
+  @@index([institutionId, startDate])
+  @@map("calendar_events")
+}
+
+// ============================================================
+// CONSOLA DE PLATAFORMA (soporte y comunicación con instituciones)
+// ============================================================
+
+/// Notas internas de soporte del equipo de plataforma sobre una institución.
+model InstitutionNote {
+  id              String   @id @default(uuid())
+  institutionId   String   @map("institution_id")
+  platformAdminId String   @map("platform_admin_id")
+  body            String   @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@index([institutionId, createdAt])
+  @@map("institution_notes")
+}
+
+/// Aviso de plataforma que ven las instituciones (mantenimiento, novedades).
+model PlatformAnnouncement {
+  id        String    @id @default(uuid())
+  title     String    @db.VarChar(200)
+  body      String    @db.Text
+  /// info | warning | critical
+  level     String    @default("info") @db.VarChar(20)
+  /// all | admins (solo admin/rector)
+  audience  String    @default("all") @db.VarChar(20)
+  startsAt  DateTime  @default(now()) @map("starts_at")
+  endsAt    DateTime? @map("ends_at")
+  createdBy String    @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([startsAt, endsAt])
+  @@map("platform_announcements")
 }

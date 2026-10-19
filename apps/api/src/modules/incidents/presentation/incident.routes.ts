@@ -257,7 +257,7 @@ export default async function incidentRoutes(app: FastifyInstance) {
         mimeType: data.mimetype,
         fileSize: buf.length,
       })
-      return reply.status(201).send({ ...attachment, url: `/uploads/incidents/${storedName}` })
+      return reply.status(201).send({ ...attachment, url: `/api/v1/files/incidents/${storedName}` })
     },
   )
 
