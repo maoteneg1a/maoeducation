@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Check, ChevronDown, ChevronRight, CalendarDays, Lock, LockOpen, Pencil } from 'lucide-react'
+import { Plus, Check, ChevronDown, ChevronRight, CalendarDays, CalendarPlus, Lock, LockOpen, Pencil } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
@@ -21,6 +21,7 @@ import {
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { formatDate } from '@/shared/lib/utils'
 import { type AcademicYear, type AcademicPeriod } from '../api/academic.api'
+import { YearRolloverDialog } from '../components/YearRolloverDialog'
 import {
   useAcademicYears,
   useCreateYear,
@@ -319,6 +320,7 @@ export function AcademicYearsPage() {
   const activateYear = useActivateYear()
   const [open, setOpen] = React.useState(false)
   const [expandedYearId, setExpandedYearId] = React.useState<string | null>(null)
+  const [rolloverYear, setRolloverYear] = React.useState<AcademicYear | null>(null)
 
   const form = useForm<YearForm>({
     resolver: zodResolver(yearSchema),
@@ -458,7 +460,7 @@ export function AcademicYearsPage() {
                 <Badge variant={year.isActive ? 'success' : 'secondary'} className="w-20 justify-center">
                   {year.isActive ? 'Activo' : 'Inactivo'}
                 </Badge>
-                <div className="w-28 flex justify-end">
+                <div className="flex w-44 justify-end">
                   {!year.isActive ? (
                     <Button
                       variant="outline"
@@ -470,7 +472,10 @@ export function AcademicYearsPage() {
                       Activar
                     </Button>
                   ) : (
-                    <span className="text-xs text-muted-foreground">Año actual</span>
+                    <Button variant="outline" size="sm" onClick={() => setRolloverYear(year)}>
+                      <CalendarPlus className="h-3.5 w-3.5" />
+                      Cerrar y abrir siguiente
+                    </Button>
                   )}
                 </div>
               </div>
@@ -480,6 +485,14 @@ export function AcademicYearsPage() {
           ))
         )}
       </div>
+
+      {rolloverYear && (
+        <YearRolloverDialog
+          source={rolloverYear}
+          open={!!rolloverYear}
+          onOpenChange={(v) => !v && setRolloverYear(null)}
+        />
+      )}
 
       {/* Create Year Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>

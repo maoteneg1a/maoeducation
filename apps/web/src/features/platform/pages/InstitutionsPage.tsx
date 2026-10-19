@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -21,6 +21,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/shared/components/ui/select'
+import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
 import { toast } from 'sonner'
 import {
   useCreateInstitution,
@@ -29,6 +30,9 @@ import {
   useUpdateInstitutionModules,
   useSetTestFlag,
   useSeedTestData,
+  usePlatformLeads,
+  usePlatformRole,
+  useUpdateLead,
 } from '../hooks/usePlatform'
 import type { Institution } from '../api/platform.api'
 import { ALL_MODULES, MODULE_GROUPS, MODULE_LABELS, PERSONAL_DEFAULT_MODULES, type ModuleKey } from '@/shared/lib/modules'
@@ -42,6 +46,7 @@ const schema = z.object({
   adminEmail: z.string().email('Email inválido'),
   adminPassword: z.string().min(8, 'Mínimo 8 caracteres'),
   regime: z.enum(['SIERRA_AMAZONIA', 'COSTA_GALAPAGOS']),
+  isTestInstitution: z.boolean(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -54,6 +59,22 @@ export function InstitutionsPage() {
   const updateModules = useUpdateInstitutionModules()
   const setTestFlag = useSetTestFlag()
   const seedTestData = useSeedTestData()
+  const updateLead = useUpdateLead()
+  const { isOwner } = usePlatformRole()
+
+  const [search, setSearch] = useState('')
+  const filteredInstitutions = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return institutions
+    return institutions.filter((i) => i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q))
+  }, [institutions, search])
+
+  // Conversión desde un lead: /platform?newFromLead=<leadId>
+  const [searchParams, setSearchParams] = useSearchParams()
+  const newFromLead = searchParams.get('newFromLead')
+  const { data: leads } = usePlatformLeads({ enabled: !!newFromLead })
+  const [convertingLeadId, setConvertingLeadId] = useState<string | null>(null)
+  const handledLeadRef = useRef<string | null>(null)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [modulesInstitution, setModulesInstitution] = useState<Institution | null>(null)
@@ -64,8 +85,55 @@ export function InstitutionsPage() {
     resolver: zodResolver(schema),
   })
 
+  useEffect(() => {
+    if (!newFromLead || !leads || handledLeadRef.current === newFromLead) return
+    handledLeadRef.current = newFromLead
+    const lead = leads.find((l) => l.id === newFromLead)
+    const next = new URLSearchParams(searchParams)
+    next.delete('newFromLead')
+    setSearchParams(next, { replace: true })
+    if (!lead) {
+      toast.error('No se encontró el lead a convertir')
+      return
+    }
+    const [firstName, ...rest] = lead.name.trim().split(/\s+/)
+    reset({
+      name: lead.institutionName ?? '',
+      code: '',
+      adminFirstName: firstName ?? '',
+      adminLastName: rest.join(' '),
+      adminEmail: lead.email,
+      adminPassword: '',
+      regime: 'SIERRA_AMAZONIA',
+      isTestInstitution: false,
+    })
+    setConvertingLeadId(lead.id)
+    setDialogOpen(true)
+  }, [newFromLead, leads, searchParams, setSearchParams, reset])
+
+  const handleToggle = async (inst: Institution) => {
+    if (inst.isActive) {
+      const ok = await confirmDialog({
+        title: `¿Desactivar ${inst.name}?`,
+        description: 'Ningún usuario de esta institución podrá iniciar sesión hasta que la reactives. Sus datos se conservan.',
+        confirmText: 'Desactivar',
+        destructive: true,
+      })
+      if (!ok) return
+    } else {
+      const ok = await confirmDialog({
+        title: `¿Activar ${inst.name}?`,
+        description: 'Sus usuarios podrán volver a iniciar sesión.',
+        confirmText: 'Activar',
+      })
+      if (!ok) return
+    }
+    toggleInstitution.mutate(inst.id)
+  }
+
   const openCreate = () => {
-    reset({ name: '', code: '', adminFirstName: '', adminLastName: '', adminEmail: '', adminPassword: '', regime: 'SIERRA_AMAZONIA' })
+    setConvertingLeadId(null)
+    reset({ name: '', code: '', adminFirstName: '', adminLastName: '', adminEmail: '', adminPassword: '', regime: 'SIERRA_AMAZONIA', isTestInstitution: false })
     setDialogOpen(true)
   }
 
@@ -111,13 +179,36 @@ export function InstitutionsPage() {
           password: values.adminPassword,
         },
         regime: values.regime,
+        isTestInstitution: values.isTestInstitution,
       },
-      { onSuccess: () => setDialogOpen(false) },
+      {
+        onSuccess: (created) => {
+          setDialogOpen(false)
+          if (convertingLeadId && created?.id) {
+            updateLead.mutate(
+              { id: convertingLeadId, data: { convertedInstitutionId: created.id, status: 'closed_won' } },
+              { onSuccess: () => toast.success('Lead marcado como convertido') },
+            )
+          }
+          setConvertingLeadId(null)
+        },
+      },
     )
   }
 
   const columns: ColumnDef<Institution>[] = [
-    { accessorKey: 'name', header: 'Institución' },
+    {
+      accessorKey: 'name',
+      header: 'Institución',
+      cell: ({ row }) => (
+        <Link
+          to={`/platform/institutions/${row.original.id}`}
+          className="font-medium text-slate-900 hover:text-primary hover:underline"
+        >
+          {row.original.name}
+        </Link>
+      ),
+    },
     {
       accessorKey: 'code',
       header: 'Código',
@@ -157,6 +248,7 @@ export function InstitutionsPage() {
           type="button"
           className="text-left"
           title={row.original.isTestInstitution ? 'Marcar como escuela real (oculta el botón de sembrar datos de prueba)' : 'Marcar como institución de prueba'}
+          disabled={!isOwner}
           onClick={() => setTestFlag.mutate({ id: row.original.id, isTestInstitution: !row.original.isTestInstitution })}
         >
           <Badge variant={row.original.isTestInstitution ? 'outline' : 'secondary'}>
@@ -170,7 +262,7 @@ export function InstitutionsPage() {
       header: '',
       cell: ({ row }) => (
         <div className="flex justify-end gap-2">
-          {row.original.isTestInstitution && (
+          {isOwner && row.original.isTestInstitution && (
             <Button
               variant="outline"
               size="sm"
@@ -190,22 +282,26 @@ export function InstitutionsPage() {
               Sembrar prueba
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openModules(row.original)}
-          >
-            <LayoutGrid className="mr-1.5 h-4 w-4" />
-            Módulos
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setConfigInstitution(row.original)}
-          >
-            <Settings className="mr-1.5 h-4 w-4" />
-            Config
-          </Button>
+          {isOwner && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openModules(row.original)}
+              >
+                <LayoutGrid className="mr-1.5 h-4 w-4" />
+                Módulos
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfigInstitution(row.original)}
+              >
+                <Settings className="mr-1.5 h-4 w-4" />
+                Config
+              </Button>
+            </>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -214,14 +310,16 @@ export function InstitutionsPage() {
             <Users className="mr-1.5 h-4 w-4" />
             Admins
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            loading={toggleInstitution.isPending && toggleInstitution.variables === row.original.id}
-            onClick={() => toggleInstitution.mutate(row.original.id)}
-          >
-            {row.original.isActive ? 'Desactivar' : 'Activar'}
-          </Button>
+          {isOwner && (
+            <Button
+              variant="ghost"
+              size="sm"
+              loading={toggleInstitution.isPending && toggleInstitution.variables === row.original.id}
+              onClick={() => handleToggle(row.original)}
+            >
+              {row.original.isActive ? 'Desactivar' : 'Activar'}
+            </Button>
+          )}
         </div>
       ),
     },
@@ -238,15 +336,19 @@ export function InstitutionsPage() {
 
       <DataTable
         columns={columns}
-        data={institutions}
+        data={filteredInstitutions}
         isLoading={isLoading}
-        emptyMessage="Sin instituciones"
-        emptyDescription="Crea la primera institución para empezar"
+        searchPlaceholder="Buscar por nombre o código..."
+        onSearch={setSearch}
+        emptyMessage={search ? 'Sin coincidencias' : 'Sin instituciones'}
+        emptyDescription={search ? 'Prueba con otro nombre o código' : 'Crea la primera institución para empezar'}
         action={
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nueva institución
-          </Button>
+          isOwner ? (
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nueva institución
+            </Button>
+          ) : undefined
         }
       />
 
@@ -257,7 +359,9 @@ export function InstitutionsPage() {
             <DialogHeader>
               <DialogTitle>Nueva institución</DialogTitle>
               <DialogDescription>
-                Se crearán los roles, permisos y catálogos base, junto al administrador inicial.
+                {convertingLeadId
+                  ? 'Datos precargados desde el lead. Al crearla, el lead quedará marcado como convertido.'
+                  : 'Se crearán los roles, permisos y catálogos base, junto al administrador inicial.'}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -283,9 +387,18 @@ export function InstitutionsPage() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Se crea automáticamente el año lectivo 2026-2027 activo con sus 3 trimestres — editable después.
+                  Se crea automáticamente el año lectivo vigente con sus 3 trimestres — editable después.
                 </p>
               </div>
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" className="mt-0.5 h-4 w-4" {...register('isTestInstitution')} />
+                <span>
+                  Institución de prueba / demo
+                  <span className="block text-xs text-muted-foreground">
+                    Habilita “Sembrar datos de prueba”. No la marques para escuelas reales.
+                  </span>
+                </span>
+              </label>
               <div className="border-t pt-4">
                 <p className="mb-3 text-sm font-medium text-slate-700">Administrador inicial</p>
                 <div className="grid grid-cols-2 gap-3">

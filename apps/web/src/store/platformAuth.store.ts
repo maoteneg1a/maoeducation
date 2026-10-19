@@ -1,10 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+export type PlatformRole = 'owner' | 'support' | 'billing'
+
 export interface PlatformAdmin {
   id: string
   email: string
   name: string
+  /** Ausente en sesiones persistidas antes de existir roles: se trata como owner. */
+  role?: PlatformRole
 }
 
 interface PlatformAuthState {

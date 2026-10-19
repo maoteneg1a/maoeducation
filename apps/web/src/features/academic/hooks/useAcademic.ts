@@ -268,6 +268,18 @@ export function useDeleteAssignment() {
   })
 }
 
+export function useChangeAssignmentTeacher() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, teacherId }: { id: string; teacherId: string }) => academicApi.changeAssignmentTeacher(id, teacherId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['course-assignments'] })
+      toast.success('Docente actualizado. Las notas y la asistencia se conservan.')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+}
+
 export function useAssignmentWorkload(assignmentId: string | undefined) {
   return useQuery({
     queryKey: ['course-assignment-workload', assignmentId],

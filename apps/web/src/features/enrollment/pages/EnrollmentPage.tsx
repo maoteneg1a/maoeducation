@@ -26,6 +26,8 @@ import {
 } from '@/shared/components/ui/dialog'
 import { getErrorMessage } from '@/shared/lib/utils'
 import { formatDate } from '@/shared/lib/utils'
+import { apiPost } from '@/shared/lib/api-client'
+import { BulkImportDialog, normalizeDni, pick } from '@/shared/components/import/BulkImportDialog'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth.store'
@@ -369,6 +371,17 @@ function StudentPicker({
 
 // ---- Main Page ----
 
+interface GuardianImportRow {
+  studentDni: string
+  dni: string
+  firstName: string
+  lastName: string
+  email?: string
+  phone?: string
+  relationship?: string
+  isPrimary: boolean
+}
+
 export function EnrollmentPage() {
   const isPersonalAccount = useAuthStore((s) => s.user?.institution?.accountType === 'personal')
   const navigate = useNavigate()
@@ -390,6 +403,7 @@ export function EnrollmentPage() {
   // Importación Excel: puede crear solamente o crear/reutilizar y matricular.
   const importFileRef = useRef<HTMLInputElement>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [guardianImportOpen, setGuardianImportOpen] = useState(false)
   const [importRows, setImportRows] = useState<StudentImportRow[]>([])
   const [importEnroll, setImportEnroll] = useState(true)
   const [importYearId, setImportYearId] = useState('')
@@ -755,6 +769,10 @@ export function EnrollmentPage() {
               <Upload className="h-4 w-4" />
               Importar Excel
             </Button>
+            <Button variant="outline" onClick={() => setGuardianImportOpen(true)} className="w-full sm:w-auto">
+              <Users className="h-4 w-4" />
+              Importar representantes
+            </Button>
             <Button onClick={openSingleDialog} className="w-full sm:w-auto">
               <UserPlus className="h-4 w-4" />
               Nueva Matrícula
@@ -900,6 +918,49 @@ export function EnrollmentPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BulkImportDialog<GuardianImportRow>
+        open={guardianImportOpen}
+        onOpenChange={setGuardianImportOpen}
+        title="Importar representantes desde Excel"
+        description="Una fila por vínculo representante–estudiante. Si el representante ya existe (misma cédula) solo se vincula. Contraseña inicial: su cédula."
+        templateRow={{
+          cedula_estudiante: '0102030405',
+          cedula_representante: '0911223344',
+          nombres: 'Carlos',
+          apellidos: 'Pérez',
+          correo: 'carlos.perez@gmail.com',
+          telefono: '0991234567',
+          parentesco: 'padre',
+          principal: 'si',
+        }}
+        templateFileName="plantilla_importacion_representantes.xlsx"
+        maxRows={1000}
+        mapRow={(e) => ({
+          studentDni: normalizeDni(pick(e, 'cedula_estudiante', 'estudiante')),
+          dni: normalizeDni(pick(e, 'cedula_representante', 'cedula', 'dni')),
+          firstName: String(pick(e, 'nombres', 'nombre')),
+          lastName: String(pick(e, 'apellidos', 'apellido')),
+          email: String(pick(e, 'correo', 'email')) || undefined,
+          phone: String(pick(e, 'telefono', 'celular')) || undefined,
+          relationship: String(pick(e, 'parentesco', 'relacion')).toLowerCase() || undefined,
+          isPrimary: /^(si|sí|s|1|true|x)$/i.test(String(pick(e, 'principal'))),
+        })}
+        previewLabel={(r) => `Estudiante ${r.studentDni} ← ${r.firstName} ${r.lastName} (${r.dni})${r.relationship ? ` · ${r.relationship}` : ''}`}
+        onSubmit={async (rows) => {
+          const res = await apiPost<{
+            created: number
+            linked: number
+            existing: number
+            skipped: number
+            results: Array<{ studentDni: string; dni: string; fullName: string; status: string; reason?: string }>
+          }>('guardians/bulk', { rows }, { timeout: 300_000 })
+          return {
+            summary: `${res.created} creados · ${res.linked} vinculados · ${res.existing} ya existían · ${res.skipped} omitidos`,
+            results: res.results.map((r) => ({ label: `${r.fullName} (${r.dni}) → estudiante ${r.studentDni}`, status: r.status, reason: r.reason })),
+          }
+        }}
+      />
 
       {/* Importar estudiantes y opcionalmente matricularlos */}
       <Dialog open={importOpen} onOpenChange={setImportOpen}>

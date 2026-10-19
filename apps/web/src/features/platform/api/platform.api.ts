@@ -1,5 +1,6 @@
 import { platformApiClient, platformGet, platformPost, platformPatch, platformPut } from '@/shared/lib/platform-api-client'
-import type { PlatformAdmin } from '@/store/platformAuth.store'
+import type { PlatformAdmin, PlatformRole } from '@/store/platformAuth.store'
+import type { AuditFilters, AuditLogPage } from '@/shared/components/audit/AuditLogView'
 import type { AuthUser } from '@/store/auth.store'
 import type { AiConfig } from '@/features/settings/api/settings.api'
 import type { Subject } from '@/features/academic/api/academic.api'
@@ -44,6 +45,8 @@ export interface CreateInstitutionPayload {
   }
   /** Determina las fechas del año lectivo y sus 3 trimestres, creados automáticamente. */
   regime: 'SIERRA_AMAZONIA' | 'COSTA_GALAPAGOS'
+  /** Habilita "Sembrar datos de prueba" (solo demos/pruebas). */
+  isTestInstitution?: boolean
 }
 
 export interface InstitutionAdmin {
@@ -110,6 +113,22 @@ export interface Lead {
   source: string
   status: string
   createdAt: string
+  notes?: string | null
+  ownerAdminId?: string | null
+  nextFollowUpAt?: string | null
+  convertedInstitutionId?: string | null
+}
+
+export interface UpdateLeadPayload {
+  status?: string
+  notes?: string
+  ownerAdminId?: string | null
+  nextFollowUpAt?: string | null
+  convertedInstitutionId?: string
+}
+
+async function platformDelete(url: string): Promise<void> {
+  await platformApiClient.delete(url)
 }
 
 export const platformApi = {
@@ -151,6 +170,31 @@ export const platformApi = {
   getLeads: () => platformGet<Lead[]>('leads'),
   updateLeadStatus: (id: string, status: string) =>
     platformPatch<Lead>(`leads/${id}/status`, { status }),
+  updateLead: (id: string, data: UpdateLeadPayload) => platformPatch<Lead>(`leads/${id}`, data),
+
+  getInstitutionOverview: (id: string) =>
+    platformGet<InstitutionOverview>(`platform/institutions/${id}/overview`),
+  addInstitutionNote: (id: string, body: string) =>
+    platformPost<unknown>(`platform/institutions/${id}/notes`, { body }),
+  deleteInstitutionNote: (id: string, noteId: string) =>
+    platformDelete(`platform/institutions/${id}/notes/${noteId}`),
+  setSubscriptionLimits: (institutionId: string, data: SubscriptionLimits) =>
+    platformPut<unknown>(`platform/subscriptions/${institutionId}/limits`, data),
+
+  getTeam: () => platformGet<PlatformTeamMember[]>('platform/team'),
+  createTeamMember: (data: CreateTeamMemberPayload) =>
+    platformPost<PlatformTeamMember>('platform/team', data),
+  updateTeamMember: (id: string, data: UpdateTeamMemberPayload) =>
+    platformPatch<PlatformTeamMember>(`platform/team/${id}`, data),
+
+  getAnnouncements: () => platformGet<PlatformAnnouncement[]>('platform/announcements'),
+  createAnnouncement: (data: CreateAnnouncementPayload) =>
+    platformPost<PlatformAnnouncement>('platform/announcements', data),
+  deleteAnnouncement: (id: string) => platformDelete(`platform/announcements/${id}`),
+
+  getAlerts: () => platformGet<PlatformAlerts>('platform/alerts'),
+  getAuditLogs: (filters: AuditFilters) =>
+    platformGet<AuditLogPage>('platform/audit-logs', filters),
 
   getSubscriptions: () => platformGet<PlatformSubscription[]>('platform/subscriptions'),
   getSubscriptionPayments: (status?: PaymentReviewStatus) =>
@@ -184,7 +228,9 @@ export const platformApi = {
   getPlatformUsers: (params: { page?: number; limit?: number; search?: string }) =>
     platformGet<{ data: PlatformUser[]; total: number }>('platform/users', params),
   impersonateUser: (userId: string) =>
-    platformPost<{ accessToken: string; user: AuthUser }>(`platform/users/${userId}/impersonate`),
+    platformPost<{ accessToken: string; user: AuthUser; impersonation: { expiresIn: string } }>(
+      `platform/users/${userId}/impersonate`,
+    ),
 }
 
 // ─── Suscripciones ──────────────────────────────────────────────────────────
@@ -251,4 +297,122 @@ export interface SetValidityPayload {
   plan?: 'trial' | 'paid'
   graceDays?: number
   notes?: string
+}
+
+// ─── Ficha 360° de institución ──────────────────────────────────────────────
+
+export interface SubscriptionLimits {
+  maxStudents: number | null
+  maxTeachers: number | null
+}
+
+export interface InstitutionOverview {
+  institution: {
+    id: string
+    name: string
+    code: string
+    isActive: boolean
+    createdAt: string
+    accountType: 'school' | 'personal'
+    isTestInstitution: boolean
+    modules: string[] | null
+  }
+  usage: {
+    activeYear: string | null
+    students: number
+    teachers: number
+    totalUsers: number
+    activeUsers30d: number
+    lastActivityAt: string | null
+    parallels: number
+    grades30d: number
+    attendance30d: number
+  }
+  subscription:
+    | (Omit<PlatformSubscriptionStatus, 'plan'> & {
+        plan: string
+        notes: string | null
+        maxStudents: number | null
+        maxTeachers: number | null
+      })
+    | null
+  payments: {
+    id: string
+    status: PaymentReviewStatus
+    amount: number | null
+    createdAt: string
+    reviewedAt: string | null
+    reviewNotes: string | null
+    reference: string | null
+  }[]
+  admins: { id: string; email: string; isActive: boolean; lastLoginAt: string | null; fullName: string }[]
+  notes: { id: string; body: string; createdAt: string; author: string | null }[]
+  recentActivity: {
+    id: string
+    action: string
+    createdAt: string
+    userId: string | null
+    platformAdminId: string | null
+  }[]
+}
+
+// ─── Equipo de plataforma ───────────────────────────────────────────────────
+
+export interface PlatformTeamMember {
+  id: string
+  email: string
+  name: string
+  role: PlatformRole
+  isActive: boolean
+  lastLoginAt: string | null
+  createdAt: string
+}
+
+export interface CreateTeamMemberPayload {
+  email: string
+  name: string
+  role: PlatformRole
+  password: string
+}
+
+export interface UpdateTeamMemberPayload {
+  role?: PlatformRole
+  isActive?: boolean
+  name?: string
+}
+
+// ─── Avisos globales ────────────────────────────────────────────────────────
+
+export type AnnouncementLevel = 'info' | 'warning' | 'critical'
+export type AnnouncementAudience = 'all' | 'admins'
+
+export interface PlatformAnnouncement {
+  id: string
+  title: string
+  body: string
+  level: AnnouncementLevel
+  audience: AnnouncementAudience
+  startsAt: string
+  endsAt: string | null
+  createdBy: string | null
+  createdAt: string
+}
+
+export interface CreateAnnouncementPayload {
+  title: string
+  body: string
+  level?: AnnouncementLevel
+  audience?: AnnouncementAudience
+  startsAt?: string
+  endsAt?: string | null
+}
+
+// ─── Alertas ────────────────────────────────────────────────────────────────
+
+export interface PlatformAlerts {
+  expiringSoon: { institutionId: string; name: string; expiresAt: string; plan: string }[]
+  pendingPayments: number
+  inactiveInstitutions: { id: string; name: string }[]
+  inactiveCount: number
+  leadsToFollowUp: number
 }

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { BarChart2, ClipboardList, Download, FileText, Printer, ScrollText, Upload } from 'lucide-react'
+import { BarChart2, ClipboardList, Download, FileSpreadsheet, FileText, Printer, ScrollText, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
@@ -28,6 +28,7 @@ import {
   saveOwnBulletinBranding,
   uploadBulletinLogo,
   downloadBulletinPdf,
+  downloadParallelBulletinsPdf,
   type AttendanceReportData,
   type BulletinBranding,
   type BulletinOptionsData,
@@ -36,6 +37,7 @@ import {
   type StudentBulletinData,
   type BulletinSubject,
 } from '../api/reports.api'
+import { exportAttendanceReport, exportEnrollmentReport, exportGradesReport } from '../lib/excel-export'
 
 type Tab = 'bulletin' | 'grades' | 'attendance' | 'enrollment'
 
@@ -217,6 +219,18 @@ function BulletinReportTab() {
     }
   }
 
+  const [isDownloadingParallel, setIsDownloadingParallel] = React.useState(false)
+  async function handleParallelPdfDownload() {
+    setIsDownloadingParallel(true)
+    try {
+      await downloadParallelBulletinsPdf({ yearId: selectedYearId, parallelId: selectedParallelId })
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setIsDownloadingParallel(false)
+    }
+  }
+
   async function handlePdfDownload() {
     setIsDownloadingPdf(true)
     try {
@@ -347,6 +361,16 @@ function BulletinReportTab() {
               className="w-full sm:w-auto"
             >
               {isGenerating ? 'Generando boletín…' : 'Generar boletín'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleParallelPdfDownload}
+              disabled={!selectedYearId || !selectedParallelId}
+              loading={isDownloadingParallel}
+              className="w-full sm:w-auto print:hidden"
+            >
+              {!isDownloadingParallel && <Download className="h-4 w-4" />}
+              {isDownloadingParallel ? 'Generando libretas…' : 'Libretas de todo el paralelo (PDF)'}
             </Button>
             {report && (
               <Button variant="outline" onClick={() => window.print()} className="w-full sm:w-auto print:hidden">
@@ -920,9 +944,14 @@ function GradesReportView({ data }: { data: GradesReportData }) {
         <p className="text-sm text-muted-foreground">
           {data.assignment.parallel.level.name} {data.assignment.parallel.name} · {data.assignment.subject.name} · {data.assignment.academicYear.name}
         </p>
-        <Button variant="outline" size="sm" onClick={() => window.print()} className="w-full sm:w-auto">
-          <Printer className="h-4 w-4" /> Imprimir
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant="outline" size="sm" onClick={() => exportGradesReport(data)} className="w-full sm:w-auto">
+            <FileSpreadsheet className="h-4 w-4" /> Exportar Excel
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="w-full sm:w-auto">
+            <Printer className="h-4 w-4" /> Imprimir
+          </Button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-lg border">
@@ -1049,9 +1078,14 @@ function AttendanceReportView({ data }: { data: AttendanceReportData }) {
           </p>
           <p className="text-xs text-muted-foreground">P=Presente · A=Ausente · T=Tarde · J=Justificado</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => window.print()} className="w-full sm:w-auto">
-          <Printer className="h-4 w-4" /> Imprimir
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant="outline" size="sm" onClick={() => exportAttendanceReport(data)} className="w-full sm:w-auto">
+            <FileSpreadsheet className="h-4 w-4" /> Exportar Excel
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="w-full sm:w-auto">
+            <Printer className="h-4 w-4" /> Imprimir
+          </Button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-lg border">
@@ -1178,9 +1212,14 @@ function EnrollmentReportView({ data }: { data: EnrollmentReportData }) {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm font-medium">Año: {data.year.name} · {data.totalEnrollments} estudiantes</p>
-        <Button variant="outline" size="sm" onClick={() => window.print()} className="w-full sm:w-auto">
-          <Printer className="h-4 w-4" /> Imprimir
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant="outline" size="sm" onClick={() => exportEnrollmentReport(data)} className="w-full sm:w-auto">
+            <FileSpreadsheet className="h-4 w-4" /> Exportar Excel
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="w-full sm:w-auto">
+            <Printer className="h-4 w-4" /> Imprimir
+          </Button>
+        </div>
       </div>
 
       {data.parallels.map(({ parallel, enrollments }) => (

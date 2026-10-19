@@ -5,7 +5,8 @@ import { z } from 'zod'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Edit2, Plus, UserIcon } from 'lucide-react'
+import { Edit2, FileSpreadsheet, Plus, UserIcon } from 'lucide-react'
+import { BulkImportDialog, normalizeDni, pick } from '@/shared/components/import/BulkImportDialog'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
@@ -146,6 +147,14 @@ type EditUserForm = z.infer<typeof editUserSchema>
 
 // ---- Page Component ----
 
+interface StaffImportRow {
+  dni: string
+  firstName: string
+  lastName: string
+  email?: string
+  phone?: string
+}
+
 export function UsersPage() {
   const [search, setSearch] = React.useState('')
   const [roleFilter, setRoleFilter] = React.useState('all')
@@ -161,6 +170,9 @@ export function UsersPage() {
   const updateUser = useUpdateUser()
 
   const [createOpen, setCreateOpen] = React.useState(false)
+  const [importOpen, setImportOpen] = React.useState(false)
+  const [importRole, setImportRole] = React.useState<'teacher' | 'inspector' | 'dece'>('teacher')
+  const qc = useQueryClient()
   const [editOpen, setEditOpen] = React.useState(false)
   const [editingUser, setEditingUser] = React.useState<User | null>(null)
 
@@ -285,16 +297,64 @@ export function UsersPage() {
           <h1 className="text-2xl font-bold tracking-tight">Usuarios</h1>
           <p className="text-muted-foreground text-sm mt-1">Gestiona los usuarios del sistema</p>
         </div>
-        <Button
-          onClick={() => {
-            createForm.reset()
-            setCreateOpen(true)
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          Nuevo Usuario
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <FileSpreadsheet className="h-4 w-4" />
+            Importar personal
+          </Button>
+          <Button
+            onClick={() => {
+              createForm.reset()
+              setCreateOpen(true)
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Nuevo Usuario
+          </Button>
+        </div>
       </div>
+
+      <BulkImportDialog<StaffImportRow>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Importar personal desde Excel"
+        description="Una fila por persona. La contraseña inicial es su cédula (igual que el alta individual). Si no hay correo, se usa la cédula para ingresar."
+        templateRow={{ cedula: '0102030405', nombres: 'María José', apellidos: 'Pérez López', correo: 'maria.perez@escuela.edu', telefono: '0991234567' }}
+        templateFileName="plantilla_importacion_personal.xlsx"
+        maxRows={300}
+        mapRow={(e) => ({
+          dni: normalizeDni(pick(e, 'cedula', 'dni')),
+          firstName: String(pick(e, 'nombres', 'nombre')),
+          lastName: String(pick(e, 'apellidos', 'apellido')),
+          email: String(pick(e, 'correo', 'email', 'correo_electronico')) || undefined,
+          phone: String(pick(e, 'telefono', 'celular', 'phone')) || undefined,
+        })}
+        previewLabel={(r) => `${r.dni} · ${r.firstName} ${r.lastName}${r.email ? ` · ${r.email}` : ''}`}
+        onSubmit={async (rows) => {
+          const res = await apiPost<{ created: number; skipped: number; results: Array<{ dni: string; fullName: string; status: string; reason?: string }> }>(
+            'users/bulk',
+            { roleName: importRole, users: rows },
+            { timeout: 300_000 },
+          )
+          qc.invalidateQueries({ queryKey: USERS_KEY })
+          return {
+            summary: `${res.created} creados · ${res.skipped} omitidos`,
+            results: res.results.map((r) => ({ label: `${r.dni} · ${r.fullName}`, status: r.status, reason: r.reason })),
+          }
+        }}
+      >
+        <div className="flex items-center gap-2 text-sm">
+          <span>Rol:</span>
+          <Select value={importRole} onValueChange={(v) => setImportRole(v as typeof importRole)}>
+            <SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="teacher">Docente</SelectItem>
+              <SelectItem value="inspector">Inspector/a</SelectItem>
+              <SelectItem value="dece">DECE</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </BulkImportDialog>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
         <Input

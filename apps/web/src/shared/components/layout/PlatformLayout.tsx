@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, NavLink } from 'react-router-dom'
-import { BarChart3, Building2, CreditCard, LogOut, ShieldCheck, MessageSquare } from 'lucide-react'
+import { BarChart3, Building2, CreditCard, LogOut, ShieldCheck, MessageSquare, UsersRound, Megaphone, ScrollText } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { usePlatformAuthStore } from '@/store/platformAuth.store'
 import { platformApiClient } from '@/shared/lib/platform-api-client'
@@ -41,7 +41,7 @@ export function PlatformLayout() {
       </header>
 
       <nav className="border-b bg-slate-800">
-        <div className="mx-auto flex max-w-6xl gap-1 px-6">
+        <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-6">
           <NavLink
             to="/platform/stats"
             className={({ isActive }) =>
@@ -78,6 +78,33 @@ export function PlatformLayout() {
           >
             <MessageSquare className="h-4 w-4" />
             Leads
+          </NavLink>
+          <NavLink
+            to="/platform/announcements"
+            className={({ isActive }) =>
+              `flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 ${isActive ? 'border-primary text-white' : 'border-transparent text-slate-400 hover:text-slate-200'}`
+            }
+          >
+            <Megaphone className="h-4 w-4" />
+            Avisos
+          </NavLink>
+          <NavLink
+            to="/platform/audit"
+            className={({ isActive }) =>
+              `flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 ${isActive ? 'border-primary text-white' : 'border-transparent text-slate-400 hover:text-slate-200'}`
+            }
+          >
+            <ScrollText className="h-4 w-4" />
+            Auditoría
+          </NavLink>
+          <NavLink
+            to="/platform/team"
+            className={({ isActive }) =>
+              `flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 ${isActive ? 'border-primary text-white' : 'border-transparent text-slate-400 hover:text-slate-200'}`
+            }
+          >
+            <UsersRound className="h-4 w-4" />
+            Equipo
           </NavLink>
         </div>
       </nav>

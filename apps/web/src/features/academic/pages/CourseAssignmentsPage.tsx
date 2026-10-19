@@ -3,7 +3,8 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, UserCog } from 'lucide-react'
+import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
@@ -31,6 +32,7 @@ import {
   useCourseAssignments,
   useCreateAssignment,
   useDeleteAssignment,
+  useChangeAssignmentTeacher,
   useSubjects,
   useParallels,
   useAcademicYears,
@@ -134,6 +136,8 @@ export function CourseAssignmentsPage() {
   )
   const createAssignment = useCreateAssignment()
   const deleteAssignment = useDeleteAssignment()
+  const changeTeacher = useChangeAssignmentTeacher()
+  const [changing, setChanging] = React.useState<{ id: string; label: string; teacherId: string } | null>(null)
 
   const { data: teachers = [] } = useQuery({
     queryKey: ['users', { role: 'teacher' }],
@@ -178,10 +182,14 @@ export function CourseAssignmentsPage() {
     createAssignment.mutate(values, { onSuccess: () => setOpen(false) })
   }
 
-  function handleDelete(id: string) {
-    if (confirm('¿Eliminar esta asignación?')) {
-      deleteAssignment.mutate(id)
-    }
+  async function handleDelete(id: string) {
+    const ok = await confirmDialog({
+      title: '¿Eliminar esta asignación?',
+      description: 'Solo se puede eliminar si aún no tiene actividades, asistencia ni tareas. Para reemplazar al docente usa "Cambiar docente".',
+      confirmText: 'Eliminar',
+      destructive: true,
+    })
+    if (ok) deleteAssignment.mutate(id)
   }
 
   const columns: ColumnDef<CourseAssignment, unknown>[] = [
@@ -216,17 +224,32 @@ export function CourseAssignmentsPage() {
     {
       id: 'actions',
       header: 'Acciones',
-      cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-destructive hover:text-destructive"
-          onClick={() => handleDelete(row.original.id)}
-          loading={deleteAssignment.isPending}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      ),
+      cell: ({ row }) => {
+        const a = row.original as unknown as AssignmentRaw
+        const label = `${a.subject?.name ?? ''} · ${a.parallel ? `${a.parallel.level?.name ?? ''} ${a.parallel.name}`.trim() : ''}`
+        return (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setChanging({ id: row.original.id, label, teacherId: row.original.teacherId })}
+            >
+              <UserCog className="h-4 w-4" />
+              Cambiar docente
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-destructive hover:text-destructive"
+              onClick={() => handleDelete(row.original.id)}
+              loading={deleteAssignment.isPending}
+              aria-label="Eliminar asignación"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        )
+      },
     },
   ]
 
@@ -393,6 +416,40 @@ export function CourseAssignmentsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!changing} onOpenChange={(v) => !v && setChanging(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cambiar docente</DialogTitle>
+          </DialogHeader>
+          {changing && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {changing.label}. Se conservan actividades, notas, asistencia y horario; solo cambia quién dicta la materia.
+              </p>
+              <Select value={changing.teacherId} onValueChange={(v) => setChanging({ ...changing, teacherId: v })}>
+                <SelectTrigger aria-label="Nuevo docente"><SelectValue placeholder="Seleccionar docente" /></SelectTrigger>
+                <SelectContent>
+                  {teachers.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.fullName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setChanging(null)}>Cancelar</Button>
+            <Button
+              loading={changeTeacher.isPending}
+              onClick={() =>
+                changing &&
+                changeTeacher.mutate({ id: changing.id, teacherId: changing.teacherId }, { onSuccess: () => setChanging(null) })
+              }
+            >
+              Guardar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
