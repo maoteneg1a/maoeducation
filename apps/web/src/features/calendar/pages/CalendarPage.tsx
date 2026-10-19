@@ -6,6 +6,7 @@ import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { cn } from '@/shared/lib/utils'
 import { tasksApi, type Task } from '@/features/tasks/api/tasks.api'
+import { announcementsApi, type Announcement } from '@/features/announcements/api/announcements.api'
 import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
 import { useAuthStore } from '@/store/auth.store'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
@@ -46,19 +47,21 @@ function toDateKey(date: Date) {
 
 const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+const ANNOUNCEMENT_COLOR = 'bg-amber-500'
 
 // ─── Day Cell ────────────────────────────────────────────────────────────────
 
 interface DayCellProps {
   date: Date
   tasks: Task[]
+  announcements: Announcement[]
   colorMap: Map<string, string>
   isSelected: boolean
   isToday: boolean
   onClick: () => void
 }
 
-function DayCell({ date, tasks, colorMap, isSelected, isToday, onClick }: DayCellProps) {
+function DayCell({ date, tasks, announcements, colorMap, isSelected, isToday, onClick }: DayCellProps) {
   const hasOverdue = tasks.some((t) => new Date(t.dueDate) < new Date() && !t.isPublished)
   return (
     <button
@@ -89,8 +92,13 @@ function DayCell({ date, tasks, colorMap, isSelected, isToday, onClick }: DayCel
             {task.title}
           </div>
         ))}
-        {tasks.length > 3 && (
-          <div className="text-[10px] text-muted-foreground px-1">+{tasks.length - 3} más</div>
+        {announcements.slice(0, Math.max(0, 3 - tasks.length)).map((announcement) => (
+          <div key={announcement.id} className={cn('truncate rounded px-1 py-0.5 text-[10px] text-white font-medium leading-tight', ANNOUNCEMENT_COLOR)} title={announcement.title}>
+            {announcement.title}
+          </div>
+        ))}
+        {tasks.length + announcements.length > 3 && (
+          <div className="text-[10px] text-muted-foreground px-1">+{tasks.length + announcements.length - 3} más</div>
         )}
       </div>
     </button>
@@ -102,11 +110,12 @@ function DayCell({ date, tasks, colorMap, isSelected, isToday, onClick }: DayCel
 interface DayPanelProps {
   date: Date
   tasks: Task[]
+  announcements: Announcement[]
   colorMap: Map<string, string>
   onClose: () => void
 }
 
-function DayPanel({ date, tasks, colorMap, onClose }: DayPanelProps) {
+function DayPanel({ date, tasks, announcements, colorMap, onClose }: DayPanelProps) {
   const label = date.toLocaleDateString('es-EC', { weekday: 'long', day: 'numeric', month: 'long' })
 
   return (
@@ -115,10 +124,21 @@ function DayPanel({ date, tasks, colorMap, onClose }: DayPanelProps) {
         <h3 className="font-semibold capitalize">{label}</h3>
         <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={onClose}>×</Button>
       </div>
-      {tasks.length === 0 ? (
+      {tasks.length === 0 && announcements.length === 0 ? (
         <p className="text-sm text-muted-foreground">Sin tareas este día.</p>
       ) : (
         <div className="space-y-3">
+          {announcements.map((announcement) => (
+            <Link key={announcement.id} to={`/announcements?notice=${announcement.id}`} className="flex gap-3 rounded-md -mx-2 px-2 py-1.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <div className={cn('mt-1 h-3 w-1 rounded-full shrink-0', ANNOUNCEMENT_COLOR)} />
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium leading-snug">{announcement.title}</p>
+                <p className="text-xs text-muted-foreground">Aviso · {new Date(announcement.eventAt!).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}</p>
+                {announcement.location && <p className="text-xs text-muted-foreground">{announcement.location}</p>}
+                <span className="text-xs font-medium text-primary">Ver comunicado</span>
+              </div>
+            </Link>
+          ))}
           {tasks.map((task) => (
             <Link
               key={task.id}
@@ -194,6 +214,10 @@ export function CalendarPage() {
     queryKey: ['tasks', 'calendar', year, month, activeYear?.id],
     queryFn: () => tasksApi.list({ from, to, ...(activeYear ? { academicYearId: activeYear.id } : {}) }),
   })
+  const { data: announcements = [], isLoading: announcementsLoading } = useQuery({
+    queryKey: ['announcements', 'calendar'],
+    queryFn: announcementsApi.list,
+  })
 
   const colorMap = useSubjectColors(tasks)
 
@@ -207,6 +231,15 @@ export function CalendarPage() {
     })
     return map
   }, [tasks])
+  const announcementsByDate = React.useMemo(() => {
+    const map = new Map<string, Announcement[]>()
+    announcements.filter((announcement) => announcement.eventAt).forEach((announcement) => {
+      const key = announcement.eventAt!.slice(0, 10)
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(announcement)
+    })
+    return map
+  }, [announcements])
 
   const days = getMonthDays(year, month)
   const todayKey = toDateKey(now)
@@ -252,8 +285,9 @@ export function CalendarPage() {
       </div>
 
       <Legend tasks={tasks} colorMap={colorMap} />
+      {announcements.some((announcement) => announcement.eventAt) && <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><div className={cn('h-2.5 w-2.5 rounded-sm', ANNOUNCEMENT_COLOR)} /> Comunicados y eventos</div>}
 
-      {isLoading ? (
+      {isLoading || announcementsLoading ? (
         <PageLoader />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 items-start">
@@ -273,6 +307,7 @@ export function CalendarPage() {
                     key={date.toISOString()}
                     date={date}
                     tasks={tasksByDate.get(toDateKey(date)) ?? []}
+                    announcements={announcementsByDate.get(toDateKey(date)) ?? []}
                     colorMap={colorMap}
                     isSelected={selectedKey === toDateKey(date)}
                     isToday={todayKey === toDateKey(date)}
@@ -289,6 +324,7 @@ export function CalendarPage() {
               <DayPanel
                 date={selectedDate}
                 tasks={selectedTasks}
+                announcements={announcementsByDate.get(toDateKey(selectedDate)) ?? []}
                 colorMap={colorMap}
                 onClose={() => setSelectedDate(null)}
               />
