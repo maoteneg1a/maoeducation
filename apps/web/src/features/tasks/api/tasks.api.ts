@@ -29,7 +29,7 @@ export interface Task {
   createdAt: string
   courseAssignment: TaskAssignment
   creator: { id: string; profile: { firstName: string; lastName: string } }
-  activity: { id: string; isPublished: boolean } | null
+  activity: { id: string; isPublished: boolean; academicPeriodId?: string } | null
   attachments: TaskAttachment[]
 }
 
@@ -66,8 +66,8 @@ export const tasksApi = {
     apiDelete(`tasks/${taskId}/attachments/${attachmentId}`),
 }
 
-const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
+/** Ruta autenticada del adjunto (se descarga con openProtectedFile). */
 export function getAttachmentUrl(storedName: string) {
-  return `${API_BASE}/uploads/tasks/${storedName}`
+  return `files/tasks/${storedName}`
 }

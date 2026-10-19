@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import type { ElementType, ReactNode } from 'react'
+import { useState, type ElementType, type ReactNode } from 'react'
+import { RequestJustificationDialog } from '@/features/attendance/components/RequestJustificationDialog'
 import { Link } from 'react-router-dom'
 import { BookOpen, CalendarClock, ClipboardCheck, GraduationCap } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
@@ -31,6 +32,8 @@ export function FamilyToday() {
     staleTime: 60_000,
   })
 
+  const [justifyOpen, setJustifyOpen] = useState(false)
+
   if (isLoading) return <PageLoader />
   if (!data) return null
 
@@ -59,23 +62,39 @@ export function FamilyToday() {
             <div key={item.id} className="flex items-center justify-between gap-3 border-b py-2 last:border-0"><div><p className="text-sm font-medium">{item.activity}</p><p className="text-xs text-muted-foreground">{item.subject}</p></div><span className="font-semibold tabular-nums">{item.score.toFixed(2)} / {item.maxScore}</span></div>
           ))}
         </TodayCard>
-        <TodayCard title="Asistencia reciente" icon={BookOpen} href="/attendance" empty="Sin novedades de asistencia">
+        <TodayCard
+          title="Asistencia reciente"
+          icon={BookOpen}
+          href="/attendance"
+          empty="Sin novedades de asistencia"
+          action={
+            data.attendance.some((a) => a.status === 'absent' || a.status === 'late') ? (
+              <button type="button" onClick={() => setJustifyOpen(true)} className="text-xs font-medium text-primary hover:underline">
+                Justificar
+              </button>
+            ) : undefined
+          }
+        >
           {data.attendance.map((item) => (
             <div key={item.id} className="flex items-center justify-between gap-3 border-b py-2 last:border-0"><div><p className="text-sm font-medium">{attendanceLabel[item.status] ?? item.status}</p><p className="text-xs text-muted-foreground">{item.subject ?? 'Jornada diaria'}</p></div><span className="text-xs">{new Date(item.date).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' })}</span></div>
           ))}
         </TodayCard>
       </div>
+      <RequestJustificationDialog studentId={data.student.id} open={justifyOpen} onOpenChange={setJustifyOpen} />
     </div>
   )
 }
 
-function TodayCard({ title, icon: Icon, href, empty, children }: { title: string; icon: ElementType; href: string; empty: string; children: ReactNode }) {
+function TodayCard({ title, icon: Icon, href, empty, action, children }: { title: string; icon: ElementType; href: string; empty: string; action?: ReactNode; children: ReactNode }) {
   const hasItems = Array.isArray(children) ? children.length > 0 : !!children
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="flex items-center gap-2 text-sm"><Icon className="h-4 w-4 text-primary" />{title}</CardTitle>
-        <Link to={href} className="text-xs font-medium text-primary hover:underline">Ver todo</Link>
+        <div className="flex items-center gap-3">
+          {action}
+          <Link to={href} className="text-xs font-medium text-primary hover:underline">Ver todo</Link>
+        </div>
       </CardHeader>
       <CardContent>{hasItems ? children : <p className="py-5 text-center text-sm text-muted-foreground">{empty}</p>}</CardContent>
     </Card>

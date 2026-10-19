@@ -1,8 +1,9 @@
 import * as React from 'react'
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Save, Users } from 'lucide-react'
+import { CheckCheck, CheckCircle2, Clock, Save, Users } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Badge } from '@/shared/components/ui/badge'
@@ -24,7 +25,7 @@ import {
 import { Card } from '@/shared/components/ui/card'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
-import { cn } from '@/shared/lib/utils'
+import { cn, getErrorMessage, todayLocalISO } from '@/shared/lib/utils'
 import {
   getAttendance,
   bulkSaveAttendance,
@@ -33,6 +34,7 @@ import {
   getAssignments,
   type AttendanceEntry,
 } from '@/features/attendance/api/attendance.api'
+import { useUnsavedChanges } from '@/shared/hooks/useUnsavedChanges'
 
 // ---- Types ----
 
@@ -73,10 +75,16 @@ const ALL_STATUSES: AttendanceStatus[] = ['present', 'absent', 'late', 'excused'
 
 export function AttendancePage() {
   const qc = useQueryClient()
+  // Enlaces directos desde el panel "Hoy": ?ca=<asignación> o ?parallel=<paralelo>, y &date=
+  const [searchParams] = useSearchParams()
+  const linkedParallel = searchParams.get('parallel')
+  const linkedDate = searchParams.get('date')
 
-  const [selectedValue, setSelectedValue] = useState('')
+  const [selectedValue, setSelectedValue] = useState(
+    () => (linkedParallel ? `parallel:${linkedParallel}` : searchParams.get('ca') ?? ''),
+  )
   const [selectedDate, setSelectedDate] = useState(
-    () => new Date().toISOString().split('T')[0],
+    () => (linkedDate && /^\d{4}-\d{2}-\d{2}$/.test(linkedDate) ? linkedDate : todayLocalISO()),
   )
   const [localRecords, setLocalRecords] = useState<Map<string, LocalRecord>>(
     new Map(),
@@ -143,6 +151,11 @@ export function AttendancePage() {
     enabled: !!selectedValue && !!selectedDate,
   })
 
+  // Ya hay registros guardados para esta fecha/curso (si no, todos aparecen
+  // "presentes" por defecto y se puede guardar sin tocar nada).
+  const alreadyTaken = attendanceData.some((entry: AttendanceEntry) => !!entry.record)
+  const { confirmDiscard } = useUnsavedChanges(isDirty)
+
   // ---- Initialize local records when attendance data loads ----
 
   useEffect(() => {
@@ -184,8 +197,8 @@ export function AttendancePage() {
       toast.success('Asistencia guardada correctamente')
       setIsDirty(false)
     },
-    onError: () => {
-      toast.error('Error al guardar la asistencia')
+    onError: (err) => {
+      toast.error(getErrorMessage(err) || 'Error al guardar la asistencia')
     },
   })
 
@@ -211,14 +224,26 @@ export function AttendancePage() {
     setIsDirty(true)
   }
 
-  function handleAssignmentChange(value: string) {
+  function markAllPresent() {
+    setLocalRecords((prev) => {
+      const next = new Map(prev)
+      next.forEach((rec, id) => next.set(id, { ...rec, status: 'present' }))
+      return next
+    })
+    setIsDirty(true)
+  }
+
+  async function handleAssignmentChange(value: string) {
+    if (value === selectedValue || !(await confirmDiscard())) return
     setSelectedValue(value)
     setLocalRecords(new Map())
     setIsDirty(false)
   }
 
-  function handleDateChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setSelectedDate(e.target.value)
+  async function handleDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value
+    if (!(await confirmDiscard())) return
+    setSelectedDate(value)
     setLocalRecords(new Map())
     setIsDirty(false)
   }
@@ -300,6 +325,15 @@ export function AttendancePage() {
           {/* Summary counts + Save button */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 flex-wrap">
+              {alreadyTaken ? (
+                <Badge variant="success" className="gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> Registrada
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="gap-1 border-amber-300 bg-amber-50 text-amber-800">
+                  <Clock className="h-3.5 w-3.5" aria-hidden /> Pendiente de registrar
+                </Badge>
+              )}
               {ALL_STATUSES.map((status) => (
                 <span
                   key={status}
@@ -314,14 +348,21 @@ export function AttendancePage() {
               ))}
             </div>
 
-            <Button
-              onClick={() => saveMutation.mutate()}
-              disabled={!isDirty || saveMutation.isPending}
-              className="w-full sm:w-auto"
-            >
-              <Save className="h-4 w-4 mr-1" />
-              {saveMutation.isPending ? 'Guardando...' : 'Guardar'}
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button variant="outline" onClick={markAllPresent} className="w-full sm:w-auto">
+                <CheckCheck className="h-4 w-4 mr-1" />
+                Todos presentes
+              </Button>
+              <Button
+                onClick={() => saveMutation.mutate()}
+                // Sin registros previos se puede guardar directamente (todos presentes).
+                disabled={(alreadyTaken && !isDirty) || saveMutation.isPending}
+                className="w-full sm:w-auto"
+              >
+                <Save className="h-4 w-4 mr-1" />
+                {saveMutation.isPending ? 'Guardando...' : alreadyTaken ? 'Guardar cambios' : 'Guardar asistencia'}
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-3 md:hidden">

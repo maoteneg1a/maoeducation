@@ -1,15 +1,19 @@
 import * as React from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, BookOpen, CalendarDays } from 'lucide-react'
+import { ChevronLeft, ChevronRight, BookOpen, CalendarDays, Plus, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
-import { cn } from '@/shared/lib/utils'
+import { cn, getErrorMessage } from '@/shared/lib/utils'
 import { tasksApi, type Task } from '@/features/tasks/api/tasks.api'
 import { announcementsApi, type Announcement } from '@/features/announcements/api/announcements.api'
 import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
 import { useAuthStore } from '@/store/auth.store'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
+import { calendarApi, eventDays, EVENT_TYPE_META, AUDIENCE_LABEL, type CalendarEvent } from '../api/calendar.api'
+import { CalendarEventDialog } from '../components/CalendarEventDialog'
 
 // ─── Subject color palette ────────────────────────────────────────────────────
 
@@ -55,13 +59,15 @@ interface DayCellProps {
   date: Date
   tasks: Task[]
   announcements: Announcement[]
+  events: CalendarEvent[]
   colorMap: Map<string, string>
   isSelected: boolean
   isToday: boolean
   onClick: () => void
 }
 
-function DayCell({ date, tasks, announcements, colorMap, isSelected, isToday, onClick }: DayCellProps) {
+function DayCell({ date, tasks, announcements, events, colorMap, isSelected, isToday, onClick }: DayCellProps) {
+  const isHoliday = events.some((e) => e.type === 'holiday')
   const hasOverdue = tasks.some((t) => new Date(t.dueDate) < new Date() && !t.isPublished)
   return (
     <button
@@ -71,6 +77,7 @@ function DayCell({ date, tasks, announcements, colorMap, isSelected, isToday, on
         'relative min-h-[72px] p-1.5 rounded-lg border text-left transition-colors w-full',
         isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-transparent hover:border-border hover:bg-muted/50',
         isToday && !isSelected && 'border-primary/30 bg-primary/3',
+        isHoliday && !isSelected && 'bg-red-50 dark:bg-red-950/30',
       )}
     >
       <span className={cn(
@@ -80,7 +87,12 @@ function DayCell({ date, tasks, announcements, colorMap, isSelected, isToday, on
         {date.getDate()}
       </span>
       <div className="mt-1 flex flex-col gap-0.5">
-        {tasks.slice(0, 3).map((task) => (
+        {events.slice(0, 2).map((ev) => (
+          <div key={ev.id} className={cn('truncate rounded px-1 py-0.5 text-[10px] text-white font-medium leading-tight', EVENT_TYPE_META[ev.type]?.color ?? 'bg-slate-500')} title={ev.title}>
+            {ev.title}
+          </div>
+        ))}
+        {tasks.slice(0, Math.max(0, 3 - Math.min(events.length, 2))).map((task) => (
           <div
             key={task.id}
             className={cn(
@@ -97,8 +109,8 @@ function DayCell({ date, tasks, announcements, colorMap, isSelected, isToday, on
             {announcement.title}
           </div>
         ))}
-        {tasks.length + announcements.length > 3 && (
-          <div className="text-[10px] text-muted-foreground px-1">+{tasks.length + announcements.length - 3} más</div>
+        {tasks.length + announcements.length + events.length > 3 && (
+          <div className="text-[10px] text-muted-foreground px-1">+{tasks.length + announcements.length + events.length - 3} más</div>
         )}
       </div>
     </button>
@@ -111,11 +123,15 @@ interface DayPanelProps {
   date: Date
   tasks: Task[]
   announcements: Announcement[]
+  events: CalendarEvent[]
+  canManage: boolean
+  onEditEvent: (e: CalendarEvent) => void
+  onDeleteEvent: (e: CalendarEvent) => void
   colorMap: Map<string, string>
   onClose: () => void
 }
 
-function DayPanel({ date, tasks, announcements, colorMap, onClose }: DayPanelProps) {
+function DayPanel({ date, tasks, announcements, events, canManage, onEditEvent, onDeleteEvent, colorMap, onClose }: DayPanelProps) {
   const label = date.toLocaleDateString('es-EC', { weekday: 'long', day: 'numeric', month: 'long' })
 
   return (
@@ -124,10 +140,34 @@ function DayPanel({ date, tasks, announcements, colorMap, onClose }: DayPanelPro
         <h3 className="font-semibold capitalize">{label}</h3>
         <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={onClose}>×</Button>
       </div>
-      {tasks.length === 0 && announcements.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Sin tareas este día.</p>
+      {tasks.length === 0 && announcements.length === 0 && events.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Sin actividades este día.</p>
       ) : (
         <div className="space-y-3">
+          {events.map((ev) => (
+            <div key={ev.id} className="flex gap-3">
+              <div className={cn('mt-1 h-3 w-1 rounded-full shrink-0', EVENT_TYPE_META[ev.type]?.color)} />
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <p className="text-sm font-medium leading-snug">{ev.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {EVENT_TYPE_META[ev.type]?.label}
+                  {ev.endDate && ev.endDate !== ev.startDate ? ` · hasta ${new Date(`${ev.endDate}T12:00:00`).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' })}` : ''}
+                  {canManage ? ` · ${AUDIENCE_LABEL[ev.audience]}` : ''}
+                </p>
+                {ev.description && <p className="text-xs text-muted-foreground leading-relaxed">{ev.description}</p>}
+              </div>
+              {canManage && (
+                <div className="flex shrink-0 gap-0.5">
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEditEvent(ev)} aria-label="Editar evento">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => onDeleteEvent(ev)} aria-label="Eliminar evento">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
           {announcements.map((announcement) => (
             <Link key={announcement.id} to={`/announcements?notice=${announcement.id}`} className="flex gap-3 rounded-md -mx-2 px-2 py-1.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <div className={cn('mt-1 h-3 w-1 rounded-full shrink-0', ANNOUNCEMENT_COLOR)} />
@@ -207,8 +247,30 @@ export function CalendarPage() {
   const [selectedDate, setSelectedDate] = React.useState<Date | null>(null)
 
   // Fetch tasks for the visible month range (+/- 1 day buffer)
-  const from = new Date(year, month, 1).toISOString().slice(0, 10)
-  const to = new Date(year, month + 1, 0).toISOString().slice(0, 10)
+  // Fechas locales (toISOString en UTC desplazaba el rango un día en Ecuador).
+  const from = toDateKey(new Date(year, month, 1))
+  const to = toDateKey(new Date(year, month + 1, 0))
+  const canManage = !!user?.roles.some((r) => ['admin', 'rector', 'inspector', 'dece'].includes(r))
+  const qc = useQueryClient()
+  const [eventDialog, setEventDialog] = React.useState<{ open: boolean; editing: CalendarEvent | null; date?: string }>({ open: false, editing: null })
+  const { data: events = [] } = useQuery({
+    queryKey: ['calendar-events', from, to],
+    queryFn: () => calendarApi.list(from, to),
+  })
+  const eventsByDate = React.useMemo(() => {
+    const map = new Map<string, CalendarEvent[]>()
+    events.forEach((ev) => eventDays(ev).forEach((d) => map.set(d, [...(map.get(d) ?? []), ev])))
+    return map
+  }, [events])
+  const deleteEvent = useMutation({
+    mutationFn: (id: string) => calendarApi.remove(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['calendar-events'] }); toast.success('Evento eliminado') },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  })
+  async function handleDeleteEvent(ev: CalendarEvent) {
+    const ok = await confirmDialog({ title: `¿Eliminar "${ev.title}"?`, confirmText: 'Eliminar', destructive: true })
+    if (ok) deleteEvent.mutate(ev.id)
+  }
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['tasks', 'calendar', year, month, activeYear?.id],
@@ -263,7 +325,7 @@ export function CalendarPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Calendario</h1>
-        <p className="text-sm text-muted-foreground">Fechas de entrega de tareas</p>
+        <p className="text-sm text-muted-foreground">Feriados, exámenes, eventos y entregas de tareas</p>
       </div>
 
       {/* Month navigation */}
@@ -279,12 +341,34 @@ export function CalendarPage() {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <Button size="sm" variant="ghost" className="text-xs" onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()) }}>
-          Hoy
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" className="text-xs" onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()) }}>
+            Hoy
+          </Button>
+          {canManage && (
+            <Button size="sm" onClick={() => setEventDialog({ open: true, editing: null, date: selectedDate ? toDateKey(selectedDate) : undefined })}>
+              <Plus className="h-4 w-4" /> Evento
+            </Button>
+          )}
+        </div>
       </div>
 
       <Legend tasks={tasks} colorMap={colorMap} />
+      {events.length > 0 && (
+        <div className="flex flex-wrap gap-3">
+          {[...new Set(events.map((e) => e.type))].map((t) => (
+            <div key={t} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className={cn('h-2.5 w-2.5 rounded-sm', EVENT_TYPE_META[t].color)} /> {EVENT_TYPE_META[t].label}
+            </div>
+          ))}
+        </div>
+      )}
+      <CalendarEventDialog
+        open={eventDialog.open}
+        onOpenChange={(v) => setEventDialog((d) => ({ ...d, open: v }))}
+        editing={eventDialog.editing}
+        initialDate={eventDialog.date}
+      />
       {announcements.some((announcement) => announcement.eventAt) && <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><div className={cn('h-2.5 w-2.5 rounded-sm', ANNOUNCEMENT_COLOR)} /> Comunicados y eventos</div>}
 
       {isLoading || announcementsLoading ? (
@@ -308,6 +392,7 @@ export function CalendarPage() {
                     date={date}
                     tasks={tasksByDate.get(toDateKey(date)) ?? []}
                     announcements={announcementsByDate.get(toDateKey(date)) ?? []}
+                    events={eventsByDate.get(toDateKey(date)) ?? []}
                     colorMap={colorMap}
                     isSelected={selectedKey === toDateKey(date)}
                     isToday={todayKey === toDateKey(date)}
@@ -325,13 +410,17 @@ export function CalendarPage() {
                 date={selectedDate}
                 tasks={selectedTasks}
                 announcements={announcementsByDate.get(toDateKey(selectedDate)) ?? []}
+                events={eventsByDate.get(toDateKey(selectedDate)) ?? []}
+                canManage={canManage}
+                onEditEvent={(ev) => setEventDialog({ open: true, editing: ev })}
+                onDeleteEvent={handleDeleteEvent}
                 colorMap={colorMap}
                 onClose={() => setSelectedDate(null)}
               />
             ) : (
               <div className="rounded-xl border bg-muted/30 p-4 text-center space-y-2">
                 <CalendarDays className="h-8 w-8 mx-auto text-muted-foreground/50" />
-                <p className="text-sm text-muted-foreground">Haz clic en un día para ver las tareas</p>
+                <p className="text-sm text-muted-foreground">Haz clic en un día para ver sus actividades</p>
               </div>
             )}
 

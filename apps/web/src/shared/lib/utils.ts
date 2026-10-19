@@ -13,6 +13,16 @@ export function getErrorMessage(error: unknown): string {
   return 'Ocurrió un error inesperado'
 }
 
+/**
+ * Fecha de HOY en la zona horaria local, formato YYYY-MM-DD.
+ * No usar `new Date().toISOString()` para esto: está en UTC y en Ecuador
+ * (UTC-5) devuelve la fecha de mañana a partir de las 19:00.
+ */
+export function todayLocalISO(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 // Date-only fields (e.g. @db.Date in Prisma) come back as UTC midnight.
 // Parsing with `new Date(isoString)` shifts them back 5h in UTC-5, showing
 // the previous day. We extract YYYY-MM-DD and build a local Date instead.

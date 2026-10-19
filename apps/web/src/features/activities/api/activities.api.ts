@@ -38,6 +38,8 @@ export interface Activity {
   /** Equivalente a curriculumSkillId para el modelo por competencias. */
   competencyId?: string | null
   competency?: { id: string; code: string; text: string } | null
+  /** Notas ya registradas para la actividad (lo devuelve el listado). */
+  _count?: { grades: number }
 }
 
 export type GradeStatus = 'entregado' | 'no_realizado' | 'atrasado' | 'excusado'
@@ -124,7 +126,8 @@ export const activitiesApi = {
     apiPost<Activity>('activities', data),
   updateActivity: (id: string, data: Partial<Omit<Activity, 'id' | 'activityTypeName'>>) =>
     apiPut<Activity>(`activities/${id}`, data),
-  publishActivity: (id: string) => apiPatch<Activity>(`activities/${id}/publish`),
+  publishActivity: (id: string, isPublished = true) =>
+    apiPatch<Activity>(`activities/${id}/publish`, { isPublished }),
   assignInsumo: (id: string, insumoId: string) =>
     apiPatch<Activity>(`activities/${id}/insumo`, { insumoId }),
   deleteActivity: (id: string) => apiDelete(`activities/${id}`),

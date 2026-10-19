@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from '@/shared/lib/api-client'
+import { apiGet, apiPatch, apiPost } from '@/shared/lib/api-client'
 
 export interface AttendanceStudent {
   id: string
@@ -84,4 +84,29 @@ export function searchStudents(search: string) {
 
 export function getStudentAbsences(studentId: string) {
   return apiGet<StudentAbsencesData>(`attendance/student/${studentId}/absences`)
+}
+
+// ─── Solicitudes de justificación (familias) ─────────────────────────────────
+
+export interface JustificationRequest {
+  id: string
+  status: 'pending' | 'approved' | 'rejected'
+  reason: string
+  createdAt: string
+  reviewNotes: string | null
+  student: { id: string; name: string }
+  requestedBy: string
+  records: Array<{ id: string; date: string; status: string; subject: string | null }>
+}
+
+export function requestJustification(payload: { studentId: string; attendanceRecordIds: string[]; reason: string }) {
+  return apiPost<{ id: string; status: string }>('attendance/justification-requests', payload)
+}
+
+export function listJustificationRequests(status: 'pending' | 'approved' | 'rejected' = 'pending') {
+  return apiGet<JustificationRequest[]>('attendance/justification-requests', { status })
+}
+
+export function reviewJustificationRequest(id: string, payload: { approve: boolean; notes?: string }) {
+  return apiPatch<{ ok: true }>(`attendance/justification-requests/${id}`, payload)
 }

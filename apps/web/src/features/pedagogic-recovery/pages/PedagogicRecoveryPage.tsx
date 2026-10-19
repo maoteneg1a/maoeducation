@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { BookOpenCheck, Info } from 'lucide-react'
+import { BookOpenCheck, Check, Info, Loader2 } from 'lucide-react'
 import { apiGet } from '@/shared/lib/api-client'
 import { Label } from '@/shared/components/ui/label'
 import { Input } from '@/shared/components/ui/input'
@@ -9,7 +9,7 @@ import { Badge } from '@/shared/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
-import { cn } from '@/shared/lib/utils'
+import { cn, getErrorMessage } from '@/shared/lib/utils'
 import { useGradingConfig } from '@/features/settings/hooks/useSettings'
 import {
   getPedagogicRecovery,
@@ -66,17 +66,16 @@ export function PedagogicRecoveryPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pedagogic-recovery', parallelId, periodId, yearId] })
     },
-    onError: () => toast.error('Error al guardar la nota'),
+    onError: (err) => toast.error(getErrorMessage(err) || 'Error al guardar la nota'),
   })
 
+  /** Guarda la nota de recuperación; devuelve una promesa para que la fila muestre "Guardado". */
   const handleScore = useCallback(
-    (studentId: string, assignmentId: string, value: string) => {
-      if (!periodId) return
-      const score = value === '' ? null : Number(value)
-      if (score !== null && (score < 0 || score > gradingScaleMax)) return
-      saveMutation.mutate({ studentId, courseAssignmentId: assignmentId, academicPeriodId: periodId, score })
+    (studentId: string, assignmentId: string, score: number | null) => {
+      if (!periodId) return Promise.resolve()
+      return saveMutation.mutateAsync({ studentId, courseAssignmentId: assignmentId, academicPeriodId: periodId, score })
     },
-    [periodId, saveMutation, gradingScaleMax],
+    [periodId, saveMutation],
   )
 
   const passingGrade = data?.passingGrade ?? 7
@@ -162,6 +161,8 @@ export function PedagogicRecoveryPage() {
                   </span>
                 </div>
 
+                <div className="overflow-x-auto">
+                <div className="min-w-[40rem]">
                 <div className="grid grid-cols-[1fr_9rem_9rem_9rem_6rem] text-xs font-medium text-muted-foreground uppercase tracking-wide px-4 py-2 bg-muted/20 border-b">
                   <div>Estudiante</div>
                   <div className="text-center">Nota período</div>
@@ -178,10 +179,11 @@ export function PedagogicRecoveryPage() {
                       passingGrade={passingGrade}
                       assignmentId={subject.assignmentId}
                       onScore={handleScore}
-                      saving={saveMutation.isPending}
                       gradingScaleMax={gradingScaleMax}
                     />
                   ))}
+                </div>
+                </div>
                 </div>
               </div>
             )
@@ -196,13 +198,29 @@ interface RecoveryRowProps {
   row: PedagogicRecoveryStudentRow
   passingGrade: number
   assignmentId: string
-  onScore: (studentId: string, assignmentId: string, value: string) => void
-  saving: boolean
+  onScore: (studentId: string, assignmentId: string, score: number | null) => Promise<unknown>
   gradingScaleMax: number
 }
 
-function RecoveryRow({ row, passingGrade, assignmentId, onScore, saving, gradingScaleMax }: RecoveryRowProps) {
-  const [draft, setDraft] = useState(row.recoveryScore != null ? String(row.recoveryScore) : '')
+function RecoveryRow({ row, passingGrade, assignmentId, onScore, gradingScaleMax }: RecoveryRowProps) {
+  const saved = row.recoveryScore != null ? String(row.recoveryScore) : ''
+  const [draft, setDraft] = useState(saved)
+  const [state, setState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const parsed = draft.trim() === '' ? null : Number(draft.replace(',', '.'))
+  const invalid = parsed !== null && (Number.isNaN(parsed) || parsed < 0 || parsed > gradingScaleMax)
+
+  async function commit() {
+    // Solo guarda si cambió y es válido (antes guardaba en cada blur, aunque no hubiera cambios).
+    if (invalid || draft.trim() === saved) return
+    setState('saving')
+    try {
+      await onScore(row.studentId, assignmentId, parsed)
+      setState('saved')
+      setTimeout(() => setState('idle'), 2000)
+    } catch {
+      setState('idle')
+    }
+  }
   const effective = row.effectiveTotal
   const passed = effective != null && effective >= passingGrade
 
@@ -214,19 +232,28 @@ function RecoveryRow({ row, passingGrade, assignmentId, onScore, saving, grading
         {fmt1(row.periodTotal)}
       </div>
 
-      <div className="flex justify-center">
-        <Input
-          type="number"
-          min={0}
-          max={gradingScaleMax}
-          step={0.1}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={(e) => onScore(row.studentId, assignmentId, e.target.value)}
-          disabled={saving}
-          placeholder="—"
-          className="w-20 text-center h-8 text-sm"
-        />
+      <div className="flex flex-col items-center">
+        <div className="flex items-center gap-1">
+          <Input
+            type="number"
+            min={0}
+            max={gradingScaleMax}
+            step={0.1}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+            aria-label={`Nota de recuperación de ${row.studentName}`}
+            aria-invalid={invalid || undefined}
+            placeholder="—"
+            className={cn('w-20 text-center h-8 text-sm', invalid && 'border-destructive focus-visible:ring-destructive')}
+          />
+          <span className="w-4" aria-live="polite">
+            {state === 'saving' && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label="Guardando" />}
+            {state === 'saved' && <Check className="h-3.5 w-3.5 text-green-600" aria-label="Guardado" />}
+          </span>
+        </div>
+        {invalid && <span className="text-[11px] text-destructive">Entre 0 y {gradingScaleMax}</span>}
       </div>
 
       <div className={cn('text-center tabular-nums font-semibold', passed ? 'text-green-600' : 'text-red-600')}>

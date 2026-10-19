@@ -75,8 +75,8 @@ export function uploadMessageAttachment(messageId: string, file: File): Promise<
   return apiClient.post(`messages/${messageId}/attachments`, { body: form }).json<MessageAttachment>()
 }
 
-const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
+/** Ruta autenticada del adjunto (se descarga con openProtectedFile). */
 export function getMessageAttachmentUrl(storedName: string) {
-  return `${API_BASE}/uploads/messages/${storedName}`
+  return `files/messages/${storedName}`
 }

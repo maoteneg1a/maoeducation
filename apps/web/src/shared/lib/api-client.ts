@@ -16,8 +16,10 @@ function doRefresh(): Promise<string> {
         return r.accessToken
       })
       .catch((err) => {
+        // Una suplantación vencida vuelve a la consola de plataforma, no al login.
+        const wasImpersonating = !!useAuthStore.getState().impersonation
         useAuthStore.getState().clearAuth()
-        window.location.href = '/login'
+        window.location.href = wasImpersonating ? '/platform/stats' : '/login'
         throw err
       })
       .finally(() => {
