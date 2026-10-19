@@ -42,6 +42,9 @@ export const router = createBrowserRouter([
       </PrivateRoute>
     ),
     children: [
+      { path: 'dece', lazy: () => import('@/features/dece/pages/DecePage').then((m) => ({ Component: m.DecePage })) },
+      { path: 'dece/cases/:id', lazy: () => import('@/features/dece/pages/DeceCasePage').then((m) => ({ Component: m.DeceCasePage })) },
+      { path: 'settings/dece', element: <PermissionGuard permission="institution_config:manage" />, children: [{ index: true, lazy: () => import('@/features/dece/pages/DeceSettingsPage').then((m) => ({ Component: m.DeceSettingsPage })) }] },
       {
         index: true,
         element: <Navigate to="/dashboard" replace />,

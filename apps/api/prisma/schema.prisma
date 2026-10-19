@@ -25,6 +25,8 @@ model Institution {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  deceCases                   DeceCase[]
+  deceAuditLogs               DeceAuditLog[]
   users                       User[]
   roles                       Role[]
   levels                      Level[]
@@ -88,6 +90,13 @@ model User {
   institution Institution @relation(fields: [institutionId], references: [id])
   profile     Profile?
   userRoles   UserRole[]
+
+  deceReports DeceCase[] @relation("DeceReporter")
+  deceFallbackCases DeceCase[] @relation("DeceFallback")
+  deceMemberships DeceCaseAccess[]
+  deceExclusions DeceCaseExclusion[]
+  deceActions DeceCaseAction[]
+  deceAuditLogs DeceAuditLog[]
 
   // Relaciones como actor
   teacherAssignments        CourseAssignment[]     @relation("TeacherAssignments")
@@ -2274,4 +2283,86 @@ model SubscriptionPayment {
   @@index([status, createdAt])
   @@index([institutionId, createdAt])
   @@map("subscription_payments")
+}
+
+
+// Expedientes DECE independientes: contenido sensible cifrado por la aplicación.
+model DeceCase {
+  id String @id @default(uuid())
+  institutionId String @map("institution_id")
+  reporterId String @map("reporter_id")
+  requestId String @map("request_id")
+  encryptedReport String @map("encrypted_report")
+  urgency String @default("unknown") @db.VarChar(10)
+  fallbackReceiverId String? @map("fallback_receiver_id")
+  status String @default("received") @db.VarChar(30)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  reporter User @relation("DeceReporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  fallbackReceiver User? @relation("DeceFallback", fields: [fallbackReceiverId], references: [id], onDelete: Restrict)
+  access DeceCaseAccess[]
+  exclusions DeceCaseExclusion[]
+  actions DeceCaseAction[]
+  audit DeceAuditLog[]
+  @@unique([id, institutionId])
+  @@unique([institutionId, reporterId, requestId])
+  @@index([institutionId, fallbackReceiverId, status])
+  @@index([institutionId, status, createdAt])
+  @@map("dece_cases")
+}
+
+model DeceCaseAccess {
+  id String @id @default(uuid())
+  institutionId String @map("institution_id")
+  caseId String @map("case_id")
+  userId String @map("user_id")
+  access String @db.VarChar(20)
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  case DeceCase @relation(fields: [caseId, institutionId], references: [id, institutionId], onDelete: Restrict)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  @@unique([caseId, userId])
+  @@index([institutionId, userId, revokedAt])
+  @@map("dece_case_access")
+}
+
+model DeceCaseExclusion {
+  id String @id @default(uuid())
+  institutionId String @map("institution_id")
+  caseId String @map("case_id")
+  userId String @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  case DeceCase @relation(fields: [caseId, institutionId], references: [id, institutionId], onDelete: Restrict)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  @@unique([caseId, userId])
+  @@map("dece_case_exclusions")
+}
+
+model DeceCaseAction {
+  id String @id @default(uuid())
+  institutionId String @map("institution_id")
+  caseId String @map("case_id")
+  actorId String @map("actor_id")
+  type String @db.VarChar(40)
+  encryptedContent String @map("encrypted_content")
+  createdAt DateTime @default(now()) @map("created_at")
+  case DeceCase @relation(fields: [caseId, institutionId], references: [id, institutionId], onDelete: Restrict)
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@index([institutionId, caseId, createdAt])
+  @@map("dece_case_actions")
+}
+
+model DeceAuditLog {
+  id String @id @default(uuid())
+  institutionId String @map("institution_id")
+  caseId String? @map("case_id")
+  actorId String @map("actor_id")
+  action String @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at")
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  case DeceCase? @relation(fields: [caseId, institutionId], references: [id, institutionId], onDelete: Restrict)
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@index([institutionId, caseId, createdAt])
+  @@map("dece_audit_logs")
 }

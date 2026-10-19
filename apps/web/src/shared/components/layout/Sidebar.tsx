@@ -1,3 +1,4 @@
+import { useDeceContext } from '@/features/dece/api/dece.api'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   Home, Users, Settings, BookOpen, GraduationCap,
@@ -186,6 +187,11 @@ const NAV_SECTIONS: NavSection[] = [
         ],
       },
       {
+        label: 'Rutas y protocolos DECE',
+        icon: ShieldCheck,
+        path: '/dece',
+      },
+      {
         label: 'Atención a Padres',
         icon: HeartHandshake,
         path: '/parent-meetings',
@@ -272,6 +278,12 @@ const NAV_SECTIONS: NavSection[] = [
         module: 'roles',
       },
       {
+        label: 'Configurar DECE',
+        icon: ShieldCheck,
+        path: '/settings/dece',
+        permission: 'institution_config:manage',
+      },
+      {
         label: 'Personalización',
         icon: Palette,
         path: '/settings/branding',
@@ -313,10 +325,12 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   })
   const institution = useAuthStore((s) => s.user?.institution ?? null)
 
+  const deceContext = useDeceContext()
   const enabledModules = institution?.modules ?? null
   const isPersonalAccount = institution?.accountType === 'personal'
 
   const isVisible = (item: NavItem) =>
+    (item.path !== '/dece' || deceContext.data?.visible === true) &&
     (!item.permission || hasPermission(item.permission)) &&
     (!item.module || !enabledModules || enabledModules.includes(item.module))
 
