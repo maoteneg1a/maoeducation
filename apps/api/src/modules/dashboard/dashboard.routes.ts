@@ -23,6 +23,8 @@ export default async function dashboardRoutes(app: FastifyInstance) {
       totalActivities,
       pendingIncidents,
       unreadMessages,
+      deceOpenCases,
+      deceFollowUps,
     ] = await Promise.all([
       prisma.user.count({ where: { institutionId, isActive: true } }),
       prisma.userRole.count({
@@ -45,6 +47,12 @@ export default async function dashboardRoutes(app: FastifyInstance) {
       prisma.messageRecipient.count({
         where: { recipientId: req.user.sub, isRead: false, message: { thread: { institutionId } } },
       }),
+      prisma.deceCase.count({
+        where: { institutionId, status: { not: 'internal_closed' } },
+      }),
+      prisma.deceCaseAction.count({
+        where: { institutionId, type: 'follow_up', case: { status: { not: 'internal_closed' } } },
+      }),
     ])
 
     return {
@@ -64,6 +72,7 @@ export default async function dashboardRoutes(app: FastifyInstance) {
       },
       incidents: { pending: pendingIncidents },
       messages: { unread: unreadMessages },
+      dece: { openCases: deceOpenCases, followUps: deceFollowUps },
     }
   })
 
