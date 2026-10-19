@@ -18,6 +18,7 @@ export interface Announcement {
   isRead: boolean
   myResponse?: 'confirmed' | 'declined' | null
   myResponseAt?: string | null
+  tracking?: AnnouncementTracking
   readAt?: string | null
   flyerName?: string | null
   flyerMimeType?: string | null
@@ -27,6 +28,23 @@ export interface Announcement {
   attachmentSize?: number | null
   attachmentUrl?: string | null
   creator?: { profile?: { firstName: string; lastName: string } | null }
+}
+
+export interface AnnouncementTracking {
+  recipientCount: number
+  readCount: number
+  readPercent: number
+  confirmedCount: number
+  declinedCount: number
+  responsePercent: number
+}
+
+export interface AnnouncementRecipientTracking {
+  id: string
+  name: string
+  readAt: string | null
+  response: 'confirmed' | 'declined' | null
+  respondedAt: string | null
 }
 
 export interface CreateAnnouncementInput {
@@ -46,6 +64,7 @@ export const announcementsApi = {
   create: (data: CreateAnnouncementInput) => apiPost<Announcement>('announcements', data),
   markRead: (id: string) => apiPost(`announcements/${id}/read`),
   rsvp: (id: string, response: 'confirmed' | 'declined') => apiPost(`announcements/${id}/rsvp`, { response }),
+  tracking: (id: string) => apiGet<AnnouncementTracking & { recipients: AnnouncementRecipientTracking[] }>(`announcements/${id}/tracking`),
   uploadFile: async (id: string, kind: 'flyer' | 'attachment', file: File) => {
     const form = new FormData()
     form.append('file', file)
