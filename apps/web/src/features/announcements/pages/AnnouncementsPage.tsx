@@ -14,7 +14,7 @@ import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { cn, getErrorMessage } from '@/shared/lib/utils'
 import { getParallels, getYears, type Parallel } from '@/features/enrollment/api/enrollment.api'
-import { announcementsApi, type Announcement, type AnnouncementAudience, type CommunicationType, type CreateAnnouncementInput } from '../api/announcements.api'
+import { announcementsApi, type Announcement, type AnnouncementAudience, type CommunicationType, type CreateAnnouncementInput, type AnnouncementTracking } from '../api/announcements.api'
 
 const audienceLabels: Record<AnnouncementAudience, string> = {
   all: 'Toda la institución',
@@ -83,6 +83,11 @@ export function AnnouncementsPage() {
   const [attachmentFile, setAttachmentFile] = React.useState<File | null>(null)
   const [yearId, setYearId] = React.useState('')
   const { data: announcements = [], isLoading } = useQuery({ queryKey: ['announcements'], queryFn: announcementsApi.list })
+  const { data: selectedTracking } = useQuery({
+    queryKey: ['announcement-tracking', selected?.id],
+    queryFn: () => announcementsApi.tracking(selected!.id),
+    enabled: canManage && !!selected,
+  })
   const orderedAnnouncements = React.useMemo(
     () => [...announcements].sort((a, b) => Number(a.isRead) - Number(b.isRead)),
     [announcements],
@@ -267,6 +272,33 @@ export function AnnouncementsPage() {
               </DialogHeader>
 
               <div className="whitespace-pre-wrap break-words text-sm leading-6">{selected.body}</div>
+
+              {canManage && (selectedTracking ?? selected.tracking) && (() => {
+                const tracking = (selectedTracking ?? selected.tracking) as AnnouncementTracking & { recipients?: Array<{ id: string; name: string; readAt: string | null; response: string | null }> }
+                return (
+                  <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm font-medium">Seguimiento de comunicación</div>
+                      <div className="text-xs text-muted-foreground">{tracking.recipientCount} destinatario(s)</div>
+                    </div>
+                    <div className="grid gap-2 text-xs sm:grid-cols-3">
+                      <div className="rounded-md bg-background p-2"><span className="block text-muted-foreground">Alcance leído</span><strong>{tracking.readPercent}%</strong> <span className="text-muted-foreground">({tracking.readCount})</span></div>
+                      <div className="rounded-md bg-background p-2"><span className="block text-muted-foreground">Confirmaron</span><strong>{tracking.confirmedCount}</strong></div>
+                      <div className="rounded-md bg-background p-2"><span className="block text-muted-foreground">Respondieron</span><strong>{tracking.responsePercent}%</strong></div>
+                    </div>
+                    {tracking.recipients && tracking.recipients.length > 0 && (
+                      <div className="max-h-44 space-y-1 overflow-y-auto border-t pt-2">
+                        {tracking.recipients.map((recipient) => (
+                          <div key={recipient.id} className="flex items-center justify-between gap-2 text-xs">
+                            <span className="truncate">{recipient.name}</span>
+                            <span className="shrink-0 text-muted-foreground">{recipient.response === 'confirmed' ? 'Asistirá' : recipient.response === 'declined' ? 'No asistirá' : recipient.readAt ? 'Leído' : 'Pendiente'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {(selected.eventAt || selected.location) && (
                 <div className="grid gap-3 rounded-lg bg-muted/50 p-4 text-sm sm:grid-cols-2">

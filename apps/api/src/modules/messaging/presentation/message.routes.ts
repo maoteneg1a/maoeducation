@@ -84,6 +84,7 @@ export default async function messageRoutes(app: FastifyInstance) {
 
     const isAdminRole = callerRoles.includes('admin') || callerRoles.includes('rector')
     const isTeacher = callerRoles.includes('teacher')
+    const isDece = callerRoles.includes('dece')
     const isGuardian = callerRoles.includes('guardian')
     const isStudentOrGuardian = callerRoles.some((r) => r === 'student' || r === 'guardian')
 
@@ -134,6 +135,20 @@ export default async function messageRoutes(app: FastifyInstance) {
         where: { id: { in: recipientIds }, ...nameFilter },
         select: profileSelect,
         take: 30,
+      })
+      users = found.map(mapUser)
+    } else if (isDece) {
+      // DECE puede coordinar con estudiantes, sus representantes y el personal
+      // que participa en su acompañamiento, sin abrirle el directorio completo.
+      const found = await prisma.user.findMany({
+        where: {
+          institutionId,
+          id: { not: userId },
+          ...nameFilter,
+          userRoles: { some: { role: { name: { in: ['student', 'guardian', 'teacher', 'rector', 'inspector'] } } } },
+        },
+        select: profileSelect,
+        take: 50,
       })
       users = found.map(mapUser)
     } else if (isStudentOrGuardian) {

@@ -20,6 +20,7 @@ interface DashboardStats {
   }
   incidents: { pending: number }
   messages: { unread: number }
+  dece: { openCases: number; followUps: number }
 }
 
 function useDashboardStats() {
@@ -129,6 +130,7 @@ export function DashboardPage() {
           {isInstitutionAdmin && <AdminModules />}
           {hasRole('teacher') && !isInstitutionAdmin && <TeacherModules unread={stats?.messages.unread} />}
           {hasRole('inspector') && !isInstitutionAdmin && <InspectorModules pending={stats?.incidents.pending} unread={stats?.messages.unread} />}
+          {hasRole('dece') && !isInstitutionAdmin && <DeceModules openCases={stats?.dece.openCases} followUps={stats?.dece.followUps} unread={stats?.messages.unread} />}
           {(hasRole('student') || hasRole('guardian')) && !isInstitutionAdmin && !hasRole('teacher') && !hasRole('inspector') && (
             <>
               <FamilyToday />
@@ -176,6 +178,32 @@ function InspectorModules({ pending, unread }: { pending?: number; unread?: numb
       <ModuleCard icon={MessageSquare} label="Mensajes"        href="/messages" badge={unread} />
     </div>
   )
+}
+
+function DeceModules({ openCases, followUps, unread }: { openCases?: number; followUps?: number; unread?: number }) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <NumberCard icon={AlertTriangle} label="Casos DECE abiertos" value={openCases ?? 0} alert={!!openCases} />
+        <NumberCard icon={Calendar} label="Seguimientos registrados" value={followUps ?? 0} />
+        <NumberCard icon={MessageSquare} label="Mensajes pendientes" value={unread ?? 0} alert={!!unread} />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
+        <ModuleCard icon={ShieldCheckIcon} label="Casos y protocolos" href="/dece" badge={openCases} />
+        <ModuleCard icon={FolderOpenIcon} label="Estudiantes" href="/student-folder" />
+        <ModuleCard icon={MessageSquare} label="Mensajes" href="/messages" badge={unread} />
+        <ModuleCard icon={Megaphone} label="Avisos" href="/announcements" />
+      </div>
+    </div>
+  )
+}
+
+function ShieldCheckIcon() {
+  return <AlertTriangle className="h-5 w-5" />
+}
+
+function FolderOpenIcon() {
+  return <Users className="h-5 w-5" />
 }
 
 function StudentModules({ unread }: { unread?: number }) {

@@ -25,6 +25,7 @@ interface CreateAnnouncementBody {
 
 const STAFF_ROLES = ['admin', 'rector', 'teacher', 'inspector', 'dece']
 const AUTHORITY_ROLES = ['admin', 'rector', 'inspector', 'dece']
+const COMMUNICATION_MANAGER_ROLES = AUTHORITY_ROLES
 const TEACHER_ROLES = ['teacher']
 const COMMUNICATION_TYPES: CommunicationType[] = ['announcement', 'meeting', 'convocation', 'socialization', 'training', 'circular']
 const FLYER_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
@@ -53,6 +54,32 @@ function isVisibleToUser(
   if (row.audience === 'teachers') return roles.some((role) => TEACHER_ROLES.includes(role))
   if (row.audience === 'families') return roles.includes('student') || roles.includes('guardian')
   return targetParallelIds(row.parallelIds).some((id) => parallels.includes(id))
+}
+
+function canManageCommunications(roles: string[]) {
+  return roles.some((role) => COMMUNICATION_MANAGER_ROLES.includes(role))
+}
+
+async function communicationTracking(row: { id: string; audience: string; parallelIds: unknown }, institutionId: string) {
+  const recipients = await recipientsFor(institutionId, row.audience as Audience, targetParallelIds(row.parallelIds))
+  const recipientIds = recipients.map((recipient) => recipient.id)
+  if (recipientIds.length === 0) {
+    return { recipientCount: 0, readCount: 0, readPercent: 0, confirmedCount: 0, declinedCount: 0, responsePercent: 0 }
+  }
+  const [readCount, confirmedCount, declinedCount] = await Promise.all([
+    prisma.announcementRead.count({ where: { announcementId: row.id, userId: { in: recipientIds } } }),
+    prisma.announcementRsvp.count({ where: { announcementId: row.id, userId: { in: recipientIds }, response: 'confirmed' } }),
+    prisma.announcementRsvp.count({ where: { announcementId: row.id, userId: { in: recipientIds }, response: 'declined' } }),
+  ])
+  const responseCount = confirmedCount + declinedCount
+  return {
+    recipientCount: recipientIds.length,
+    readCount,
+    readPercent: Math.round((readCount / recipientIds.length) * 100),
+    confirmedCount,
+    declinedCount,
+    responsePercent: Math.round((responseCount / recipientIds.length) * 100),
+  }
 }
 
 async function userParallelIds(userId: string, institutionId: string, roles: string[]) {
@@ -145,8 +172,8 @@ export default async function announcementRoutes(app: FastifyInstance) {
     })
     rows.sort((a, b) => Number(b.priority === 'important') - Number(a.priority === 'important'))
     const parallels = await userParallelIds(sub, institutionId, roles)
-    const visible = rows.filter((row) => isVisibleToUser(row, roles, parallels))
-    return reply.send(visible.map((row) => {
+    const visible = canManageCommunications(roles) ? rows : rows.filter((row) => isVisibleToUser(row, roles, parallels))
+    const items = await Promise.all(visible.map(async (row) => {
       const { reads, rsvps, flyerStoredName: _flyerStoredName, attachmentStoredName: _attachmentStoredName, ...announcement } = row
       void _flyerStoredName
       void _attachmentStoredName
@@ -156,10 +183,12 @@ export default async function announcementRoutes(app: FastifyInstance) {
         readAt: reads[0]?.readAt ?? null,
         myResponse: rsvps[0]?.response ?? null,
         myResponseAt: rsvps[0]?.respondedAt ?? null,
+        ...(canManageCommunications(roles) ? { tracking: await communicationTracking(row, institutionId) } : {}),
         flyerUrl: row.flyerStoredName ? `/announcements/${row.id}/flyer` : null,
         attachmentUrl: row.attachmentStoredName ? `/announcements/${row.id}/attachment` : null,
       }
     }))
+    return reply.send(items)
   })
 
   app.post<{ Body: CreateAnnouncementBody }>('/announcements', async (req, reply) => {
@@ -211,7 +240,7 @@ export default async function announcementRoutes(app: FastifyInstance) {
       throw new BadRequestError('Esta comunicación no requiere confirmación')
     }
     const parallels = await userParallelIds(req.user.sub, req.user.institutionId, req.user.roles)
-    if (!isVisibleToUser(row, req.user.roles, parallels)) {
+    if (!canManageCommunications(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels)) {
       throw new ForbiddenError('No tienes acceso a este aviso')
     }
     const response = req.body?.response
@@ -224,13 +253,41 @@ export default async function announcementRoutes(app: FastifyInstance) {
     return reply.send(rsvp)
   })
 
+  app.get<{ Params: { id: string } }>('/announcements/:id/tracking', async (req, reply) => {
+    if (!canManageCommunications(req.user.roles)) throw new ForbiddenError('Solo autoridades pueden consultar el seguimiento')
+    const row = await prisma.announcement.findFirst({ where: { id: req.params.id, institutionId: req.user.institutionId } })
+    if (!row) throw new NotFoundError('Aviso no encontrado')
+    const recipients = await recipientsFor(req.user.institutionId, row.audience as Audience, targetParallelIds(row.parallelIds))
+    const recipientIds = recipients.map((recipient) => recipient.id)
+    const users = recipientIds.length === 0 ? [] : await prisma.user.findMany({
+      where: { id: { in: recipientIds } },
+      select: {
+        id: true,
+        profile: { select: { firstName: true, lastName: true } },
+        announcementReads: { where: { announcementId: row.id }, select: { readAt: true } },
+        announcementRsvps: { where: { announcementId: row.id }, select: { response: true, respondedAt: true } },
+      },
+    })
+    const tracking = await communicationTracking({ ...row, id: row.id }, req.user.institutionId)
+    return reply.send({
+      ...tracking,
+      recipients: users.map((user) => ({
+        id: user.id,
+        name: user.profile ? `${user.profile.firstName} ${user.profile.lastName}` : 'Usuario',
+        readAt: user.announcementReads[0]?.readAt ?? null,
+        response: user.announcementRsvps[0]?.response ?? null,
+        respondedAt: user.announcementRsvps[0]?.respondedAt ?? null,
+      })),
+    })
+  })
+
   app.post<{ Params: { id: string } }>('/announcements/:id/read', async (req, reply) => {
     const row = await prisma.announcement.findFirst({
       where: { id: req.params.id, institutionId: req.user.institutionId },
     })
     if (!row) throw new NotFoundError('Aviso no encontrado')
     const parallels = await userParallelIds(req.user.sub, req.user.institutionId, req.user.roles)
-    if (!isVisibleToUser(row, req.user.roles, parallels)) {
+    if (!canManageCommunications(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels)) {
       throw new ForbiddenError('No tienes acceso a este aviso')
     }
     const read = await prisma.announcementRead.upsert({
@@ -294,7 +351,7 @@ export default async function announcementRoutes(app: FastifyInstance) {
       if (!row) throw new NotFoundError('Aviso no encontrado')
       if (req.params.kind !== 'flyer' && req.params.kind !== 'attachment') throw new BadRequestError('Tipo de archivo inválido')
       const parallels = await userParallelIds(req.user.sub, req.user.institutionId, req.user.roles)
-      if (!isPrivilegedStaff(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels)) {
+      if (!canManageCommunications(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels)) {
         throw new ForbiddenError('No tienes acceso a este aviso')
       }
       const isFlyer = req.params.kind === 'flyer'
