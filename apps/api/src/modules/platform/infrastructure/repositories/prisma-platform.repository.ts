@@ -40,14 +40,14 @@ export class PrismaPlatformRepository implements IPlatformRepository {
   async findAdminByEmail(email: string): Promise<PlatformAdminRecord | null> {
     return prisma.platformAdmin.findUnique({
       where: { email },
-      select: { id: true, email: true, name: true, passwordHash: true, isActive: true },
+      select: { id: true, email: true, name: true, passwordHash: true, isActive: true, role: true },
     })
   }
 
   async findAdminById(id: string): Promise<PlatformAdminRecord | null> {
     return prisma.platformAdmin.findUnique({
       where: { id },
-      select: { id: true, email: true, name: true, passwordHash: true, isActive: true },
+      select: { id: true, email: true, name: true, passwordHash: true, isActive: true, role: true },
     })
   }
 
@@ -67,7 +67,13 @@ export class PrismaPlatformRepository implements IPlatformRepository {
     // (5s) se queda corto contra la latencia real de red en producción y la
     // transacción se cierra a medias (P2028 "Transaction not found").
     return prisma.$transaction(
-      (tx) => bootstrapInstitution(tx, { name: dto.name, code: dto.code }, dto.admin, dto.regime),
+      (tx) =>
+        bootstrapInstitution(
+          tx,
+          { name: dto.name, code: dto.code, isTestInstitution: dto.isTestInstitution },
+          dto.admin,
+          dto.regime,
+        ),
       { timeout: 60_000 },
     )
   }

@@ -10,5 +10,11 @@ export interface Lead {
   message: string | null
   source: string
   status: string
+  notes: string | null
+  ownerAdminId: string | null
+  nextFollowUpAt: Date | null
+  convertedInstitutionId: string | null
   createdAt: Date
 }
+
+export const LEAD_STATUSES = ['new', 'contacted', 'demo_scheduled', 'closed_won', 'closed_lost'] as const

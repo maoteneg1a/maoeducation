@@ -12,6 +12,7 @@ export interface PlatformAdminRecord {
   name: string
   passwordHash: string
   isActive: boolean
+  role: string
 }
 
 export interface IPlatformRepository {

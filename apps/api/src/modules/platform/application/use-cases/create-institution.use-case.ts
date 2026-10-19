@@ -29,7 +29,7 @@ export class CreateInstitutionUseCase {
         isActive: true,
         userCount: 1,
         createdAt: new Date(),
-        isTestInstitution: true,
+        isTestInstitution: dto.isTestInstitution ?? false,
       }
     )
   }

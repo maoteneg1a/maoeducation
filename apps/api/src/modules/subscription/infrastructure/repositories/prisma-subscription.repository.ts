@@ -1,6 +1,6 @@
 import type { Prisma, SubscriptionPayment } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
-import { NotFoundError } from '../../../../shared/domain/errors/app.errors'
+import { ConflictError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import {
   computeSubscriptionStatus,
   type SubscriptionStatus,
@@ -237,10 +237,12 @@ export class PrismaSubscriptionRepository {
       select: { id: true, status: true, subscriptionId: true, institutionId: true },
     })
     if (!payment) throw new NotFoundError('Comprobante no encontrado')
+    if (payment.status !== 'pending') throw new ConflictError('Este comprobante ya fue revisado')
 
-    await prisma.$transaction([
-      prisma.subscriptionPayment.update({
-        where: { id: paymentId },
+    await prisma.$transaction(async (tx) => {
+      // Condición sobre status: dos aprobaciones simultáneas no pueden pasar ambas.
+      const updated = await tx.subscriptionPayment.updateMany({
+        where: { id: paymentId, status: 'pending' },
         data: {
           status: 'approved',
           amount: dto.amount ?? undefined,
@@ -248,16 +250,17 @@ export class PrismaSubscriptionRepository {
           reviewedBy: adminId,
           reviewNotes: dto.reviewNotes ?? null,
         },
-      }),
-      prisma.subscription.update({
+      })
+      if (updated.count === 0) throw new ConflictError('Este comprobante ya fue revisado')
+      await tx.subscription.update({
         where: { id: payment.subscriptionId },
         data: {
           plan: 'paid',
           expiresAt: new Date(dto.expiresAt),
           suspendedAt: null,
         },
-      }),
-    ])
+      })
+    })
 
     return { institutionId: payment.institutionId }
   }
@@ -273,8 +276,8 @@ export class PrismaSubscriptionRepository {
     })
     if (!payment) throw new NotFoundError('Comprobante no encontrado')
 
-    await prisma.subscriptionPayment.update({
-      where: { id: paymentId },
+    const updated = await prisma.subscriptionPayment.updateMany({
+      where: { id: paymentId, status: 'pending' },
       data: {
         status: 'rejected',
         reviewedAt: new Date(),
@@ -282,6 +285,7 @@ export class PrismaSubscriptionRepository {
         reviewNotes,
       },
     })
+    if (updated.count === 0) throw new ConflictError('Este comprobante ya fue revisado')
     return { institutionId: payment.institutionId }
   }
 
@@ -314,6 +318,10 @@ export class PrismaSubscriptionRepository {
   }
 
   async setSuspended(institutionId: string, suspended: boolean): Promise<SubscriptionStatus> {
+    const existing = await prisma.subscription.findUnique({ where: { institutionId }, select: { id: true } })
+    if (!existing) {
+      throw new ConflictError('La institución no tiene suscripción gestionada: fija primero una vigencia')
+    }
     const sub = await prisma.subscription.update({
       where: { institutionId },
       data: { suspendedAt: suspended ? new Date() : null },

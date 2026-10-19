@@ -1,9 +1,10 @@
 import { FastifyInstance } from 'fastify'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
-import { platformAuthMiddleware } from '../../../shared/infrastructure/middleware/platform-auth.middleware'
+import { platformAuthMiddleware, requirePlatformRole } from '../../../shared/infrastructure/middleware/platform-auth.middleware'
 import { tokenService } from '../../../shared/infrastructure/services/token.service'
 import { PrismaAuthUserRepository } from '../../auth/infrastructure/repositories/prisma-auth-user.repository'
-import { ImpersonateUserUseCase } from '../application/use-cases/impersonate-user.use-case'
+import { ImpersonateUserUseCase, IMPERSONATION_TTL } from '../application/use-cases/impersonate-user.use-case'
+import { audit } from '../../../shared/infrastructure/services/audit.service'
 
 interface DailyCount {
   date: Date
@@ -17,13 +18,7 @@ function toSeries(rows: DailyCount[]) {
 const impersonateUseCase = new ImpersonateUserUseCase(new PrismaAuthUserRepository(), tokenService)
 
 const REFRESH_COOKIE = 'refresh_token'
-const REFRESH_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
-  path: '/api/v1/auth',
-  maxAge: 60 * 60 * 24 * 7,
-}
+const REFRESH_COOKIE_PATH = '/api/v1/auth'
 
 export default async function platformStatsRoutes(app: FastifyInstance) {
   const protectedOpts = { preHandler: [platformAuthMiddleware] }
@@ -159,15 +154,20 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string } }>(
     '/platform/users/:id/impersonate',
-    protectedOpts,
+    { preHandler: [platformAuthMiddleware, requirePlatformRole('support')] },
     async (req, reply) => {
-      const result = await impersonateUseCase.execute(req.params.id)
-      req.log.info(
-        { adminId: req.platformAdmin.sub, targetUserId: req.params.id },
-        'platform admin impersonated user',
-      )
-      reply.setCookie(REFRESH_COOKIE, result.refreshToken, REFRESH_COOKIE_OPTIONS)
-      return reply.send({ accessToken: result.accessToken, user: result.user })
+      const result = await impersonateUseCase.execute(req.params.id, req.platformAdmin.sub)
+      await audit(req, {
+        action: 'platform.impersonate',
+        resourceType: 'user',
+        resourceId: req.params.id,
+        institutionId: result.user.institutionId,
+        newValue: { email: result.user.email, roles: result.user.roles },
+      })
+      // Sin refresh token: se borra cualquier cookie previa del tenant para que,
+      // al vencer el token de suplantación, no se "reviva" otra sesión.
+      reply.clearCookie(REFRESH_COOKIE, { path: REFRESH_COOKIE_PATH })
+      return reply.send({ accessToken: result.accessToken, user: result.user, impersonation: { expiresIn: IMPERSONATION_TTL } })
     },
   )
 }

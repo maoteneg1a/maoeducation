@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify'
+import { LEAD_STATUSES } from '../domain/entities/lead.entity'
 import { platformAuthMiddleware } from '../../../shared/infrastructure/middleware/platform-auth.middleware'
 import { PrismaLeadRepository } from '../infrastructure/repositories/prisma-lead.repository'
 import { CreateLeadUseCase } from '../application/use-cases/create-lead.use-case'
@@ -18,13 +19,15 @@ export default async function leadRoutes(app: FastifyInstance) {
   app.post<{ Body: CreateLeadBody }>(
     '/leads',
     {
+      // Formulario público: límite por IP contra spam.
+      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
       schema: {
         body: {
           type: 'object',
           required: ['name', 'email'],
           properties: {
             name:            { type: 'string', minLength: 2, maxLength: 150 },
-            email:           { type: 'string', maxLength: 255 },
+            email:           { type: 'string', format: 'email', maxLength: 255 },
             phone:           { type: 'string', maxLength: 50 },
             institutionName: { type: 'string', maxLength: 200 },
             city:            { type: 'string', maxLength: 100 },
@@ -46,7 +49,7 @@ export default async function leadRoutes(app: FastifyInstance) {
       }
 
       await createLead.execute(data)
-      req.log.info({ email: data.email, source: data.source ?? 'landing' }, 'nuevo lead')
+      req.log.info({ source: data.source ?? 'landing' }, 'nuevo lead')
       return reply.status(201).send({ ok: true })
     },
   )
@@ -59,13 +62,48 @@ export default async function leadRoutes(app: FastifyInstance) {
   // PATCH /leads/:id/status — actualizar estado del lead.
   app.patch<{ Params: { id: string }; Body: { status: string } }>(
     '/leads/:id/status',
-    { preHandler: [platformAuthMiddleware] },
+    {
+      preHandler: [platformAuthMiddleware],
+      schema: {
+        body: { type: 'object', required: ['status'], properties: { status: { type: 'string', enum: [...LEAD_STATUSES] } } },
+      },
+    },
     async (req, reply) => {
-      const valid = ['new', 'contacted', 'demo_scheduled', 'closed_won', 'closed_lost']
-      if (!valid.includes(req.body.status)) {
-        return reply.status(400).send({ message: 'Estado inválido' })
-      }
       return reply.send(await repo.updateStatus(req.params.id, req.body.status))
+    },
+  )
+
+  // PATCH /leads/:id — CRM: notas, responsable, próximo seguimiento, conversión.
+  app.patch<{
+    Params: { id: string }
+    Body: { status?: string; notes?: string | null; ownerAdminId?: string | null; nextFollowUpAt?: string | null; convertedInstitutionId?: string | null }
+  }>(
+    '/leads/:id',
+    {
+      preHandler: [platformAuthMiddleware],
+      schema: {
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            status: { type: 'string', enum: [...LEAD_STATUSES] },
+            notes: { type: ['string', 'null'], maxLength: 5000 },
+            ownerAdminId: { type: ['string', 'null'] },
+            nextFollowUpAt: { type: ['string', 'null'], format: 'date-time' },
+            convertedInstitutionId: { type: ['string', 'null'] },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      const { nextFollowUpAt, ...rest } = req.body
+      return reply.send(
+        await repo.update(req.params.id, {
+          ...rest,
+          ...(nextFollowUpAt !== undefined ? { nextFollowUpAt: nextFollowUpAt ? new Date(nextFollowUpAt) : null } : {}),
+          ...(rest.convertedInstitutionId ? { status: 'closed_won' } : {}),
+        }),
+      )
     },
   )
 }

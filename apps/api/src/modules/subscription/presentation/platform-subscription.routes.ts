@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify'
-import { platformAuthMiddleware } from '../../../shared/infrastructure/middleware/platform-auth.middleware'
+import { platformAuthMiddleware, requirePlatformRole } from '../../../shared/infrastructure/middleware/platform-auth.middleware'
 import { storage } from '../../../shared/infrastructure/services/storage.service'
 import { BadRequestError, NotFoundError } from '../../../shared/domain/errors/app.errors'
 import {
@@ -17,7 +17,8 @@ const institutionRepo = new PrismaInstitutionRepository()
 const PAYMENT_STATUSES: PaymentStatus[] = ['pending', 'approved', 'rejected']
 
 export default async function platformSubscriptionRoutes(app: FastifyInstance) {
-  const protectedOpts = { preHandler: [platformAuthMiddleware] }
+  // Suscripciones y pagos: owner o billing.
+  const protectedOpts = { preHandler: [platformAuthMiddleware, requirePlatformRole('billing')] }
 
   /** Una fila por institución, con estado derivado y comprobantes pendientes. */
   app.get('/platform/subscriptions', protectedOpts, async (_req, reply) => {
@@ -83,6 +84,7 @@ export default async function platformSubscriptionRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const expiresAt = new Date(req.body.expiresAt)
       if (Number.isNaN(expiresAt.getTime())) throw new BadRequestError('Fecha de vigencia inválida')
+      if (expiresAt.getTime() <= Date.now()) throw new BadRequestError('La vigencia debe ser una fecha futura')
 
       const { institutionId } = await repo.approvePayment(
         req.params.id,

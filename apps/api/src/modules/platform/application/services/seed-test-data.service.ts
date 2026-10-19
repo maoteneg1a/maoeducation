@@ -26,7 +26,7 @@ export async function seedTestData(institutionId: string): Promise<SeedResult> {
   const institution = await prisma.institution.findUnique({ where: { id: institutionId } })
   if (!institution) throw new NotFoundError('Institución no encontrada')
   const settings = (institution.settings ?? {}) as { isTestInstitution?: boolean }
-  if (settings.isTestInstitution === false) {
+  if (settings.isTestInstitution !== true) {
     throw new ConflictError('Esta institución ya no está marcada como de prueba — no se pueden sembrar datos de ejemplo')
   }
 

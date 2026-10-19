@@ -16,6 +16,7 @@ export const createInstitutionSchema = z.object({
     password: z.string().min(8).max(100),
   }),
   regime: z.enum(['SIERRA_AMAZONIA', 'COSTA_GALAPAGOS']).optional(),
+  isTestInstitution: z.boolean().optional(),
 })
 export type CreateInstitutionBody = z.infer<typeof createInstitutionSchema>
 

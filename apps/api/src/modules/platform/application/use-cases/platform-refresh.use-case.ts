@@ -16,7 +16,7 @@ export class PlatformRefreshUseCase {
       throw new UnauthorizedError()
     }
 
-    const accessToken = this.tokenService.signPlatformAccess({ sub: admin.id })
+    const accessToken = this.tokenService.signPlatformAccess({ sub: admin.id, role: admin.role })
     return { accessToken }
   }
 }

@@ -5,13 +5,19 @@ import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { buildAuthInstitution } from '../../../auth/application/services/auth-institution.mapper'
 import { LoginResponseDto } from '../../../auth/application/dtos/auth.dto'
 
+export const IMPERSONATION_TTL = '30m'
+
 export class ImpersonateUserUseCase {
   constructor(
     private readonly userRepo: IAuthUserRepository,
     private readonly tokenService: TokenService,
   ) {}
 
-  async execute(targetUserId: string): Promise<LoginResponseDto> {
+  /**
+   * Token de suplantación: lleva `impersonatedBy`, dura 30 min y NO emite
+   * refresh token — al vencer, la sesión suplantada termina sola.
+   */
+  async execute(targetUserId: string, platformAdminId: string): Promise<Omit<LoginResponseDto, 'refreshToken'>> {
     const user = await this.userRepo.getWithPermissions(targetUserId)
     if (!user || !user.isActive) throw new NotFoundError('Usuario no encontrado')
 
@@ -26,8 +32,8 @@ export class ImpersonateUserUseCase {
       institutionId: user.institutionId,
       roles: user.roles,
       permissions: user.permissions,
-    })
-    const refreshToken = this.tokenService.signRefresh({ sub: user.id })
+      impersonatedBy: platformAdminId,
+    }, { expiresIn: IMPERSONATION_TTL })
 
     const tutoredParallels = await prisma.parallel.findMany({
       where: { tutorId: user.id },
@@ -38,7 +44,6 @@ export class ImpersonateUserUseCase {
 
     return {
       accessToken,
-      refreshToken,
       user: {
         id: user.id,
         email: user.email,
