@@ -186,13 +186,69 @@ export const router = createBrowserRouter([
       // ---- Behavior (comportamiento) ----
       {
         path: 'academic-alerts',
-        element: <PermissionGuard permission="reports:read" />,
+        element: <PermissionGuard permission="early_alerts:read" />,
         children: [
           {
             index: true,
             lazy: () =>
-              import('@/features/dashboard/pages/EarlyAlertsPage').then((m) => ({
+              import('@/features/early-alerts/pages/EarlyAlertsPage').then((m) => ({
                 Component: m.EarlyAlertsPage,
+              })),
+          },
+        ],
+      },
+      // ---- Informes formales entre instancias (Acuerdo 2026-00082-A) ----
+      {
+        path: 'informes',
+        element: <PermissionGuard permission="formal_reports:read" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/formal-reports/pages/ReportsInboxPage').then((m) => ({
+                Component: m.ReportsInboxPage,
+              })),
+          },
+          {
+            path: ':id',
+            lazy: () =>
+              import('@/features/formal-reports/pages/ReportDetailPage').then((m) => ({
+                Component: m.ReportDetailPage,
+              })),
+          },
+        ],
+      },
+      // ---- Consulta de casos de refuerzo (sesiones, asistencia, archivos) ----
+      {
+        path: 'refuerzo/casos',
+        element: <PermissionGuard permission="early_alerts:read" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/reinforcement-desk/pages/ReinforcementCasesPage').then((m) => ({
+                Component: m.ReinforcementCasesPage,
+              })),
+          },
+          {
+            path: ':id',
+            lazy: () =>
+              import('@/features/reinforcement-desk/pages/ReinforcementCaseDetailPage').then((m) => ({
+                Component: m.ReinforcementCaseDetailPage,
+              })),
+          },
+        ],
+      },
+      // ---- Recomendaciones del informe de aprendizajes (art. 39) ----
+      {
+        path: 'recomendaciones',
+        element: <PermissionGuard permission="grades:write" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/bulletin-recommendations/pages/RecommendationsPage').then((m) => ({
+                Component: m.RecommendationsPage,
               })),
           },
         ],
@@ -552,6 +608,20 @@ export const router = createBrowserRouter([
             lazy: () =>
               import('@/features/settings/pages/GradingConfigPage').then((m) => ({
                 Component: m.GradingConfigPage,
+              })),
+          },
+        ],
+      },
+      // ---- Settings / Marco normativo, reglas e informes (multi-escuela) ----
+      {
+        path: 'settings/normativa',
+        element: <PermissionGuard permission="academic_config:manage" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/normative/pages/NormativeSettingsPage').then((m) => ({
+                Component: m.NormativeSettingsPage,
               })),
           },
         ],

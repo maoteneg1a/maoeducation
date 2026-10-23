@@ -8,6 +8,7 @@ import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { apiGet } from '@/shared/lib/api-client'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useGuardianStudentId } from '@/features/guardian/components/ChildSwitcher'
+import { GuardianReportsCard } from '@/features/formal-reports/components/GuardianReportsCard'
 
 interface TodayData {
   student: { id: string; parallel: string; academicYear: string }
@@ -80,6 +81,7 @@ export function FamilyToday() {
           ))}
         </TodayCard>
       </div>
+      {isGuardian && <GuardianReportsCard />}
       <RequestJustificationDialog studentId={data.student.id} open={justifyOpen} onOpenChange={setJustifyOpen} />
     </div>
   )

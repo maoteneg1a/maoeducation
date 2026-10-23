@@ -1,3 +1,10 @@
+import { agreementFor } from '../../../shared/infrastructure/services/agreement.service'
+import { actorOf } from '../../../shared/infrastructure/services/actor'
+import {
+  forBulletin,
+  listForEntry as listRecommendations,
+  saveBulk as saveRecommendations,
+} from '../application/services/bulletin-recommendations.service'
 import { FastifyInstance } from 'fastify'
 import { PrismaReportRepository } from '../infrastructure/prisma-report.repository'
 import { PrismaInstitutionRepository } from '../../institution/infrastructure/repositories/prisma-institution.repository'
@@ -101,13 +108,14 @@ async function bulletinPdfData(
   user: { institutionId: string; sub: string; roles: string[] },
   query: BulletinReportQuery,
 ): Promise<BulletinPdfData> {
-    const [branding, bulletin, gradingConfig] = await Promise.all([
+    const [branding, bulletin, gradingConfig, agreement] = await Promise.all([
       getBranding(user.institutionId, user.sub),
       repo.getStudentBulletin(user.institutionId, query, {
         userId: user.sub,
         roles: user.roles,
       }),
       institutionRepo.getGradingConfig(user.institutionId),
+      agreementFor(user.institutionId, query.yearId),
     ])
     const b = branding.effective
     const tutor = bulletin.parallel?.tutor?.profile
@@ -183,11 +191,25 @@ async function bulletinPdfData(
         code: bp.code,
         notes: bp.notes,
       })),
+      decimals: agreement?.decimals ?? null,
+      recommendations: await forBulletin(user.institutionId, query.studentId, bulletin.periods.map((p: { id: string }) => p.id)),
     }
 }
 
 export default async function reportRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware)
+
+  // ─── Recomendaciones del informe de aprendizajes (art. 39) ─────────────────
+  app.get<{ Querystring: { parallelId: string; periodId: string; scopeKey: string } }>(
+    '/bulletin-recommendations',
+    { preHandler: [requirePermission('grades', 'read')] },
+    async (req, reply) => reply.send(await listRecommendations(req.user.institutionId, actorOf(req.user), req.query)),
+  )
+  app.put<{ Body: { parallelId: string; periodId: string; scopeKey: string; items: Array<{ studentId: string; text: string }> } }>(
+    '/bulletin-recommendations',
+    { preHandler: [requirePermission('grades', 'write')] },
+    async (req, reply) => reply.send(await saveRecommendations(req.user.institutionId, actorOf(req.user), req.body)),
+  )
 
   app.get<{ Querystring: GradesReportQuery }>(
     '/reports/grades',
@@ -249,10 +271,16 @@ export default async function reportRoutes(app: FastifyInstance) {
         }),
         institutionRepo.getGradingConfig(req.user.institutionId),
       ])
+      const [agreement, recommendations] = await Promise.all([
+        agreementFor(req.user.institutionId, req.query.yearId),
+        forBulletin(req.user.institutionId, req.query.studentId, bulletin.periods.map((p: { id: string }) => p.id)),
+      ])
       return reply.send({
         ...bulletin,
         branding: branding.effective,
         gradingConfig,
+        decimals: agreement?.decimals ?? null,
+        recommendations,
       })
     },
   )

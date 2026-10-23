@@ -74,6 +74,12 @@ model Institution {
   subscription                Subscription?
   subscriptionPayments        SubscriptionPayment[]
   announcements               Announcement[]
+  earlyAlerts                 EarlyAlert[]
+  formalReports               FormalReport[]
+  formalReportAttachments     FormalReportAttachment[]
+  reinforcementAttachments    ReinforcementAttachment[]
+  reinforcementSessions       ReinforcementSession[]
+  bulletinRecommendations     BulletinRecommendation[]
 
   @@map("institutions")
 }
@@ -180,6 +186,16 @@ model User {
   tutoredParallels Parallel[]        @relation("ParallelTutor")
 
   assignedRoles UserRole[] @relation("RoleAssigner")
+
+  // Alertas tempranas e informes formales (Acuerdo 2026-00082-A)
+  studentEarlyAlerts       EarlyAlert[]             @relation("StudentEarlyAlerts")
+  studentFormalReports     FormalReport[]           @relation("StudentFormalReports")
+  authoredFormalReports    FormalReport[]           @relation("FormalReportAuthor")
+  formalReportInbox        FormalReportRecipient[]
+  uploadedReportFiles      FormalReportAttachment[] @relation("FormalReportAttachmentUploader")
+  uploadedReinforcementFiles ReinforcementAttachment[] @relation("ReinforcementAttachmentUploader")
+  reinforcementSessionAttendance ReinforcementSessionAttendance[]
+  studentBulletinRecommendations BulletinRecommendation[] @relation("StudentBulletinRecommendations")
 
   @@unique([institutionId, email])
   @@map("users")
@@ -1233,6 +1249,8 @@ model ReinforcementPlan {
   commitments    ReinforcementCommitment[]
   followUps      ReinforcementFollowUp[]
   reevaluations  ReinforcementReevaluation[]
+  attachments    ReinforcementAttachment[]
+  sessions       ReinforcementSession[]
 
   @@index([institutionId, academicPeriodId])
   @@index([studentId, courseAssignmentId, academicPeriodId])
@@ -2470,4 +2488,224 @@ model PlatformAnnouncement {
 
   @@index([startsAt, endsAt])
   @@map("platform_announcements")
+}
+
+// ============================================================
+// ALERTAS TEMPRANAS E INFORMES FORMALES (Acuerdo MINEDEC-2026-00082-A)
+// Sin planificación ni destrezas: se alimentan solo del motor de notas.
+// Reglas y catálogos parametrizables en Institution.settings
+// (agreementRules, reportsFlow) — ver shared/domain/agreement-rules.ts y reports-flow.ts.
+// ============================================================
+
+// Alerta de bajo desempeño por estudiante × asignación × periodo (art. 10).
+// La genera el motor de notas; se resuelve sola cuando la nota sale del rango.
+model EarlyAlert {
+  id                  String    @id @default(uuid())
+  institutionId       String    @map("institution_id")
+  studentId           String    @map("student_id")
+  courseAssignmentId  String    @map("course_assignment_id")
+  academicPeriodId    String    @map("academic_period_id")
+  academicYearId      String    @map("academic_year_id")
+  source              String    @db.VarChar(20) // formative | period_total
+  scoreAtDetection    Decimal?  @map("score_at_detection") @db.Decimal(5, 2)
+  currentScore        Decimal?  @map("current_score") @db.Decimal(5, 2)
+  qualitativeCode     String?   @map("qualitative_code") @db.VarChar(10)
+  // OPEN | RESOLVED | DISMISSED
+  status              String    @default("OPEN") @db.VarChar(20)
+  dismissedReason     String?   @map("dismissed_reason")
+  dismissedBy         String?   @map("dismissed_by")
+  reinforcementPlanId String?   @map("reinforcement_plan_id")
+  detectedAt          DateTime  @default(now()) @map("detected_at")
+  resolvedAt          DateTime? @map("resolved_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  institution Institution @relation(fields: [institutionId], references: [id])
+  student     User        @relation("StudentEarlyAlerts", fields: [studentId], references: [id])
+
+  @@unique([studentId, courseAssignmentId, academicPeriodId])
+  @@index([institutionId, academicPeriodId, status])
+  @@index([courseAssignmentId, academicPeriodId])
+  @@map("early_alerts")
+}
+
+// Informe escrito que una instancia envía a otra. Inmutable al enviarse
+// (snapshot + contentHash); la corrección es una nueva versión.
+model FormalReport {
+  id                     String    @id @default(uuid())
+  institutionId          String    @map("institution_id")
+  academicYearId         String    @map("academic_year_id")
+  // Se asignan al ENVIAR (los borradores no consumen folio)
+  folio                  String?   @db.VarChar(40)
+  sequence               Int?
+  typeKey                String    @map("type_key") @db.VarChar(60)
+  typeLabel              String    @map("type_label") @db.VarChar(200)
+  scope                  String    @db.VarChar(20) // student | parallel | institution
+  studentId              String?   @map("student_id")
+  parallelId             String?   @map("parallel_id")
+  courseAssignmentId     String?   @map("course_assignment_id")
+  academicPeriodId       String?   @map("academic_period_id")
+  alertId                String?   @map("alert_id")
+  reinforcementPlanId    String?   @map("reinforcement_plan_id")
+  parentReportId         String?   @map("parent_report_id")
+  previousVersionId      String?   @map("previous_version_id")
+  authorId               String    @map("author_id")
+  recipientInstance      String    @map("recipient_instance") @db.VarChar(60)
+  recipientInstanceLabel String    @map("recipient_instance_label") @db.VarChar(200)
+  confidential           Boolean   @default(false)
+  content                Json      @default("{}")
+  snapshot               Json      @default("{}")
+  // Copia del tipo de informe al momento de enviarlo (campos, títulos, firmas)
+  typeConfig             Json      @default("{}") @map("type_config")
+  // DRAFT | SENT | RECEIVED | RETURNED | ATTENDED
+  status                 String    @default("DRAFT") @db.VarChar(20)
+  contentHash            String?   @map("content_hash") @db.VarChar(64)
+  sentAt                 DateTime? @map("sent_at")
+  ackDeadlineAt          DateTime? @map("ack_deadline_at")
+  receivedAt             DateTime? @map("received_at")
+  receivedById           String?   @map("received_by_id")
+  returnedAt             DateTime? @map("returned_at")
+  returnNote             String?   @map("return_note")
+  attendedAt             DateTime? @map("attended_at")
+  attendedById           String?   @map("attended_by_id")
+  responseNote           String?   @map("response_note")
+  escalatedAt            DateTime? @map("escalated_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  institution  Institution              @relation(fields: [institutionId], references: [id])
+  student      User?                    @relation("StudentFormalReports", fields: [studentId], references: [id])
+  author       User                     @relation("FormalReportAuthor", fields: [authorId], references: [id])
+  parentReport FormalReport?            @relation("FormalReportDerivation", fields: [parentReportId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  derived      FormalReport[]           @relation("FormalReportDerivation")
+  recipients   FormalReportRecipient[]
+  attachments  FormalReportAttachment[]
+
+  @@unique([institutionId, folio])
+  @@unique([institutionId, academicYearId, sequence])
+  @@index([institutionId, status])
+  @@index([studentId, academicYearId])
+  @@index([authorId])
+  @@index([alertId])
+  @@index([reinforcementPlanId])
+  @@map("formal_reports")
+}
+
+model FormalReportRecipient {
+  id       String    @id @default(uuid())
+  reportId String    @map("report_id")
+  userId   String    @map("user_id")
+  readAt   DateTime? @map("read_at")
+
+  report FormalReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id])
+
+  @@unique([reportId, userId])
+  @@index([userId])
+  @@map("formal_report_recipients")
+}
+
+// Anexo del informe. Al enviarse se copia el archivo: borrar el original del
+// caso no altera un informe ya enviado.
+model FormalReportAttachment {
+  id            String   @id @default(uuid())
+  reportId      String   @map("report_id")
+  institutionId String   @map("institution_id")
+  category      String   @db.VarChar(60)
+  fileName      String   @map("file_name") @db.VarChar(255)
+  storedName    String   @map("stored_name") @db.VarChar(255)
+  mimeType      String   @map("mime_type") @db.VarChar(100)
+  fileSize      Int      @map("file_size")
+  uploadedBy    String   @map("uploaded_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  report      FormalReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  institution Institution  @relation(fields: [institutionId], references: [id])
+  uploader    User         @relation("FormalReportAttachmentUploader", fields: [uploadedBy], references: [id])
+
+  @@index([reportId])
+  @@map("formal_report_attachments")
+}
+
+// Archivo del caso de refuerzo (solo personal de la escuela; nunca el representante).
+model ReinforcementAttachment {
+  id            String   @id @default(uuid())
+  institutionId String   @map("institution_id")
+  planId        String   @map("plan_id")
+  sessionId     String?  @map("session_id")
+  category      String   @db.VarChar(60)
+  fileName      String   @map("file_name") @db.VarChar(255)
+  storedName    String   @map("stored_name") @db.VarChar(255)
+  mimeType      String   @map("mime_type") @db.VarChar(100)
+  fileSize      Int      @map("file_size")
+  uploadedBy    String   @map("uploaded_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  institution Institution       @relation(fields: [institutionId], references: [id])
+  plan        ReinforcementPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  uploader    User              @relation("ReinforcementAttachmentUploader", fields: [uploadedBy], references: [id])
+
+  @@index([planId])
+  @@map("reinforcement_attachments")
+}
+
+// Sesión / actividad de refuerzo con asistencia y nota por participante. Si
+// apunta a una actividad original, la nota se vuelca al refuerzo de esa nota
+// (Grade.reinforcementScore) con las reglas del acuerdo.
+model ReinforcementSession {
+  id               String   @id @default(uuid())
+  institutionId    String   @map("institution_id")
+  planId           String   @map("plan_id")
+  date             DateTime @db.Date
+  title            String   @db.VarChar(200)
+  description      String?
+  targetActivityId String?  @map("target_activity_id")
+  createdBy        String   @map("created_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  institution Institution                      @relation(fields: [institutionId], references: [id])
+  plan        ReinforcementPlan                @relation(fields: [planId], references: [id], onDelete: Cascade)
+  attendances ReinforcementSessionAttendance[]
+
+  @@index([planId])
+  @@map("reinforcement_sessions")
+}
+
+model ReinforcementSessionAttendance {
+  id          String   @id @default(uuid())
+  sessionId   String   @map("session_id")
+  studentId   String   @map("student_id")
+  status      String   @db.VarChar(20) // present | absent | justified
+  score       Decimal? @db.Decimal(5, 2)
+  observation String?
+  // Nota que quedó registrada en la actividad original tras aplicar las reglas
+  appliedScore Decimal? @map("applied_score") @db.Decimal(5, 2)
+  appliedMode  String?  @map("applied_mode") @db.VarChar(30)
+
+  session ReinforcementSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student User                 @relation(fields: [studentId], references: [id])
+
+  @@unique([sessionId, studentId])
+  @@map("reinforcement_session_attendance")
+}
+
+// Recomendaciones del informe de aprendizajes por parcial (art. 39).
+// scopeKey = "general" (tutor) o el id de la asignación (docente de asignatura).
+model BulletinRecommendation {
+  id               String   @id @default(uuid())
+  institutionId    String   @map("institution_id")
+  studentId        String   @map("student_id")
+  academicPeriodId String   @map("academic_period_id")
+  scopeKey         String   @map("scope_key") @db.VarChar(60)
+  text             String
+  authorId         String   @map("author_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  institution Institution @relation(fields: [institutionId], references: [id])
+  student     User        @relation("StudentBulletinRecommendations", fields: [studentId], references: [id])
+
+  @@unique([studentId, academicPeriodId, scopeKey])
+  @@index([institutionId, academicPeriodId])
+  @@map("bulletin_recommendations")
 }

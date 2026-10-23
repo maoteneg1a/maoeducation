@@ -2,7 +2,10 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, ConflictError, ValidationError } from '../../../../shared/domain/errors/app.errors'
 import { assertSkillsArePlanned, assertCompetenciesArePlanned } from '../../../../shared/infrastructure/services/planned-curriculum.service'
-import { effectiveActivityScore } from '../../../../shared/domain/grade-math'
+import { activityKind, effectiveActivityScore } from '../../../../shared/domain/grade-math'
+import { improvedScore, resolveAgreement, type AgreementRules } from '../../../../shared/domain/agreement-rules'
+
+const SUMMATIVE_IMPROVEMENT_MODES = ['agreement_direct', 'agreement_with_reinforcement'] as const
 import { STUDENT_ENROLLMENT_ORDER } from '../../../../shared/infrastructure/services/enrollment-query'
 import type {
   CreateActivityTypeDto,
@@ -404,7 +407,14 @@ export class PrismaActivityRepository {
     const [activities, institution] = await Promise.all([
       prisma.activity.findMany({
         where: { id: { in: activityIds }, institutionId },
-        select: { id: true, activityTypeId: true, maxScore: true },
+        select: {
+          id: true,
+          activityTypeId: true,
+          maxScore: true,
+          courseAssignmentId: true,
+          activityType: { select: { code: true } },
+          courseAssignment: { select: { academicYearId: true } },
+        },
       }),
       prisma.institution.findUnique({ where: { id: institutionId }, select: { settings: true } }),
     ])
@@ -420,6 +430,14 @@ export class PrismaActivityRepository {
     const reinforcementConfig = settings.gradingConfig?.activityGradeReinforcement
     const eligibleTypeIds = new Set(reinforcementConfig?.eligibleActivityTypeIds ?? [])
     const configuredMode = reinforcementConfig?.mode ?? 'replace'
+    // Reglas del Acuerdo 2026-00082-A por año lectivo (null = comportamiento histórico)
+    const agreementByYear = new Map<string, AgreementRules | null>()
+    const agreementOf = (activity: { courseAssignment: { academicYearId: string } }) => {
+      const yearId = activity.courseAssignment.academicYearId
+      if (!agreementByYear.has(yearId)) agreementByYear.set(yearId, resolveAgreement(institution?.settings, yearId))
+      return agreementByYear.get(yearId) ?? null
+    }
+    const isSummative = (activity: { activityType: { code: string } }) => activityKind(activity.activityType.code) !== 'regular'
 
     // Validación previa (todo o nada): estados válidos, notas dentro de 0..máx
     // y estudiantes matriculados en el paralelo de la actividad.
@@ -459,11 +477,38 @@ export class PrismaActivityRepository {
     })
     const existingByKey = new Map(existingGrades.map((g) => [`${g.activityId}:${g.studentId}`, g]))
 
+    // Límites anuales de mejora de SUMATIVAS (art. 11–12): se cuentan las notas
+    // ya mejoradas del estudiante en el año, excluyendo las que se reescriben ahora.
+    const improvementCounts = new Map<string, number>()
+    const batchKeys = new Set(dto.grades.map((g) => `${g.activityId}:${g.studentId}`))
+    const yearsWithAgreement = [...new Set(activities.filter((a) => agreementOf(a)).map((a) => a.courseAssignment.academicYearId))]
+    if (yearsWithAgreement.length > 0) {
+      const prior = await prisma.grade.findMany({
+        where: {
+          institutionId,
+          studentId: { in: [...new Set(dto.grades.map((g) => g.studentId))] },
+          reinforcementMode: { in: [...SUMMATIVE_IMPROVEMENT_MODES] },
+          activity: { courseAssignment: { academicYearId: { in: yearsWithAgreement } } },
+        },
+        select: { activityId: true, studentId: true, reinforcementMode: true, activity: { select: { courseAssignmentId: true, courseAssignment: { select: { academicYearId: true } } } } },
+      })
+      for (const g of prior) {
+        if (batchKeys.has(`${g.activityId}:${g.studentId}`)) continue
+        const y = g.activity.courseAssignment.academicYearId
+        for (const k of [`${g.reinforcementMode}:${g.studentId}:${y}`, `${g.reinforcementMode}:${g.studentId}:${y}:${g.activity.courseAssignmentId}`]) {
+          improvementCounts.set(k, (improvementCounts.get(k) ?? 0) + 1)
+        }
+      }
+    }
+
     const operations = dto.grades.map((g) => {
         const activity = activityById.get(g.activityId)
         if (!activity) throw new NotFoundError('Actividad no encontrada')
         if (g.reinforcementScore !== undefined && g.reinforcementScore !== null) {
-          if (!eligibleTypeIds.has(activity.activityTypeId)) {
+          // Con el Acuerdo 2026-00082-A el refuerzo es un derecho (art. 10.4): si la institución
+          // no restringió tipos, se permite en todos; si configuró una lista, se respeta.
+          const agreementOpen = !!agreementOf(activity) && eligibleTypeIds.size === 0
+          if (!agreementOpen && !eligibleTypeIds.has(activity.activityTypeId)) {
             throw new ConflictError('El tipo de esta actividad no permite registrar nota de refuerzo')
           }
           if (g.reinforcementScore < 0 || g.reinforcementScore > Number(activity.maxScore)) {
@@ -473,13 +518,19 @@ export class PrismaActivityRepository {
 
         const existing = existingByKey.get(`${g.activityId}:${g.studentId}`)
         const status = g.status ?? 'entregado'
+        const rules = agreementOf(activity)
+        const summative = isSummative(activity)
         // Regla de negocio del estado de entrega:
         //  - no_realizado → cuenta como 0 si no se ingresó otra nota
         //  - excusado     → se ignora en el promedio (score null + isExcused)
         let score = g.score == null ? null : Number(g.score)
         let isExcused = false
         if (status === 'no_realizado') {
-          score = g.score ?? 0
+          // Art. 18: la evaluación (sumativa) no rendida sin justificación se registra con la nota configurada.
+          const unjustified = rules && (rules.lateAssessment.applyTo === 'all' || summative)
+            ? rules.lateAssessment.unjustifiedScore * (Number(activity.maxScore) / 10)
+            : 0
+          score = g.score ?? unjustified
         } else if (status === 'excusado') {
           score = null
           isExcused = true
@@ -491,10 +542,34 @@ export class PrismaActivityRepository {
           : existing?.reinforcementScore != null
             ? Number(existing.reinforcementScore)
             : null
-        const reinforcementMode = g.reinforcementScore !== undefined
+        let reinforcementMode = g.reinforcementScore !== undefined
           ? (reinforcementScore == null ? null : configuredMode)
           : existing?.reinforcementMode ?? null
-        if (baseScore != null && reinforcementScore != null) {
+        if (baseScore != null && reinforcementScore != null && rules) {
+          // Acuerdo 2026-00082-A: formativa → promedio con tope; sumativa → mejora directa o con refuerzo.
+          const r = improvedScore(rules, baseScore, reinforcementScore, summative, Number(activity.maxScore))
+          if (r.mode === null) {
+            throw new ConflictError('La nota inicial de esta evaluación sumativa no habilita mejora según la configuración del acuerdo')
+          }
+          reinforcementMode = `agreement_${r.mode}`
+          if (r.mode !== 'formative') {
+            const rule = r.mode === 'direct' ? rules.summativeImprovement.direct : rules.summativeImprovement.withReinforcement
+            const y = activity.courseAssignment.academicYearId
+            const kYear = `${reinforcementMode}:${g.studentId}:${y}`
+            const kSubject = `${kYear}:${activity.courseAssignmentId}`
+            const nYear = (improvementCounts.get(kYear) ?? 0) + 1
+            const nSubject = (improvementCounts.get(kSubject) ?? 0) + 1
+            if (rule.perSubject > 0 && nSubject > rule.perSubject) {
+              throw new ConflictError(`Se alcanzó el máximo de ${rule.perSubject} evaluación(es) sumativa(s) mejorada(s) en esta asignatura`)
+            }
+            if (rule.perYear > 0 && nYear > rule.perYear) {
+              throw new ConflictError(`Se alcanzó el máximo de ${rule.perYear} evaluaciones sumativas mejoradas en el año`)
+            }
+            improvementCounts.set(kYear, nYear)
+            improvementCounts.set(kSubject, nSubject)
+          }
+          score = r.score
+        } else if (baseScore != null && reinforcementScore != null) {
           score = reinforcementMode === 'average'
             ? (baseScore + reinforcementScore) / 2
             : reinforcementScore

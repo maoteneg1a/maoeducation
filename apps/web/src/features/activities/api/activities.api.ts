@@ -51,6 +51,8 @@ export interface StudentGrade {
   score: number | null
   reinforcementScore: number | null
   effectiveScore: number | null
+  /** replace | average (histórico) o agreement_formative | agreement_direct | agreement_with_reinforcement (Acuerdo 2026-00082-A). */
+  reinforcementMode: string | null
   status: GradeStatus
   isExcused: boolean
 }
@@ -63,6 +65,7 @@ interface GradeApiRow {
     score: number | null
     baseScore?: number | null
     reinforcementScore?: number | null
+    reinforcementMode?: string | null
     status?: string | null
     notes?: string | null
   } | null
@@ -142,6 +145,7 @@ export const activitiesApi = {
         score: nullableNumber(r.grade?.baseScore ?? r.grade?.score),
         reinforcementScore: nullableNumber(r.grade?.reinforcementScore),
         effectiveScore: nullableNumber(r.grade?.score),
+        reinforcementMode: r.grade?.reinforcementMode ?? null,
         status: (r.grade?.status as GradeStatus) ?? 'entregado',
         isExcused: false,
       })),

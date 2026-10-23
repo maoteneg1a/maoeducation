@@ -1,3 +1,4 @@
+import { formatScore } from '../../../../shared/domain/agreement-rules'
 import { bulletinGradeColumns, bulletinWeight, type BulletinWeights } from './bulletin-grade-columns'
 import fs from 'fs'
 import path from 'path'
@@ -71,9 +72,13 @@ export interface BulletinPdfData {
   behaviorByPeriod: BehaviorRow[]
   qualitativeScale: QualitativeLevel[]
   qualitativeValueScale: QualitativeValue[]
+  /** Acuerdo 2026-00082-A: decimales truncados (null = redondeo histórico). */
+  decimals?: { places: number; method: 'truncate' | 'round' } | null
+  /** Art. 39: recomendaciones por periodo (general del tutor o por asignatura). */
+  recommendations?: Array<{ periodId: string; scope: string; text: string }>
 }
 
-const NUM = (n: number | null) => (n == null ? '—' : n.toFixed(2))
+const NUM_ROUND = (n: number | null) => (n == null ? '—' : n.toFixed(2))
 const fmtDate = (d: Date) => new Intl.DateTimeFormat('es-EC').format(d)
 
 function resolveLogo(logoUrl: string | null): Buffer | string | null {
@@ -122,6 +127,7 @@ export function buildBulletinsPdf(list: BulletinPdfData[]): Promise<Buffer> {
 }
 
 function drawBulletin(doc: PDFKit.PDFDocument, data: BulletinPdfData): void {
+  const NUM = (n: number | null) => (data.decimals ? formatScore(n, data.decimals) : NUM_ROUND(n))
 
   const pageW = doc.page.width - doc.page.margins.left - doc.page.margins.right
   const left = doc.page.margins.left
@@ -278,6 +284,16 @@ function drawBulletin(doc: PDFKit.PDFDocument, data: BulletinPdfData): void {
     doc.text(`${p.name}: ${b?.code ?? '—'}${b?.notes ? ` — ${b.notes}` : ''}`, left, doc.y + 1, { width: pageW * 0.6 })
   })
   y = doc.y + 6
+
+  if (data.recommendations?.length) {
+    doc.font('Helvetica-Bold').fontSize(8).text('RECOMENDACIONES', left, y)
+    doc.font('Helvetica').fontSize(6.5)
+    const periodName = new Map(periods.map((p) => [p.id, p.name]))
+    for (const r of data.recommendations) {
+      doc.text(`${periodName.get(r.periodId) ?? ''} · ${r.scope}: ${r.text}`, left, doc.y + 1, { width: pageW * 0.6 })
+    }
+    y = doc.y + 6
+  }
 
   doc.font('Helvetica-Bold').fontSize(8).text('FALTAS / ATRASOS', left, y)
   y = doc.y + 2

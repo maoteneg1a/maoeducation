@@ -209,7 +209,8 @@ export class PrismaInstitutionRepository {
       }
       return tx.institution.update({
         where: { id: institutionId },
-        data: { settings: { ...currentSettings, gradingConfig: next } as unknown as Prisma.InputJsonValue },
+        // Conserva claves no tipadas (p. ej. qualitativeValueScale) que no forman parte de GradingConfig
+        data: { settings: { ...currentSettings, gradingConfig: { ...((currentSettings.gradingConfig ?? {}) as object), ...next } } as unknown as Prisma.InputJsonValue },
         select: { settings: true },
       })
     })

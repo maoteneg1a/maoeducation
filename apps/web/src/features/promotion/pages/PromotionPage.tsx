@@ -28,13 +28,18 @@ import {
   type RecoveryType,
   type SubjectStatus,
   type EffectiveStatus,
+  type PromotionAgreement,
 } from '../api/promotion.api'
+import { formatScore } from '@/shared/lib/score-format'
 
 const SUBJECT_STATUS: Record<SubjectStatus, { label: string; variant: 'success' | 'warning' | 'destructive' | 'secondary' }> = {
   approved: { label: 'Aprobado', variant: 'success' },
   supletorio: { label: 'Supletorio', variant: 'warning' },
   remedial: { label: 'Remedial', variant: 'destructive' },
   pending: { label: 'Sin notas', variant: 'secondary' },
+  automatic: { label: 'Promoción automática', variant: 'success' },
+  repeat_direct: { label: 'Repitencia directa', variant: 'destructive' },
+  junta: { label: 'Junta de docentes', variant: 'warning' },
 }
 
 const EFFECTIVE_STATUS: Record<EffectiveStatus, { label: string; variant: 'success' | 'warning' | 'destructive' | 'secondary' }> = {
@@ -42,6 +47,7 @@ const EFFECTIVE_STATUS: Record<EffectiveStatus, { label: string; variant: 'succe
   failed: { label: 'Reprobada', variant: 'destructive' },
   recovery_pending: { label: 'Falta recuperación', variant: 'warning' },
   pending: { label: 'Sin notas', variant: 'secondary' },
+  junta_review: { label: 'Revisión de la junta', variant: 'warning' },
 }
 
 const PROMOTION_STATUS: Record<PromotionStatus, { label: string; variant: 'success' | 'destructive' | 'secondary' }> = {
@@ -52,9 +58,8 @@ const PROMOTION_STATUS: Record<PromotionStatus, { label: string; variant: 'succe
 
 const RECOVERY_TYPES: RecoveryType[] = ['supletorio', 'remedial', 'gracia']
 
-function fmt(v: number | null) {
-  return v != null ? v.toFixed(2) : '—'
-}
+/** Estados que requieren registrar una evaluación de recuperación (supletorio). */
+const NEEDS_RECOVERY = (s: SubjectStatus) => s === 'supletorio' || s === 'remedial' || s === 'junta'
 
 export function PromotionPage() {
   const qc = useQueryClient()
@@ -169,10 +174,18 @@ export function PromotionPage() {
         <EmptyState icon={GraduationCap} title="Sin estudiantes" description="No hay estudiantes matriculados en este paralelo." />
       ) : (
         <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Aprueba con ≥ {data.config.minToPass} · supletorio {data.config.supletorioMin}–{data.config.supletorioMax} ·
-            aprueba el supletorio con ≥ {data.config.passWithExam} · máx. {data.config.maxFailedSubjects} materia(s) reprobada(s)
-          </p>
+          {data.agreement ? (
+            <p className="text-xs text-muted-foreground">
+              Acuerdo MINEDEC-2026-00082-A · aprueba con ≥ {formatScore(data.config.minToPass, data.agreement.decimals)} en cada asignatura ·
+              supletorio {formatScore(data.config.supletorioMin, data.agreement.decimals)}–{formatScore(data.config.supletorioMax, data.agreement.decimals)} (nota máxima {formatScore(data.agreement.supletorioCap, data.agreement.decimals)}) ·
+              repitencia directa con ≤ {formatScore(data.agreement.directRepeatMax, data.agreement.decimals)} · promedios con {data.agreement.decimals.places} decimales {data.agreement.decimals.method === 'truncate' ? 'truncados' : 'redondeados'}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Aprueba con ≥ {data.config.minToPass} · supletorio {data.config.supletorioMin}–{data.config.supletorioMax} ·
+              aprueba el supletorio con ≥ {data.config.passWithExam} · máx. {data.config.maxFailedSubjects} materia(s) reprobada(s)
+            </p>
+          )}
 
           {!data.recoveryEnabled && (
             <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -187,11 +200,11 @@ export function PromotionPage() {
 
           {(() => {
             const recoveryCount = data.students.filter((s) =>
-              s.subjects.some((subj) => subj.status === 'supletorio' || subj.status === 'remedial'),
+              s.subjects.some((subj) => NEEDS_RECOVERY(subj.status)),
             ).length
             const visible = onlyRecovery
               ? data.students.filter((s) =>
-                  s.subjects.some((subj) => subj.status === 'supletorio' || subj.status === 'remedial'),
+                  s.subjects.some((subj) => NEEDS_RECOVERY(subj.status)),
                 )
               : data.students
             return (
@@ -204,7 +217,7 @@ export function PromotionPage() {
                     onClick={() => setOnlyRecovery((v) => !v)}
                   >
                     <ListFilter className="h-4 w-4" />
-                    Solo con supletorio/remedial
+                    {data.agreement ? 'Solo con supletorio' : 'Solo con supletorio/remedial'}
                     <Badge variant="secondary" className="ml-1">
                       {recoveryCount}
                     </Badge>
@@ -230,6 +243,7 @@ export function PromotionPage() {
                       onToggle={() => toggle(student.studentId)}
                       passWithExam={data.config.passWithExam}
                       recoveryEnabled={data.recoveryEnabled}
+                      agreement={data.agreement}
                       onSaveRecovery={(input) => saveRecovery.mutate(input)}
                       onSaveDecision={(input) => saveDecision.mutate(input)}
                       savingRecovery={saveRecovery.isPending}
@@ -253,6 +267,7 @@ interface StudentCardProps {
   onToggle: () => void
   passWithExam: number
   recoveryEnabled: boolean
+  agreement: PromotionAgreement | null
   onSaveRecovery: (input: { studentId: string; courseAssignmentId: string; academicYearId: string; type: RecoveryType; score: number | null }) => void
   onSaveDecision: (input: { studentId: string; academicYearId: string; status: PromotionStatus; notes?: string | null }) => void
   savingRecovery: boolean
@@ -265,6 +280,7 @@ function StudentCard({
   expanded,
   onToggle,
   recoveryEnabled,
+  agreement,
   onSaveRecovery,
   onSaveDecision,
   savingRecovery,
@@ -276,9 +292,7 @@ function StudentCard({
   const [notes, setNotes] = React.useState(student.decision?.notes ?? '')
 
   const approved = student.subjects.filter((s) => s.effectiveStatus === 'passed').length
-  const needRecovery = student.subjects.filter(
-    (s) => s.status === 'supletorio' || s.status === 'remedial',
-  )
+  const needRecovery = student.subjects.filter((s) => NEEDS_RECOVERY(s.status))
 
   return (
     <Card className="overflow-hidden">
@@ -307,6 +321,7 @@ function StudentCard({
                 <tr className="bg-muted/50">
                   <th className="border px-2 py-1.5 text-left">Materia</th>
                   <th className="border px-2 py-1.5 text-center w-20">Prom.</th>
+                  {agreement && <th className="border px-2 py-1.5 text-center w-20">Final</th>}
                   <th className="border px-2 py-1.5 text-center w-28">Estado</th>
                   <th className="border px-2 py-1.5 text-center w-44">Recuperación</th>
                   <th className="border px-2 py-1.5 text-center w-32">Resultado</th>
@@ -318,6 +333,7 @@ function StudentCard({
                     key={subj.assignmentId}
                     subject={subj}
                     recoveryEnabled={recoveryEnabled}
+                    agreement={agreement}
                     onSave={(type, score) =>
                       onSaveRecovery({
                         studentId: student.studentId,
@@ -333,6 +349,11 @@ function StudentCard({
               </tbody>
             </table>
           </div>
+          {student.subjects.some((s) => s.effectiveStatus === 'junta_review') && (
+            <p className="text-xs text-amber-700">
+              Hay asignaturas que no alcanzaron la nota tras el supletorio: la junta de docentes puede promover al estudiante (arts. 23 y 27). Registra la decisión abajo.
+            </p>
+          )}
           {needRecovery.length === 0 && (
             <p className="text-xs text-muted-foreground">Ninguna materia requiere recuperación.</p>
           )}
@@ -380,24 +401,35 @@ function StudentCard({
 function SubjectRow({
   subject,
   recoveryEnabled,
+  agreement,
   onSave,
   saving,
 }: {
   subject: PromotionSubject
   recoveryEnabled: boolean
+  agreement: PromotionAgreement | null
   onSave: (type: RecoveryType, score: number | null) => void
   saving: boolean
 }) {
   const { data: gradingConfig } = useGradingConfig()
   const gradingScaleMax = gradingConfig?.gradingScaleMax ?? 10
-  const needsRecovery = subject.status === 'supletorio' || subject.status === 'remedial'
-  const [type, setType] = React.useState<RecoveryType>(subject.recovery?.type ?? (subject.status === 'remedial' ? 'remedial' : 'supletorio'))
+  const needsRecovery = NEEDS_RECOVERY(subject.status)
+  const recoveryTypes: RecoveryType[] = agreement ? ['supletorio'] : RECOVERY_TYPES
+  const [type, setType] = React.useState<RecoveryType>(
+    agreement ? 'supletorio' : subject.recovery?.type ?? (subject.status === 'remedial' ? 'remedial' : 'supletorio'),
+  )
+  const fmt = (v: number | null) => formatScore(v, agreement?.decimals ?? null)
   const [score, setScore] = React.useState<string>(subject.recovery ? String(subject.recovery.score) : '')
 
   return (
     <tr>
       <td className="border px-2 py-1.5">{subject.subjectName}</td>
       <td className="border px-2 py-1.5 text-center tabular-nums">{fmt(subject.annualAvg)}</td>
+      {agreement && (
+        <td className="border px-2 py-1.5 text-center font-medium tabular-nums">
+          {fmt(subject.finalAvg ?? subject.annualAvg)}
+        </td>
+      )}
       <td className="border px-2 py-1.5 text-center">
         <Badge variant={SUBJECT_STATUS[subject.status].variant}>{SUBJECT_STATUS[subject.status].label}</Badge>
       </td>
@@ -409,7 +441,7 @@ function SubjectRow({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {RECOVERY_TYPES.map((t) => (
+                {recoveryTypes.map((t) => (
                   <SelectItem key={t} value={t} className="capitalize">
                     {t}
                   </SelectItem>
