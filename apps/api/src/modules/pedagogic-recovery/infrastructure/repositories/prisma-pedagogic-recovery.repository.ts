@@ -27,6 +27,8 @@ import {
   type ReinforcementStatus,
 } from '../../../../shared/domain/reinforcement-domain'
 import { generateReinforcementPlan } from '../../../../shared/domain/reinforcement-planning-engine'
+import { applyDecimals } from '../../../../shared/domain/agreement-rules'
+import { agreementFor } from '../../../../shared/infrastructure/services/agreement.service'
 import type {
   CreateReinforcementPlanDto,
   ListReinforcementPlansQuery,
@@ -47,6 +49,7 @@ import type {
 } from '../../application/dtos/pedagogic-recovery.dto'
 
 const institutionRepo = new PrismaInstitutionRepository()
+
 
 function labelOrBadRequest(catalog: Record<string, string>, code: string, fieldName: string): string {
   try {
@@ -74,7 +77,10 @@ export class PrismaPedagogicRecoveryRepository {
     if (!period) throw new NotFoundError('Período no encontrado')
 
     const gc = await institutionRepo.getGradingConfig(institutionId)
-    const recoveryMode = gc.pedagogicRecovery.mode
+    // Acuerdo 2026-00082-A (si está activo para el año): método y tope configurables
+    const agreement = await agreementFor(institutionId, query.yearId)
+    const recoveryMode = agreement?.periodRecovery.method ?? gc.pedagogicRecovery.mode
+    const recoveryCap = agreement?.periodRecovery.cap ?? null
     const passingGrade = gc.promotion.minToPass
     const gradingScaleMax = gc.gradingScaleMax
 
@@ -171,7 +177,7 @@ export class PrismaPedagogicRecoveryRepository {
           : null
         const rec = recMap.get(`${sId}:${a.id}`)
         const recoveryScore = rec?.score != null ? Number(rec.score) : null
-        const effectiveTotal = applyRecovery(periodTotal, recoveryScore, recoveryMode)
+        const effectiveTotal = applyDecimals(applyRecovery(periodTotal, recoveryScore, recoveryMode, recoveryCap), agreement?.decimals)
 
         return {
           studentId: sId,

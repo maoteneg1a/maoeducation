@@ -11,13 +11,14 @@ import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { cn, getErrorMessage } from '@/shared/lib/utils'
 import { downloadBulletinPdf, getStudentBulletin } from '@/features/reports/api/reports.api'
 import { useStudentFolder } from '../hooks/useStudentFolder'
+import { DossierPanel } from '@/features/dossier/components/DossierPanel'
 import {
   downloadEnrollmentCertificate,
   downloadActaByUrl,
   type FolderEnrollment,
 } from '../api/student-folder.api'
 
-type Tab = 'resumen' | 'matriculas' | 'calificaciones' | 'incidentes' | 'actas' | 'atenciones'
+type Tab = 'resumen' | 'matriculas' | 'calificaciones' | 'incidentes' | 'actas' | 'atenciones' | 'expediente'
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'resumen', label: 'Resumen' },
@@ -26,6 +27,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'incidentes', label: 'Incidentes' },
   { id: 'actas', label: 'Actas' },
   { id: 'atenciones', label: 'Atenciones' },
+  { id: 'expediente', label: 'Expediente de respaldo' },
 ]
 
 const STATUS_LABELS: Record<string, string> = {
@@ -107,6 +109,7 @@ export function StudentFolderPage() {
       {tab === 'incidentes' && <IncidentesTab folder={folder} />}
       {tab === 'actas' && <ActasTab folder={folder} />}
       {tab === 'atenciones' && <AtencionesTab folder={folder} />}
+      {tab === 'expediente' && <DossierPanel studentId={id} />}
     </div>
   )
 }

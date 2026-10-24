@@ -20,7 +20,15 @@ import type {
   SubjectStatus,
 } from '../../application/dtos/promotion.dto'
 
+import {
+  agreementSubjectStatus,
+  applyDecimals,
+  type AgreementRules,
+  type AgreementSubjectStatus,
+} from '../../../../shared/domain/agreement-rules'
+import { agreementFor } from '../../../../shared/infrastructure/services/agreement.service'
 const institutionRepo = new PrismaInstitutionRepository()
+
 const RECOVERY_TYPES: RecoveryType[] = ['supletorio', 'remedial', 'gracia']
 const PROMOTION_STATUSES: PromotionStatus[] = ['promoted', 'not_promoted', 'pending']
 
@@ -45,6 +53,29 @@ function effectiveStatus(
   return recovery.score >= p.passWithExam ? 'passed' : 'failed'
 }
 
+/**
+ * Estado efectivo con el Acuerdo 2026-00082-A:
+ * - automatic → aprobada (promoción automática, art. 20)
+ * - repeat_direct → reprobada sin supletorio (art. 25)
+ * - supletorio / junta → requiere supletorio; nota final = min(supletorio, tope) (art. 22);
+ *   si no alcanza y el subnivel es de decisión de junta (Media, arts. 23 y 27) → junta_review.
+ */
+function agreementEffective(
+  status: AgreementSubjectStatus,
+  recovery: { score: number } | null,
+  rules: AgreementRules,
+  subnivel: string | null,
+): { effective: EffectiveStatus; finalAvg: number | null } {
+  if (status === 'approved' || status === 'automatic') return { effective: 'passed', finalAvg: null }
+  if (status === 'pending') return { effective: 'pending', finalAvg: null }
+  if (status === 'repeat_direct') return { effective: 'failed', finalAvg: null }
+  if (!recovery) return { effective: 'recovery_pending', finalAvg: null }
+  const finalAvg = applyDecimals(Math.min(recovery.score, rules.promotion.supletorioCap), rules.decimals)
+  if ((finalAvg ?? 0) >= rules.promotion.minToPass) return { effective: 'passed', finalAvg }
+  const junta = rules.promotion.juntaDecisionSubniveles.includes((subnivel ?? '') as never)
+  return { effective: junta ? 'junta_review' : 'failed', finalAvg }
+}
+
 export class PrismaPromotionRepository {
   async getParallelPromotion(
     institutionId: string,
@@ -53,9 +84,11 @@ export class PrismaPromotionRepository {
   ): Promise<ParallelPromotionDto> {
     const parallel = await prisma.parallel.findFirst({
       where: { id: parallelId, institutionId, academicYearId: yearId },
-      select: { id: true, name: true, level: { select: { name: true } } },
+      select: { id: true, name: true, level: { select: { name: true, subnivel: true } } },
     })
     if (!parallel) throw new NotFoundError('Paralelo no encontrado')
+    const agreement = await agreementFor(institutionId, yearId)
+    const subnivel = parallel.level.subnivel ?? null
 
     const year = await prisma.academicYear.findFirst({
       where: { id: yearId, institutionId },
@@ -205,18 +238,36 @@ export class PrismaPromotionRepository {
             if (!groups) return null
             const rawTotal = computePeriodSummary([...groups.values()], a.examWeight, gradingScaleMax, a.projectWeight ?? undefined).total
             const pedRec = pedRecMap.get(`${sId}:${a.id}:${pId}`) ?? null
-            return applyRecovery(rawTotal, pedRec, pedRecoveryMode)
+            if (!agreement) return applyRecovery(rawTotal, pedRec, pedRecoveryMode)
+            return applyDecimals(
+              applyRecovery(rawTotal, pedRec, agreement.periodRecovery.method, agreement.periodRecovery.cap),
+              agreement.decimals,
+            )
           })
-          const annualAvg = average(annualByPeriod)
-          const status = subjectStatus(annualAvg, config)
+          const annualAvg = agreement ? applyDecimals(average(annualByPeriod), agreement.decimals) : average(annualByPeriod)
           const rec = recoveryByKey.get(`${sId}:${a.id}`)
           const recovery = rec
             ? { type: rec.type as RecoveryType, score: Number(rec.score) }
             : null
+          if (agreement) {
+            const st = agreementSubjectStatus(agreement, annualAvg, subnivel)
+            const r = agreementEffective(st, recovery, agreement, subnivel)
+            return {
+              assignmentId: a.id,
+              subjectName: a.subject.name,
+              annualAvg,
+              finalAvg: r.finalAvg ?? annualAvg,
+              status: st,
+              recovery,
+              effectiveStatus: r.effective,
+            }
+          }
+          const status = subjectStatus(annualAvg, config)
           return {
             assignmentId: a.id,
             subjectName: a.subject.name,
             annualAvg,
+            finalAvg: annualAvg,
             status,
             recovery,
             effectiveStatus: effectiveStatus(status, recovery, config),
@@ -225,7 +276,7 @@ export class PrismaPromotionRepository {
 
         const failedCount = subjects.filter((s) => s.effectiveStatus === 'failed').length
         const hasPending = subjects.some(
-          (s) => s.effectiveStatus === 'pending' || s.effectiveStatus === 'recovery_pending',
+          (s) => s.effectiveStatus === 'pending' || s.effectiveStatus === 'recovery_pending' || s.effectiveStatus === 'junta_review',
         )
         const suggestedStatus: PromotionStatus = hasPending
           ? 'pending'
@@ -254,6 +305,15 @@ export class PrismaPromotionRepository {
       periodsTotal: periods.length,
       periodsClosed,
       recoveryEnabled,
+      agreement: agreement
+        ? {
+            framework: 'MINEDEC-2026-00082-A' as const,
+            subnivel,
+            supletorioCap: agreement.promotion.supletorioCap,
+            directRepeatMax: agreement.promotion.directRepeatMax,
+            decimals: agreement.decimals,
+          }
+        : null,
     }
   }
 
@@ -287,6 +347,10 @@ export class PrismaPromotionRepository {
       return { ok: true }
     }
 
+    const agreement = await agreementFor(institutionId, dto.academicYearId)
+    if (agreement && dto.type !== 'supletorio') {
+      throw new BadRequestError('Con el Acuerdo 2026-00082-A solo existe la evaluación supletoria')
+    }
     const gradingScaleMax = (await institutionRepo.getGradingConfig(institutionId)).gradingScaleMax
     if (dto.score < 0 || dto.score > gradingScaleMax) {
       throw new BadRequestError(`La nota debe estar entre 0 y ${gradingScaleMax}`)

@@ -31,6 +31,7 @@ import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults
 import { getGradesReport, getMyGrades, type GradesReportData, type MyGradesSubject } from '@/features/reports/api/reports.api'
 import { useGuardianStudentId } from '@/features/guardian/components/ChildSwitcher'
 import { academicApi, type AcademicPeriod } from '@/features/academic/api/academic.api'
+import { normativeApi } from '@/features/normative/api/normative.api'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useGradingConfig } from '@/features/settings/hooks/useSettings'
 import { useUnsavedChanges } from '@/shared/hooks/useUnsavedChanges'
@@ -88,6 +89,8 @@ interface GradeRowProps {
   localReinforcementScore: number | null | undefined
   reinforcementEnabled: boolean
   reinforcementMode: 'replace' | 'average'
+  /** El año de la actividad usa el Acuerdo 2026-00082-A: la nota final la calcula el servidor (topes y mejora). */
+  agreementActive: boolean
   isModified: boolean
   rowIndex: number
   onChange: (studentId: string, value: number | null) => void
@@ -106,16 +109,29 @@ function focusScoreInput(rowIndex: number) {
   }
 }
 
-function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcementScore, reinforcementEnabled, reinforcementMode, isModified, rowIndex, onChange, onPasteColumn, onStatusChange, onReinforcementChange }: GradeRowProps) {
+const AGREEMENT_MODE_LABEL: Record<string, string> = {
+  agreement_formative: 'Refuerzo (acuerdo)',
+  agreement_direct: 'Mejora directa',
+  agreement_with_reinforcement: 'Mejora con refuerzo',
+}
+
+function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcementScore, reinforcementEnabled, reinforcementMode, agreementActive, isModified, rowIndex, onChange, onPasteColumn, onStatusChange, onReinforcementChange }: GradeRowProps) {
   const rawDisplayScore = localScore !== undefined ? localScore : grade.score
   const rawReinforcementScore = localReinforcementScore !== undefined ? localReinforcementScore : grade.reinforcementScore
   const displayScore = rawDisplayScore == null ? null : Number(rawDisplayScore)
   const reinforcementScore = rawReinforcementScore == null ? null : Number(rawReinforcementScore)
-  const effectiveScore = displayScore == null || reinforcementScore == null
-    ? displayScore
-    : reinforcementMode === 'average'
-      ? (displayScore + reinforcementScore) / 2
-      : reinforcementScore
+  // Con el acuerdo, la nota final (promedio con tope o mejora sumativa) la calcula el servidor:
+  // se muestra la guardada si no hubo cambios locales; si los hay, se recalcula al guardar.
+  const storedAgreementMode = !!grade.reinforcementMode?.startsWith('agreement_')
+  const touched = localScore !== undefined || localReinforcementScore !== undefined
+  const pendingServerCalc = (agreementActive || storedAgreementMode) && touched && displayScore != null && reinforcementScore != null
+  const effectiveScore = storedAgreementMode && !touched
+    ? grade.effectiveScore
+    : displayScore == null || reinforcementScore == null
+      ? displayScore
+      : reinforcementMode === 'average'
+        ? (displayScore + reinforcementScore) / 2
+        : reinforcementScore
   const status = localStatus ?? grade.status
   // El puntaje solo se edita cuando hubo entrega (a tiempo o tarde).
   const scoreEditable = status === 'entregado' || status === 'atrasado'
@@ -193,7 +209,12 @@ function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcement
       )}
       {reinforcementEnabled && (
         <TableCell className="font-semibold tabular-nums">
-          {effectiveScore == null ? '—' : Number(effectiveScore).toFixed(2)}
+          {pendingServerCalc
+            ? <span className="text-xs font-normal text-muted-foreground">Se calcula al guardar</span>
+            : effectiveScore == null ? '—' : Number(effectiveScore).toFixed(2)}
+          {!touched && grade.reinforcementMode && AGREEMENT_MODE_LABEL[grade.reinforcementMode] && (
+            <div className="text-[10px] font-normal text-muted-foreground">{AGREEMENT_MODE_LABEL[grade.reinforcementMode]}</div>
+          )}
         </TableCell>
       )}
       <TableCell>
@@ -1625,6 +1646,15 @@ export function GradeEntryPage() {
     gradingConfig?.activityGradeReinforcement?.eligibleActivityTypeIds?.includes(selectedActivity.activityTypeId) ?? false
   )
   const reinforcementMode = gradingConfig?.activityGradeReinforcement?.mode ?? 'replace'
+  const { data: normative } = useQuery({
+    queryKey: ['normative-profile'],
+    queryFn: normativeApi.getProfile,
+    enabled: !isStudentOrGuardian,
+    staleTime: 60_000,
+  })
+  const selectedYearId = (assignments as Array<{ id: string; academicYearId?: string }>).find((a) => a.id === selectedAssignmentId)?.academicYearId
+  const agreementActive = !!normative &&
+    ((selectedYearId && normative.profile.frameworkByYear[selectedYearId]) || normative.profile.framework) === 'MINEDEC-2026-00082-A'
 
   const { data: grades = [], isLoading: gradesLoading } = useGradesByActivity(selectedActivityId)
   const bulkSave = useBulkSaveGrades()
@@ -2024,6 +2054,7 @@ export function GradeEntryPage() {
                     localReinforcementScore={localReinforcementScores[grade.studentId]}
                     reinforcementEnabled={reinforcementEnabled}
                     reinforcementMode={reinforcementMode}
+                    agreementActive={agreementActive}
                     isModified={modified.has(grade.studentId)}
                     onChange={handleScoreChange}
                     onStatusChange={handleStatusChange}

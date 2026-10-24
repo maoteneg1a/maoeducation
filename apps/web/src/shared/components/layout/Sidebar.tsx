@@ -8,6 +8,9 @@ import {
   Sparkles, School, CreditCard,
   Megaphone,
   ScrollText,
+  Inbox,
+  LifeBuoy,
+  MessageSquareQuote,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { usePermissions } from '@/shared/hooks/usePermissions'
@@ -121,6 +124,12 @@ export const NAV_SECTIONS: NavSection[] = [
         module: 'pedagogic_recovery',
       },
       {
+        label: 'Recomendaciones',
+        icon: MessageSquareQuote,
+        path: '/recomendaciones',
+        permission: 'grades:write',
+      },
+      {
         label: 'Promoción',
         icon: Award,
         path: '/promotion',
@@ -175,10 +184,23 @@ export const NAV_SECTIONS: NavSection[] = [
         module: 'attendance',
       },
       {
-        label: 'Alertas académicas',
+        label: 'Alertas tempranas',
         icon: AlertTriangle,
         path: '/academic-alerts',
-        permission: 'reports:read',
+        permission: 'early_alerts:read',
+      },
+      {
+        label: 'Informes',
+        icon: Inbox,
+        path: '/informes',
+        permission: 'formal_reports:read',
+        roles: ['admin', 'rector', 'inspector', 'dece', 'teacher'],
+      },
+      {
+        label: 'Casos de refuerzo',
+        icon: LifeBuoy,
+        path: '/refuerzo/casos',
+        permission: 'early_alerts:read',
       },
       {
         label: 'Comportamiento',
@@ -271,6 +293,7 @@ export const NAV_SECTIONS: NavSection[] = [
           { label: 'Asignaciones', path: '/academic/assignments', hideForPersonal: true },
           { label: 'Insumos por paralelo', path: '/academic/insumo-setup', hideForPersonal: true },
           { label: 'Calificación y Asistente IA', path: '/settings/calificacion' },
+          { label: 'Marco normativo e informes', path: '/settings/normativa', hideForPersonal: true },
           { label: 'Formato de Planificación', path: '/settings/formato-planificacion' },
           { label: 'Mis grados y materias', path: '/settings/mis-grados', showOnlyForPersonal: true },
         ],

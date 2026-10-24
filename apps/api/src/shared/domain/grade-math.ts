@@ -137,11 +137,14 @@ export function applyRecovery(
   periodTotal: number | null,
   recoveryScore: number | null,
   mode: 'replace_if_higher' | 'average',
+  /** Tope opcional del resultado (Acuerdo 2026-00082-A: 7,00). Nunca baja la nota original. */
+  cap?: number | null,
 ): number | null {
   if (periodTotal === null) return null
   if (recoveryScore === null) return periodTotal
-  if (mode === 'replace_if_higher') return Math.max(periodTotal, recoveryScore)
-  return (periodTotal + recoveryScore) / 2
+  const raw = mode === 'replace_if_higher' ? Math.max(periodTotal, recoveryScore) : (periodTotal + recoveryScore) / 2
+  if (cap == null) return raw
+  return Math.max(periodTotal, Math.min(raw, cap))
 }
 
 /** Recalcula la nota efectiva de una actividad para no depender de valores históricos inconsistentes. */
@@ -156,6 +159,9 @@ export function effectiveActivityScore(grade?: {
   const reinforcement = Number(grade.reinforcementScore)
   const base = grade.baseScore == null ? null : Number(grade.baseScore)
   if (base == null) return reinforcement
+  // Modos del Acuerdo 2026-00082-A (agreement_*): la nota final ya se calculó con los
+  // topes configurados al guardar, así que `score` es la fuente de verdad.
+  if (grade.reinforcementMode?.startsWith('agreement_') && grade.score != null) return Number(grade.score)
   return grade.reinforcementMode === 'average' ? (base + reinforcement) / 2 : reinforcement
 }
 

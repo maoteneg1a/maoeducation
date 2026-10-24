@@ -1,3 +1,8 @@
+import {
+  AGREEMENT_00082A_PRESET,
+  AGREEMENT_00082A_QUALITATIVE_BANDS,
+  AGREEMENT_00082A_VALUE_SCALE,
+} from '../../../../shared/domain/agreement-rules'
 import { Prisma } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import fs from 'fs'
@@ -297,6 +302,16 @@ export const BASE_PERMISSIONS = [
   { resource: 'tasks', action: 'read', scope: 'all' },
   { resource: 'tasks', action: 'read', scope: 'own' },
   { resource: 'tasks', action: 'write', scope: 'own' },
+  // alertas tempranas (Acuerdo 2026-00082-A)
+  { resource: 'early_alerts', action: 'read', scope: 'all' },
+  { resource: 'early_alerts', action: 'read', scope: 'own' },
+  // informes formales entre instancias (redactar/enviar/recibir)
+  { resource: 'formal_reports', action: 'read', scope: 'all' },
+  { resource: 'formal_reports', action: 'read', scope: 'own' },
+  { resource: 'formal_reports', action: 'write', scope: 'own' },
+  { resource: 'formal_reports', action: 'manage', scope: 'all' },
+  // consulta de casos de refuerzo (lectura transversal)
+  { resource: 'reinforcement_cases', action: 'read', scope: 'all' },
 ] as const
 
 export const ROLE_PERMISSIONS: Array<{ roleName: string; permKey: string }> = [
@@ -323,6 +338,9 @@ export const ROLE_PERMISSIONS: Array<{ roleName: string; permKey: string }> = [
   { roleName: 'admin', permKey: 'curriculum:manage:all' },
   { roleName: 'admin', permKey: 'planning:read:all' },
   { roleName: 'admin', permKey: 'planning:manage:all' },
+  { roleName: 'admin', permKey: 'early_alerts:read:all' },
+  { roleName: 'admin', permKey: 'formal_reports:manage:all' },
+  { roleName: 'admin', permKey: 'reinforcement_cases:read:all' },
   // Rector / Autoridad — gestiona incidentes y aprueba medidas
   { roleName: 'rector', permKey: 'users:read:all' },
   { roleName: 'rector', permKey: 'incidents:manage:all' },
@@ -344,6 +362,9 @@ export const ROLE_PERMISSIONS: Array<{ roleName: string; permKey: string }> = [
   { roleName: 'dece', permKey: 'parent_meetings:read:all' },
   { roleName: 'dece', permKey: 'parent_meetings:write:all' },
   { roleName: 'dece', permKey: 'student_folder:read:all' },
+  { roleName: 'dece', permKey: 'early_alerts:read:all' },
+  { roleName: 'dece', permKey: 'formal_reports:read:own' },
+  { roleName: 'dece', permKey: 'formal_reports:write:own' },
   // Inspector
   { roleName: 'inspector', permKey: 'users:read:all' },
   { roleName: 'inspector', permKey: 'attendance:read:all' },
@@ -355,6 +376,10 @@ export const ROLE_PERMISSIONS: Array<{ roleName: string; permKey: string }> = [
   { roleName: 'inspector', permKey: 'student_folder:read:all' },
   { roleName: 'inspector', permKey: 'anamnesis:manage:all' },
   { roleName: 'inspector', permKey: 'reports:read:all' },
+  { roleName: 'inspector', permKey: 'early_alerts:read:all' },
+  { roleName: 'inspector', permKey: 'formal_reports:read:own' },
+  { roleName: 'inspector', permKey: 'formal_reports:write:own' },
+  { roleName: 'inspector', permKey: 'reinforcement_cases:read:all' },
   // Profesor
   { roleName: 'teacher', permKey: 'academic_config:read:all' },
   { roleName: 'teacher', permKey: 'enrollment:read:own' },
@@ -384,6 +409,9 @@ export const ROLE_PERMISSIONS: Array<{ roleName: string; permKey: string }> = [
   { roleName: 'teacher', permKey: 'curriculum:write:own' },
   { roleName: 'teacher', permKey: 'planning:read:own' },
   { roleName: 'teacher', permKey: 'planning:write:own' },
+  { roleName: 'teacher', permKey: 'early_alerts:read:own' },
+  { roleName: 'teacher', permKey: 'formal_reports:read:own' },
+  { roleName: 'teacher', permKey: 'formal_reports:write:own' },
   // Alumno/Padre
   { roleName: 'student', permKey: 'activities:read:own' },
   { roleName: 'student', permKey: 'grades:read:own' },
@@ -395,6 +423,7 @@ export const ROLE_PERMISSIONS: Array<{ roleName: string; permKey: string }> = [
   { roleName: 'guardian', permKey: 'attendance:read:own' },
   { roleName: 'guardian', permKey: 'incidents:read:own' },
   { roleName: 'guardian', permKey: 'tasks:read:own' },
+  { roleName: 'guardian', permKey: 'formal_reports:read:own' },
 ]
 
 // `subnivel` alinea cada grado con el banco curricular MINEDUC (CurriculumCriterion.subnivel):
@@ -582,6 +611,26 @@ export const DEFAULT_GRADING_CONFIG = {
   },
   educarEcuadorExportEnabled: true,
 } as const
+
+/**
+ * Config de calificación de una institución NUEVA: la base histórica alineada
+ * con el preset del Acuerdo 2026-00082-A. DEFAULT_GRADING_CONFIG no cambia
+ * porque sigue siendo el fallback de las instituciones existentes (opt-in).
+ */
+export const NEW_INSTITUTION_GRADING_CONFIG = {
+  ...DEFAULT_GRADING_CONFIG,
+  qualitativeScale: AGREEMENT_00082A_QUALITATIVE_BANDS,
+  qualitativeValueScale: AGREEMENT_00082A_VALUE_SCALE,
+  promotion: {
+    minToPass: AGREEMENT_00082A_PRESET.promotion.minToPass,
+    supletorioMin: AGREEMENT_00082A_PRESET.promotion.supletorioMin,
+    supletorioMax: AGREEMENT_00082A_PRESET.promotion.supletorioMax,
+    passWithExam: AGREEMENT_00082A_PRESET.promotion.supletorioCap,
+    maxFailedSubjects: 0,
+  },
+  pedagogicRecovery: { mode: AGREEMENT_00082A_PRESET.periodRecovery.method },
+  activityGradeReinforcement: { mode: AGREEMENT_00082A_PRESET.formativeReinforcement.method, eligibleActivityTypeIds: [] as string[] },
+}
 
 // Materias cualitativas por defecto (se califican con notas; en la libreta se
 // muestran como letra A+…F− y no entran al promedio general).
@@ -818,6 +867,27 @@ export async function bootstrapInstitution(
       startDate: new Date(calendar.startDate),
       endDate: new Date(calendar.endDate),
       isActive: true,
+    },
+  })
+  // 5c. Perfil normativo: las instituciones NUEVAS nacen con el Acuerdo
+  // 2026-00082-A y su preset (todo editable luego). Costa–Galápagos 2026-2027
+  // sigue con el acuerdo anterior por la transitoria octava.
+  await tx.institution.update({
+    where: { id: inst.id },
+    data: {
+      settings: {
+        gradingConfig: NEW_INSTITUTION_GRADING_CONFIG,
+        isTestInstitution: institution.isTestInstitution ?? false,
+        normativeProfile: {
+          sostenimiento: 'fiscal',
+          regime,
+          framework: 'MINEDEC-2026-00082-A',
+          frameworkByYear: regime === 'COSTA_GALAPAGOS' && calendar.yearName === '2026-2027'
+            ? { [academicYear.id]: 'LEGACY' }
+            : {},
+        },
+        agreementRules: AGREEMENT_00082A_PRESET,
+      } as unknown as Prisma.InputJsonValue,
     },
   })
   await tx.academicPeriod.createMany({
