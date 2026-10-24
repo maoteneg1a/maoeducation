@@ -110,7 +110,10 @@ async function saberesForCompetencyAndGrade(competencyId: string, gradeCode: str
     where: { competencyId, isActive: true },
     orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
   })
-  return sabers.filter((s) => s.gradeCodes.length === 0 || s.gradeCodes.includes(gradeCode))
+  const filtered = sabers.filter((s) => s.gradeCodes.length === 0 || s.gradeCodes.includes(gradeCode))
+  // Mismo criterio que los otros dos call sites: hueco del catálogo nunca
+  // debe dejar la competencia sin saberes para este grado.
+  return filtered.length > 0 ? filtered : sabers
 }
 
 /**
