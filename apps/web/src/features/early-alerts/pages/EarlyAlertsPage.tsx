@@ -202,6 +202,7 @@ export function EarlyAlertsPage() {
         open={!!composerFor}
         onOpenChange={(o) => !o && setComposerFor(null)}
         context={composerFor ? { alertId: composerFor.id, reinforcementPlanId: composerFor.reinforcementCase?.id } : {}}
+        existingReports={composerFor?.reports.filter((r) => r.grouped && r.reportId).map((r) => ({ typeKey: r.typeKey, reportId: r.reportId! }))}
       />
       <StartReinforcementDialog alerts={startAlerts} onClose={() => setStartAlerts([])} />
       <DismissDialog alert={dismissFor} onClose={() => setDismissFor(null)} onDone={refresh} />
@@ -215,11 +216,13 @@ function ReportStep({ r }: { r: EarlyAlertItem['reports'][number] }) {
   const Icon = done ? CheckCircle2 : r.drafts > 0 ? CircleDashed : XCircle
   const color = done ? 'text-emerald-600' : r.drafts > 0 ? 'text-amber-600' : 'text-muted-foreground'
   return (
-    <li className="flex items-center gap-2 text-xs">
+    <li className="flex flex-wrap items-center gap-2 text-xs">
       <Icon className={`h-4 w-4 shrink-0 ${color}`} />
       <span>{r.label}</span>
       {done && <span className="text-muted-foreground">({r.sent} · {REPORT_STATUS_LABEL[r.lastStatus as FormalReportStatus] ?? r.lastStatus})</span>}
       {!done && r.drafts > 0 && <span className="text-muted-foreground">(borrador)</span>}
+      {r.needsAmendment && <span className="text-amber-700">Pendiente de incluir en una ampliación</span>}
+      {r.grouped && r.reportId && <Link className="text-primary hover:underline" to={`/informes/${r.reportId}`}>Abrir informe agrupado</Link>}
     </li>
   )
 }

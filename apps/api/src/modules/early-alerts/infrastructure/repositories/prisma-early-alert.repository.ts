@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client'
+import { groupedReportProgress } from '../../application/services/grouped-report-progress'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import {
@@ -192,7 +193,7 @@ export class PrismaEarlyAlertRepository {
 
     const alertIds = alerts.map((a) => a.id)
     const alertTypes = flow.reportTypes.filter((t) => t.enabled && t.triggeredByAlert)
-    const [reports, plans] = await Promise.all([
+    const [reports, plans, groupedReports] = await Promise.all([
       alertIds.length
         ? prisma.formalReport.findMany({
             where: { institutionId, alertId: { in: alertIds } },
@@ -204,6 +205,20 @@ export class PrismaEarlyAlertRepository {
         where: { institutionId, id: { in: alerts.map((a) => a.reinforcementPlanId).filter((x): x is string => !!x) } },
         select: { id: true, caseStatus: true },
       }),
+      hasPermission(actor, 'formal_reports', 'read', 'own') || hasPermission(actor, 'formal_reports', 'read', 'all')
+        ? prisma.formalReport.findMany({
+          where: { institutionId, academicYearId: period.academicYearId, academicPeriodId: period.id,
+            courseAssignmentId: { in: assignments.map((a) => a.id) },
+            typeKey: { in: alertTypes.filter((t) => t.pdfTemplate === 'annex_alerts').map((t) => t.key) },
+            OR: [{ authorId: actor.userId }, { status: { not: 'DRAFT' },
+              ...(hasPermission(actor, 'formal_reports', 'read', 'all')
+                ? { OR: [{ confidential: false }, { recipients: { some: { userId: actor.userId } } }] }
+                : { recipients: { some: { userId: actor.userId } } }),
+            }],
+          },
+          select: { id: true, authorId: true, typeKey: true, courseAssignmentId: true, parallelId: true, status: true, snapshot: true },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        }) : [],
     ])
     const planById = new Map(plans.map((p) => [p.id, p]))
     const reportsByAlert = new Map<string, typeof reports>()
@@ -232,6 +247,13 @@ export class PrismaEarlyAlertRepository {
         parallel: { id: a.parallel.id, name: a.parallel.name, levelName: a.parallel.level.name, tutorId: a.parallel.tutorId },
         reinforcementCase: plan ? { id: plan.id, caseStatus: plan.caseStatus } : null,
         reports: alertTypes.map((t) => {
+          if (t.pdfTemplate === 'annex_alerts') {
+            const matching = groupedReports.filter((r) => r.typeKey === t.key && r.courseAssignmentId === a.id && r.parallelId === a.parallel.id)
+            // El docente abre su propio agrupado; la autoridad consulta el del docente de la asignatura.
+            const authorId = matching.some((r) => r.authorId === actor.userId) ? actor.userId : a.teacherId
+            const names = al.student.profile ? [`${al.student.profile.firstName} ${al.student.profile.lastName}`, `${al.student.profile.lastName} ${al.student.profile.firstName}`] : [al.student.email]
+            return { typeKey: t.key, label: t.label, ...groupedReportProgress(matching.filter((r) => r.authorId === authorId), al.studentId, names) }
+          }
           const mine = rs.filter((r) => r.typeKey === t.key)
           const sent = mine.filter((r) => r.status !== 'DRAFT')
           return { typeKey: t.key, label: t.label, sent: sent.length, drafts: mine.length - sent.length, lastStatus: sent.at(-1)?.status ?? null }

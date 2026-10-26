@@ -37,6 +37,8 @@ export function ReportDetailPage() {
     if (r) {
       qc.invalidateQueries({ queryKey: ['formal-reports'] })
       qc.invalidateQueries({ queryKey: ['formal-reports-counts'] })
+      qc.invalidateQueries({ queryKey: ['early-alerts-v2'] })
+      qc.invalidateQueries({ queryKey: ['early-alerts-summary'] })
     }
   }, [r?.id])
   const { data: flow } = useQuery({ queryKey: ['reports-flow'], queryFn: formalReportsApi.reportsFlow, staleTime: 60_000 })
@@ -59,6 +61,8 @@ export function ReportDetailPage() {
   }, [r])
 
   const setReport = (next: FormalReport) => {
+    qc.invalidateQueries({ queryKey: ['early-alerts-v2'] })
+    qc.invalidateQueries({ queryKey: ['early-alerts-summary'] })
     qc.setQueryData(['formal-report', id], next)
     qc.invalidateQueries({ queryKey: ['formal-reports'] })
     qc.invalidateQueries({ queryKey: ['formal-reports-counts'] })
@@ -78,7 +82,7 @@ export function ReportDetailPage() {
     onSuccess: (x) => { setReport(x); toast.success(`Informe enviado con folio ${x.folio}`) },
     onError: onErr,
   })
-  const remove = useMutation({ mutationFn: () => formalReportsApi.remove(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['formal-reports'] }); qc.invalidateQueries({ queryKey: ['dossier'] }); toast.success('Borrador eliminado'); navigate('/informes') }, onError: onErr })
+  const remove = useMutation({ mutationFn: () => formalReportsApi.remove(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['formal-reports'] }); qc.invalidateQueries({ queryKey: ['dossier'] }); qc.invalidateQueries({ queryKey: ['early-alerts-v2'] }); qc.invalidateQueries({ queryKey: ['early-alerts-summary'] }); toast.success('Borrador eliminado'); navigate('/informes') }, onError: onErr })
   const receive = useMutation({ mutationFn: () => formalReportsApi.receive(id), onSuccess: (x) => { setReport(x); toast.success('Acuse de recibo registrado') }, onError: onErr })
   const amendment = useMutation({ mutationFn: () => formalReportsApi.amendment(id), onSuccess: (x) => { qc.invalidateQueries({ queryKey: ['formal-reports'] }); navigate(`/informes/${x.id}`) }, onError: onErr })
   const newVersion = useMutation({ mutationFn: () => formalReportsApi.newVersion(id), onSuccess: (x) => navigate(`/informes/${x.id}`), onError: onErr })
