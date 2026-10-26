@@ -280,9 +280,10 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      { path: 'reinforcement-plans', element: <Navigate to="/refuerzo/casos" replace /> },
       // ---- Reinforcement Plans (refuerzo y adaptaciones NEE) ----
       {
-        path: 'reinforcement-plans',
+        path: 'refuerzo/planes-anteriores',
         element: <PermissionGuard permission="grades:write" />,
         children: [
           {

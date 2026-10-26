@@ -12,7 +12,7 @@ import { toQualitativeCode, type QualitativeBand } from '../../../../shared/doma
 import { extractReportsFlow } from '../../../../shared/domain/reports-flow'
 import { computePeriodGrades } from '../../../../shared/infrastructure/services/period-grades.service'
 import { institutionSettings } from '../../../../shared/infrastructure/services/agreement.service'
-import { hasPermission, type Actor } from '../../../../shared/infrastructure/services/actor'
+import { hasPermission, isAuthority, type Actor } from '../../../../shared/infrastructure/services/actor'
 import type {
   EarlyAlertItemDto,
   EarlyAlertStatus,
@@ -236,6 +236,7 @@ export class PrismaEarlyAlertRepository {
           const sent = mine.filter((r) => r.status !== 'DRAFT')
           return { typeKey: t.key, label: t.label, sent: sent.length, drafts: mine.length - sent.length, lastStatus: sent.at(-1)?.status ?? null }
         }),
+        canStartReinforcement: al.status === 'OPEN' && !plan && !period.isClosed && hasPermission(actor, 'grades', 'write', 'own') && (a.teacherId === actor.userId || isAuthority(actor)),
         canAct: this.canSeeAll(actor) || a.teacherId === actor.userId || a.parallel.tutorId === actor.userId,
       }
     })

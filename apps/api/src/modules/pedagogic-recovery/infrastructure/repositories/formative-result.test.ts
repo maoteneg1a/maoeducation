@@ -50,6 +50,12 @@ describe('aplicación del resultado del plan', () => {
     expect(summaries).toHaveBeenCalledWith('school', expect.objectContaining({ ignoreFormativeApplications: true }))
     expect(db.formativeReinforcementResult.create).not.toHaveBeenCalled()
   })
+  it('permite aplicar el plan después de una mejora individual usando la nota vigente', async () => {
+    db.activity.findMany.mockResolvedValue([{ id: 'activity', insumoId: 'insumo', maxScore: 10, activityType: { code: 'task' }, grades: [{ score: 6, baseScore: 2, reinforcementScore: 10, reinforcementMode: 'agreement_formative' }] }])
+    summaries.mockResolvedValue(new Map([['student:assignment:period', computePeriodSummary([{ id: 'insumo', name: 'Tareas', activities: [{ id: 'activity', score: 6, maxScore: 10, kind: 'regular' }] }], 30)]]))
+    const result = await applyWithPreview()
+    expect(result.payload).toMatchObject({ initialFormative: 6, adjustedFormative: 7 })
+  })
   it('registra autor, motivo, configuración, evidencias y antes/después en una nueva versión', async () => {
     const result = await applyWithPreview()
     expect(result).toMatchObject({ institutionId: 'school', recordedBy: 'teacher', reason: dto.reason, payload: { mode: 'activity_set', reinforcementWeight: 50, cap: 7, score: 8, initialFormative: 4, adjustedFormative: 6, evidence: [{ sessionId: 'session', score: 8 }] } })

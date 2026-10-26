@@ -208,7 +208,27 @@ export interface FormativePreview {
 }
 const base = 'reinforcement-desk/cases'
 
+export interface StartReinforcementInput {
+  alertIds: string[]
+  learningTarget: string
+  objective?: string
+  strategies?: string
+  schedule?: string
+}
+export interface SaveReinforcementPlanInput {
+  learningTarget: string
+  objective: string
+  strategies: string
+  resources?: string
+  evaluation?: string
+  schedule?: string
+  notes?: string
+  action?: 'save' | 'close' | 'continue'
+  outcomes?: Array<{ studentId: string; result: 'CONSOLIDATED' | 'NOT_CONSOLIDATED'; observation?: string; assessmentValue?: string }>
+}
 export const reinforcementDeskApi = {
+  startFromAlerts: (data: StartReinforcementInput) => apiPost<{ id: string; alreadyLinked: boolean }>(`${base}/from-alerts`, data),
+  savePlan: (id: string, data: SaveReinforcementPlanInput) => apiPut(`${base}/${id}/plan`, data),
   formativeOptions: (id: string) => apiGet<FormativeOptions>(`${base}/${id}/formative`),
   previewFormative: (id: string, data: FormativeResultInput) => apiPost<FormativePreview>(`${base}/${id}/formative/preview`, data),
   applyFormative: (id: string, data: FormativeResultInput) => apiPost<FormativeHistory>(`${base}/${id}/formative/apply`, data),

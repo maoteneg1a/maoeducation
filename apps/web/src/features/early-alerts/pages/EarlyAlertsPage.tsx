@@ -1,3 +1,4 @@
+import { StartReinforcementDialog } from '@/features/reinforcement-desk/components/StartReinforcementDialog'
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
@@ -38,6 +39,9 @@ export function EarlyAlertsPage() {
   const [status, setStatus] = React.useState<EarlyAlertStatus | 'all'>('OPEN')
   const [composerFor, setComposerFor] = React.useState<EarlyAlertItem | null>(null)
   const [dismissFor, setDismissFor] = React.useState<EarlyAlertItem | null>(null)
+  const [startAlerts, setStartAlerts] = React.useState<EarlyAlertItem[]>([])
+  const [selected, setSelected] = React.useState<string[]>([])
+  React.useEffect(() => { setSelected([]) }, [periodId, parallelId, status])
   const [linkFor, setLinkFor] = React.useState<EarlyAlertItem | null>(null)
 
   const { data: years = [], isLoading: yearsLoading } = useQuery({ queryKey: ['years'], queryFn: getYears })
@@ -136,10 +140,25 @@ export function EarlyAlertsPage() {
             <Card><CardContent><EmptyState icon={CheckCircle2} title="Sin alertas" description="No hay alertas con el filtro seleccionado." /></CardContent></Card>
           ) : (
             <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" disabled={!selected.length} onClick={() => setStartAlerts(data.items.filter((a) => selected.includes(a.id)))}>
+                  Iniciar plan grupal ({selected.length})
+                </Button>
+                <span className="text-xs text-muted-foreground">Selecciona alertas de la misma asignatura para compartir un plan.</span>
+              </div>
               {data.items.map((a) => (
                 <AlertCard
                   key={a.id}
                   a={a}
+                  selected={selected.includes(a.id)}
+                  onSelect={(checked) => {
+                    if (checked && selected.some((id) => data.items.find((item) => item.id === id)?.assignment.id !== a.assignment.id)) {
+                      toast.error('Selecciona alertas de la misma asignatura para el plan grupal')
+                      return
+                    }
+                    setSelected((previous) => checked ? [...new Set([...previous, a.id])] : previous.filter((id) => id !== a.id))
+                  }}
+                  onStart={() => setStartAlerts([a])}
                   onCompose={() => setComposerFor(a)}
                   onDismiss={() => setDismissFor(a)}
                   onReopen={() => reopen.mutate(a.id)}
@@ -184,8 +203,9 @@ export function EarlyAlertsPage() {
         onOpenChange={(o) => !o && setComposerFor(null)}
         context={composerFor ? { alertId: composerFor.id, reinforcementPlanId: composerFor.reinforcementCase?.id } : {}}
       />
+      <StartReinforcementDialog alerts={startAlerts} onClose={() => setStartAlerts([])} />
       <DismissDialog alert={dismissFor} onClose={() => setDismissFor(null)} onDone={refresh} />
-      <LinkCaseDialog alert={linkFor} periodId={periodId} onClose={() => setLinkFor(null)} onDone={refresh} />
+      <LinkCaseDialog alert={linkFor} periodId={periodId} onClose={() => setLinkFor(null)} onDone={refresh} onStart={() => { if (linkFor) setStartAlerts([linkFor]); setLinkFor(null) }} />
     </div>
   )
 }
@@ -204,12 +224,13 @@ function ReportStep({ r }: { r: EarlyAlertItem['reports'][number] }) {
   )
 }
 
-function AlertCard({ a, onCompose, onDismiss, onReopen, onLink }: { a: EarlyAlertItem; onCompose: () => void; onDismiss: () => void; onReopen: () => void; onLink: () => void }) {
+function AlertCard({ a, onCompose, onDismiss, onReopen, onLink, onStart, selected, onSelect }: { a: EarlyAlertItem; onStart: () => void; selected: boolean; onSelect: (checked: boolean) => void; onCompose: () => void; onDismiss: () => void; onReopen: () => void; onLink: () => void }) {
   return (
     <Card className={a.status === 'OPEN' ? 'border-amber-200' : ''}>
       <CardContent className="grid gap-4 p-4 md:grid-cols-[1.4fr_1fr_auto]">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
+            {a.canStartReinforcement && <input type="checkbox" aria-label={`Seleccionar alerta de ${a.student.name}`} checked={selected} onChange={(e) => onSelect(e.target.checked)} />}
             <AlertTriangle className={`h-4 w-4 ${a.status === 'OPEN' ? 'text-amber-600' : 'text-muted-foreground'}`} />
             <Link to={`/students/${a.student.id}`} className="font-medium hover:underline">{a.student.name}</Link>
             <Badge variant={a.status === 'OPEN' ? 'warning' : a.status === 'RESOLVED' ? 'success' : 'secondary'}>{STATUS_LABEL[a.status]}</Badge>
@@ -231,6 +252,7 @@ function AlertCard({ a, onCompose, onDismiss, onReopen, onLink }: { a: EarlyAler
         </ul>
         {a.canAct && (
           <div className="flex flex-row flex-wrap gap-2 md:flex-col">
+            {a.canStartReinforcement && <Button size="sm" onClick={onStart}>Iniciar plan de refuerzo</Button>}
             {a.status !== 'DISMISSED' && <Button size="sm" onClick={onCompose}><FilePen className="mr-1 h-4 w-4" /> Redactar informe</Button>}
             {!a.reinforcementCase && <Button size="sm" variant="outline" onClick={onLink}><Link2 className="mr-1 h-4 w-4" /> Vincular caso</Button>}
             {a.status === 'OPEN' && <Button size="sm" variant="ghost" onClick={onDismiss}>Descartar</Button>}
@@ -267,7 +289,7 @@ function DismissDialog({ alert, onClose, onDone }: { alert: EarlyAlertItem | nul
   )
 }
 
-function LinkCaseDialog({ alert, periodId, onClose, onDone }: { alert: EarlyAlertItem | null; periodId: string; onClose: () => void; onDone: () => void }) {
+function LinkCaseDialog({ alert, periodId, onClose, onDone, onStart }: { onStart: () => void; alert: EarlyAlertItem | null; periodId: string; onClose: () => void; onDone: () => void }) {
   const { data = [], isLoading } = useQuery({
     queryKey: ['desk-cases-for-alert', alert?.id],
     queryFn: () => earlyAlertsApi.cases({ periodId, courseAssignmentId: alert!.assignment.id, studentId: alert!.student.id }),
@@ -287,8 +309,8 @@ function LinkCaseDialog({ alert, periodId, onClose, onDone }: { alert: EarlyAler
         </DialogHeader>
         {isLoading ? <PageLoader /> : data.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No hay casos de refuerzo para esta alerta. Puedes crear uno en{' '}
-            <Link to="/reinforcement-plans" className="text-primary hover:underline">Refuerzo y adaptaciones</Link> y luego vincularlo aquí.
+            No hay planes para esta alerta.
+            {alert?.canStartReinforcement && <Button className="ml-2" size="sm" onClick={onStart}>Iniciar plan de refuerzo</Button>}
           </p>
         ) : (
           <ul className="space-y-2">

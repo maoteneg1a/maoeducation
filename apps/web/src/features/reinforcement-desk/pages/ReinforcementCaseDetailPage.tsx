@@ -1,3 +1,4 @@
+import { PlanTab } from '../components/PlanTab'
 import { FormativeResultTab } from '../components/FormativeResultTab'
 import * as React from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -96,14 +97,16 @@ export function ReinforcementCaseDetailPage() {
         })}
       </div>
 
-      <Tabs defaultValue="summary">
+      <Tabs defaultValue="plan">
         <TabsList className="flex-wrap">
+          <TabsTrigger value="plan">Plan y seguimiento</TabsTrigger>
           <TabsTrigger value="summary">Resumen del caso</TabsTrigger>
           <TabsTrigger value="sessions">Sesiones y asistencia ({data.sessions.length})</TabsTrigger>
           <TabsTrigger value="formative">Resultado formativo</TabsTrigger>
           <TabsTrigger value="files">Archivos ({data.attachments.length})</TabsTrigger>
           <TabsTrigger value="reports">Informes ({data.reports.length})</TabsTrigger>
         </TabsList>
+        <TabsContent value="plan"><PlanTab planId={id} detail={data} /></TabsContent>
         <TabsContent value="summary"><CaseSummaryTab kase={k} /></TabsContent>
         <TabsContent value="sessions"><SessionsTab planId={id} detail={data} /></TabsContent>
         <TabsContent value="formative"><FormativeResultTab planId={id} detail={data} /></TabsContent>

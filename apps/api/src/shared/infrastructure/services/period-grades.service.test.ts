@@ -30,6 +30,18 @@ describe('resumen único del período con refuerzo', () => {
     expect(summary.total).toBeCloseTo(6.55)
     expect(summary.formativeReinforcement).toBeUndefined()
   })
+  it('el plan parte de la mejora individual vigente sin bloquearla ni volver a promediarla', async () => {
+    db.insumo.findMany.mockResolvedValue([{
+      id: 'a', name: 'Tareas', courseAssignmentId: 'assignment', academicPeriodId: 'period',
+      activities: [{ id: 'activity', maxScore: 10, activityType: { code: 'task' }, grades: [{ studentId: 'student', score: 6, baseScore: 2, reinforcementScore: 10, reinforcementMode: 'agreement_formative' }] }],
+    }])
+    const initial = (await computePeriodGrades('school', { ...params, ignoreFormativeApplications: true })).get(key)!
+    expect(initial.insumosBase).toBe(6)
+    db.formativeReinforcementResult.findMany.mockResolvedValue([row()])
+    const result = (await computePeriodGrades('school', params)).get(key)!
+    expect(result.formativeReinforcement).toMatchObject({ initial: 6, adjusted: 7 })
+    expect(result.insumosBase).toBe(7)
+  })
   it('usa la última aplicación y sus pesos guardados', async () => {
     db.formativeReinforcementResult.findMany.mockResolvedValue([row(), row({ ...application, reinforcementWeight: 25 })])
     const summary = (await computePeriodGrades('school', params)).get(key)!

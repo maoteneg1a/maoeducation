@@ -60,7 +60,7 @@ export function ReinforcementPlansList({ courseAssignmentId, academicPeriodId, p
     onError: (err) => toast.error(getErrorMessage(err)),
   })
 
-  if (plans.length === 0 && neeCandidates.length === 0) return null
+  if (plans.length === 0 && neeCandidates.length === 0) return <p className="rounded border p-4 text-sm text-muted-foreground">No hay planes anteriores ni adaptaciones para esta asignación y período.</p>
 
   return (
     <Card className="space-y-3 p-4">

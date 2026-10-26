@@ -96,9 +96,9 @@ export const NAV_SECTIONS: NavSection[] = [
         module: 'interdisciplinary_projects',
       },
       {
-        label: 'Refuerzo y Adaptaciones',
+        label: 'Adaptaciones y planes anteriores',
         icon: HeartHandshake,
-        path: '/reinforcement-plans',
+        path: '/refuerzo/planes-anteriores',
         permission: 'grades:write',
         module: 'reinforcement_plans',
       },
@@ -197,7 +197,7 @@ export const NAV_SECTIONS: NavSection[] = [
         roles: ['admin', 'rector', 'inspector', 'dece', 'teacher'],
       },
       {
-        label: 'Casos de refuerzo',
+        label: 'Refuerzo pedagógico',
         icon: LifeBuoy,
         path: '/refuerzo/casos',
         permission: 'early_alerts:read',
