@@ -1,3 +1,4 @@
+import { applyAnnexSignatures } from './annex-signatures.service'
 import JSZip from 'jszip'
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -144,6 +145,7 @@ export async function buildOriginalAnnexDocx(data: FormalReportPdfData): Promise
     zip.file(header, fill(await zip.file(header)!.async('string'), v, spec))
   }
   await applyAnnexLogo(zip, manifest.branding, data.logoUrl)
+  await applyAnnexSignatures(zip, number, data.authorSignature, data.recipientSignature)
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
 }
 

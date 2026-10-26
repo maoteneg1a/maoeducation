@@ -1,5 +1,6 @@
+import { MySignatureDialog } from '@/features/user-signature/components/MySignatureDialog'
 import { useState } from 'react'
-import { Menu, LogOut, KeyRound, Search, Sun, Moon, Monitor, ChevronDown } from 'lucide-react'
+import { Menu, LogOut, KeyRound, Search, Sun, Moon, Monitor, ChevronDown, PenLine } from 'lucide-react'
 import { ChildSwitcher } from '@/features/guardian/components/ChildSwitcher'
 import { useNavigate } from 'react-router-dom'
 import { useUIStore, type ThemeMode } from '@/store/ui.store'
@@ -42,6 +43,7 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
   const setTheme = useUIStore((s) => s.setTheme)
   const { user, clearAuth } = useAuthStore()
   const navigate = useNavigate()
+  const [signatureOpen, setSignatureOpen] = useState(false)
   const [pwOpen, setPwOpen] = useState(false)
 
   async function handleLogout() {
@@ -148,6 +150,7 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
 
+            <DropdownMenuItem onSelect={() => setSignatureOpen(true)}><PenLine />Mi firma</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setPwOpen(true)}>
               <KeyRound />
               Cambiar contraseña
@@ -185,6 +188,7 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
         </DropdownMenu>
       </div>
 
+      <MySignatureDialog open={signatureOpen} onOpenChange={setSignatureOpen} />
       <ChangePasswordDialog open={pwOpen} onOpenChange={setPwOpen} />
     </header>
   )

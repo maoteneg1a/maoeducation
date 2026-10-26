@@ -1,3 +1,5 @@
+import { captureDocumentSignature } from '../../../users/application/services/user-signature.service'
+import { withDocumentDateDefault } from '../../application/services/report-content-defaults'
 import crypto from 'crypto'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
@@ -59,12 +61,21 @@ export class PrismaFormalReportRepository {
         periodId: r.academicPeriodId, courseAssignmentId: r.courseAssignmentId,
       })
     }
-    return buildSnapshot(source, r)
+    const snapshot = await buildSnapshot(source, r)
+    if (source === 'early_alerts' && r.previousVersionId) {
+      const previous = await prisma.formalReport.findFirst({ where: { id: r.previousVersionId, institutionId: r.institutionId, authorId: r.authorId, courseAssignmentId: r.courseAssignmentId, academicPeriodId: r.academicPeriodId }, select: { snapshot: true } })
+      const prior = (previous?.snapshot as { alertRoster?: Array<{ studentId?: string; student: string; result: string }> } | null)?.alertRoster ?? []
+      const current = snapshot.alertRoster as Array<{ studentId?: string; student: string; result: string }> ?? []
+      snapshot.alertRoster = [...prior.filter((p) => !current.some((c) => p.studentId ? c.studentId === p.studentId : c.student === p.student)), ...current]
+        .sort((a, b) => a.student.localeCompare(b.student, 'es'))
+    }
+    return snapshot
   }
 
   // ─── Visibilidad ────────────────────────────────────────────────────────────
 
-  private isRecipient(r: { recipients: Array<{ userId: string }> }, actor: Actor) {
+  private isRecipient(r: { authorId?: string; recipients: Array<{ userId: string }> }, actor: Actor) {
+    if (r.authorId === actor.userId) return false
     return r.recipients.some((x) => x.userId === actor.userId)
   }
 
@@ -114,6 +125,10 @@ export class PrismaFormalReportRepository {
       snapshot: content ? (r.snapshot as Record<string, unknown>) : {},
       typeConfig: r.typeConfig as Partial<ReportTypeConfig>,
       contentHash: r.contentHash,
+      signatures: {
+        author: r.authorSignature && typeof r.authorSignature === 'object' ? { ...(r.authorSignature as Record<string, unknown>), imageData: undefined } : null,
+        recipient: r.recipientSignature && typeof r.recipientSignature === 'object' ? { ...(r.recipientSignature as Record<string, unknown>), imageData: undefined } : null,
+      },
       sentAt: r.sentAt,
       ackDeadlineAt: r.ackDeadlineAt,
       overdue: r.status === 'SENT' && !!r.ackDeadlineAt && r.ackDeadlineAt.getTime() < now,
@@ -154,15 +169,28 @@ export class PrismaFormalReportRepository {
     if (mine && !mine.readAt && r.status !== 'DRAFT') {
       await prisma.formalReportRecipient.update({ where: { id: mine.id }, data: { readAt: new Date() } })
     }
-    return this.present(r, actor)
+    const versions = await prisma.formalReport.findMany({ where: { institutionId, previousVersionId: id, ...(r.authorId === actor.userId ? {} : { status: { not: 'DRAFT' }, ...(hasPermission(actor, 'formal_reports', 'read', 'all') ? {} : { recipients: { some: { userId: actor.userId } } }) }) }, select: { id: true, folio: true, status: true }, orderBy: { createdAt: 'desc' } })
+    return { ...this.present(r, actor), subsequentVersions: versions }
   }
 
   // ─── Listado y escalamiento ───────────────────────────────────────────────
 
+  private async supersededGroupIds(institutionId: string, actor?: Actor) {
+    const versions = await prisma.formalReport.findMany({
+      where: { institutionId, status: { not: 'DRAFT' }, previousVersionId: { not: null },
+        typeConfig: { path: ['pdfTemplate'], equals: 'annex_alerts' },
+        ...(actor ? { OR: [{ authorId: actor.userId }, { recipients: { some: { userId: actor.userId } } }] } : {}),
+      },
+      select: { previousVersionId: true },
+    })
+    return [...new Set(versions.map((r) => r.previousVersionId).filter((id): id is string => !!id))]
+  }
+
   /** Avisa una sola vez a la instancia de escalamiento cuando vence el plazo de acuse. */
   private async runEscalations(institutionId: string, flow: ReportsFlowConfig) {
+    const supersededIds = await this.supersededGroupIds(institutionId)
     const overdue = await prisma.formalReport.findMany({
-      where: { institutionId, status: 'SENT', escalatedAt: null, ackDeadlineAt: { lt: new Date() } },
+      where: { institutionId, id: { notIn: supersededIds }, status: 'SENT', escalatedAt: null, ackDeadlineAt: { lt: new Date() } },
       select: { id: true, folio: true, typeKey: true, typeLabel: true, studentId: true, parallelId: true, recipientInstanceLabel: true },
       take: 50,
     })
@@ -185,8 +213,9 @@ export class PrismaFormalReportRepository {
     const flow = await this.flow(institutionId)
     await this.runEscalations(institutionId, flow)
     const box = q.box ?? 'inbox'
-    const where: Prisma.FormalReportWhereInput = { institutionId }
-    if (box === 'inbox') Object.assign(where, { status: { not: 'DRAFT' }, recipients: { some: { userId: actor.userId } } })
+    const supersededIds = await this.supersededGroupIds(institutionId, box === 'all' ? undefined : actor)
+    const where: Prisma.FormalReportWhereInput = { institutionId, id: { notIn: supersededIds } }
+    if (box === 'inbox') Object.assign(where, { authorId: { not: actor.userId }, status: { not: 'DRAFT' }, recipients: { some: { userId: actor.userId } } })
     else if (box === 'sent') Object.assign(where, { authorId: actor.userId, status: { not: 'DRAFT' } })
     else if (box === 'drafts') Object.assign(where, { authorId: actor.userId, status: 'DRAFT' })
     else {
@@ -207,9 +236,10 @@ export class PrismaFormalReportRepository {
   }
 
   async counts(institutionId: string, actor: Actor) {
+    const supersededIds = await this.supersededGroupIds(institutionId, actor)
     const [inboxPending, overdueSent, drafts] = await Promise.all([
-      prisma.formalReport.count({ where: { institutionId, status: 'SENT', recipients: { some: { userId: actor.userId } } } }),
-      prisma.formalReport.count({ where: { institutionId, authorId: actor.userId, status: 'SENT', ackDeadlineAt: { lt: new Date() } } }),
+      prisma.formalReport.count({ where: { institutionId, id: { notIn: supersededIds }, authorId: { not: actor.userId }, status: 'SENT', recipients: { some: { userId: actor.userId } } } }),
+      prisma.formalReport.count({ where: { institutionId, id: { notIn: supersededIds }, authorId: actor.userId, status: 'SENT', ackDeadlineAt: { lt: new Date() } } }),
       prisma.formalReport.count({ where: { institutionId, authorId: actor.userId, status: 'DRAFT' } }),
     ])
     return { inboxPending, overdueSent, drafts }
@@ -308,9 +338,8 @@ export class PrismaFormalReportRepository {
     if (!opts.skipAuthorCheck) await this.assertAuthor(institutionId, actor, t, { parallelId, courseAssignmentId, studentId })
 
     const defaults = Object.fromEntries(t.fields.filter((f) => f.defaultValue !== undefined).map((f) => [f.key, f.defaultValue!]))
-    const content = this.cleanContent(t, { ...defaults, ...(dto.content ?? {}) })
-    const created = await prisma.formalReport.create({
-      data: {
+    const content = this.cleanContent(t, withDocumentDateDefault(t, { ...defaults, ...(dto.content ?? {}) }))
+    const data: Prisma.FormalReportUncheckedCreateInput = {
         institutionId,
         academicYearId,
         typeKey: t.key,
@@ -330,8 +359,18 @@ export class PrismaFormalReportRepository {
         confidential: t.confidential,
         content,
         typeConfig: t as unknown as Prisma.InputJsonValue,
-      },
-    })
+    }
+    const grouped = t.pdfTemplate === 'annex_alerts'
+    const created = grouped ? await prisma.$transaction(async (tx) => {
+      const scope = `annex-alerts:${institutionId}:${actor.userId}:${courseAssignmentId}:${academicPeriodId}:${t.key}`
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${scope}))`
+      const existing = await tx.formalReport.findFirst({
+        where: { institutionId, authorId: actor.userId, typeKey: t.key, courseAssignmentId, academicPeriodId, academicYearId, parallelId,
+          ...(opts.previousVersionId ? { status: 'DRAFT', previousVersionId: opts.previousVersionId } : {}) },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true },
+      })
+      return existing ?? tx.formalReport.create({ data })
+    }) : await prisma.formalReport.create({ data })
     return this.get(institutionId, actor, created.id)
   }
 
@@ -396,6 +435,8 @@ export class PrismaFormalReportRepository {
     }
     const snapshot = await this.snapshotFor(r, actor)
     const sentAt = new Date()
+    const documentHash = hashContent(content, snapshot)
+    const authorSignature = await captureDocumentSignature(institutionId, actor.userId, documentHash, sentAt)
     const ackDeadlineAt = t.ackDeadlineDays > 0 ? new Date(sentAt.getTime() + t.ackDeadlineDays * 86400000) : null
     const year = await prisma.academicYear.findFirst({ where: { id: r.academicYearId }, select: { name: true } })
     const yearTag = (year?.name ?? String(sentAt.getFullYear())).replace(/\s+/g, '')
@@ -414,7 +455,8 @@ export class PrismaFormalReportRepository {
               folio,
               sequence,
               snapshot: snapshot as Prisma.InputJsonValue,
-              contentHash: hashContent(content, snapshot),
+              contentHash: documentHash,
+              ...(authorSignature ? { authorSignature: authorSignature as unknown as Prisma.InputJsonValue } : {}),
               sentAt,
               ackDeadlineAt,
               recipientInstanceLabel: instance.label,
@@ -449,7 +491,9 @@ export class PrismaFormalReportRepository {
   async receive(institutionId: string, actor: Actor, id: string) {
     const r = await this.asRecipient(institutionId, actor, id)
     if (r.status !== 'SENT') throw new ConflictError('El informe ya tiene acuse de recibo')
-    await prisma.formalReport.update({ where: { id }, data: { status: 'RECEIVED', receivedAt: new Date(), receivedById: actor.userId } })
+    const receivedAt = new Date()
+    const recipientSignature = await captureDocumentSignature(institutionId, actor.userId, r.contentHash ?? hashContent(r.content, r.snapshot), receivedAt)
+    await prisma.formalReport.update({ where: { id, status: 'SENT' }, data: { status: 'RECEIVED', receivedAt, receivedById: actor.userId, ...(recipientSignature ? { recipientSignature: recipientSignature as unknown as Prisma.InputJsonValue } : {}) } })
     await prisma.formalReportRecipient.updateMany({ where: { reportId: id, userId: actor.userId, readAt: null }, data: { readAt: new Date() } })
     await sendPushToUser(r.authorId, { title: 'Acuse de recibo', body: `${r.typeLabel} (${r.folio}) fue recibido.`, url: `/informes/${id}` }).catch(() => undefined)
     return this.get(institutionId, actor, id)
@@ -499,6 +543,8 @@ export class PrismaFormalReportRepository {
     const r = await this.load(institutionId, id)
     if (r.authorId !== actor.userId) throw new ForbiddenError()
     if (r.status !== 'RETURNED') throw new ConflictError('Solo los informes devueltos admiten una nueva versión')
+    const existing = await prisma.formalReport.findFirst({ where: { institutionId, previousVersionId: id, authorId: actor.userId, status: 'DRAFT' }, select: { id: true } })
+    if (existing) return this.get(institutionId, actor, existing.id)
     return this.create(institutionId, actor, {
       typeKey: r.typeKey,
       studentId: r.studentId ?? undefined,
@@ -510,6 +556,17 @@ export class PrismaFormalReportRepository {
       reinforcementPlanId: r.reinforcementPlanId ?? undefined,
       content: r.content as Record<string, string>,
     }, { parentReportId: r.parentReportId ?? undefined, previousVersionId: r.id, skipAuthorCheck: true })
+  }
+
+  async amendment(institutionId: string, actor: Actor, id: string) {
+    const r = await this.load(institutionId, id)
+    if (r.authorId !== actor.userId) throw new ForbiddenError()
+    if ((r.typeConfig as unknown as ReportTypeConfig).pdfTemplate !== 'annex_alerts' || !['SENT', 'RECEIVED', 'ATTENDED'].includes(r.status)) throw new ConflictError('Solo un Anexo 1 enviado admite una ampliación')
+    return this.create(institutionId, actor, {
+      typeKey: r.typeKey, parallelId: r.parallelId ?? undefined, courseAssignmentId: r.courseAssignmentId ?? undefined,
+      academicPeriodId: r.academicPeriodId ?? undefined, academicYearId: r.academicYearId,
+      content: { ...(r.content as Record<string, string>), numero_acta: '', fecha_documento: '' },
+    }, { previousVersionId: id })
   }
 
   // ─── Anexos ───────────────────────────────────────────────────────────────
