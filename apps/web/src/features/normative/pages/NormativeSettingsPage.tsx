@@ -123,7 +123,8 @@ export function NormativeSettingsPage() {
               Carga informe de alertas a las autoridades (Anexo 1), compromiso familiar, plan individual, avances y asistencia.
               Sustituye esos cinco modelos en este formulario. Guarda para usarlos en nuevos informes.
               En la instancia Subdirección / responsable del refuerzo selecciona las personas correspondientes;
-              inicialmente se dirige al rol Rector. Los anexos conservan el membrete, texto, tablas y firmas del Word original.
+              inicialmente se dirige al rol Rector. Los anexos conservan el formato, texto, tablas y firmas del Word original;
+              el nombre y el logo se toman de la configuración institucional, y el año lectivo del informe.
             </p>
             <Button variant="outline" onClick={loadAnnexes}>Cargar los cinco anexos</Button>
           </div>

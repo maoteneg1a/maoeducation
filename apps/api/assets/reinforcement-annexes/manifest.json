@@ -1,9 +1,30 @@
 {
   "sourceSha256": "c27762d8495af64e678a0e657f5cc4df439b5cda086f4285ff9b4051892864d3",
+  "branding": {
+    "headerParts": [
+      "word/header1.xml"
+    ],
+    "logoParts": [
+      "word/media/image1.png",
+      "word/media/image10.png"
+    ],
+    "headerRelationships": "word/_rels/header1.xml.rels",
+    "logoRelationshipIds": [
+      "rId1",
+      "rId2"
+    ]
+  },
   "annexes": {
     "1": {
       "defaults": {
-        "academic_year": "2026–2027",
+        "institution_name": "________________",
+        "header_institution": "________________",
+        "header_department": "SUBDIRECCIÓN",
+        "header_academic_year": "________________",
+        "header_academic_year__part1": "",
+        "header_academic_year__part2": "",
+        "header_academic_year__part3": "",
+        "academic_year": "________________",
         "jornada_matutina": "☐",
         "jornada_vespertina": "☐",
         "grade": "____________________",
@@ -49,6 +70,12 @@
     },
     "2": {
       "defaults": {
+        "header_institution": "________________",
+        "header_department": "SUBDIRECCIÓN",
+        "header_academic_year": "________________",
+        "header_academic_year__part1": "",
+        "header_academic_year__part2": "",
+        "header_academic_year__part3": "",
         "guardian": "______________________________________",
         "student": "____________________________________",
         "grade": "___________",
@@ -78,6 +105,14 @@
     },
     "3": {
       "defaults": {
+        "institution_name": "________________",
+        "institution_name__part1": "",
+        "header_institution": "________________",
+        "header_department": "SUBDIRECCIÓN",
+        "header_academic_year": "________________",
+        "header_academic_year__part1": "",
+        "header_academic_year__part2": "",
+        "header_academic_year__part3": "",
         "student": "",
         "subject": "",
         "schedule": "",
@@ -149,6 +184,12 @@
     },
     "4": {
       "defaults": {
+        "header_institution": "________________",
+        "header_department": "SUBDIRECCIÓN",
+        "header_academic_year": "________________",
+        "header_academic_year__part1": "",
+        "header_academic_year__part2": "",
+        "header_academic_year__part3": "",
         "institution": "__________________________________________",
         "student": "____________________________________",
         "grade": "……………………………………",
@@ -190,12 +231,18 @@
     },
     "5": {
       "defaults": {
+        "header_institution": "________________",
+        "header_department": "SUBDIRECCIÓN",
+        "header_academic_year": "________________",
+        "header_academic_year__part1": "",
+        "header_academic_year__part2": "",
+        "header_academic_year__part3": "",
         "subject": "",
         "grade": "",
-        "academic_year": "202",
-        "academic_year__part1": "6",
-        "academic_year__part2": "- 202",
-        "academic_year__part3": "7",
+        "academic_year": "________________",
+        "academic_year__part1": "",
+        "academic_year__part2": "",
+        "academic_year__part3": "",
         "teacher": "",
         "period": "",
         "date_0": "",
