@@ -1,4 +1,4 @@
-import { captureDocumentSignature } from '../../../users/application/services/user-signature.service'
+import { captureDocumentSignature, getOwnSignature, type DocumentSignatureImage } from '../../../users/application/services/user-signature.service'
 import { withDocumentDateDefault } from '../../application/services/report-content-defaults'
 import crypto from 'crypto'
 import { Prisma } from '@prisma/client'
@@ -644,7 +644,12 @@ export class PrismaFormalReportRepository {
     const inst = await prisma.institution.findUnique({ where: { id: institutionId }, select: { name: true, settings: true } })
     const receivedBy = r.receivedById ? await prisma.user.findFirst({ where: { id: r.receivedById }, select: personSelect }) : null
     const snapshot = r.status === 'DRAFT' ? await this.snapshotFor(r, actor) : (r.snapshot as Record<string, unknown>)
-    return { report: r, institution: inst, receivedByName: receivedBy ? personName(receivedBy) : null, snapshot }
+    // La previsualización no firma ni modifica el informe. Los envíos conservan su copia histórica.
+    const previewSignature = r.status === 'DRAFT' && r.authorId === actor.userId ? await getOwnSignature(institutionId, actor.userId) : null
+    const authorSignature: DocumentSignatureImage | null = r.status === 'DRAFT'
+      ? previewSignature?.imageData ? { imageData: previewSignature.imageData } : null
+      : r.authorSignature as unknown as DocumentSignatureImage | null
+    return { report: r, institution: inst, receivedByName: receivedBy ? personName(receivedBy) : null, snapshot, authorSignature }
   }
 }
 

@@ -1,9 +1,9 @@
 import type JSZip from 'jszip'
 import sharp from 'sharp'
-import type { DocumentSignature } from '../../../users/application/services/user-signature.service'
+import type { DocumentSignatureImage } from '../../../users/application/services/user-signature.service'
 
 /** Dibujos flotantes en los espacios de firma existentes: no agrega filas, párrafos ni cambia textos. */
-export async function applyAnnexSignatures(zip: JSZip, number: number, author?: DocumentSignature | null, recipient?: DocumentSignature | null) {
+export async function applyAnnexSignatures(zip: JSZip, number: number, author?: DocumentSignatureImage | null, recipient?: DocumentSignatureImage | null) {
   if (!author && !recipient) return
   let xml = await zip.file('word/document.xml')!.async('string')
   let relationships = await zip.file('word/_rels/document.xml.rels')!.async('string')

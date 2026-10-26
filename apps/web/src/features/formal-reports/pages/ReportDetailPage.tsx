@@ -28,6 +28,20 @@ const fmtDT = (d: string | null) =>
   d ? new Date(d).toLocaleString('es-EC', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : null
 const kb = (n: number) => (n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(n / 1024)} KB`)
 
+function useExclusiveReportAction() {
+  const lock = React.useRef(false)
+  const [activeAction, setActiveAction] = React.useState<string | null>(null)
+  const runAction = async (key: string, action: () => Promise<unknown>) => {
+    // Se adquiere antes del siguiente render para bloquear también el doble clic rápido.
+    if (lock.current) return
+    lock.current = true
+    setActiveAction(key)
+    try { await action() } catch (error) { toast.error(getErrorMessage(error)) }
+    finally { lock.current = false; setActiveAction(null) }
+  }
+  return { activeAction, busy: activeAction !== null, runAction }
+}
+
 export function ReportDetailPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
@@ -45,6 +59,7 @@ export function ReportDetailPage() {
   const [content, setContent] = React.useState<Record<string, string>>({})
   const [signatureOpen, setSignatureOpen] = React.useState(false)
   const [dirty, setDirty] = React.useState(false)
+  const { activeAction, busy, runAction } = useExclusiveReportAction()
   const [dialog, setDialog] = React.useState<null | 'return' | 'attend' | 'derive' | 'fromCase'>(null)
 
   React.useEffect(() => {
@@ -68,7 +83,6 @@ export function ReportDetailPage() {
     qc.invalidateQueries({ queryKey: ['formal-reports-counts'] })
     qc.invalidateQueries({ queryKey: ['dossier'] })
   }
-  const onErr = (e: unknown) => toast.error(getErrorMessage(e))
 
   const preview = useQuery({
     queryKey: ['formal-report-preview', id],
@@ -76,22 +90,20 @@ export function ReportDetailPage() {
     enabled: !!r && r.status === 'DRAFT' && r.permissions.isAuthor,
   })
 
-  const save = useMutation({ mutationFn: () => formalReportsApi.update(id, content), onSuccess: (x) => { setReport(x); toast.success('Borrador guardado') }, onError: onErr })
+  const save = useMutation({ mutationFn: () => formalReportsApi.update(id, content), onSuccess: (x) => { setReport(x); toast.success('Borrador guardado') } })
   const send = useMutation({
     mutationFn: async () => { if (dirty) await formalReportsApi.update(id, content); return formalReportsApi.send(id) },
     onSuccess: (x) => { setReport(x); toast.success(`Informe enviado con folio ${x.folio}`) },
-    onError: onErr,
   })
-  const remove = useMutation({ mutationFn: () => formalReportsApi.remove(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['formal-reports'] }); qc.invalidateQueries({ queryKey: ['dossier'] }); qc.invalidateQueries({ queryKey: ['early-alerts-v2'] }); qc.invalidateQueries({ queryKey: ['early-alerts-summary'] }); toast.success('Borrador eliminado'); navigate('/informes') }, onError: onErr })
-  const receive = useMutation({ mutationFn: () => formalReportsApi.receive(id), onSuccess: (x) => { setReport(x); toast.success('Acuse de recibo registrado') }, onError: onErr })
-  const amendment = useMutation({ mutationFn: () => formalReportsApi.amendment(id), onSuccess: (x) => { qc.invalidateQueries({ queryKey: ['formal-reports'] }); navigate(`/informes/${x.id}`) }, onError: onErr })
-  const newVersion = useMutation({ mutationFn: () => formalReportsApi.newVersion(id), onSuccess: (x) => navigate(`/informes/${x.id}`), onError: onErr })
+  const remove = useMutation({ mutationFn: () => formalReportsApi.remove(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['formal-reports'] }); qc.invalidateQueries({ queryKey: ['dossier'] }); qc.invalidateQueries({ queryKey: ['early-alerts-v2'] }); qc.invalidateQueries({ queryKey: ['early-alerts-summary'] }); toast.success('Borrador eliminado'); navigate('/informes') } })
+  const receive = useMutation({ mutationFn: () => formalReportsApi.receive(id), onSuccess: (x) => { setReport(x); toast.success('Acuse de recibo registrado') } })
+  const amendment = useMutation({ mutationFn: () => formalReportsApi.amendment(id), onSuccess: (x) => { qc.invalidateQueries({ queryKey: ['formal-reports'] }); navigate(`/informes/${x.id}`) } })
+  const newVersion = useMutation({ mutationFn: () => formalReportsApi.newVersion(id), onSuccess: (x) => navigate(`/informes/${x.id}`) })
   const upload = useMutation({
     mutationFn: ({ file, category }: { file: File; category: string }) => formalReportsApi.uploadAttachment(id, file, category),
     onSuccess: (x) => { setReport(x); toast.success('Anexo agregado') },
-    onError: onErr,
   })
-  const delAtt = useMutation({ mutationFn: (aid: string) => formalReportsApi.removeAttachment(id, aid), onSuccess: setReport, onError: onErr })
+  const delAtt = useMutation({ mutationFn: (aid: string) => formalReportsApi.removeAttachment(id, aid), onSuccess: setReport })
 
   if (isLoading) return <PageLoader />
   if (isError || !r) return <div className="space-y-4 p-6">
@@ -105,15 +117,22 @@ export function ReportDetailPage() {
   const snapshot = r.status === 'DRAFT' ? preview.data ?? {} : r.snapshot
   const categories = flow?.config.attachments.categories ?? [{ key: 'otro', label: 'Otro', visibleToRoles: [] }]
 
-  const onSend = async () => {
+  const onSend = () => runAction('send', async () => {
     if (missing.length) { toast.error(`Completa: ${missing.map((m) => m.label).join(', ')}`); return }
     const ok = await confirmDialog({
       title: 'Enviar informe',
       description: `Se enviará a ${r.recipientInstanceLabel}. Si guardaste tu firma personal, se incorporará al documento. Al enviarlo recibe un folio y queda inmutable: ya no podrás editarlo (si te lo devuelven, podrás crear una nueva versión).`,
       confirmText: 'Enviar',
     })
-    if (ok) send.mutate()
-  }
+    if (ok) await send.mutateAsync()
+  })
+
+  const downloadDocument = (format: 'word' | 'pdf') => runAction(format, async () => {
+    // El archivo debe reflejar lo que el docente acaba de completar en pantalla.
+    if (r.permissions.canEdit && dirty) await save.mutateAsync()
+    if (format === 'word') await formalReportsApi.downloadDocx(id, `${r.folio ?? 'borrador'}-${r.typeKey}.docx`)
+    else await formalReportsApi.downloadPdf(id, `${r.folio ?? 'borrador'}-${r.typeKey}.pdf`)
+  })
 
   const timeline: Array<[string, string | null]> = [
     ['Creado', fmtDT(r.createdAt)],
@@ -144,47 +163,53 @@ export function ReportDetailPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {r.typeConfig.pdfTemplate && <Button variant="outline" onClick={() => formalReportsApi.downloadDocx(id, `${r.folio ?? 'borrador'}-${r.typeKey}.docx`).catch(onErr)} disabled={r.contentHidden}>
-            <Download className="mr-2 h-4 w-4" /> Word
+          {r.status === 'DRAFT' && r.typeConfig.pdfTemplate && <Button variant="outline" onClick={() => downloadDocument('word')} disabled={busy || r.contentHidden}>
+            <ActionIcon active={activeAction === 'word'} icon={Download} /> {activeAction === 'word' ? 'Preparando Word…' : 'Revisar Word'}
           </Button>}
-          <Button variant="outline" onClick={() => formalReportsApi.downloadPdf(id, `${r.folio ?? 'borrador'}-${r.typeKey}.pdf`).catch(onErr)} disabled={r.contentHidden}>
-            <FileDown className="mr-2 h-4 w-4" /> PDF
-          </Button>
+          {(r.status !== 'DRAFT' || !r.typeConfig.pdfTemplate) && <Button variant="outline" onClick={() => downloadDocument('pdf')} disabled={busy || r.contentHidden}>
+            <ActionIcon active={activeAction === 'pdf'} icon={FileDown} /> {activeAction === 'pdf' ? 'Generando PDF…' : r.status === 'DRAFT' ? 'Revisar PDF' : 'PDF para imprimir'}
+          </Button>}
           {r.permissions.canEdit && (
             <>
-              <Button variant="outline" onClick={() => confirmDialog({ title: 'Eliminar borrador', description: 'Se eliminará el borrador y sus anexos.', destructive: true, confirmText: 'Eliminar' }).then((ok) => ok && remove.mutate())}>
-                <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+              <Button variant="outline" disabled={busy} onClick={() => runAction('delete', async () => {
+                if (await confirmDialog({ title: 'Eliminar borrador', description: 'Se eliminará el borrador y sus anexos.', destructive: true, confirmText: 'Eliminar' })) await remove.mutateAsync()
+              })}>
+                <ActionIcon active={activeAction === 'delete'} icon={Trash2} /> {remove.isPending ? 'Eliminando…' : 'Eliminar'}
               </Button>
-              <Button variant="outline" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
-                {save.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Guardar
+              <Button variant="outline" disabled={!dirty || busy} onClick={() => runAction('save', () => save.mutateAsync())}>
+                <ActionIcon active={activeAction === 'save'} icon={Save} /> {activeAction === 'save' ? 'Guardando…' : 'Guardar'}
               </Button>
-              <Button disabled={send.isPending} onClick={onSend}>
-                {send.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Enviar
+              <Button disabled={busy || preview.isFetching || missing.length > 0} onClick={onSend}>
+                <ActionIcon active={activeAction === 'send'} icon={Send} /> {activeAction === 'send' ? 'Enviando…' : 'Enviar informe'}
               </Button>
             </>
           )}
 
           {r.permissions.canDerive && (r.typeConfig.canDeriveTo?.length ?? 0) > 0 && (
-            <Button variant="outline" onClick={() => setDialog('derive')}><GitBranch className="mr-2 h-4 w-4" /> Derivar</Button>
+            <Button variant="outline" disabled={busy} onClick={() => setDialog('derive')}><GitBranch className="mr-2 h-4 w-4" /> Derivar</Button>
           )}
-          {r.permissions.isAuthor && r.typeConfig.pdfTemplate === 'annex_alerts' && ['SENT', 'RECEIVED', 'ATTENDED'].includes(r.status) && <Button variant="outline" disabled={amendment.isPending} onClick={() => amendment.mutate()}><CopyPlus className="mr-2 h-4 w-4" />Preparar ampliación</Button>}
+          {r.permissions.isAuthor && r.typeConfig.pdfTemplate === 'annex_alerts' && ['SENT', 'RECEIVED', 'ATTENDED'].includes(r.status) && <Button variant="outline" disabled={busy} onClick={() => runAction('amendment', () => amendment.mutateAsync())}><ActionIcon active={activeAction === 'amendment'} icon={CopyPlus} />{activeAction === 'amendment' ? 'Preparando ampliación…' : 'Preparar ampliación'}</Button>}
           {r.permissions.canNewVersion && (
-            <Button onClick={() => newVersion.mutate()} disabled={newVersion.isPending}><CopyPlus className="mr-2 h-4 w-4" /> Corregir informe</Button>
+            <Button onClick={() => runAction('version', () => newVersion.mutateAsync())} disabled={busy}><ActionIcon active={activeAction === 'version'} icon={CopyPlus} /> {activeAction === 'version' ? 'Preparando corrección…' : 'Corregir informe'}</Button>
           )}
         </div>
       </div>
 
+      {r.permissions.canEdit && <p className="text-sm text-muted-foreground">{r.typeConfig.pdfTemplate ? 'Revisa el borrador en Word; se guardarán tus cambios antes de descargarlo. Después de enviar estará disponible el PDF con el folio y la firma del envío.' : 'Revisa el borrador antes de enviar. Después del envío podrás descargar el PDF definitivo.'}</p>}
+      {r.permissions.canEdit && missing.length > 0 && <p className="text-sm text-amber-700">Para enviar, completa: {missing.map((field) => field.label).join(', ')}.</p>}
+      {activeAction === 'pdf' && <p role="status" className="text-sm text-muted-foreground">Preparando el PDF. Puede tardar unos segundos; espera a que termine la descarga.</p>}
+
       {r.typeConfig.pdfTemplate === 'annex_alerts' && <p className="rounded-lg border bg-muted/30 p-3 text-sm">{r.permissions.canEdit ? 'Este borrador agrupa a los alumnos de la misma asignatura y período. Actualiza la nómina antes de enviar; no necesitas un informe por alumno.' : 'Informe agrupado. Los alumnos adicionales se incorporan en una ampliación vinculada; esta versión conserva lo que se entregó.'}</p>}
       {!!r.subsequentVersions?.length && <div className="rounded-lg border p-3 text-sm"><p className="font-medium">Correcciones y ampliaciones vinculadas</p>{r.subsequentVersions.map((version) => <Link key={version.id} to={`/informes/${version.id}`} className="mt-1 block text-primary hover:underline">{version.folio ?? 'Borrador de actualización'} · {version.status === 'DRAFT' ? 'Por completar' : 'Enviado'}</Link>)}</div>}
-      {(r.permissions.canEdit || r.permissions.canReceive) && <p className="text-sm text-muted-foreground">Si guardaste tu firma, se incorporará al {r.permissions.canEdit ? 'enviar' : 'registrar el acuse'}. <button className="font-medium text-primary hover:underline" onClick={() => setSignatureOpen(true)}>Configurar mi firma</button></p>}
+      {(r.permissions.canEdit || r.permissions.canReceive) && <p className="text-sm text-muted-foreground">{r.permissions.canEdit ? 'El borrador muestra tu firma guardada como vista previa; se conservará una copia al enviar.' : 'Si guardaste tu firma, se incorporará al registrar el acuse.'} <button disabled={busy} className="font-medium text-primary hover:underline disabled:opacity-50" onClick={() => setSignatureOpen(true)}>Configurar mi firma</button></p>}
       {(r.signatures?.author || r.signatures?.recipient) && <div className="rounded-lg border p-3 text-sm">{r.signatures.author && <p>Firmado al enviar por {r.signatures.author.name} · {fmtDT(r.signatures.author.signedAt)}</p>}{r.signatures.recipient && <p>Firmado al recibir por {r.signatures.recipient.name} · {fmtDT(r.signatures.recipient.signedAt)}</p>}</div>}
       {(r.permissions.canReceive || r.permissions.canReturn || r.permissions.canAttend) && <Card className="border-primary/30 bg-primary/5">
         <CardContent className="space-y-3 p-4">
           <div><h2 className="font-semibold">Acciones del destinatario</h2><p className="mt-1 text-sm text-muted-foreground">{r.permissions.canReceive ? 'Revisa el PDF o Word y confirma que recibiste el informe. Si necesita correcciones, solicita cambios al docente.' : 'La recepción ya quedó registrada. Puedes marcarlo como atendido o solicitar cambios con observaciones.'}</p></div>
           <div className="flex flex-wrap gap-2">
-            {r.permissions.canReceive && <Button disabled={receive.isPending} onClick={() => receive.mutate()}><CheckCircle2 className="mr-2 h-4 w-4" />Registrar acuse de recibo</Button>}
-            {r.permissions.canReturn && <Button variant="outline" onClick={() => setDialog('return')}><Undo2 className="mr-2 h-4 w-4" />Solicitar cambios</Button>}
-            {r.permissions.canAttend && <Button onClick={() => setDialog('attend')}><CheckCircle2 className="mr-2 h-4 w-4" />Marcar como atendido</Button>}
+            {r.permissions.canReceive && <Button disabled={busy} onClick={() => runAction('receive', () => receive.mutateAsync())}><ActionIcon active={activeAction === 'receive'} icon={CheckCircle2} />{activeAction === 'receive' ? 'Registrando acuse…' : 'Registrar acuse de recibo'}</Button>}
+            {r.permissions.canReturn && <Button variant="outline" disabled={busy} onClick={() => setDialog('return')}><Undo2 className="mr-2 h-4 w-4" />Solicitar cambios</Button>}
+            {r.permissions.canAttend && <Button disabled={busy} onClick={() => setDialog('attend')}><CheckCircle2 className="mr-2 h-4 w-4" />Marcar como atendido</Button>}
           </div>
         </CardContent>
       </Card>}
@@ -205,7 +230,7 @@ export function ReportDetailPage() {
             <>
               {r.permissions.canEdit && <Card>
                 <CardHeader><CardTitle className="text-base">Contenido</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent><fieldset disabled={busy} className="space-y-4 disabled:opacity-70">
                   {fields.length === 0 && <p className="text-sm text-muted-foreground">Este informe no tiene campos de texto.</p>}
                   {fields.map((f) => (
                     <div key={f.key} className="space-y-1">
@@ -227,12 +252,12 @@ export function ReportDetailPage() {
                       )}
                     </div>
                   ))}
-                </CardContent>
+                </fieldset></CardContent>
               </Card>}
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Datos del sistema</CardTitle>{r.permissions.canEdit && r.typeConfig.pdfTemplate === 'annex_alerts' && <Button variant="outline" size="sm" disabled={preview.isFetching} onClick={() => preview.refetch()}>Actualizar nómina</Button>}
+                  <CardTitle className="text-base">Datos del sistema</CardTitle>{r.permissions.canEdit && r.typeConfig.pdfTemplate === 'annex_alerts' && <Button variant="outline" size="sm" disabled={busy || preview.isFetching} onClick={() => runAction('roster', async () => { const result = await preview.refetch(); if (result.error) throw result.error })}><ActionIcon active={preview.isFetching} icon={CopyPlus} />{preview.isFetching ? 'Actualizando nómina…' : 'Actualizar nómina'}</Button>}
                   <p className="text-xs text-muted-foreground">
                     {r.status === 'DRAFT' ? 'Vista previa: se congelan al enviar el informe.' : 'Congelados al momento del envío.'}
                   </p>
@@ -248,9 +273,9 @@ export function ReportDetailPage() {
                   {r.permissions.canEdit && (
                     <div className="flex gap-2">
                       {r.reinforcementPlanId && (
-                        <Button size="sm" variant="outline" onClick={() => setDialog('fromCase')}>Agregar desde el caso</Button>
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => setDialog('fromCase')}>Agregar desde el caso</Button>
                       )}
-                      <UploadButton categories={categories} accept={flow?.config.attachments.allowedMime} busy={upload.isPending} onUpload={(file, category) => upload.mutate({ file, category })} />
+                      <UploadButton categories={categories} accept={flow?.config.attachments.allowedMime} busy={busy} uploading={activeAction === 'upload'} onUpload={(file, category) => { void runAction('upload', () => upload.mutateAsync({ file, category })) }} />
                     </div>
                   )}
                 </CardHeader>
@@ -266,8 +291,8 @@ export function ReportDetailPage() {
                             <p className="text-xs text-muted-foreground">{categories.find((c) => c.key === a.category)?.label ?? a.category} · {kb(a.fileSize)}</p>
                           </div>
                           <div className="flex gap-1">
-                            <Button size="icon" variant="ghost" onClick={() => formalReportsApi.downloadAttachment(id, a.id, a.fileName).catch(onErr)}><Download className="h-4 w-4" /></Button>
-                            {r.permissions.canEdit && <Button size="icon" variant="ghost" onClick={() => delAtt.mutate(a.id)}><Trash2 className="h-4 w-4" /></Button>}
+                            <Button size="icon" variant="ghost" aria-label={`Descargar ${a.fileName}`} disabled={busy} onClick={() => runAction(`attachment-${a.id}`, () => formalReportsApi.downloadAttachment(id, a.id, a.fileName))}><ActionIcon active={activeAction === `attachment-${a.id}`} icon={Download} compact /></Button>
+                            {r.permissions.canEdit && <Button size="icon" variant="ghost" aria-label={`Eliminar ${a.fileName}`} disabled={busy} onClick={() => runAction(`remove-${a.id}`, () => delAtt.mutateAsync(a.id))}><ActionIcon active={activeAction === `remove-${a.id}`} icon={Trash2} compact /></Button>}
                           </div>
                         </li>
                       ))}
@@ -357,24 +382,30 @@ export function ReportDetailPage() {
   )
 }
 
-function UploadButton({ categories, accept, busy, onUpload }: { categories: Array<{ key: string; label: string }>; accept?: string[]; busy: boolean; onUpload: (file: File, category: string) => void }) {
+function ActionIcon({ active, icon: Icon, compact = false }: { active: boolean; icon: typeof Download; compact?: boolean }) {
+  const Component = active ? Loader2 : Icon
+  return <Component aria-hidden className={`${compact ? '' : 'mr-2 '}h-4 w-4${active ? ' animate-spin' : ''}`} />
+}
+
+function UploadButton({ categories, accept, busy, uploading, onUpload }: { categories: Array<{ key: string; label: string }>; accept?: string[]; busy: boolean; uploading: boolean; onUpload: (file: File, category: string) => void }) {
   const [category, setCategory] = React.useState(categories[0]?.key ?? 'otro')
   const ref = React.useRef<HTMLInputElement>(null)
   return (
     <div className="flex gap-2">
-      <Select value={category} onValueChange={setCategory}>
+      <Select value={category} onValueChange={setCategory} disabled={busy}>
         <SelectTrigger className="h-9 w-48"><SelectValue /></SelectTrigger>
         <SelectContent>{categories.map((c) => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}</SelectContent>
       </Select>
       <input
         ref={ref}
         type="file"
+        disabled={busy}
         className="hidden"
         accept={accept?.join(',')}
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f, category); e.target.value = '' }}
       />
       <Button size="sm" disabled={busy} onClick={() => ref.current?.click()}>
-        {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />} Subir
+        <ActionIcon active={uploading} icon={Upload} /> {uploading ? 'Subiendo…' : 'Subir'}
       </Button>
     </div>
   )
@@ -384,18 +415,18 @@ function NoteDialog({ open, onOpenChange, title, description, confirm, required,
   open: boolean; onOpenChange: (o: boolean) => void; title: string; description: string; confirm: string; required?: boolean; onConfirm: (note: string) => Promise<unknown>
 }) {
   const [note, setNote] = React.useState('')
-  const [busy, setBusy] = React.useState(false)
+  const { busy, runAction } = useExclusiveReportAction()
   React.useEffect(() => { if (open) setNote('') }, [open])
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
       <DialogContent>
         <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
-        <Textarea rows={5} value={note} onChange={(e) => setNote(e.target.value)} />
+        <Textarea disabled={busy} rows={5} value={note} onChange={(e) => setNote(e.target.value)} />
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button
             disabled={busy || (required && !note.trim())}
-            onClick={() => { setBusy(true); onConfirm(note.trim()).catch((e) => toast.error(getErrorMessage(e))).finally(() => setBusy(false)) }}
+            onClick={() => runAction('confirm', () => onConfirm(note.trim()))}
           >
             {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{confirm}
           </Button>
@@ -410,14 +441,14 @@ function DeriveDialog({ open, onOpenChange, report, types, instanceLabel, onDeri
   types: Array<{ key: string; label: string; to: string }>; instanceLabel: (k: string) => string; onDerived: (id: string) => void
 }) {
   const [typeKey, setTypeKey] = React.useState('')
+  const { busy, runAction } = useExclusiveReportAction()
   const derive = useMutation({
     mutationFn: () => formalReportsApi.derive(report.id, typeKey),
     onSuccess: (x) => { onOpenChange(false); toast.success('Borrador de derivación creado'); onDerived(x.id) },
-    onError: (e) => toast.error(getErrorMessage(e)),
   })
   React.useEffect(() => { if (open) setTypeKey(types[0]?.key ?? '') }, [open, types])
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Derivar caso</DialogTitle>
@@ -426,14 +457,14 @@ function DeriveDialog({ open, onOpenChange, report, types, instanceLabel, onDeri
         {types.length === 0 ? (
           <p className="text-sm text-muted-foreground">No hay tipos de informe configurados para las instancias de derivación.</p>
         ) : (
-          <Select value={typeKey} onValueChange={setTypeKey}>
+          <Select disabled={busy} value={typeKey} onValueChange={setTypeKey}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{types.map((t) => <SelectItem key={t.key} value={t.key}>{t.label} → {instanceLabel(t.to)}</SelectItem>)}</SelectContent>
           </Select>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button disabled={!typeKey || derive.isPending} onClick={() => derive.mutate()}>Crear borrador</Button>
+          <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button disabled={!typeKey || busy} onClick={() => runAction('derive', () => derive.mutateAsync())}><ActionIcon active={busy} icon={CopyPlus} />{busy ? 'Creando borrador…' : 'Crear borrador'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -443,10 +474,10 @@ function DeriveDialog({ open, onOpenChange, report, types, instanceLabel, onDeri
 function FromCaseDialog({ open, onOpenChange, planId, onConfirm }: { open: boolean; onOpenChange: (o: boolean) => void; planId: string; onConfirm: (ids: string[]) => Promise<unknown> }) {
   const { data = [], isLoading } = useQuery({ queryKey: ['case-attachments', planId], queryFn: () => getCaseAttachments(planId), enabled: open })
   const [ids, setIds] = React.useState<string[]>([])
-  const [busy, setBusy] = React.useState(false)
+  const { busy, runAction } = useExclusiveReportAction()
   React.useEffect(() => { if (open) setIds([]) }, [open])
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Agregar archivos del caso</DialogTitle>
@@ -459,7 +490,7 @@ function FromCaseDialog({ open, onOpenChange, planId, onConfirm }: { open: boole
             {data.map((a) => (
               <li key={a.id}>
                 <label className="flex items-center gap-2 rounded p-2 text-sm hover:bg-muted/50">
-                  <input type="checkbox" checked={ids.includes(a.id)} onChange={(e) => setIds(e.target.checked ? [...ids, a.id] : ids.filter((x) => x !== a.id))} />
+                  <input type="checkbox" disabled={busy} checked={ids.includes(a.id)} onChange={(e) => setIds(e.target.checked ? [...ids, a.id] : ids.filter((x) => x !== a.id))} />
                   <span className="font-medium">{a.fileName}</span>
                   <span className="text-xs text-muted-foreground">{a.categoryLabel} · {kb(a.fileSize)}</span>
                 </label>
@@ -468,9 +499,9 @@ function FromCaseDialog({ open, onOpenChange, planId, onConfirm }: { open: boole
           </ul>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button disabled={!ids.length || busy} onClick={() => { setBusy(true); onConfirm(ids).catch((e) => toast.error(getErrorMessage(e))).finally(() => setBusy(false)) }}>
-            Agregar ({ids.length})
+          <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button disabled={!ids.length || busy} onClick={() => runAction('copy', () => onConfirm(ids))}>
+            <ActionIcon active={busy} icon={Paperclip} />{busy ? 'Agregando anexos…' : `Agregar (${ids.length})`}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,4 +1,4 @@
-import type { DocumentSignature } from '../../../users/application/services/user-signature.service'
+import type { DocumentSignatureImage } from '../../../users/application/services/user-signature.service'
 import PDFDocument from 'pdfkit'
 import { resolveLogo, drawHeader, drawWatermark } from '../../../../shared/infrastructure/services/pdf-helpers'
 import type { ReportField } from '../../../../shared/domain/reports-flow'
@@ -25,8 +25,8 @@ export interface FormalReportPdfData {
   snapshot: Record<string, unknown>
   attachments: string[]
   signatures: string[]
-  authorSignature?: DocumentSignature | null
-  recipientSignature?: DocumentSignature | null
+  authorSignature?: DocumentSignatureImage | null
+  recipientSignature?: DocumentSignatureImage | null
   returnNote?: string | null
   responseNote?: string | null
 }

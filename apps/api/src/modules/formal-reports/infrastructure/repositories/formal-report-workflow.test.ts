@@ -1,19 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_REPORTS_FLOW } from '../../../../shared/domain/reports-flow'
 import { PrismaFormalReportRepository } from './prisma-formal-report.repository'
+import { getOwnSignature, captureDocumentSignature } from '../../../users/application/services/user-signature.service'
 
 const db = vi.hoisted(() => ({
   $transaction: vi.fn(), $executeRaw: vi.fn(),
   parallel: { findFirst: vi.fn() }, courseAssignment: { findFirst: vi.fn() }, academicPeriod: { findFirst: vi.fn() },
   formalReport: { create: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), count: vi.fn() },
   formalReportRecipient: { update: vi.fn(), updateMany: vi.fn() },
+  institution: { findUnique: vi.fn().mockResolvedValue({ name: 'Escuela' }) },
 }))
 const snapshotMock = vi.hoisted(() => vi.fn())
 vi.mock('../../application/services/report-snapshot.service', () => ({ buildSnapshot: snapshotMock }))
 vi.mock('../../../early-alerts/infrastructure/repositories/prisma-early-alert.repository', () => ({ PrismaEarlyAlertRepository: class { async list() { return {} } } }))
 vi.mock('../../../../shared/infrastructure/database/prisma', () => ({ prisma: db }))
 vi.mock('../../../../shared/infrastructure/services/agreement.service', () => ({ institutionSettings: async () => ({ reportsFlow: DEFAULT_REPORTS_FLOW }) }))
-vi.mock('../../../users/application/services/user-signature.service', () => ({ captureDocumentSignature: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('../../../users/application/services/user-signature.service', () => ({ captureDocumentSignature: vi.fn().mockResolvedValue(undefined), getOwnSignature: vi.fn().mockResolvedValue({ imageData: null }) }))
 vi.mock('../../../../shared/infrastructure/services/push.service', () => ({ sendPushToUser: vi.fn().mockResolvedValue(undefined) }))
 
 const teacher = { userId: 'teacher', roles: ['teacher'], permissions: ['formal_reports:read:own', 'formal_reports:write:own'] }
@@ -42,6 +44,24 @@ beforeEach(() => {
 })
 
 describe('bandejas y acciones del informe', () => {
+  it('muestra la firma actual en el borrador sin firmarlo ni guardar una copia de envío', async () => {
+    row.status = 'DRAFT'
+    vi.mocked(getOwnSignature).mockResolvedValue({ imageData: 'preview-image', updatedAt: null })
+    snapshotMock.mockResolvedValue({ draft: true })
+    const result = await repo.forPdf('school', teacher, 'report')
+    expect(result.authorSignature).toEqual({ imageData: 'preview-image' })
+    expect(getOwnSignature).toHaveBeenCalledWith('school', 'teacher')
+    expect(captureDocumentSignature).not.toHaveBeenCalled()
+    expect(db.formalReport.update).not.toHaveBeenCalled()
+    expect(row.status).toBe('DRAFT')
+  })
+  it('el Word y PDF enviados conservan la firma original aunque se cambie la del perfil', async () => {
+    row.authorSignature = { imageData: 'frozen-image', signedAt: '2026-10-26T17:00:00Z' }
+    const result = await repo.forPdf('school', teacher, 'report')
+    expect(result.authorSignature).toEqual(row.authorSignature)
+    expect(getOwnSignature).not.toHaveBeenCalled()
+    expect(db.formalReport.update).not.toHaveBeenCalled()
+  })
   it('el autor ve su envío sin recibirlo ni poder acusarse recibo', async () => {
     const result = await repo.get('school', teacher, 'report')
     expect(result.permissions).toMatchObject({ isAuthor: true, isRecipient: false, canReceive: false, canReturn: false, canEdit: false })
