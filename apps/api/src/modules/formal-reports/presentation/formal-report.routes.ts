@@ -137,7 +137,7 @@ export default async function formalReportRoutes(app: FastifyInstance) {
   })
 
   async function exportDocument(req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply, format: 'pdf' | 'docx') {
-    const { report: r, institution, receivedByName, snapshot } = await repo.forPdf(req.user.institutionId, actorOf(req.user), req.params.id)
+    const { report: r, institution, receivedByName, snapshot, authorSignature } = await repo.forPdf(req.user.institutionId, actorOf(req.user), req.params.id)
     const t = r.typeConfig as unknown as ReportTypeConfig
     const settings = (institution?.settings ?? {}) as { branding?: { logoUrl?: string | null } }
     const data: FormalReportPdfData = {
@@ -155,7 +155,7 @@ export default async function formalReportRoutes(app: FastifyInstance) {
       sentAt: r.sentAt,
       receivedAt: r.receivedAt,
       receivedByName,
-      authorSignature: r.authorSignature as unknown as DocumentSignature | null,
+      authorSignature,
       recipientSignature: r.recipientSignature as unknown as DocumentSignature | null,
       fields: t.fields ?? [],
       content: (r.content ?? {}) as Record<string, string>,

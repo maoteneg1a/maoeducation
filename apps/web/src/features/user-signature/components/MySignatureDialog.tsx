@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { Loader2 } from 'lucide-react'
 import { apiDelete, apiGet, apiPut } from '@/shared/lib/api-client'
 import { getErrorMessage } from '@/shared/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
@@ -17,6 +18,13 @@ export function MySignatureDialog({ open, onOpenChange }: { open: boolean; onOpe
   const signature = useQuery({ queryKey: key, queryFn: () => apiGet<SavedSignature>('users/me/signature'), enabled: open })
   const [pending, setPending] = React.useState<string | null>(null)
   const [mode, setMode] = React.useState<'draw' | 'upload'>('draw')
+  const actionLock = React.useRef(false)
+  async function runAction(action: () => Promise<unknown>) {
+    if (actionLock.current) return
+    actionLock.current = true
+    try { await action() } catch { /* Las mutaciones muestran el error. */ }
+    finally { actionLock.current = false }
+  }
   React.useEffect(() => { if (open) { setPending(null); setMode('draw') } }, [open])
   const save = useMutation({
     mutationFn: () => apiPut<SavedSignature>('users/me/signature', { imageData: pending }),
@@ -37,17 +45,17 @@ export function MySignatureDialog({ open, onOpenChange }: { open: boolean; onOpe
     reader.readAsDataURL(file)
   }
   const busy = save.isPending || remove.isPending
-  return <Dialog open={open} onOpenChange={(value) => !busy && onOpenChange(value)}>
+  return <Dialog open={open} onOpenChange={(value) => !actionLock.current && onOpenChange(value)}>
     <DialogContent className="max-h-[90vh] overflow-y-auto">
-      <DialogHeader><DialogTitle>Mi firma</DialogTitle><DialogDescription>Guarda tu propia firma. Se incorpora al enviar tus informes o registrar su acuse de recibo. Cada documento conserva la firma utilizada en ese momento.</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>Mi firma</DialogTitle><DialogDescription>Guarda tu propia firma. Podrás verla en el borrador al revisar Word. Se conserva una copia al enviar tus informes o registrar su acuse de recibo; los documentos ya enviados mantienen su firma original.</DialogDescription></DialogHeader>
       {signature.isError && <p role="alert" className="text-sm text-destructive">{getErrorMessage(signature.error)}</p>}
-      {signature.data?.imageData && <div className="space-y-2"><p className="text-sm font-medium">Firma guardada</p><img src={signature.data.imageData} alt="Tu firma guardada" className="h-24 w-full rounded border bg-white object-contain" /><Button variant="ghost" size="sm" disabled={busy} onClick={() => remove.mutate()}>Eliminar firma guardada</Button></div>}
+      {signature.data?.imageData && <div className="space-y-2"><p className="text-sm font-medium">Firma guardada</p><img src={signature.data.imageData} alt="Tu firma guardada" className="h-24 w-full rounded border bg-white object-contain" /><Button variant="ghost" size="sm" disabled={busy} onClick={() => runAction(() => remove.mutateAsync())}>{remove.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{remove.isPending ? 'Eliminando firma…' : 'Eliminar firma guardada'}</Button></div>}
       <div className="flex gap-2"><Button variant={mode === 'draw' ? 'secondary' : 'outline'} disabled={busy} onClick={() => { setMode('draw'); setPending(null) }}>Dibujar firma</Button><Button variant={mode === 'upload' ? 'secondary' : 'outline'} disabled={busy} onClick={() => { setMode('upload'); setPending(null) }}>Subir imagen</Button></div>
       <fieldset disabled={busy}>
         {mode === 'draw' ? <SignaturePad onChange={setPending} /> : <label className="block space-y-2 text-sm"><span>Imagen de tu firma · máximo 2 MB</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => upload(event.target.files?.[0])} /></label>}
       </fieldset>
       {pending && <img src={pending} alt="Vista previa de la nueva firma" className="h-24 w-full rounded border bg-white object-contain" />}
-      <DialogFooter><Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>Cerrar</Button><Button disabled={!pending || busy} onClick={() => save.mutate()}>Guardar mi firma</Button></DialogFooter>
+      <DialogFooter><Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>Cerrar</Button><Button disabled={!pending || busy} onClick={() => runAction(() => save.mutateAsync())}>{save.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{save.isPending ? 'Guardando firma…' : 'Guardar mi firma'}</Button></DialogFooter>
     </DialogContent>
   </Dialog>
 }

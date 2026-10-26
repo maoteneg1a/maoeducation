@@ -10,6 +10,7 @@
     "start:prod": "pnpm db:migrate:prod && pnpm db:seed && node dist/server.js",
     "lint": "tsc --noEmit",
     "test": "vitest run",
+    "check:annex-pdf": "node scripts/check-annex-pdf.mjs",
     "db:migrate": "prisma migrate dev",
     "db:migrate:prod": "prisma migrate deploy",
     "db:seed": "tsx prisma/seeds/index.ts",

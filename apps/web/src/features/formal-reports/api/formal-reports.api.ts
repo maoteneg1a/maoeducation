@@ -173,13 +173,13 @@ export const formalReportsApi = {
     const blob = await apiClient.get(`formal-reports/${id}/attachments/${attachmentId}`).blob()
     saveBlob(blob, fileName)
   },
-  pdfBlob: (id: string) => apiClient.get(`formal-reports/${id}/pdf`, { timeout: 150000 }).blob(),
+  pdfBlob: (id: string) => apiClient.get(`formal-reports/${id}/pdf`, { timeout: 150000, retry: 0 }).blob(),
   downloadPdf: async (id: string, fileName: string) => {
-    const blob = await apiClient.get(`formal-reports/${id}/pdf`, { timeout: 150000 }).blob()
+    const blob = await apiClient.get(`formal-reports/${id}/pdf`, { timeout: 150000, retry: 0 }).blob()
     saveBlob(blob, fileName)
   },
   downloadDocx: async (id: string, fileName: string) => {
-    const blob = await apiClient.get(`formal-reports/${id}/docx`).blob()
+    const blob = await apiClient.get(`formal-reports/${id}/docx`, { retry: 0 }).blob()
     saveBlob(blob, fileName)
   },
   reportsFlow: () =>

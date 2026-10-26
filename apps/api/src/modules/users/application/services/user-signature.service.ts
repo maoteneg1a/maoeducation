@@ -12,6 +12,9 @@ export interface DocumentSignature {
   documentHash: string
 }
 
+/** Una previsualización solo necesita la imagen, sin atribuir un envío o acuse. */
+export type DocumentSignatureImage = Pick<DocumentSignature, 'imageData'> & Partial<DocumentSignature>
+
 export async function normalizeSignature(data: string): Promise<string> {
   if (typeof data !== 'string' || data.length > 3_000_000 || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(data)) throw new BadRequestError('Sube una firma PNG, JPG o WebP de hasta 2 MB')
   const buffer = Buffer.from(data.slice(data.indexOf(',') + 1), 'base64')

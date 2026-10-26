@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "buildAptPackages": ["...", "libreoffice-writer", "fontconfig", "fonts-crosextra-carlito", "fonts-liberation"],
+  "steps": {
+    "build": {
+      "commands": ["pnpm check:annex-pdf", "..."]
+    }
+  },
+  "deploy": {
+    "aptPackages": ["...", "libreoffice-writer", "fontconfig", "fonts-crosextra-carlito", "fonts-liberation"],
+    "startCommand": "pnpm start:prod"
+  }
+}

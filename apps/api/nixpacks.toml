@@ -1,8 +1,11 @@
+[phases.setup]
+aptPkgs = ["...", "libreoffice-writer", "fontconfig", "fonts-crosextra-carlito", "fonts-liberation"]
+
 [phases.install]
 cmds = ["pnpm install --no-frozen-lockfile"]
 
 [phases.build]
-cmds = ["pnpm prisma generate", "pnpm build"]
+cmds = ["pnpm check:annex-pdf", "pnpm prisma generate", "pnpm build"]
 
 [start]
 cmd = "pnpm start:prod"

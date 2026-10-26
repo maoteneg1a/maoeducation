@@ -14,6 +14,9 @@ export interface AlertReportProgress {
   sent: number
   drafts: number
   lastStatus: string | null
+  grouped?: boolean
+  reportId?: string | null
+  needsAmendment?: boolean
 }
 
 export interface EarlyAlertItemDto {

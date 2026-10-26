@@ -38,6 +38,7 @@ export function ReportComposerDialog({
   defaultTypeKey,
   onCreated,
   students: providedStudents,
+  existingReports,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -46,6 +47,7 @@ export function ReportComposerDialog({
   defaultTypeKey?: string
   onCreated?: (reportId: string) => void
   students?: Array<{ id: string; name: string }>
+  existingReports?: Array<{ typeKey: string; reportId: string }>
 }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -102,6 +104,8 @@ export function ReportComposerDialog({
     onSuccess: (report) => {
       qc.invalidateQueries({ queryKey: ['formal-reports'] })
       qc.invalidateQueries({ queryKey: ['formal-reports-counts'] })
+      qc.invalidateQueries({ queryKey: ['early-alerts-v2'] })
+      qc.invalidateQueries({ queryKey: ['early-alerts-summary'] })
       toast.success(report.status === 'DRAFT' ? 'Borrador abierto' : 'Se abrió el informe agrupado existente; puedes preparar una ampliación desde allí')
       onOpenChange(false)
       onCreated?.(report.id)
@@ -111,6 +115,7 @@ export function ReportComposerDialog({
   })
 
   const current = types.find((t) => t.key === selected) ?? null
+  const existing = existingReports?.find((r) => r.typeKey === current?.key)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -160,6 +165,7 @@ export function ReportComposerDialog({
                     <div className="flex shrink-0 flex-col items-end gap-1">
                       {t.confidential && <Badge variant="outline" className="gap-1"><Lock className="h-3 w-3" />Confidencial</Badge>}
                       {t.triggeredByAlert && <Badge variant="warning">Alerta</Badge>}
+                      {existingReports?.some((r) => r.typeKey === t.key) && <Badge variant="outline">Informe agrupado existente</Badge>}
                       {reason && <span className="text-[11px] text-muted-foreground">{reason}</span>}
                     </div>
                   </div>
@@ -179,9 +185,12 @@ export function ReportComposerDialog({
             </div>
           )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button disabled={!current || !!(current && unavailableReason(current)) || (!!students?.length && current?.scope === 'student' && !studentId) || create.isPending} onClick={() => current && create.mutate(current.key)}>
+          <Button disabled={!current || !!(current && unavailableReason(current)) || (!!students?.length && current?.scope === 'student' && !studentId) || create.isPending} onClick={() => {
+            if (existing) { onOpenChange(false); navigate(`/informes/${existing.reportId}`) }
+            else if (current) create.mutate(current.key)
+          }}>
             {create.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Crear borrador
+            {existing ? 'Abrir informe agrupado' : 'Crear borrador'}
           </Button>
         </DialogFooter>
       </DialogContent>

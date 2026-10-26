@@ -16,7 +16,7 @@ export interface EarlyAlertItem {
   assignment: { id: string; subjectName: string; teacherId: string; teacherName: string }
   parallel: { id: string; name: string; levelName: string; tutorId: string | null }
   reinforcementCase: { id: string; caseStatus: string } | null
-  reports: Array<{ typeKey: string; label: string; sent: number; drafts: number; lastStatus: string | null }>
+  reports: Array<{ typeKey: string; label: string; sent: number; drafts: number; lastStatus: string | null; grouped?: boolean; reportId?: string | null; needsAmendment?: boolean }>
   canStartReinforcement: boolean
   canAct: boolean
 }

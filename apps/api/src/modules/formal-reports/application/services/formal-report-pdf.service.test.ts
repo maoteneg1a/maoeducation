@@ -12,6 +12,15 @@ const assets = path.resolve('assets/reinforcement-annexes')
 const xmlText = (xml: string) => [...xml.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g)].map((m) => m[1].replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#123;/g, '{').replace(/&#125;/g, '}').replace(/&amp;/g, '&')).join('')
 
 describe('anexos fieles al Word original', () => {
+  it.each(sampleReinforcementAnnexes().map((data, index) => ({ data, number: index + 1 })))('incluye la firma de vista previa en el Word del Anexo $number sin datos de envío', async ({ data }) => {
+    const image = await sharp({ create: { width: 150, height: 40, channels: 4, background: '#123456' } }).png().toBuffer()
+    const draft = { ...data, status: 'DRAFT', sentAt: null, authorSignature: { imageData: `data:image/png;base64,${image.toString('base64')}` }, recipientSignature: null }
+    const zip = await JSZip.loadAsync(await buildOriginalAnnexDocx(draft))
+    expect(await zip.file('word/media/auleka-signature-author.png')!.async('nodebuffer')).toEqual(image)
+    expect(await zip.file('word/document.xml')!.async('string')).toContain('rIdAulekaSignatureauthor')
+    expect(zip.file('word/media/auleka-signature-recipient.png')).toBeNull()
+    expect(draft.sentAt).toBeNull()
+  })
   it.each(sampleReinforcementAnnexes().map((data, index) => ({ data, number: index + 1 })))('conserva textos y formato del Anexo $number, excepto identidad y año parametrizados', async ({ data, number }) => {
     const manifest = JSON.parse(await readFile(path.join(assets, 'manifest.json'), 'utf8'))
     const original = await readFile(path.join(assets, 'original.docx'))

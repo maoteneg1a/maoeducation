@@ -1,4 +1,4 @@
-import { captureDocumentSignature } from '../../../users/application/services/user-signature.service'
+import { captureDocumentSignature, getOwnSignature, type DocumentSignatureImage } from '../../../users/application/services/user-signature.service'
 import { withDocumentDateDefault } from '../../application/services/report-content-defaults'
 import crypto from 'crypto'
 import { Prisma } from '@prisma/client'
@@ -8,6 +8,7 @@ import { extractReportsFlow, type ReportTypeConfig, type ReportsFlowConfig } fro
 import { institutionSettings } from '../../../../shared/infrastructure/services/agreement.service'
 import { hasPermission, isAuthority, type Actor } from '../../../../shared/infrastructure/services/actor'
 import { sendPushToUser } from '../../../../shared/infrastructure/services/push.service'
+import { groupedReportNotification } from '../../application/services/grouped-report-notification'
 import { storage } from '../../../../shared/infrastructure/services/storage.service'
 import { resolveInstanceUsers } from '../../application/services/report-recipients.service'
 import { buildSnapshot } from '../../application/services/report-snapshot.service'
@@ -472,9 +473,13 @@ export class PrismaFormalReportRepository {
       }
     }
     const studentName = personName(r.student)
+    const previous = t.pdfTemplate === 'annex_alerts' && r.previousVersionId
+      ? await prisma.formalReport.findFirst({ where: { id: r.previousVersionId, institutionId, authorId: r.authorId, courseAssignmentId: r.courseAssignmentId, academicPeriodId: r.academicPeriodId }, select: { snapshot: true } }) : null
+    const notification = previous
+      ? groupedReportNotification(personName(r.author), previous.snapshot, snapshot)
+      : { title: `Nuevo informe: ${r.typeLabel}`, body: `${personName(r.author)} te envió un informe${studentName ? ` sobre ${studentName}` : ''}.` }
     await Promise.allSettled(recipients.map((u) => sendPushToUser(u, {
-      title: `Nuevo informe: ${r.typeLabel}`,
-      body: `${personName(r.author)} te envió un informe${studentName ? ` sobre ${studentName}` : ''}.`,
+      ...notification,
       url: `/informes/${id}`,
     })))
     return this.get(institutionId, actor, id)
@@ -639,7 +644,12 @@ export class PrismaFormalReportRepository {
     const inst = await prisma.institution.findUnique({ where: { id: institutionId }, select: { name: true, settings: true } })
     const receivedBy = r.receivedById ? await prisma.user.findFirst({ where: { id: r.receivedById }, select: personSelect }) : null
     const snapshot = r.status === 'DRAFT' ? await this.snapshotFor(r, actor) : (r.snapshot as Record<string, unknown>)
-    return { report: r, institution: inst, receivedByName: receivedBy ? personName(receivedBy) : null, snapshot }
+    // La previsualización no firma ni modifica el informe. Los envíos conservan su copia histórica.
+    const previewSignature = r.status === 'DRAFT' && r.authorId === actor.userId ? await getOwnSignature(institutionId, actor.userId) : null
+    const authorSignature: DocumentSignatureImage | null = r.status === 'DRAFT'
+      ? previewSignature?.imageData ? { imageData: previewSignature.imageData } : null
+      : r.authorSignature as unknown as DocumentSignatureImage | null
+    return { report: r, institution: inst, receivedByName: receivedBy ? personName(receivedBy) : null, snapshot, authorSignature }
   }
 }
 
