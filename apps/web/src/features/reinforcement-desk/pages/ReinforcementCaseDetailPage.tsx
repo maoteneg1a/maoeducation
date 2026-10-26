@@ -1,3 +1,4 @@
+import { PlanTab } from '../components/PlanTab'
 import { FormativeResultTab } from '../components/FormativeResultTab'
 import * as React from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -96,14 +97,16 @@ export function ReinforcementCaseDetailPage() {
         })}
       </div>
 
-      <Tabs defaultValue="summary">
+      <Tabs defaultValue="plan">
         <TabsList className="flex-wrap">
+          <TabsTrigger value="plan">Plan y seguimiento</TabsTrigger>
           <TabsTrigger value="summary">Resumen del caso</TabsTrigger>
           <TabsTrigger value="sessions">Sesiones y asistencia ({data.sessions.length})</TabsTrigger>
           <TabsTrigger value="formative">Resultado formativo</TabsTrigger>
           <TabsTrigger value="files">Archivos ({data.attachments.length})</TabsTrigger>
           <TabsTrigger value="reports">Informes ({data.reports.length})</TabsTrigger>
         </TabsList>
+        <TabsContent value="plan"><PlanTab planId={id} detail={data} /></TabsContent>
         <TabsContent value="summary"><CaseSummaryTab kase={k} /></TabsContent>
         <TabsContent value="sessions"><SessionsTab planId={id} detail={data} /></TabsContent>
         <TabsContent value="formative"><FormativeResultTab planId={id} detail={data} /></TabsContent>
@@ -122,7 +125,7 @@ function ReportsTab({ planId, detail }: { planId: string; detail: CaseDetail }) 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">Informes formales vinculados a este caso. Al enviarse, sus datos quedan congelados.</p>
+        <p className="text-sm text-muted-foreground">Estos documentos también están en <Link to="/informes?section=documents" className="text-primary underline">Informes y reportes</Link>. Al enviarse, sus datos quedan congelados.</p>
         {detail.canEdit && detail.reportTypes.length > 0 && (
           <Button size="sm" onClick={() => setOpen(true)}><FilePlus2 className="mr-1.5 h-4 w-4" /> Generar informe</Button>
         )}

@@ -23,6 +23,7 @@ export interface NavItem {
   icon: React.ElementType
   path: string
   permission?: string
+  anyPermissions?: string[]
   module?: string
   /** Visible solo para estos roles (además del permiso). */
   roles?: string[]
@@ -96,9 +97,9 @@ export const NAV_SECTIONS: NavSection[] = [
         module: 'interdisciplinary_projects',
       },
       {
-        label: 'Refuerzo y Adaptaciones',
+        label: 'Adaptaciones y planes anteriores',
         icon: HeartHandshake,
-        path: '/reinforcement-plans',
+        path: '/refuerzo/planes-anteriores',
         permission: 'grades:write',
         module: 'reinforcement_plans',
       },
@@ -160,13 +161,7 @@ export const NAV_SECTIONS: NavSection[] = [
         permission: 'enrollment:read',
         module: 'enrollment',
       },
-      {
-        label: 'Reportes',
-        icon: FileText,
-        path: '/reports',
-        permission: 'reports:read',
-        module: 'reports',
-      },
+
     ],
   },
   {
@@ -190,14 +185,13 @@ export const NAV_SECTIONS: NavSection[] = [
         permission: 'early_alerts:read',
       },
       {
-        label: 'Informes',
+        label: 'Informes y reportes',
         icon: Inbox,
         path: '/informes',
-        permission: 'formal_reports:read',
-        roles: ['admin', 'rector', 'inspector', 'dece', 'teacher'],
+        anyPermissions: ['formal_reports:read', 'reports:read'],
       },
       {
-        label: 'Casos de refuerzo',
+        label: 'Refuerzo pedagógico',
         icon: LifeBuoy,
         path: '/refuerzo/casos',
         permission: 'early_alerts:read',
@@ -359,6 +353,8 @@ export function useVisibleNavSections(): NavSection[] {
   const isVisible = (item: NavItem) =>
     (item.path !== '/dece' || deceContext.data?.visible === true) &&
     (!item.permission || hasPermission(item.permission)) &&
+    (!item.anyPermissions || item.anyPermissions.some(hasPermission)) &&
+    (item.path !== '/informes' || hasPermission('formal_reports:read') || (!enabledModules || enabledModules.includes('reports'))) &&
     (!item.roles || hasAnyRole(...item.roles)) &&
     (!item.module || !enabledModules || enabledModules.includes(item.module))
 

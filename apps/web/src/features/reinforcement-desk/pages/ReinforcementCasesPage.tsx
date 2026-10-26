@@ -65,13 +65,13 @@ export function ReinforcementCasesPage() {
     <div className="space-y-6 p-4 sm:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Casos de refuerzo</h1>
+          <h1 className="text-2xl font-bold">Refuerzo pedagógico</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Consulta de los casos de refuerzo pedagógico: sesiones, asistencia, archivos e informes enviados.
           </p>
         </div>
         <Button asChild>
-          <Link to="/reinforcement-plans"><Plus className="mr-1.5 h-4 w-4" /> Crear caso</Link>
+          <Link to="/academic-alerts"><Plus className="mr-1.5 h-4 w-4" /> Iniciar desde una alerta</Link>
         </Button>
       </div>
 
@@ -106,7 +106,7 @@ export function ReinforcementCasesPage() {
       {isLoading ? <PageLoader /> : isError ? (
         <EmptyState title="No se pudieron cargar los casos" description={getErrorMessage(error)} />
       ) : cases.length === 0 ? (
-        <EmptyState title="Sin casos de refuerzo" description="No hay casos que coincidan con los filtros o a los que tengas acceso." />
+        <EmptyState title="Sin casos de refuerzo" description="No hay planes con estos filtros. Para iniciar uno, abre una alerta temprana y selecciona Iniciar plan de refuerzo." />
       ) : (
         <Card>
           <CardContent className="p-0">

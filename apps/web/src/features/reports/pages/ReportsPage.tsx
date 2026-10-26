@@ -1,3 +1,5 @@
+import { evaluationLabel, gradeSummaryColumns } from '../lib/grade-columns'
+import { useSearchParams } from 'react-router-dom'
 import * as React from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { BarChart2, ClipboardList, Download, FileSpreadsheet, FileText, Printer, ScrollText, Upload } from 'lucide-react'
@@ -79,15 +81,15 @@ const DEFAULT_BRANDING: BulletinBranding = {
   observationsLabel: 'OBSERVACIONES',
 }
 
-export function ReportsPage() {
-  const [tab, setTab] = React.useState<Tab>('bulletin')
+export function ReportsPage({ embedded = false }: { embedded?: boolean }) {
+  const [params, setParams] = useSearchParams()
+  const requestedTab = params.get('report')
+  const tab: Tab = requestedTab === 'grades' || requestedTab === 'attendance' || requestedTab === 'enrollment' ? requestedTab : 'bulletin'
+  const setTab = (value: Tab) => setParams((previous) => { const next = new URLSearchParams(previous); next.set('section', 'academic'); next.set('report', value); return next })
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Reportes</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Genera e imprime reportes del sistema</p>
-      </div>
+      {!embedded && <div><h1 className="text-2xl font-bold tracking-tight">Reportes</h1><p className="mt-1 text-sm text-muted-foreground">Genera e imprime reportes del sistema</p></div>}
 
       <div className="flex flex-wrap gap-1 border-b">
         {([
@@ -934,6 +936,7 @@ function GradesReportTab() {
 }
 
 function GradesReportView({ data }: { data: GradesReportData }) {
+  const summaryColumns = gradeSummaryColumns(data.assignment)
   const allActivities = data.insumos.flatMap((insumo) =>
     insumo.activities.map((activity) => ({ ...activity, insumoName: insumo.name })),
   )
@@ -954,6 +957,8 @@ function GradesReportView({ data }: { data: GradesReportData }) {
         </div>
       </div>
 
+      <p className="text-sm text-muted-foreground">Examen y proyecto son componentes de la sumativa. El resumen usa los porcentajes configurados en la asignatura y las notas vigentes del motor de calificaciones.</p>
+
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full min-w-[640px] border-collapse text-xs">
           <thead>
@@ -964,9 +969,11 @@ function GradesReportView({ data }: { data: GradesReportData }) {
                 <th key={activity.id} className="min-w-[56px] border px-2 py-1.5 text-center font-medium">
                   <div className="text-[10px] text-muted-foreground">{activity.insumoName}</div>
                   <div>{activity.name}</div>
+                  <div className="text-[10px] font-normal">{evaluationLabel(activity.activityType.code)}</div>
                   <div className="text-[10px] font-normal">/{Number(activity.maxScore)}</div>
                 </th>
               ))}
+              {summaryColumns.map((column) => <th key={column.key} className="min-w-[90px] border bg-primary/5 px-2 py-1.5 text-center font-medium">{column.label}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -984,6 +991,7 @@ function GradesReportView({ data }: { data: GradesReportData }) {
                     {student.grades[activity.id] != null ? Number(student.grades[activity.id]).toFixed(2) : '—'}
                   </td>
                 ))}
+                {summaryColumns.map((column) => <td key={column.key} className="border bg-primary/5 px-2 py-1 text-center font-semibold tabular-nums">{student.summary[column.key] == null ? '—' : Number(student.summary[column.key]).toFixed(2)}</td>)}
               </tr>
             ))}
           </tbody>

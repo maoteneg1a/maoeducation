@@ -16,6 +16,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/shared/components/ui/dialog'
 import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
+import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { getErrorMessage } from '@/shared/lib/utils'
 import { formalReportsApi, getCaseAttachments, type FormalReport } from '../api/formal-reports.api'
@@ -30,7 +31,7 @@ export function ReportDetailPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const { data: r, isLoading } = useQuery({ queryKey: ['formal-report', id], queryFn: () => formalReportsApi.get(id), enabled: !!id })
+  const { data: r, isLoading, isError, error, refetch } = useQuery({ queryKey: ['formal-report', id], queryFn: () => formalReportsApi.get(id), enabled: !!id })
   const { data: flow } = useQuery({ queryKey: ['reports-flow'], queryFn: formalReportsApi.reportsFlow, staleTime: 60_000 })
   const [content, setContent] = React.useState<Record<string, string>>({})
   const [dirty, setDirty] = React.useState(false)
@@ -70,7 +71,12 @@ export function ReportDetailPage() {
   })
   const delAtt = useMutation({ mutationFn: (aid: string) => formalReportsApi.removeAttachment(id, aid), onSuccess: setReport, onError: onErr })
 
-  if (isLoading || !r) return <PageLoader />
+  if (isLoading) return <PageLoader />
+  if (isError || !r) return <div className="space-y-4 p-6">
+    <Link to="/informes" className="text-primary hover:underline">Volver a Informes y reportes</Link>
+    <EmptyState title="No se pudo abrir el informe" description={getErrorMessage(error)} />
+    <Button variant="outline" onClick={() => refetch()}>Reintentar</Button>
+  </div>
 
   const fields = r.typeConfig.fields ?? []
   const missing = fields.filter((f) => f.required && !content[f.key]?.trim())
@@ -99,7 +105,7 @@ export function ReportDetailPage() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
-      <Link to="/informes" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <Link to={`/informes?section=documents&box=${r.permissions.isAuthor ? r.status === 'DRAFT' ? 'drafts' : 'sent' : 'inbox'}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> Informes
       </Link>
 

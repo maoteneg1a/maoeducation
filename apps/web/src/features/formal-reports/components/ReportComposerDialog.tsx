@@ -1,5 +1,6 @@
+import { reinforcementDeskApi } from '@/features/reinforcement-desk/api/reinforcement-desk.api'
 import * as React from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowRight, FileText, Loader2, Lock } from 'lucide-react'
@@ -36,7 +37,7 @@ export function ReportComposerDialog({
   typeKeys,
   defaultTypeKey,
   onCreated,
-  students,
+  students: providedStudents,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -47,10 +48,17 @@ export function ReportComposerDialog({
   students?: Array<{ id: string; name: string }>
 }) {
   const navigate = useNavigate()
+  const qc = useQueryClient()
+  const plan = useQuery({
+    queryKey: ['reinforcement-desk-detail', context.reinforcementPlanId],
+    queryFn: () => reinforcementDeskApi.detail(context.reinforcementPlanId!),
+    enabled: open && !!context.reinforcementPlanId && !providedStudents,
+  })
+  const students = providedStudents ?? plan.data?.students
   const { roles, hasRole } = usePermissions()
   const [selected, setSelected] = React.useState<string | null>(defaultTypeKey ?? null)
   const [studentId, setStudentId] = React.useState('')
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['reports-flow'],
     queryFn: formalReportsApi.reportsFlow,
     enabled: open,
@@ -74,6 +82,8 @@ export function ReportComposerDialog({
   }, [data, typeKeys, context.reinforcementPlanId, isAuthority, roles])
 
   const unavailableReason = (t: ReportTypeConfig): string | null => {
+    if (context.reinforcementPlanId && !providedStudents && plan.isPending) return 'Cargando los participantes del plan'
+    if (context.reinforcementPlanId && !providedStudents && plan.isError) return 'No se pudo cargar el plan'
     if (t.pdfTemplate && !context.alertId && !context.reinforcementPlanId && (!context.courseAssignmentId || !context.academicPeriodId)) return 'Requiere asignatura y periodo'
     if (t.scope === 'student' && !hasStudent) return 'Requiere un estudiante'
     if (t.scope === 'parallel' && !hasParallel) return 'Requiere un paralelo'
@@ -90,6 +100,8 @@ export function ReportComposerDialog({
         ...(studentId ? { studentId } : {}),
       }),
     onSuccess: (report) => {
+      qc.invalidateQueries({ queryKey: ['formal-reports'] })
+      qc.invalidateQueries({ queryKey: ['formal-reports-counts'] })
       toast.success('Borrador creado')
       onOpenChange(false)
       onCreated?.(report.id)
@@ -111,6 +123,8 @@ export function ReportComposerDialog({
         </DialogHeader>
         {isLoading ? (
           <PageLoader />
+        ) : isError ? (
+          <div className="space-y-2"><p role="alert">{getErrorMessage(error)}</p><Button variant="outline" onClick={() => refetch()}>Reintentar</Button></div>
         ) : types.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
             No hay tipos de informe disponibles para este contexto o tu rol.

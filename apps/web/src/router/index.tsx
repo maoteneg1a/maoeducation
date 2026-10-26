@@ -200,21 +200,23 @@ export const router = createBrowserRouter([
       // ---- Informes formales entre instancias (Acuerdo 2026-00082-A) ----
       {
         path: 'informes',
-        element: <PermissionGuard permission="formal_reports:read" />,
         children: [
           {
             index: true,
             lazy: () =>
-              import('@/features/formal-reports/pages/ReportsInboxPage').then((m) => ({
-                Component: m.ReportsInboxPage,
+              import('@/features/formal-reports/pages/ReportsHubPage').then((m) => ({
+                Component: m.ReportsHubPage,
               })),
           },
           {
             path: ':id',
-            lazy: () =>
-              import('@/features/formal-reports/pages/ReportDetailPage').then((m) => ({
+            element: <PermissionGuard permission="formal_reports:read" />,
+            children: [{
+              index: true,
+              lazy: () => import('@/features/formal-reports/pages/ReportDetailPage').then((m) => ({
                 Component: m.ReportDetailPage,
               })),
+            }],
           },
         ],
       },
@@ -280,9 +282,10 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      { path: 'reinforcement-plans', element: <Navigate to="/refuerzo/casos" replace /> },
       // ---- Reinforcement Plans (refuerzo y adaptaciones NEE) ----
       {
-        path: 'reinforcement-plans',
+        path: 'refuerzo/planes-anteriores',
         element: <PermissionGuard permission="grades:write" />,
         children: [
           {
@@ -403,19 +406,8 @@ export const router = createBrowserRouter([
           },
         ],
       },
-      // ---- Reports ----
-      {
-        path: 'reports',
-        children: [
-          {
-            index: true,
-            lazy: () =>
-              import('@/features/reports/pages/ReportsPage').then((m) => ({
-                Component: m.ReportsPage,
-              })),
-          },
-        ],
-      },
+      // Enlaces anteriores siguen llegando al centro de informes.
+      { path: 'reports', element: <Navigate to="/informes?section=academic" replace /> },
       // ---- Incidents ----
       {
         path: 'incidents',

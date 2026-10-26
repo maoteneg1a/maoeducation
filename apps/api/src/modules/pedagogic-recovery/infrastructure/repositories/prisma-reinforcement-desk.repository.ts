@@ -411,6 +411,8 @@ export class PrismaReinforcementDeskRepository {
 
   async createSession(institutionId: string, actor: Actor, planId: string, dto: { date: string; title: string; description?: string; targetActivityId?: string | null }) {
     const { plan } = await this.editable(institutionId, actor, planId)
+    const current = await prisma.reinforcementPlan.findFirstOrThrow({ where: { id: planId, institutionId }, select: { caseStatus: true } })
+    if (current.caseStatus === 'CLOSED') throw new ConflictError('El seguimiento está cerrado')
     if (!dto.title?.trim()) throw new BadRequestError('La sesión necesita un título')
     if (!dto.date || Number.isNaN(Date.parse(dto.date))) throw new BadRequestError('Fecha inválida')
     const targetActivityId = await this.validateTarget(institutionId, plan, dto.targetActivityId)
@@ -426,6 +428,7 @@ export class PrismaReinforcementDeskRepository {
         attendances: { create: this.studentIdsOf(plan).map((studentId) => ({ studentId, status: 'present' })) },
       },
     })
+    await prisma.reinforcementPlan.updateMany({ where: { id: planId, institutionId, caseStatus: { in: ['PLANNED', 'CONTINUES_REINFORCEMENT'] } }, data: { caseStatus: 'IN_REINFORCEMENT' } })
     return s
   }
 

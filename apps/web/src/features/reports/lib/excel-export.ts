@@ -1,3 +1,4 @@
+import { evaluationLabel, gradeSummaryColumns } from './grade-columns'
 import * as XLSX from 'xlsx'
 import type { AttendanceReportData, EnrollmentReportData, GradesReportData } from '../api/reports.api'
 
@@ -18,13 +19,14 @@ function download(sheets: Array<{ name: string; rows: Array<Array<string | numbe
 /** Libro de calificaciones: una columna por actividad + promedio del período. */
 export function exportGradesReport(data: GradesReportData) {
   const acts = data.insumos.flatMap((i) => i.activities.map((a) => ({ ...a, insumo: i.name })))
-  const header = ['#', 'Estudiante', 'Cédula', ...acts.map((a) => `${a.insumo} · ${a.name} (/${Number(a.maxScore)})`), 'Promedio']
+  const columns = gradeSummaryColumns(data.assignment)
+  const header = ['#', 'Estudiante', 'Cédula', ...acts.map((a) => `${a.insumo} · ${a.name} · ${evaluationLabel(a.activityType.code)} (/${Number(a.maxScore)})`), ...columns.map((c) => c.label)]
   const rows = data.students.map((s, i) => [
     i + 1,
     `${s.student.profile.lastName} ${s.student.profile.firstName}`,
     s.student.profile.dni ?? '',
     ...acts.map((a) => (s.grades[a.id] != null ? Number(Number(s.grades[a.id]).toFixed(2)) : null)),
-    s.summary?.total != null ? Number(Number(s.summary.total).toFixed(2)) : null,
+    ...columns.map((column) => s.summary[column.key] == null ? null : Number(Number(s.summary[column.key]).toFixed(2))),
   ])
   const a = data.assignment
   download(

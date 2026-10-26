@@ -110,7 +110,7 @@ function focusScoreInput(rowIndex: number) {
 }
 
 const AGREEMENT_MODE_LABEL: Record<string, string> = {
-  agreement_formative: 'Refuerzo (acuerdo)',
+  agreement_formative: 'Mejora individual',
   agreement_direct: 'Mejora directa',
   agreement_with_reinforcement: 'Mejora con refuerzo',
 }
@@ -2029,6 +2029,8 @@ export function GradeEntryPage() {
               Enter/↓ siguiente · ↑ anterior · pega una columna desde Excel
             </p>
           </div>
+
+          {reinforcementEnabled && <p className="text-xs text-muted-foreground">El campo Refuerzo registra una mejora individual de esta actividad. No inicia un plan ni consume sus intentos. Si persiste el bajo desempeño, revisa las alertas tempranas para iniciar el plan.</p>}
 
           {/* Grade table */}
           <Card className="overflow-x-auto">

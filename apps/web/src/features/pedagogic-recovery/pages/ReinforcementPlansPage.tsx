@@ -1,11 +1,10 @@
+import { Link } from 'react-router-dom'
 import * as React from 'react'
 import { HeartHandshake } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
-import { SkillReinforcementPanel } from '../components/SkillReinforcementPanel'
 import { ReinforcementPlansList } from '../components/ReinforcementPlansList'
-import { ReinforcementCaseWizard } from '../components/ReinforcementCaseWizard'
 
 export function ReinforcementPlansPage() {
   const { assignments, periods, defaultAssignmentId, defaultPeriodId } = useTeacherDefaults()
@@ -25,13 +24,13 @@ export function ReinforcementPlansPage() {
   return (
     <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Refuerzo y Adaptaciones</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Adaptaciones y planes anteriores</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Estudiantes que necesitan refuerzo (detectado por notas) o tienen adaptación curricular (NEE), y sus
-          planes individualizados.
+          Consulta los planes anteriores y las adaptaciones curriculares (NEE).
         </p>
       </div>
 
+      <p className="rounded border p-3 text-sm">Los nuevos planes de refuerzo se inician desde <Link className="text-primary underline" to="/academic-alerts">Alertas tempranas</Link> y se gestionan en <Link className="text-primary underline" to="/refuerzo/casos">Refuerzo pedagógico</Link>.</p>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         <div className="w-full sm:w-64 space-y-1.5">
           <label className="text-sm font-medium">Asignación</label>
@@ -71,8 +70,6 @@ export function ReinforcementPlansPage() {
         />
       ) : (
         <div className="space-y-4">
-          <SkillReinforcementPanel courseAssignmentId={assignmentId} academicPeriodId={periodId} />
-          <ReinforcementCaseWizard courseAssignmentId={assignmentId} academicPeriodId={periodId} />
           <ReinforcementPlansList
             courseAssignmentId={assignmentId}
             academicPeriodId={periodId}

@@ -1,6 +1,3 @@
-import { Link } from 'react-router-dom'
-import { ExternalLink } from 'lucide-react'
-import { Button } from '@/shared/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
 import type { LegacyCase } from '../api/reinforcement-desk.api'
 
@@ -22,15 +19,11 @@ function Field({ label, value }: { label: string; value: string | null | undefin
   )
 }
 
-/** Vista de solo lectura del caso (sin destrezas). Las transiciones se gestionan en el asistente. */
+/** Vista de solo lectura del caso (sin destrezas). Las transiciones se gestionan en la pestaña Plan y seguimiento. */
 export function CaseSummaryTab({ kase }: { kase: LegacyCase }) {
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button variant="outline" size="sm" asChild>
-          <Link to="/reinforcement-plans"><ExternalLink className="mr-1.5 h-4 w-4" /> Gestionar en el asistente</Link>
-        </Button>
-      </div>
+
 
       <Card>
         <CardHeader><CardTitle className="text-base">Detección</CardTitle></CardHeader>

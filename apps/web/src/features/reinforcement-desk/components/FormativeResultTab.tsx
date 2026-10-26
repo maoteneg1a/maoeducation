@@ -65,7 +65,7 @@ export function FormativeResultTab({ planId, detail }: { planId: string; detail:
           {latest?.payload.score != null && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={revoke} onChange={(e) => setRevoke(e.target.checked)} /> Retirar la aplicación vigente y conservar su historial</label>}
           {!revoke && policy.mode === 'activity_set' && <div className="space-y-2">
             <p className="font-medium">Actividades formativas atendidas por el plan</p>
-            <p className="text-sm text-muted-foreground">El conjunto mantiene su peso dentro de los insumos. Sus notas individuales se conservan como antecedentes.</p>
+            <p className="text-sm text-muted-foreground">El conjunto mantiene su peso dentro de los insumos. El cálculo parte de las notas vigentes, incluidas sus mejoras individuales; estas no consumen intentos del plan.</p>
             {activities.data.filter((a) => !a.summative).map((a) => {
               const score = a.grades.find((g) => g.studentId === studentId)?.effective
               return <label key={a.id} className="flex items-center gap-2 rounded border p-2 text-sm"><input type="checkbox" disabled={score == null} checked={activityIds.includes(a.id)} onChange={() => toggle(activityIds, a.id, setActivityIds)} />{a.name} · {a.insumo ?? 'Sin insumo'} · {score == null ? 'Sin nota' : `${score}/${a.maxScore}`}</label>

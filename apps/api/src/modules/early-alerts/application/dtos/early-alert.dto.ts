@@ -31,6 +31,7 @@ export interface EarlyAlertItemDto {
   parallel: { id: string; name: string; levelName: string; tutorId: string | null }
   reinforcementCase: { id: string; caseStatus: string } | null
   reports: AlertReportProgress[]
+  canStartReinforcement: boolean
   canAct: boolean
 }
 

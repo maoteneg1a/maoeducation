@@ -1,3 +1,4 @@
+import { startReinforcementFromAlerts, saveReinforcementPlan, type StartReinforcementDto, type SaveReinforcementPlanDto } from '../application/services/reinforcement-workflow.service'
 import { FastifyInstance } from 'fastify'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { actorOf } from '../../../shared/infrastructure/services/actor'
@@ -31,6 +32,27 @@ export default async function reinforcementDeskRoutes(app: FastifyInstance) {
   app.addHook('preHandler', async (req) => {
     if (!req.user.roles.some((r) => r !== 'guardian' && r !== 'student')) throw new ForbiddenError()
   })
+
+  app.post<{ Body: StartReinforcementDto }>('/reinforcement-desk/cases/from-alerts', { schema: { body: {
+    type: 'object', required: ['alertIds', 'learningTarget'], additionalProperties: false,
+    properties: {
+      alertIds: { type: 'array', minItems: 1, maxItems: 100, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 128 } },
+      learningTarget: { type: 'string', minLength: 3, maxLength: 3000 },
+      objective: { type: 'string', maxLength: 6000 }, strategies: { type: 'string', maxLength: 6000 }, schedule: { type: 'string', maxLength: 6000 },
+    },
+  } } }, async (req, reply) => reply.code(201).send(await startReinforcementFromAlerts(req.user.institutionId, actorOf(req.user), req.body)))
+
+  app.put<{ Params: { id: string }; Body: SaveReinforcementPlanDto }>('/reinforcement-desk/cases/:id/plan', { schema: { body: {
+    type: 'object', required: ['learningTarget', 'objective', 'strategies'], additionalProperties: false,
+    properties: {
+      ...Object.fromEntries(['learningTarget', 'objective', 'strategies', 'resources', 'evaluation', 'schedule', 'notes'].map((key) => [key, { type: 'string', maxLength: 6000 }])),
+      action: { type: 'string', enum: ['save', 'close', 'continue'] },
+      outcomes: { type: 'array', maxItems: 100, items: { type: 'object', required: ['studentId', 'result'], additionalProperties: false, properties: {
+        studentId: { type: 'string', minLength: 1, maxLength: 128 }, result: { type: 'string', enum: ['CONSOLIDATED', 'NOT_CONSOLIDATED'] },
+        observation: { type: 'string', maxLength: 6000 }, assessmentValue: { type: 'string', maxLength: 128 },
+      } } },
+    },
+  } } }, async (req, reply) => reply.send(await saveReinforcementPlan(req.user.institutionId, actorOf(req.user), req.params.id, req.body)))
 
   app.get<{ Querystring: ListCasesQuery }>('/reinforcement-desk/cases', async (req, reply) =>
     reply.send(await repo.list(req.user.institutionId, actorOf(req.user), req.query)))
