@@ -26,6 +26,7 @@ export interface GradesReportData {
 
 /** Resumen canónico calculado en el backend (única fuente de verdad). */
 export interface GradeSummary {
+  formativeReinforcement?: { mode: 'activity_set' | 'period_formative'; initial: number; result: number; adjusted: number; weight: number; cap: number }
   insumoAvgs: Array<{ id: string; name: string; avg: number | null }>
   insumosBase: number | null
   examenAvg: number | null

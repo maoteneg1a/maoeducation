@@ -2,6 +2,8 @@ const n = (v: unknown) => (typeof v === 'number' ? v.toFixed(2) : '—')
 const ATT: Record<string, string> = { present: 'Asistió', absent: 'No asistió', justified: 'Justificado' }
 
 type Snap = {
+  academicYear?: { name: string } | null
+  alertRoster?: Array<{ student: string; result: string }>
   student?: { name: string; dni: string | null } | null
   parallel?: { name: string; tutor: string | null } | null
   subject?: { name: string; teacher: string } | null
@@ -9,6 +11,7 @@ type Snap = {
   alert?: { scoreAtDetection: number | null; currentScore: number | null; qualitativeCode: string | null; detectedAt: string | null; status: string } | null
   grades?: Array<{ subject: string; teacher: string; insumos: Array<{ name: string; avg: number | null }>; formative: number | null; summative: number | null; total: number | null }>
   reinforcementCase?: {
+    attendedClasses?: number
     caseStatus: string
     learningTarget: string | null
     proposal: Record<string, string | null>
@@ -32,16 +35,26 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 /** Datos que el sistema agrega al informe (notas del motor, caso de refuerzo, asistencia). */
 export function SnapshotView({ snapshot }: { snapshot: Record<string, unknown> }) {
   const s = snapshot as Snap
-  const hasAny = s.student || s.grades?.length || s.reinforcementCase || s.sessions?.length || s.alert
+  const hasAny = s.student || s.parallel || s.grades?.length || s.reinforcementCase || s.sessions?.length || s.alert || s.alertRoster
   if (!hasAny) return <p className="text-sm text-muted-foreground">Este tipo de informe no agrega datos automáticos.</p>
   return (
     <div className="space-y-4">
       {(s.student || s.parallel || s.subject || s.period) && (
         <div className="space-y-1">
+          {s.academicYear && <Row label="Año lectivo" value={s.academicYear.name} />}
           {s.student && <Row label="Estudiante" value={`${s.student.name}${s.student.dni ? ` (C.I. ${s.student.dni})` : ''}`} />}
           {s.parallel && <Row label="Grado/curso" value={`${s.parallel.name}${s.parallel.tutor ? ` — Tutor: ${s.parallel.tutor}` : ''}`} />}
           {s.subject && <Row label="Asignatura" value={`${s.subject.name} — ${s.subject.teacher}`} />}
           {s.period && <Row label="Periodo" value={s.period.name} />}
+        </div>
+      )}
+      {s.alertRoster && (
+        <div className="space-y-2 rounded-md border p-3">
+          <p className="text-sm font-semibold">Nómina de alertas abiertas o en seguimiento</p>
+          {s.alertRoster.length ? <table className="w-full text-sm">
+            <thead><tr className="text-left"><th className="p-2">Estudiante</th><th className="p-2">Calificación / resultado</th></tr></thead>
+            <tbody>{s.alertRoster.map((a, i) => <tr key={i} className="border-t"><td className="p-2">{a.student}</td><td className="p-2">{a.result}</td></tr>)}</tbody>
+          </table> : <p className="text-sm">No constan alertas abiertas o en seguimiento en la asignatura y el periodo seleccionados.</p>}
         </div>
       )}
       {s.alert && (
@@ -73,6 +86,7 @@ export function SnapshotView({ snapshot }: { snapshot: Record<string, unknown> }
       {s.reinforcementCase && (
         <div className="space-y-2 rounded-md border p-3">
           <p className="text-sm font-semibold">Caso de refuerzo ({s.reinforcementCase.caseStatus})</p>
+          {s.reinforcementCase.attendedClasses != null && <Row label="Clases a las que asistió" value={s.reinforcementCase.attendedClasses} />}
           {s.reinforcementCase.learningTarget && <Row label="Aprendizaje a reforzar" value={s.reinforcementCase.learningTarget} />}
           {Object.entries(s.reinforcementCase.proposal ?? {}).filter(([, v]) => v).map(([k, v]) => <Row key={k} label={PROPOSAL_LABEL[k] ?? k} value={v} />)}
           {s.reinforcementCase.commitments.length > 0 && (

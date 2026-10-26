@@ -34,6 +34,8 @@ export function GradingConfigPage() {
 
   const weightsValid = Number.isInteger(cfg.defaultExamWeight) && cfg.defaultExamWeight >= 0 && cfg.defaultExamWeight <= 100 &&
     Number.isFinite(cfg.defaultProjectWeight) && cfg.defaultProjectWeight >= 0 && cfg.defaultProjectWeight <= cfg.defaultExamWeight
+  const refuerzo = cfg.formativeReinforcement
+  const refuerzoValid = refuerzo.reinforcementWeight > 0 && refuerzo.reinforcementWeight < 100 && refuerzo.cap > 0 && refuerzo.cap <= cfg.gradingScaleMax
   const examPercent = cfg.defaultExamWeight - cfg.defaultProjectWeight
 
   const setScale = (i: number, patch: Partial<QualitativeLevel>) =>
@@ -52,6 +54,7 @@ export function GradingConfigPage() {
         min: scaled(level.min),
         max: scaled(level.max),
       })),
+      formativeReinforcement: { ...cfg.formativeReinforcement, cap: scaled(cfg.formativeReinforcement.cap) },
       promotion: {
         ...cfg.promotion,
         minToPass: scaled(cfg.promotion.minToPass),
@@ -69,7 +72,7 @@ export function GradingConfigPage() {
           <h1 className="text-2xl font-bold">Configuración de calificación</h1>
           <p className="text-sm text-muted-foreground">Escala cualitativa, comportamiento y reglas de promoción</p>
         </div>
-        <Button onClick={() => update.mutate(cfg)} loading={update.isPending} disabled={!weightsValid}>Guardar</Button>
+        <Button onClick={() => update.mutate(cfg)} loading={update.isPending} disabled={!weightsValid || !refuerzoValid}>Guardar</Button>
       </div>
 
       <PlanningModelConfigCard />
@@ -220,6 +223,39 @@ export function GradingConfigPage() {
             onChange={(v) => setCfg({ ...cfg, promotion: { ...cfg.promotion, passWithExam: v } })} />
           <Field label="Máx. materias reprobadas" value={cfg.promotion.maxFailedSubjects}
             onChange={(v) => setCfg({ ...cfg, promotion: { ...cfg.promotion, maxFailedSubjects: v } })} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Refuerzo del aprendizaje formativo</CardTitle>
+          <CardDescription>Procedimiento institucional según el MIEE. Ajusta la base formativa y conserva el componente sumativo.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="max-w-lg space-y-1.5">
+            <Label>Modalidad institucional</Label>
+            <Select value={refuerzo.mode ?? 'unconfigured'} onValueChange={(v) => setCfg({ ...cfg, formativeReinforcement: { ...refuerzo, mode: v === 'unconfigured' ? null : v as 'activity_set' | 'period_formative' } })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unconfigured">Sin configurar</SelectItem>
+                <SelectItem value="activity_set">Por aprendizajes: conjunto de actividades</SelectItem>
+                <SelectItem value="period_formative">Integral del período: promedio formativo</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {refuerzo.mode === 'activity_set'
+              ? 'El docente selecciona las actividades formativas atendidas por el plan. El conjunto conserva el peso que tenía dentro de los insumos; las demás actividades mantienen su aporte.'
+              : refuerzo.mode === 'period_formative'
+                ? 'El resultado del plan se combina con el promedio formativo completo del período. Exámenes y proyectos sumativos conservan sus notas.'
+                : 'Selecciona el procedimiento previsto por la institución para habilitar la aplicación del resultado desde el caso de refuerzo.'}
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Peso del resultado del refuerzo (%)" value={refuerzo.reinforcementWeight} onChange={(v) => setCfg({ ...cfg, formativeReinforcement: { ...refuerzo, reinforcementWeight: v } })} />
+            <Field label="Tope del resultado recuperado" value={refuerzo.cap} onChange={(v) => setCfg({ ...cfg, formativeReinforcement: { ...refuerzo, cap: v } })} />
+          </div>
+          <p className="text-xs text-muted-foreground">Las calificaciones iniciales pesan {100 - refuerzo.reinforcementWeight} %. Con 5 inicial y 8 de refuerzo: {Math.min(refuerzo.cap, 5 * (1 - refuerzo.reinforcementWeight / 100) + 8 * refuerzo.reinforcementWeight / 100).toFixed(2)} (ejemplo sobre 10). El tope afecta al conjunto o a la base recuperada; una mejora no reduce la nota inicial. Cada aplicación conserva la configuración utilizada.</p>
+          {!refuerzoValid && <p role="alert" className="text-sm text-destructive">El peso debe estar entre 0 y 100, sin incluirlos; el tope debe estar dentro de la escala.</p>}
         </CardContent>
       </Card>
 

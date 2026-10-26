@@ -1,3 +1,5 @@
+import { loadFormativeApplications } from '../../../../shared/infrastructure/services/formative-reinforcement.service'
+import { computePeriodGrades } from '../../../../shared/infrastructure/services/period-grades.service'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, BadRequestError, ConflictError } from '../../../../shared/domain/errors/app.errors'
 import { assertSkillsArePlanned, assertCompetenciesArePlanned } from '../../../../shared/infrastructure/services/planned-curriculum.service'
@@ -165,6 +167,7 @@ export class PrismaPedagogicRecoveryRepository {
     const recMap = new Map(pedRecoveries.map((r) => [`${r.studentId}:${r.courseAssignmentId}`, r]))
 
     // ── Armar resultado ───────────────────────────────────────────────────
+    const canonical = await computePeriodGrades(institutionId, { assignmentIds, periodIds: [query.periodId], studentIds, gradingScaleMax })
     const subjects = assignments.map((a) => {
       const students = enrollments.map((e) => {
         const sId = e.studentId
@@ -172,9 +175,9 @@ export class PrismaPedagogicRecoveryRepository {
         const studentName = profile ? `${profile.lastName} ${profile.firstName}` : e.student.email
 
         const groups = bucket.get(key(sId, a.id))
-        const periodTotal = groups
+        const periodTotal = canonical.get(`${sId}:${a.id}:${query.periodId}`)?.total ?? (groups
           ? computePeriodSummary([...groups.values()], a.examWeight, gradingScaleMax, a.projectWeight ?? undefined).total
-          : null
+          : null)
         const rec = recMap.get(`${sId}:${a.id}`)
         const recoveryScore = rec?.score != null ? Number(rec.score) : null
         const effectiveTotal = applyDecimals(applyRecovery(periodTotal, recoveryScore, recoveryMode, recoveryCap), agreement?.decimals)
@@ -209,6 +212,8 @@ export class PrismaPedagogicRecoveryRepository {
       return { ok: true }
     }
 
+    const formative = await loadFormativeApplications(institutionId, [dto.courseAssignmentId], [dto.academicPeriodId], [dto.studentId])
+    if (formative.get(`${dto.studentId}:${dto.courseAssignmentId}:${dto.academicPeriodId}`)?.score != null) throw new ConflictError('Ya existe refuerzo aplicado a la base formativa. No se puede aplicar también una recuperación al total del período.')
     const gradingScaleMax = (await institutionRepo.getGradingConfig(institutionId)).gradingScaleMax
     if (dto.score < 0 || dto.score > gradingScaleMax) {
       throw new BadRequestError(`La nota debe estar entre 0 y ${gradingScaleMax}`)

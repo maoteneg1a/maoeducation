@@ -15,6 +15,7 @@ import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { getParallels, getYears, listEnrollments } from '@/features/enrollment/api/enrollment.api'
+import { academicApi } from '@/features/academic/api/academic.api'
 import { formalReportsApi, type FormalReport, type FormalReportStatus, type ReportBox } from '../api/formal-reports.api'
 import { REPORT_STATUS_LABEL, ReportStatusBadge } from '../components/ReportStatusBadge'
 import { ReportComposerDialog, type ReportComposerContext } from '../components/ReportComposerDialog'
@@ -167,8 +168,12 @@ function NewReportPicker({ open, onOpenChange, onContinue }: { open: boolean; on
   const [yearId, setYearId] = React.useState('')
   const [parallelId, setParallelId] = React.useState('')
   const [studentId, setStudentId] = React.useState('none')
+  const [periodId, setPeriodId] = React.useState('none')
+  const [assignmentId, setAssignmentId] = React.useState('none')
   const { data: years = [] } = useQuery({ queryKey: ['years'], queryFn: getYears, enabled: open })
   const { data: parallels = [] } = useQuery({ queryKey: ['parallels', yearId], queryFn: () => getParallels(yearId), enabled: open && !!yearId })
+  const { data: periods = [] } = useQuery({ queryKey: ['periods', yearId], queryFn: () => academicApi.getPeriods(yearId), enabled: open && !!yearId })
+  const { data: assignments = [] } = useQuery({ queryKey: ['report-assignments', yearId, parallelId], queryFn: () => academicApi.getAssignments({ yearId, parallelId }), enabled: open && !!yearId && !!parallelId })
   const { data: enrollments = [] } = useQuery({
     queryKey: ['enrollments', parallelId, yearId],
     queryFn: () => listEnrollments({ parallelId, yearId }),
@@ -177,8 +182,8 @@ function NewReportPicker({ open, onOpenChange, onContinue }: { open: boolean; on
   React.useEffect(() => {
     if (open && !yearId && years.length) setYearId(years.find((y) => y.isActive)?.id ?? years[0].id)
   }, [open, yearId, years])
-  React.useEffect(() => { setParallelId(''); setStudentId('none') }, [yearId])
-  React.useEffect(() => { setStudentId('none') }, [parallelId])
+  React.useEffect(() => { setParallelId(''); setStudentId('none'); setPeriodId('none') }, [yearId])
+  React.useEffect(() => { setStudentId('none'); setAssignmentId('none') }, [parallelId])
 
   const students = enrollments
     .filter((e) => e.status === 'active')
@@ -207,6 +212,20 @@ function NewReportPicker({ open, onOpenChange, onContinue }: { open: boolean; on
             </Select>
           </div>
           <div className="space-y-1">
+            <Label>Periodo (necesario para los anexos)</Label>
+            <Select value={periodId} onValueChange={setPeriodId}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="none">Sin periodo</SelectItem>{periods.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Asignatura (necesaria para los anexos)</Label>
+            <Select value={assignmentId} onValueChange={setAssignmentId} disabled={!parallelId}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="none">Sin asignatura</SelectItem>{assignments.map((a) => <SelectItem key={a.id} value={a.id}>{a.subjectName}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
             <Label>Estudiante (opcional)</Label>
             <Select value={studentId} onValueChange={setStudentId} disabled={!parallelId}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -229,6 +248,8 @@ function NewReportPicker({ open, onOpenChange, onContinue }: { open: boolean; on
               academicYearId: yearId || undefined,
               parallelId,
               studentId: studentId === 'none' ? undefined : studentId,
+              academicPeriodId: periodId === 'none' ? undefined : periodId,
+              courseAssignmentId: assignmentId === 'none' ? undefined : assignmentId,
             })}
           >
             Continuar

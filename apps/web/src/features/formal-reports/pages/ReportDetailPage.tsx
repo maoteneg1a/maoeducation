@@ -44,6 +44,7 @@ export function ReportDetailPage() {
     qc.setQueryData(['formal-report', id], next)
     qc.invalidateQueries({ queryKey: ['formal-reports'] })
     qc.invalidateQueries({ queryKey: ['formal-reports-counts'] })
+    qc.invalidateQueries({ queryKey: ['dossier'] })
   }
   const onErr = (e: unknown) => toast.error(getErrorMessage(e))
 
@@ -59,7 +60,7 @@ export function ReportDetailPage() {
     onSuccess: (x) => { setReport(x); toast.success(`Informe enviado con folio ${x.folio}`) },
     onError: onErr,
   })
-  const remove = useMutation({ mutationFn: () => formalReportsApi.remove(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['formal-reports'] }); toast.success('Borrador eliminado'); navigate('/informes') }, onError: onErr })
+  const remove = useMutation({ mutationFn: () => formalReportsApi.remove(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['formal-reports'] }); qc.invalidateQueries({ queryKey: ['dossier'] }); toast.success('Borrador eliminado'); navigate('/informes') }, onError: onErr })
   const receive = useMutation({ mutationFn: () => formalReportsApi.receive(id), onSuccess: (x) => { setReport(x); toast.success('Acuse de recibo registrado') }, onError: onErr })
   const newVersion = useMutation({ mutationFn: () => formalReportsApi.newVersion(id), onSuccess: (x) => navigate(`/informes/${x.id}`), onError: onErr })
   const upload = useMutation({
@@ -115,6 +116,9 @@ export function ReportDetailPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {r.typeConfig.pdfTemplate && <Button variant="outline" onClick={() => formalReportsApi.downloadDocx(id, `${r.folio ?? 'borrador'}-${r.typeKey}.docx`).catch(onErr)} disabled={r.contentHidden}>
+            <Download className="mr-2 h-4 w-4" /> Word
+          </Button>}
           <Button variant="outline" onClick={() => formalReportsApi.downloadPdf(id, `${r.folio ?? 'borrador'}-${r.typeKey}.pdf`).catch(onErr)} disabled={r.contentHidden}>
             <FileDown className="mr-2 h-4 w-4" /> PDF
           </Button>

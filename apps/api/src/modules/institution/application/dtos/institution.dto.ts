@@ -50,6 +50,13 @@ export interface ActivityGradeReinforcementConfig {
   eligibleActivityTypeIds: string[]
 }
 
+export interface FormativeReinforcementConfig {
+  /** null conserva el comportamiento anterior hasta que la institución configure su MIEE. */
+  mode: 'activity_set' | 'period_formative' | null
+  reinforcementWeight: number
+  cap: number
+}
+
 export interface GradingConfig {
   gradingScaleMax: number
   qualitativeScale: QualitativeLevel[]
@@ -59,6 +66,7 @@ export interface GradingConfig {
   defaultProjectWeight: number
   /** Peso conjunto de examen + proyecto, conservado por compatibilidad. */
   defaultExamWeight: number
+  formativeReinforcement: FormativeReinforcementConfig
   pedagogicRecovery: PedagogicRecoveryConfig
   activityGradeReinforcement: ActivityGradeReinforcementConfig
   /** Muestra el conector para exportar promedios trimestrales a Educar Ecuador. */
@@ -72,6 +80,7 @@ export interface UpdateGradingConfigDto {
   promotion?: Partial<PromotionConfig>
   defaultProjectWeight?: number
   defaultExamWeight?: number
+  formativeReinforcement?: Partial<FormativeReinforcementConfig>
   pedagogicRecovery?: Partial<PedagogicRecoveryConfig>
   activityGradeReinforcement?: Partial<ActivityGradeReinforcementConfig>
   educarEcuadorExportEnabled?: boolean

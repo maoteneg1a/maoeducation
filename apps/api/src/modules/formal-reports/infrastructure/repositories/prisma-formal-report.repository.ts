@@ -9,6 +9,7 @@ import { sendPushToUser } from '../../../../shared/infrastructure/services/push.
 import { storage } from '../../../../shared/infrastructure/services/storage.service'
 import { resolveInstanceUsers } from '../../application/services/report-recipients.service'
 import { buildSnapshot } from '../../application/services/report-snapshot.service'
+import { PrismaEarlyAlertRepository } from '../../../early-alerts/infrastructure/repositories/prisma-early-alert.repository'
 import type {
   CreateFormalReportDto,
   FormalReportStatus,
@@ -49,6 +50,16 @@ export class PrismaFormalReportRepository {
     const t = flow.reportTypes.find((x) => x.key === key)
     if (!t) throw new BadRequestError('Tipo de informe no configurado en la institución')
     return t
+  }
+
+  private async snapshotFor(r: ReportRow, actor: Actor) {
+    const source = (r.typeConfig as unknown as ReportTypeConfig).snapshot ?? 'none'
+    if (source === 'early_alerts' && r.academicPeriodId && r.courseAssignmentId) {
+      await new PrismaEarlyAlertRepository().list(r.institutionId, actor, {
+        periodId: r.academicPeriodId, courseAssignmentId: r.courseAssignmentId,
+      })
+    }
+    return buildSnapshot(source, r)
   }
 
   // ─── Visibilidad ────────────────────────────────────────────────────────────
@@ -249,19 +260,25 @@ export class PrismaFormalReportRepository {
       planId = planId ?? a.reinforcementPlanId
     }
     if (planId) {
-      const p = await prisma.reinforcementPlan.findFirst({ where: { id: planId, institutionId }, select: { studentId: true, courseAssignmentId: true, academicPeriodId: true } })
+      const p = await prisma.reinforcementPlan.findFirst({ where: { id: planId, institutionId }, select: { studentId: true, courseAssignmentId: true, academicPeriodId: true, participants: { select: { studentId: true } } } })
       if (!p) throw new NotFoundError('Caso de refuerzo no encontrado')
+      if (courseAssignmentId && courseAssignmentId !== p.courseAssignmentId) throw new BadRequestError('La asignatura no corresponde al caso de refuerzo')
+      if (academicPeriodId && academicPeriodId !== p.academicPeriodId) throw new BadRequestError('El periodo no corresponde al caso de refuerzo')
+      if (studentId && studentId !== p.studentId && !p.participants.some((x) => x.studentId === studentId)) throw new BadRequestError('El estudiante no participa en el caso de refuerzo')
       studentId = studentId ?? p.studentId; courseAssignmentId = courseAssignmentId ?? p.courseAssignmentId; academicPeriodId = academicPeriodId ?? p.academicPeriodId
     }
     if (t.requiresReinforcementCase && !planId) throw new BadRequestError('Este informe debe vincularse a un caso de refuerzo')
     if (courseAssignmentId) {
       const ca = await prisma.courseAssignment.findFirst({ where: { id: courseAssignmentId, institutionId }, select: { parallelId: true, academicYearId: true } })
       if (!ca) throw new NotFoundError('Asignatura no encontrada')
+      if (parallelId && parallelId !== ca.parallelId) throw new BadRequestError('La asignatura no corresponde al paralelo')
+      if (academicYearId && academicYearId !== ca.academicYearId) throw new BadRequestError('La asignatura no corresponde al año lectivo')
       parallelId = parallelId ?? ca.parallelId; academicYearId = academicYearId ?? ca.academicYearId
     }
-    if (academicPeriodId && !academicYearId) {
+    if (academicPeriodId) {
       const p = await prisma.academicPeriod.findFirst({ where: { id: academicPeriodId, academicYear: { institutionId } }, select: { academicYearId: true } })
       if (!p) throw new NotFoundError('Periodo no encontrado')
+      if (academicYearId && academicYearId !== p.academicYearId) throw new BadRequestError('El periodo no corresponde al año lectivo')
       academicYearId = p.academicYearId
     }
     if (!academicYearId) {
@@ -277,6 +294,12 @@ export class PrismaFormalReportRepository {
     }
     if (t.scope === 'student' && !studentId) throw new BadRequestError('Este informe requiere un estudiante')
     if (t.scope === 'parallel' && !parallelId) throw new BadRequestError('Este informe requiere un paralelo')
+    if (t.pdfTemplate && (!academicPeriodId || !courseAssignmentId)) throw new BadRequestError('Los anexos requieren asignatura y periodo académico')
+    if (t.snapshot === 'early_alerts') {
+      if (t.scope !== 'parallel' || target.resolver === 'guardians_of_student') throw new BadRequestError('La nómina de alertas solo se envía al personal de la institución')
+      studentId = null; alertId = null; planId = null
+    }
+    if (t.pdfTemplate === 'annex_attendance') { studentId = null; alertId = null }
     if (parallelId) {
       const ok = await prisma.parallel.findFirst({ where: { id: parallelId, institutionId }, select: { id: true } })
       if (!ok) throw new NotFoundError('Paralelo no encontrado')
@@ -284,7 +307,8 @@ export class PrismaFormalReportRepository {
 
     if (!opts.skipAuthorCheck) await this.assertAuthor(institutionId, actor, t, { parallelId, courseAssignmentId, studentId })
 
-    const content = this.cleanContent(t, dto.content ?? {})
+    const defaults = Object.fromEntries(t.fields.filter((f) => f.defaultValue !== undefined).map((f) => [f.key, f.defaultValue!]))
+    const content = this.cleanContent(t, { ...defaults, ...(dto.content ?? {}) })
     const created = await prisma.formalReport.create({
       data: {
         institutionId,
@@ -341,8 +365,7 @@ export class PrismaFormalReportRepository {
   async previewSnapshot(institutionId: string, actor: Actor, id: string) {
     const r = await this.load(institutionId, id)
     if (r.authorId !== actor.userId) throw new ForbiddenError()
-    const t = r.typeConfig as unknown as ReportTypeConfig
-    return buildSnapshot(t.snapshot ?? 'none', r)
+    return this.snapshotFor(r, actor)
   }
 
   // ─── Envío ────────────────────────────────────────────────────────────────
@@ -363,7 +386,15 @@ export class PrismaFormalReportRepository {
       .filter((u) => u !== actor.userId)
     if (!recipients.length) throw new BadRequestError(`La instancia "${instance.label}" no tiene usuarios asignados para este caso. Revisa Configuración → Informes.`)
 
-    const snapshot = await buildSnapshot(t.snapshot ?? 'none', r)
+    if (t.snapshot === 'early_alerts' && instance.resolver === 'guardians_of_student') throw new BadRequestError('La nómina de alertas solo se envía al personal de la institución')
+    if (t.snapshot === 'early_alerts') {
+      const staffCount = await prisma.user.count({ where: {
+        institutionId, id: { in: recipients },
+        userRoles: { some: { role: { name: { notIn: ['guardian', 'student'] } } } },
+      } })
+      if (staffCount !== recipients.length) throw new BadRequestError('Los destinatarios de la nómina de alertas deben ser personal de la institución')
+    }
+    const snapshot = await this.snapshotFor(r, actor)
     const sentAt = new Date()
     const ackDeadlineAt = t.ackDeadlineDays > 0 ? new Date(sentAt.getTime() + t.ackDeadlineDays * 86400000) : null
     const year = await prisma.academicYear.findFirst({ where: { id: r.academicYearId }, select: { name: true } })
@@ -550,7 +581,7 @@ export class PrismaFormalReportRepository {
     if (!this.canViewContent(r, actor)) throw new ForbiddenError('Informe confidencial')
     const inst = await prisma.institution.findUnique({ where: { id: institutionId }, select: { name: true, settings: true } })
     const receivedBy = r.receivedById ? await prisma.user.findFirst({ where: { id: r.receivedById }, select: personSelect }) : null
-    const snapshot = r.status === 'DRAFT' ? await buildSnapshot((r.typeConfig as unknown as ReportTypeConfig).snapshot ?? 'none', r) : (r.snapshot as Record<string, unknown>)
+    const snapshot = r.status === 'DRAFT' ? await this.snapshotFor(r, actor) : (r.snapshot as Record<string, unknown>)
     return { report: r, institution: inst, receivedByName: receivedBy ? personName(receivedBy) : null, snapshot }
   }
 }

@@ -485,6 +485,7 @@ function CompactGrid({ data, examWeight, canEditWeight, onEditWeight }: CompactG
                     <span className={scoreColor(regularAvg, gradingScaleMax)}>
                       {regularAvg != null ? regularAvg.toFixed(2) : '—'}
                     </span>
+                    {row.summary.formativeReinforcement && <div className="text-[10px] font-normal text-muted-foreground">Inicial {row.summary.formativeReinforcement.initial.toFixed(2)} · con refuerzo</div>}
                   </td>
                 )}
                 {hasExam && (
@@ -1142,6 +1143,7 @@ function AnnualDetailGrid({
                         )}
                       >
                         <span className={scoreColor(regularAvg, gradingScaleMax)}>{regularAvg != null ? regularAvg.toFixed(2) : '—'}</span>
+                        {summary?.formativeReinforcement && <div className="text-[10px] font-normal text-muted-foreground">Inicial {summary.formativeReinforcement.initial.toFixed(2)} · con refuerzo</div>}
                       </td>
                     )}
                     {c.hasExam && (

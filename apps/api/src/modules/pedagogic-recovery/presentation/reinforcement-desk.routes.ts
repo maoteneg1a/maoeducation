@@ -3,7 +3,21 @@ import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.m
 import { actorOf } from '../../../shared/infrastructure/services/actor'
 import { storage } from '../../../shared/infrastructure/services/storage.service'
 import { BadRequestError, ForbiddenError } from '../../../shared/domain/errors/app.errors'
-import { PrismaReinforcementDeskRepository, type ListCasesQuery } from '../infrastructure/repositories/prisma-reinforcement-desk.repository'
+import { PrismaReinforcementDeskRepository, type ListCasesQuery, type FormativeResultDto } from '../infrastructure/repositories/prisma-reinforcement-desk.repository'
+
+const formativeBody = {
+  type: 'object',
+  required: ['studentId', 'activityIds', 'sessionIds'],
+  properties: {
+    studentId: { type: 'string', minLength: 1, maxLength: 128 },
+    activityIds: { type: 'array', maxItems: 500, items: { type: 'string', minLength: 1, maxLength: 128 } },
+    sessionIds: { type: 'array', maxItems: 500, items: { type: 'string', minLength: 1, maxLength: 128 } },
+    reason: { type: 'string', maxLength: 2000 },
+    revoke: { type: 'boolean' },
+    expectedResultId: { type: ['string', 'null'], maxLength: 128 },
+    expectedPreviewToken: { type: 'string', minLength: 64, maxLength: 64 },
+  },
+} as const
 
 /**
  * Consulta del caso de refuerzo por rol + archivos + sesiones con asistencia.
@@ -26,6 +40,15 @@ export default async function reinforcementDeskRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string } }>('/reinforcement-desk/cases/:id/activities', async (req, reply) =>
     reply.send(await repo.activities(req.user.institutionId, actorOf(req.user), req.params.id)))
+
+  app.get<{ Params: { id: string } }>('/reinforcement-desk/cases/:id/formative', async (req, reply) =>
+    reply.send(await repo.formativeOptions(req.user.institutionId, actorOf(req.user), req.params.id)))
+
+  app.post<{ Params: { id: string }; Body: FormativeResultDto }>('/reinforcement-desk/cases/:id/formative/preview', { schema: { body: formativeBody } }, async (req, reply) =>
+    reply.send(await repo.previewFormative(req.user.institutionId, actorOf(req.user), req.params.id, req.body)))
+
+  app.post<{ Params: { id: string }; Body: FormativeResultDto }>('/reinforcement-desk/cases/:id/formative/apply', { schema: { body: { ...formativeBody, required: [...formativeBody.required, 'reason', 'expectedResultId', 'expectedPreviewToken'] } } }, async (req, reply) =>
+    reply.code(201).send(await repo.applyFormative(req.user.institutionId, actorOf(req.user), req.params.id, req.body)))
 
   app.post<{ Params: { id: string }; Body: { date: string; title: string; description?: string; targetActivityId?: string | null } }>(
     '/reinforcement-desk/cases/:id/sessions',

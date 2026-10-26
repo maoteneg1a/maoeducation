@@ -1,3 +1,4 @@
+import { loadFormativeApplications } from '../../../../shared/infrastructure/services/formative-reinforcement.service'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, ConflictError, ValidationError } from '../../../../shared/domain/errors/app.errors'
@@ -665,6 +666,20 @@ export class PrismaActivityRepository {
     })
     const max = (institution?.settings as { gradingConfig?: { gradingScaleMax?: number } } | null)
       ?.gradingConfig?.gradingScaleMax ?? 10
+
+    const formative = await loadFormativeApplications(
+      institutionId,
+      [...new Set(insumos.map((i) => i.courseAssignmentId))],
+      [...new Set(insumos.map((i) => i.academicPeriodId))],
+      studentIds,
+    )
+    for (const item of dto.items.filter((i) => i.score != null)) {
+      const insumo = insumos.find((i) => i.id === item.insumoId)!
+      const application = formative.get(`${item.studentId}:${insumo.courseAssignmentId}:${insumo.academicPeriodId}`)
+      if (application?.mode === 'activity_set' && application.score != null) {
+        throw new ConflictError('Existe refuerzo por conjunto de actividades. Retira su aplicación antes de ingresar promedios manuales por insumo.')
+      }
+    }
 
     return prisma.$transaction(
       dto.items.map((item) => {

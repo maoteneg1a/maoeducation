@@ -34,6 +34,13 @@ export interface ActivityGradeReinforcementConfig {
   eligibleActivityTypeIds: string[]
 }
 
+export interface FormativeReinforcementConfig {
+  /** null conserva el comportamiento anterior hasta que la institución configure su MIEE. */
+  mode: 'activity_set' | 'period_formative' | null
+  reinforcementWeight: number
+  cap: number
+}
+
 export interface GradingConfig {
   gradingScaleMax: number
   qualitativeScale: QualitativeLevel[]
@@ -41,6 +48,7 @@ export interface GradingConfig {
   promotion: PromotionConfig
   defaultProjectWeight: number
   defaultExamWeight: number
+  formativeReinforcement: FormativeReinforcementConfig
   pedagogicRecovery: PedagogicRecoveryConfig
   activityGradeReinforcement: ActivityGradeReinforcementConfig
   educarEcuadorExportEnabled: boolean

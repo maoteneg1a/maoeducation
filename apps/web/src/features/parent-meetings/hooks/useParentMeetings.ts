@@ -39,6 +39,7 @@ export function useCreateParentMeeting() {
   return useMutation({
     mutationFn: (data: CreateParentMeetingInput) => createParentMeeting(data),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dossier'] })
       qc.invalidateQueries({ queryKey: ['parent-meetings'] })
       toast.success('Atención registrada correctamente')
     },
@@ -51,6 +52,7 @@ export function useUpdateParentMeeting(id: string) {
   return useMutation({
     mutationFn: (data: Partial<CreateParentMeetingInput>) => updateParentMeeting(id, data),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dossier'] })
       qc.invalidateQueries({ queryKey: ['parent-meetings'] })
       qc.invalidateQueries({ queryKey: ['parent-meeting', id] })
       toast.success('Atención actualizada correctamente')
@@ -64,6 +66,7 @@ export function useDeleteParentMeeting() {
   return useMutation({
     mutationFn: (id: string) => deleteParentMeeting(id),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dossier'] })
       qc.invalidateQueries({ queryKey: ['parent-meetings'] })
       toast.success('Atención eliminada')
     },
@@ -76,6 +79,7 @@ export function useSaveSignature(id: string) {
   return useMutation({
     mutationFn: (signature: string) => saveParentMeetingSignature(id, signature),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dossier'] })
       qc.invalidateQueries({ queryKey: ['parent-meeting', id] })
       toast.success('Firma guardada')
     },

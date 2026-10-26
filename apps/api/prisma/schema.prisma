@@ -17,6 +17,7 @@ datasource db {
 // ============================================================
 
 model Institution {
+  formativeReinforcementResults FormativeReinforcementResult[]
   id        String   @id @default(uuid())
   name      String   @db.VarChar(200)
   code      String   @unique @db.VarChar(50)
@@ -81,10 +82,16 @@ model Institution {
   reinforcementSessions       ReinforcementSession[]
   bulletinRecommendations     BulletinRecommendation[]
 
+
+  dossierFiles DossierFile[]
+  dossierExceptions DossierException[]
+
   @@map("institutions")
 }
 
 model User {
+  formativeReinforcementResults FormativeReinforcementResult[] @relation("FormativeStudent")
+  recordedFormativeResults FormativeReinforcementResult[] @relation("FormativeRecorder")
   id              String    @id @default(uuid())
   institutionId   String    @map("institution_id")
   email           String    @db.VarChar(255)
@@ -196,6 +203,12 @@ model User {
   uploadedReinforcementFiles ReinforcementAttachment[] @relation("ReinforcementAttachmentUploader")
   reinforcementSessionAttendance ReinforcementSessionAttendance[]
   studentBulletinRecommendations BulletinRecommendation[] @relation("StudentBulletinRecommendations")
+
+
+  studentDossierFiles DossierFile[] @relation("DossierStudent")
+  uploadedDossierFiles DossierFile[] @relation("DossierUploader")
+  studentDossierExceptions DossierException[] @relation("DossierExceptionStudent")
+  authoredDossierExceptions DossierException[] @relation("DossierExceptionAuthor")
 
   @@unique([institutionId, email])
   @@map("users")
@@ -324,6 +337,10 @@ model AcademicYear {
   promotionDecisions PromotionDecision[]
   multigradeGroups   MultigradeGroup[]
 
+
+  dossierFiles DossierFile[]
+  dossierExceptions DossierException[]
+
   @@unique([institutionId, name])
   @@map("academic_years")
 }
@@ -344,6 +361,7 @@ model AcademicPeriodScheme {
 }
 
 model AcademicPeriod {
+  formativeReinforcementResults FormativeReinforcementResult[]
   id             String   @id @default(uuid())
   academicYearId String   @map("academic_year_id")
   schemeId       String   @map("scheme_id")
@@ -755,6 +773,7 @@ model CurricularInsertionCandidate {
 }
 
 model CourseAssignment {
+  formativeReinforcementResults FormativeReinforcementResult[]
   id                    String   @id @default(uuid())
   institutionId         String   @map("institution_id")
   teacherId             String   @map("teacher_id")
@@ -786,6 +805,10 @@ model CourseAssignment {
   reinforcementPlans             ReinforcementPlan[]
   interdisciplinaryContributions InterdisciplinaryContribution[]
   multigradeGroupMember          MultigradeGroupMember?
+
+
+  dossierFiles DossierFile[]
+  dossierExceptions DossierException[]
 
   @@unique([subjectId, parallelId, academicYearId])
   @@map("course_assignments")
@@ -1164,6 +1187,7 @@ model PedagogicRecovery {
 // simple; `caseStatus` gobierna la máquina de estados nueva para planType="academico"
 // (ver apps/api/src/shared/domain/reinforcement-domain.ts).
 model ReinforcementPlan {
+  formativeReinforcementResults FormativeReinforcementResult[]
   id                   String    @id @default(uuid())
   institutionId        String    @map("institution_id")
   studentId            String    @map("student_id")
@@ -2347,7 +2371,6 @@ model SubscriptionPayment {
   @@map("subscription_payments")
 }
 
-
 // Expedientes DECE independientes: contenido sensible cifrado por la aplicación.
 model DeceCase {
   id String @id @default(uuid())
@@ -2590,6 +2613,58 @@ model FormalReport {
   @@map("formal_reports")
 }
 
+// Respaldo documental anual. No requiere alerta temprana ni caso de refuerzo.
+model DossierFile {
+  id                 String            @id @default(uuid())
+  institutionId      String            @map("institution_id")
+  studentId          String            @map("student_id")
+  academicYearId     String            @map("academic_year_id")
+  courseAssignmentId String?           @map("course_assignment_id")
+  scopeKey           String            @map("scope_key") @db.VarChar(60)
+  itemKey            String            @map("item_key") @db.VarChar(60)
+  fileName           String            @map("file_name") @db.VarChar(255)
+  storedName         String            @map("stored_name") @db.VarChar(255)
+  mimeType           String            @map("mime_type") @db.VarChar(100)
+  fileSize           Int               @map("file_size")
+  sha256             String            @db.VarChar(64)
+  isSigned           Boolean           @default(false) @map("is_signed")
+  confidential       Boolean           @default(false)
+  observation        String?
+  uploadedBy         String            @map("uploaded_by")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  institution        Institution       @relation(fields: [institutionId], references: [id])
+  student            User              @relation("DossierStudent", fields: [studentId], references: [id])
+  academicYear       AcademicYear      @relation(fields: [academicYearId], references: [id])
+  courseAssignment   CourseAssignment? @relation(fields: [courseAssignmentId], references: [id])
+  uploader           User              @relation("DossierUploader", fields: [uploadedBy], references: [id])
+
+  @@unique([institutionId, studentId, academicYearId, itemKey, scopeKey, sha256])
+  @@index([institutionId, studentId, academicYearId])
+  @@map("dossier_files")
+}
+
+model DossierException {
+  id                 String            @id @default(uuid())
+  institutionId      String            @map("institution_id")
+  studentId          String            @map("student_id")
+  academicYearId     String            @map("academic_year_id")
+  courseAssignmentId String?           @map("course_assignment_id")
+  scopeKey           String            @map("scope_key") @db.VarChar(60)
+  itemKey            String            @map("item_key") @db.VarChar(60)
+  reason             String
+  createdBy          String            @map("created_by")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  institution        Institution       @relation(fields: [institutionId], references: [id])
+  student            User              @relation("DossierExceptionStudent", fields: [studentId], references: [id])
+  academicYear       AcademicYear      @relation(fields: [academicYearId], references: [id])
+  courseAssignment   CourseAssignment? @relation(fields: [courseAssignmentId], references: [id])
+  author             User              @relation("DossierExceptionAuthor", fields: [createdBy], references: [id])
+
+  @@unique([institutionId, studentId, academicYearId, itemKey, scopeKey])
+  @@index([institutionId, studentId, academicYearId])
+  @@map("dossier_exceptions")
+}
+
 model FormalReportRecipient {
   id       String    @id @default(uuid())
   reportId String    @map("report_id")
@@ -2678,6 +2753,8 @@ model ReinforcementSessionAttendance {
   status      String   @db.VarChar(20) // present | absent | justified
   score       Decimal? @db.Decimal(5, 2)
   observation String?
+  // Escala de la evidencia formativa, para conservarla al cambiar la escala institucional.
+  scoreScaleMax Decimal? @map("score_scale_max") @db.Decimal(8, 2)
   // Nota que quedó registrada en la actividad original tras aplicar las reglas
   appliedScore Decimal? @map("applied_score") @db.Decimal(5, 2)
   appliedMode  String?  @map("applied_mode") @db.VarChar(30)
@@ -2708,4 +2785,30 @@ model BulletinRecommendation {
   @@unique([studentId, academicPeriodId, scopeKey])
   @@index([institutionId, academicPeriodId])
   @@map("bulletin_recommendations")
+}
+
+// Cada aplicación es inmutable: conserva modalidad, pesos, sesiones y autor.
+// Solo la última aplicación por estudiante/asignación/período está vigente.
+model FormativeReinforcementResult {
+  id                 String   @id @default(uuid())
+  institutionId      String   @map("institution_id")
+  studentId          String   @map("student_id")
+  courseAssignmentId String   @map("course_assignment_id")
+  academicPeriodId   String   @map("academic_period_id")
+  planId             String   @map("plan_id")
+  recordedBy         String   @map("recorded_by")
+  payload            Json
+  reason             String
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  institution Institution @relation(fields: [institutionId], references: [id])
+  student User @relation("FormativeStudent", fields: [studentId], references: [id])
+  recorder User @relation("FormativeRecorder", fields: [recordedBy], references: [id])
+  courseAssignment CourseAssignment @relation(fields: [courseAssignmentId], references: [id])
+  academicPeriod AcademicPeriod @relation(fields: [academicPeriodId], references: [id])
+  plan ReinforcementPlan @relation(fields: [planId], references: [id])
+
+  @@index([institutionId, courseAssignmentId, academicPeriodId, studentId, createdAt], map: "formative_result_scope_idx")
+  @@index([planId], map: "formative_result_plan_idx")
+  @@map("formative_reinforcement_results")
 }

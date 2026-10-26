@@ -602,6 +602,7 @@ export const DEFAULT_GRADING_CONFIG = {
   },
   defaultExamWeight: 30,
   defaultProjectWeight: 15,
+  formativeReinforcement: { mode: null, reinforcementWeight: 50, cap: 7 },
   pedagogicRecovery: {
     mode: 'replace_if_higher' as const,
   },
