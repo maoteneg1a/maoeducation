@@ -3,6 +3,7 @@ import JSZip from 'jszip'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import sharp from 'sharp'
 import { buildFormalReportPdf } from './formal-report-pdf.service'
 import { buildOriginalAnnexDocx } from './original-annex-document.service'
 import { sampleReinforcementAnnexes } from './reinforcement-annex-preview'
@@ -11,21 +12,75 @@ const assets = path.resolve('assets/reinforcement-annexes')
 const xmlText = (xml: string) => [...xml.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g)].map((m) => m[1].replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#123;/g, '{').replace(/&#125;/g, '}').replace(/&amp;/g, '&')).join('')
 
 describe('anexos fieles al Word original', () => {
-  it.each(sampleReinforcementAnnexes().map((data, index) => ({ data, number: index + 1 })))('conserva todos los textos y partes del Anexo $number cuando está vacío', async ({ data, number }) => {
+  it.each(sampleReinforcementAnnexes().map((data, index) => ({ data, number: index + 1 })))('conserva textos y formato del Anexo $number, excepto identidad y año parametrizados', async ({ data, number }) => {
     const manifest = JSON.parse(await readFile(path.join(assets, 'manifest.json'), 'utf8'))
     const original = await readFile(path.join(assets, 'original.docx'))
     expect(createHash('sha256').update(original).digest('hex')).toBe(manifest.sourceSha256)
     const empty = { ...data, authorName: '', recipientNames: [], institutionName: '', content: {}, snapshot: {}, sentAt: null }
     const output = await JSZip.loadAsync(await buildOriginalAnnexDocx(empty))
     const source = await JSZip.loadAsync(original)
-    expect(xmlText(await output.file('word/document.xml')!.async('string'))).toBe(manifest.annexes[number].originalText)
+    const unbrandedText = manifest.annexes[number].originalText
+      .replace(/Escuela de Educación Básica “Panamá”|INSTITUCIÓN EDUCATIVA “PANAMÁ”/g, '________________')
+      .replace(/2026[–-]\s*2027/g, '________________')
+    expect(xmlText(await output.file('word/document.xml')!.async('string'))).toBe(unbrandedText)
+    const changedParts = new Set(['word/document.xml', ...manifest.branding.headerParts, manifest.branding.headerRelationships, ...manifest.branding.logoParts])
     for (const [name, part] of Object.entries(source.files)) {
-      if (name !== 'word/document.xml' && !part.dir) expect(await output.file(name)!.async('nodebuffer'), name).toEqual(await part.async('nodebuffer'))
+      if (!changedParts.has(name) && !part.dir) expect(await output.file(name)!.async('nodebuffer'), name).toEqual(await part.async('nodebuffer'))
     }
+    expect(xmlText(await output.file('word/header1.xml')!.async('string'))).toBe('________________ SUBDIRECCIÓN ________________')
+    for (const name of manifest.branding.logoParts) expect(output.file(name)).toBeNull()
     if (process.env.ANNEX_PREVIEW_DIR) {
       await mkdir(process.env.ANNEX_PREVIEW_DIR, { recursive: true })
       await writeFile(path.join(process.env.ANNEX_PREVIEW_DIR, `anexo-${number}-vacio.docx`), await buildOriginalAnnexDocx(empty))
     }
+  })
+
+  it.each(sampleReinforcementAnnexes().map((data, index) => ({ data, number: index + 1 })))('usa el nombre, logo y año institucionales en el Anexo $number', async ({ data, number }) => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="80"><rect width="400" height="80" fill="#2467ac"/></svg>'
+    data.institutionName = 'Unidad Educativa Río & Sol'
+    data.logoUrl = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
+    data.snapshot.academicYear = { name: '2031-2032' }
+    const docx = await buildOriginalAnnexDocx(data)
+    const zip = await JSZip.loadAsync(docx)
+    const header = await zip.file('word/header1.xml')!.async('string')
+    expect(xmlText(header)).toBe('Unidad Educativa Río & Sol SUBDIRECCIÓN 2031-2032')
+    const body = await zip.file('word/document.xml')!.async('string')
+    expect(body + header).not.toMatch(/panamá|2026[–-]\s*2027|\{\{[a-z_0-9]+\}\}/i)
+    for (const name of ['image1.png', 'image10.png']) {
+      const image = await zip.file(`word/media/${name}`)!.async('nodebuffer')
+      const dimensions = await sharp(image).metadata()
+      expect(dimensions.format).toBe('png')
+      expect(dimensions.width! / dimensions.height!).toBe(5)
+    }
+    const institutionalDrawing = header.match(/<wp:inline\b[\s\S]*?r:embed="rId1"[\s\S]*?<\/wp:inline>/)![0]
+    const extent = /<wp:extent cx="(\d+)" cy="(\d+)"/.exec(institutionalDrawing)!
+    expect(Number(extent[1]) / Number(extent[2])).toBeCloseTo(5, 3)
+    const source = await JSZip.loadAsync(await readFile(path.join(assets, 'original.docx')))
+    expect(await zip.file('word/media/image2.png')!.async('nodebuffer')).toEqual(await source.file('word/media/image2.png')!.async('nodebuffer'))
+    if (process.env.ANNEX_PREVIEW_DIR) {
+      await mkdir(process.env.ANNEX_PREVIEW_DIR, { recursive: true })
+      await writeFile(path.join(process.env.ANNEX_PREVIEW_DIR, `anexo-${number}-institucional.docx`), docx)
+    }
+  })
+
+  it('mantiene aislada la identidad de instituciones que generan anexos consecutivamente', async () => {
+    const data = sampleReinforcementAnnexes()[0]
+    data.institutionName = 'Institución Uno'
+    const first = await JSZip.loadAsync(await buildOriginalAnnexDocx(data))
+    data.institutionName = 'Institución Dos'
+    const second = await JSZip.loadAsync(await buildOriginalAnnexDocx(data))
+    expect(xmlText(await first.file('word/header1.xml')!.async('string'))).toContain('Institución Uno')
+    expect(xmlText(await second.file('word/header1.xml')!.async('string'))).not.toContain('Institución Uno')
+  })
+
+  it.each(['data:image/png;base64,aW52YWxpZA==', 'https://example.invalid/logo.png', '/uploads/../../secret', null])('no conserva el logo fuente cuando el logo institucional no es utilizable: %s', async (logoUrl) => {
+    const data = { ...sampleReinforcementAnnexes()[0], logoUrl }
+    const zip = await JSZip.loadAsync(await buildOriginalAnnexDocx(data))
+    const header = await zip.file('word/header1.xml')!.async('string')
+    expect(header).not.toMatch(/r:embed="rId[12]"/)
+    expect(zip.file('word/media/image1.png')).toBeNull()
+    expect(zip.file('word/media/image10.png')).toBeNull()
+    expect(await zip.file('word/_rels/header1.xml.rels')!.async('string')).not.toMatch(/Id="rId[12]"/)
   })
 
   it.each(sampleReinforcementAnnexes().map((data, index) => ({ data, number: index + 1 })))('completa el Anexo $number sin añadir el formato genérico de informes', async ({ data, number }) => {

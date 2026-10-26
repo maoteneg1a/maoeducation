@@ -1,7 +1,7 @@
 """Prepara los anexos desde el Word original, conservando sus partes y formato.
 
 Uso: python3 scripts/prepare-reinforcement-annexes.py (requiere lxml).
-Solo marca espacios de datos; no reescribe instrucciones, normativa ni estilos.
+Marca espacios de datos e identidad institucional; conserva instrucciones, normativa y estilos.
 """
 from copy import deepcopy
 from pathlib import Path
@@ -16,7 +16,9 @@ NS = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 W = '{' + NS['w'] + '}'
 SOURCE = ROOT / 'original.docx'
 STARTS = [0, 11, 37, 63, 77, 85]
-manifest = {'sourceSha256': hashlib.sha256(SOURCE.read_bytes()).hexdigest(), 'annexes': {}}
+manifest = {'sourceSha256': hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
+    'branding': {'headerParts': ['word/header1.xml'], 'logoParts': ['word/media/image1.png', 'word/media/image10.png'],
+        'headerRelationships': 'word/_rels/header1.xml.rels', 'logoRelationshipIds': ['rId1', 'rId2']}, 'annexes': {}}
 
 def text(node):
     return ''.join(node.xpath('.//w:t/text()', namespaces=NS))
@@ -95,6 +97,15 @@ with ZipFile(SOURCE) as source:
             body.remove(body[-1])
         body.append(deepcopy(original_body[-1]))
         p = selected
+        # El nombre impreso en el cuerpo también pertenece a la institución activa.
+        for node in selected.values():
+            for printed_name in ['Escuela de Educación Básica “Panamá”', 'INSTITUCIÓN EDUCATIVA “PANAMÁ”']:
+                if printed_name in text(node):
+                    replace(node, printed_name, 'institution_name', defaults)
+        header = E.fromstring(source.read('word/header1.xml'))
+        replace(header, 'ESCUELA DE EDUCACIÓN básica “PANAMÁ”', 'header_institution', defaults)
+        replace(header, 'SUBDIRECCIÓN DE LA ESCUELA PANAMÁ', 'header_department', defaults)
+        replace(header, '2026-2027', 'header_academic_year', defaults)
         if annex == 1:
             replace(p[2], '2026–2027', 'academic_year', defaults)
             replace(p[4], '☐', 'jornada_matutina', defaults)
@@ -164,10 +175,17 @@ with ZipFile(SOURCE) as source:
             repeat(p[80], rows[2:12], 'attendance', {0: 'row_no', 1: 'row_name', **{i + 2: f'row_att_{i}' for i in range(8)}}, defaults, groups)
             append(rows[12].find('w:tc', NS), 'observations', defaults)
 
+        # Nunca se usa la identidad ni el año de la escuela del documento fuente como fallback.
+        for key in defaults:
+            base = key.split('__part')[0]
+            if base in ['institution_name', 'header_institution', 'header_academic_year', 'header_department'] or (base == 'academic_year' and annex in [1, 5]):
+                defaults[key] = '' if '__part' in key else ('SUBDIRECCIÓN' if key == 'header_department' else '________________')
         xml = E.tostring(root, encoding='UTF-8', xml_declaration=True, standalone=True)
+        header_xml = E.tostring(header, encoding='UTF-8', xml_declaration=True, standalone=True)
         with ZipFile(ROOT / f'annex-{annex}.docx', 'w', ZIP_DEFLATED) as output:
             for entry in source.infolist():
-                output.writestr(deepcopy(entry), xml if entry.filename == 'word/document.xml' else source.read(entry.filename))
+                payload = xml if entry.filename == 'word/document.xml' else header_xml if entry.filename == 'word/header1.xml' else source.read(entry.filename)
+                output.writestr(deepcopy(entry), payload)
         manifest['annexes'][str(annex)] = {'defaults': defaults, 'groups': groups, 'appends': appends,
             'originalText': ''.join(text(original_body[index]) for index in range(STARTS[annex - 1], STARTS[annex]))}
     (ROOT / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')

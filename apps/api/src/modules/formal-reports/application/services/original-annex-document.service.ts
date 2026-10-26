@@ -8,6 +8,7 @@ import { promisify } from 'node:util'
 import { AppError, BadRequestError } from '../../../../shared/domain/errors/app.errors'
 import type { FormalReportPdfData } from './formal-report-pdf.service'
 import type { ReportPdfTemplate } from '../../../../shared/domain/reinforcement-annexes'
+import { applyAnnexLogo, type AnnexBranding } from './annex-branding.service'
 
 const annexNumber: Record<ReportPdfTemplate, number> = { annex_alerts: 1, annex_commitment: 2, annex_plan: 3, annex_progress: 4, annex_attendance: 5 }
 type Values = Record<string, string | undefined>
@@ -47,12 +48,12 @@ function fill(xml: string, values: Values, spec: ManifestEntry) {
 const lines = (v?: string) => v?.split(/\r?\n/).filter((s) => s.trim()) ?? []
 const chunks = <T>(items: T[], count: number): T[][] => items.length ? Array.from({ length: Math.ceil(items.length / count) }, (_, i) => items.slice(i * count, (i + 1) * count)) : [[]]
 
-/** Completa los espacios del DOCX original sin reconstruir párrafos, tablas, membretes ni firmas. */
+/** Completa el original y parametriza la identidad institucional, conservando su estructura. */
 export async function buildOriginalAnnexDocx(data: FormalReportPdfData): Promise<Buffer> {
   if (!data.pdfTemplate || !(data.pdfTemplate in annexNumber)) throw new BadRequestError('Este informe no utiliza un anexo del documento original')
   const number = annexNumber[data.pdfTemplate]
   const directory = await assetsDirectory()
-  const manifest = JSON.parse(await readFile(path.join(directory, 'manifest.json'), 'utf8')) as { annexes: Record<string, ManifestEntry> }
+  const manifest = JSON.parse(await readFile(path.join(directory, 'manifest.json'), 'utf8')) as { branding: AnnexBranding; annexes: Record<string, ManifestEntry> }
   const spec = manifest.annexes[number]
   const zip = await JSZip.loadAsync(await readFile(path.join(directory, `annex-${number}.docx`)))
   const originalXml = await zip.file('word/document.xml')!.async('string')
@@ -65,6 +66,8 @@ export async function buildOriginalAnnexDocx(data: FormalReportPdfData): Promise
   const tutor = c.tutor || s.parallel?.tutor || data.authorName
   const teacher = c.docente_refuerzo || s.subject?.teacher || data.authorName
   const v: Values = {
+    header_institution: data.institutionName, institution_name: data.institutionName,
+    header_academic_year: s.academicYear?.name,
     academic_year: s.academicYear?.name, student: s.student?.name, institution: data.institutionName,
     grade, parallel, tutor, teacher, subject: s.subject?.name, period: s.period?.name,
     teacher_signature: data.authorName, authority: c.autoridad || data.recipientNames.join(', '),
@@ -137,6 +140,10 @@ export async function buildOriginalAnnexDocx(data: FormalReportPdfData): Promise
     xml = documents[0].replace(body, (_, start, _content, section, end) => start + bodies.join('<w:p><w:r><w:br w:type="page"/></w:r></w:p>') + section + end)
   } else xml = render(v, { roster: rosterRows, schedule: scheduleRows, progress: progressRows })
   zip.file('word/document.xml', xml)
+  for (const header of manifest.branding.headerParts) {
+    zip.file(header, fill(await zip.file(header)!.async('string'), v, spec))
+  }
+  await applyAnnexLogo(zip, manifest.branding, data.logoUrl)
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
 }
 

@@ -2,9 +2,9 @@
 
 La fuente es el archivo `ANEXOS RECUPERACION PEDAGÓGICA 2026 -2027.docx` aportado por el usuario, conservado sin modificaciones en `apps/api/assets/reinforcement-annexes/original.docx`. Su SHA-256 está en `manifest.json`.
 
-Los cinco anexos se completan directamente en copias de sus párrafos y tablas de Word. Se preservan los membretes, imágenes, fuentes, márgenes, bordes, títulos, orden, firmas, referencias normativas y redacción original, incluidos «0031A» en el Anexo 2, «parciales o quimestrales» en el Anexo 4 y los nombres institucionales impresos. No se corrigen ni resumen automáticamente. Solo se insertan datos en sus espacios de captura.
+Los cinco anexos se completan directamente en copias de sus párrafos y tablas de Word. Se preservan el diseño del membrete, las fuentes, márgenes, bordes, títulos, orden, firmas, referencias normativas y redacción original, incluidos «0031A» en el Anexo 2 y «parciales o quimestrales» en el Anexo 4. La identidad institucional y el año lectivo se parametrizan; el resto del contenido no se corrige ni resume automáticamente.
 
-El documento utiliza el membrete original de la Escuela Panamá. No se sustituye por el encabezado genérico de Auleka. El estado del informe y el acuse permanecen en la aplicación; no se añaden bloques de metadatos, títulos «CONTENIDO», marcas de borrador ni firmas diferentes al impreso.
+El membrete utiliza el nombre completo y el logo guardados en la configuración de la institución. Se reemplazan también las referencias a la escuela de origen en el cuerpo del documento. El año procede del año lectivo asociado al informe y la segunda línea conserva la etiqueta «SUBDIRECCIÓN». Si falta el año o el nombre, se dejan espacios para completar; si falta el logo o no puede procesarse, se omite el logo escolar, sin reutilizar el de Panamá. Se conserva el escudo nacional del formato original. El logo se convierte a PNG y se ajusta dentro de su caja original sin deformarse. Se admiten los formatos PNG, JPEG, WebP y SVG de la configuración, sin descargar recursos HTTP. No se sustituye por el encabezado genérico de Auleka. El estado del informe y el acuse permanecen en la aplicación; no se añaden bloques de metadatos, títulos «CONTENIDO», marcas de borrador ni firmas diferentes al impreso.
 
 ## Modelos y captura
 
@@ -35,6 +35,6 @@ La lista anual de trece documentos ante riesgo de reprobar está implementada en
 
 ## Verificación
 
-Las pruebas comparan todo el texto de cada anexo vacío con su sección del original y verifican, byte a byte, todas las demás partes del DOCX: estilos, membretes, imágenes, numeración, relaciones y propiedades. También prueban nóminas con más de siete alumnos, asistencia con más de ocho fechas y diez alumnos, y escape de XML en los datos insertados.
+Las pruebas comparan todo el texto de cada anexo vacío con su sección del original, permitiendo únicamente la parametrización de identidad y año. Verifican byte a byte las partes no afectadas del DOCX: estilos, escudo nacional, numeración y propiedades; las únicas otras partes modificadas son el encabezado, sus relaciones y el logo escolar. También comprueban la identidad de los cinco anexos, la proporción del logo, la ausencia de fallback a la escuela fuente y el aislamiento entre instituciones. También prueban nóminas con más de siete alumnos, asistencia con más de ocho fechas y diez alumnos, y escape de XML en los datos insertados.
 
 Se generaron vistas Word y PDF de los cinco anexos utilizando LibreOffice para revisar el formato frente al documento original. El motor de conversión y las fuentes deben mantenerse iguales al comparar renderizados.
