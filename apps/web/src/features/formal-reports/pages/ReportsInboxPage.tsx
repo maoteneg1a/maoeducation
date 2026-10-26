@@ -1,6 +1,7 @@
+import { reinforcementDeskApi } from '@/features/reinforcement-desk/api/reinforcement-desk.api'
 import * as React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { FileText, Inbox, Plus, Send, PencilLine, Layers } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
@@ -11,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/shared/components/ui/dialog'
+import { getErrorMessage } from '@/shared/lib/utils'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { usePermissions } from '@/shared/hooks/usePermissions'
@@ -22,11 +24,18 @@ import { ReportComposerDialog, type ReportComposerContext } from '../components/
 
 const fmt = (d: string | null) => (d ? new Date(d).toLocaleDateString('es-EC', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')
 
-export function ReportsInboxPage() {
+export function ReportsInboxPage({ embedded = false }: { embedded?: boolean }) {
   const { hasPermission } = usePermissions()
   const canSeeAll = hasPermission('formal_reports:read:all')
   const canWrite = hasPermission('formal_reports:write')
-  const [box, setBox] = React.useState<ReportBox>('inbox')
+  const [params, setParams] = useSearchParams()
+  const requestedBox = params.get('box')
+  const box: ReportBox = requestedBox === 'sent' || requestedBox === 'drafts' || requestedBox === 'inbox' || (requestedBox === 'all' && canSeeAll)
+    ? requestedBox : canWrite ? 'drafts' : 'inbox'
+  const setBox = (value: ReportBox) => {
+    setStatus('all'); setOverdueOnly(false)
+    setParams((previous) => { const next = new URLSearchParams(previous); next.set('section', 'documents'); next.set('box', value); return next })
+  }
   const [status, setStatus] = React.useState<'all' | FormalReportStatus>('all')
   const [typeKey, setTypeKey] = React.useState('all')
   const [overdueOnly, setOverdueOnly] = React.useState(false)
@@ -35,7 +44,7 @@ export function ReportsInboxPage() {
 
   const { data: counts } = useQuery({ queryKey: ['formal-reports-counts'], queryFn: formalReportsApi.counts, staleTime: 30_000 })
   const { data: flow } = useQuery({ queryKey: ['reports-flow'], queryFn: formalReportsApi.reportsFlow, staleTime: 60_000 })
-  const { data: reports = [], isLoading } = useQuery({
+  const { data: reports = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['formal-reports', box, status, typeKey, overdueOnly],
     queryFn: () =>
       formalReportsApi.list({
@@ -47,12 +56,12 @@ export function ReportsInboxPage() {
   })
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
+    <div className={embedded ? "space-y-6" : "space-y-6 p-4 sm:p-6"}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Informes</h1>
+          {!embedded && <h1 className="text-2xl font-bold">Informes</h1>}
           <p className="mt-1 text-sm text-muted-foreground">
-            Informes escritos que se envían entre las instancias de la institución, con folio y acuse de recibo.
+            Aquí se guardan también los informes creados desde alertas y planes. Usa Borradores, Enviados o Recibidos para encontrarlos.
           </p>
         </div>
         {canWrite && (
@@ -111,6 +120,8 @@ export function ReportsInboxPage() {
 
       {isLoading ? (
         <PageLoader />
+      ) : isError ? (
+        <div className="space-y-2"><EmptyState title="No se pudieron cargar los informes" description={getErrorMessage(error)} /><Button variant="outline" onClick={() => refetch()}>Reintentar</Button></div>
       ) : reports.length === 0 ? (
         <Card><CardContent><EmptyState icon={FileText} title="No hay informes" description="Cuando envíes o recibas informes aparecerán aquí." /></CardContent></Card>
       ) : (
@@ -170,6 +181,7 @@ function NewReportPicker({ open, onOpenChange, onContinue }: { open: boolean; on
   const [studentId, setStudentId] = React.useState('none')
   const [periodId, setPeriodId] = React.useState('none')
   const [assignmentId, setAssignmentId] = React.useState('none')
+  const [planId, setPlanId] = React.useState('none')
   const { data: years = [] } = useQuery({ queryKey: ['years'], queryFn: getYears, enabled: open })
   const { data: parallels = [] } = useQuery({ queryKey: ['parallels', yearId], queryFn: () => getParallels(yearId), enabled: open && !!yearId })
   const { data: periods = [] } = useQuery({ queryKey: ['periods', yearId], queryFn: () => academicApi.getPeriods(yearId), enabled: open && !!yearId })
@@ -185,13 +197,21 @@ function NewReportPicker({ open, onOpenChange, onContinue }: { open: boolean; on
   React.useEffect(() => { setParallelId(''); setStudentId('none'); setPeriodId('none') }, [yearId])
   React.useEffect(() => { setStudentId('none'); setAssignmentId('none') }, [parallelId])
 
+  const { data: plans = [], isError: plansError } = useQuery({
+    queryKey: ['report-picker-plans', assignmentId, periodId],
+    queryFn: () => reinforcementDeskApi.list({ courseAssignmentId: assignmentId, periodId }),
+    enabled: open && assignmentId !== 'none' && periodId !== 'none',
+  })
+  React.useEffect(() => { setPlanId('none') }, [assignmentId, periodId])
+  const selectedPlan = plans.find((p) => p.id === planId)
+
   const students = enrollments
-    .filter((e) => e.status === 'active')
+    .filter((e) => e.status === 'active' && (!selectedPlan || selectedPlan.students.some((s) => s.id === e.student.id)))
     .sort((a, b) => a.student.profile.lastName.localeCompare(b.student.profile.lastName))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nuevo informe</DialogTitle>
           <DialogDescription>Indica sobre qué paralelo o estudiante trata el informe.</DialogDescription>
@@ -226,6 +246,17 @@ function NewReportPicker({ open, onOpenChange, onContinue }: { open: boolean; on
             </Select>
           </div>
           <div className="space-y-1">
+            <Label>Plan de refuerzo (para sus anexos)</Label>
+            <Select value={planId} onValueChange={(value) => { setPlanId(value); setStudentId('none') }} disabled={assignmentId === 'none' || periodId === 'none'}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="none">Sin plan vinculado</SelectItem>
+                {plans.map((p) => <SelectItem key={p.id} value={p.id}>{p.students.map((s) => s.name).join(', ')} · {p.learningTarget ?? p.subject}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {plansError && <p role="alert" className="text-xs text-destructive">No se pudieron consultar los planes de refuerzo.</p>}
+            {assignmentId !== 'none' && periodId !== 'none' && plans.length === 0 && !plansError && <p className="text-xs text-muted-foreground">No hay planes disponibles para esta asignatura y período. Puedes iniciar uno desde una alerta temprana.</p>}
+          </div>
+          <div className="space-y-1">
             <Label>Estudiante (opcional)</Label>
             <Select value={studentId} onValueChange={setStudentId} disabled={!parallelId}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -249,6 +280,7 @@ function NewReportPicker({ open, onOpenChange, onContinue }: { open: boolean; on
               parallelId,
               studentId: studentId === 'none' ? undefined : studentId,
               academicPeriodId: periodId === 'none' ? undefined : periodId,
+              reinforcementPlanId: planId === 'none' ? undefined : planId,
               courseAssignmentId: assignmentId === 'none' ? undefined : assignmentId,
             })}
           >

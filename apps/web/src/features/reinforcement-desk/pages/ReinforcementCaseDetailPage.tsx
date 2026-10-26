@@ -125,7 +125,7 @@ function ReportsTab({ planId, detail }: { planId: string; detail: CaseDetail }) 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">Informes formales vinculados a este caso. Al enviarse, sus datos quedan congelados.</p>
+        <p className="text-sm text-muted-foreground">Estos documentos también están en <Link to="/informes?section=documents" className="text-primary underline">Informes y reportes</Link>. Al enviarse, sus datos quedan congelados.</p>
         {detail.canEdit && detail.reportTypes.length > 0 && (
           <Button size="sm" onClick={() => setOpen(true)}><FilePlus2 className="mr-1.5 h-4 w-4" /> Generar informe</Button>
         )}

@@ -765,6 +765,7 @@ export function ActivitiesPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">Examen y Proyecto se calculan en la evaluación sumativa. Los demás tipos se calculan en la formativa; para un avance de proyecto, elige el tipo formativo correspondiente.</p>
                 {form.formState.errors.activityTypeId && (
                   <p className="text-xs text-destructive">
                     {form.formState.errors.activityTypeId.message}
