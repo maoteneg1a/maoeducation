@@ -1,7 +1,11 @@
+import { Prisma } from '@prisma/client'
+import { applyFormativeReinforcement, validateFormativePolicy, type FormativeApplication } from '../../../../shared/domain/formative-reinforcement'
+import type { InsumoGroupInput } from '../../../../shared/domain/grade-math'
+import { PrismaInstitutionRepository } from '../../../institution/infrastructure/repositories/prisma-institution.repository'
 import crypto from 'crypto'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
-import { activityKind, effectiveActivityScore } from '../../../../shared/domain/grade-math'
+import { average, activityKind, effectiveActivityScore } from '../../../../shared/domain/grade-math'
 import { applyDecimals, extractAgreementRules } from '../../../../shared/domain/agreement-rules'
 import { extractReportsFlow, type ReportsFlowConfig } from '../../../../shared/domain/reports-flow'
 import { institutionSettings } from '../../../../shared/infrastructure/services/agreement.service'
@@ -11,6 +15,10 @@ import { hasPermission, isAuthority, type Actor } from '../../../../shared/infra
 import { storage } from '../../../../shared/infrastructure/services/storage.service'
 import { assertUploader } from '../../../formal-reports/infrastructure/repositories/prisma-formal-report.repository'
 import { PrismaPedagogicRecoveryRepository } from './prisma-pedagogic-recovery.repository'
+
+const institutionRepo = new PrismaInstitutionRepository()
+
+export interface FormativeResultDto { studentId: string; activityIds: string[]; sessionIds: string[]; reason?: string; revoke?: boolean; expectedResultId?: string | null; expectedPreviewToken?: string }
 
 const legacyRepo = new PrismaPedagogicRecoveryRepository()
 const ATTENDANCE = ['present', 'absent', 'justified'] as const
@@ -167,6 +175,7 @@ export class PrismaReinforcementDeskRepository {
   async detail(institutionId: string, actor: Actor, planId: string) {
     const { plan, canEdit } = await this.access(institutionId, actor, planId)
     const flow = extractReportsFlow(await institutionSettings(institutionId))
+    const gradingConfig = await institutionRepo.getGradingConfig(institutionId)
     const studentIds = this.studentIdsOf(plan)
     const [kase, sessions, attachments, reports, scores, students] = await Promise.all([
       legacyRepo.getReinforcementCase(planId, institutionId),
@@ -204,7 +213,7 @@ export class PrismaReinforcementDeskRepository {
         attendances: s.attendances.map((a) => ({
           studentId: a.studentId,
           status: a.status,
-          score: a.score != null ? Number(a.score) : null,
+          score: a.score != null ? Number(a.score) * (a.scoreScaleMax ? gradingConfig.gradingScaleMax / Number(a.scoreScaleMax) : 1) : null,
           observation: a.observation,
           appliedScore: a.appliedScore != null ? Number(a.appliedScore) : null,
           appliedMode: a.appliedMode,
@@ -271,6 +280,115 @@ export class PrismaReinforcementDeskRepository {
         reinforced: g.reinforcementScore != null,
       })),
     }))
+  }
+
+  /** La configuración se elige institucionalmente; el docente selecciona evidencias del plan. */
+  async formativeOptions(institutionId: string, actor: Actor, planId: string) {
+    const { plan, canEdit } = await this.access(institutionId, actor, planId)
+    const config = await institutionRepo.getGradingConfig(institutionId)
+    const studentIds = this.studentIdsOf(plan)
+    const history = await prisma.formativeReinforcementResult.findMany({
+      where: { institutionId, courseAssignmentId: plan.courseAssignmentId, academicPeriodId: plan.academicPeriodId, studentId: { in: studentIds } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      include: { recorder: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } } },
+    })
+    return { policy: config.formativeReinforcement, scale: config.gradingScaleMax, canApply: canEdit && (plan.courseAssignment.teacherId === actor.userId || isAuthority(actor)) && hasPermission(actor, 'grades', 'write', 'own'), history: history.map(({ recorder, ...row }) => ({ ...row, recordedByName: fullName(recorder) })) }
+  }
+
+  private async prepareFormative(institutionId: string, actor: Actor, planId: string, dto: FormativeResultDto) {
+    const { plan } = await this.editable(institutionId, actor, planId)
+    if (!hasPermission(actor, 'grades', 'write', 'own') || (plan.courseAssignment.teacherId !== actor.userId && !isAuthority(actor))) throw new ForbiddenError()
+    if (!this.studentIdsOf(plan).includes(dto.studentId)) throw new BadRequestError('El estudiante no participa en este plan')
+    const enrollment = await prisma.studentEnrollment.findFirst({ where: { institutionId, studentId: dto.studentId, parallelId: plan.courseAssignment.parallelId, academicYearId: plan.courseAssignment.academicYearId, status: 'active' }, select: { id: true } })
+    if (!enrollment) throw new BadRequestError('El estudiante no tiene matrícula activa en el paralelo y año del plan')
+    const legacy = await prisma.pedagogicRecovery.findFirst({ where: { institutionId, studentId: dto.studentId, courseAssignmentId: plan.courseAssignmentId, academicPeriodId: plan.academicPeriodId, score: { not: null } }, select: { id: true } })
+    if (legacy && !dto.revoke) throw new ConflictError('Existe una recuperación aplicada al total del período. Retírala antes de aplicar refuerzo a la base formativa para evitar contar dos veces el proceso.')
+    const period = await prisma.academicPeriod.findFirst({ where: { id: plan.academicPeriodId }, select: { isClosed: true } })
+    if (!period || period.isClosed) throw new ConflictError('El período está cerrado')
+    const config = await institutionRepo.getGradingConfig(institutionId)
+    const policy = config.formativeReinforcement
+    const policyError = validateFormativePolicy(policy, config.gradingScaleMax)
+    if (policyError && !dto.revoke) throw new BadRequestError(policyError)
+    if (!dto.revoke && !policy.mode) throw new BadRequestError('La institución debe configurar el refuerzo formativo en su MIEE')
+    if (!Array.isArray(dto.activityIds) || !Array.isArray(dto.sessionIds) || dto.activityIds.length > 500 || dto.sessionIds.length > 500) throw new BadRequestError('Selección inválida')
+    const activities = await prisma.activity.findMany({
+      where: { institutionId, courseAssignmentId: plan.courseAssignmentId, academicPeriodId: plan.academicPeriodId, isPublished: true },
+      include: { activityType: true, grades: { where: { institutionId, studentId: dto.studentId } } },
+      orderBy: { id: 'asc' },
+    })
+    const groups = new Map<string, InsumoGroupInput>()
+    for (const a of activities) {
+      const key = a.insumoId ?? 'no-insumo'
+      if (!groups.has(key)) groups.set(key, { id: key, name: key, activities: [] })
+      groups.get(key)!.activities.push({ id: a.id, kind: activityKind(a.activityType.code), score: effectiveActivityScore(a.grades[0]), maxScore: Number(a.maxScore) })
+    }
+    const ids = [...new Set(dto.activityIds)].sort()
+    if (!dto.revoke && policy.mode === 'activity_set') {
+      if (!ids.length) throw new BadRequestError('Selecciona las actividades formativas atendidas por el plan')
+      for (const id of ids) {
+        const a = activities.find((a) => a.id === id)
+        if (!a || activityKind(a.activityType.code) !== 'regular' || effectiveActivityScore(a.grades[0]) == null) throw new BadRequestError('Selecciona actividades formativas publicadas con nota del estudiante')
+      }
+      const manual = await prisma.manualInsumoAverage.count({ where: { institutionId, studentId: dto.studentId, score: { not: null }, insumo: { courseAssignmentId: plan.courseAssignmentId, academicPeriodId: plan.academicPeriodId } } })
+      if (manual) throw new ConflictError('El período tiene promedios manuales por insumo. No se puede atribuir el peso de cada actividad; revisa esos promedios antes de aplicar refuerzo por conjunto.')
+    }
+    const sessions = await prisma.reinforcementSession.findMany({
+      where: { institutionId, planId, id: { in: [...new Set(dto.sessionIds)] } },
+      include: { attendances: { where: { studentId: dto.studentId } } },
+      orderBy: { id: 'asc' },
+    })
+    if (!dto.revoke && (!sessions.length || sessions.length !== new Set(dto.sessionIds).size)) throw new BadRequestError('Selecciona actividades de refuerzo de este plan')
+    const evidence = sessions.map((s) => {
+      const a = s.attendances[0]
+      const target = s.targetActivityId ? activities.find((x) => x.id === s.targetActivityId) : null
+      if (a?.appliedScore != null) throw new ConflictError('Una sesión seleccionada ya modificó una nota individual. Retira esa aplicación antes de incluirla en el resultado del plan.')
+      if (s.targetActivityId && (!target || activityKind(target.activityType.code) !== 'regular')) throw new BadRequestError('Las evaluaciones sumativas siguen su procedimiento de mejora individual')
+      if (!dto.revoke && (a?.status !== 'present' || a.score == null)) throw new BadRequestError('Cada actividad de refuerzo seleccionada debe tener asistencia y nota del estudiante')
+      return { sessionId: s.id, title: s.title, date: s.date.toISOString(), score: a?.score == null ? null : Number(a.score) * (a.scoreScaleMax ? config.gradingScaleMax / Number(a.scoreScaleMax) : 1), sourceScore: a?.score == null ? null : Number(a.score), maxScore: a?.scoreScaleMax ? Number(a.scoreScaleMax) : config.gradingScaleMax }
+    })
+    const application: FormativeApplication = {
+      ...policy,
+      gradingScaleMax: config.gradingScaleMax,
+      activityIds: policy.mode === 'activity_set' ? ids : [],
+      score: dto.revoke ? null : average(evidence.map((e) => e.score)),
+    }
+    if (application.score != null && (application.score < 0 || application.score > config.gradingScaleMax)) throw new BadRequestError('Hay notas de refuerzo fuera de la escala institucional')
+    const summaries = await computePeriodGrades(institutionId, {
+      assignmentIds: [plan.courseAssignmentId], periodIds: [plan.academicPeriodId], studentIds: [dto.studentId], gradingScaleMax: config.gradingScaleMax, ignoreFormativeApplications: true,
+    })
+    const initial = summaries.get(`${dto.studentId}:${plan.courseAssignmentId}:${plan.academicPeriodId}`)
+    if (!initial || initial.insumosBase == null) throw new BadRequestError('El estudiante aún no tiene un promedio formativo')
+    const assignment = await prisma.courseAssignment.findFirstOrThrow({ where: { id: plan.courseAssignmentId, institutionId }, select: { examWeight: true } })
+    const adjusted = applyFormativeReinforcement(initial, [...groups.values()], application, assignment.examWeight, config.gradingScaleMax)
+    const originalActivities = [...groups.values()].flatMap((g) => g.activities.map((a) => ({ ...a, insumoId: g.id }))).sort((a, b) => (a.id ?? '').localeCompare(b.id ?? ''))
+    const previewToken = crypto.createHash('sha256').update(JSON.stringify({ institutionId, planId, studentId: dto.studentId, application, evidence, originalActivities, initial, adjusted })).digest('hex')
+    return { plan, application, evidence, originalActivities, initial, adjusted, previewToken }
+  }
+
+  async previewFormative(institutionId: string, actor: Actor, planId: string, dto: FormativeResultDto) {
+    const { application, initial, adjusted, previewToken } = await this.prepareFormative(institutionId, actor, planId, dto)
+    return { application, previewToken, initial: { formative: initial.insumosBase, total: initial.total }, adjusted: { formative: adjusted.insumosBase, total: adjusted.total } }
+  }
+
+  async applyFormative(institutionId: string, actor: Actor, planId: string, dto: FormativeResultDto) {
+    if (!dto.reason?.trim() || dto.reason.trim().length < 5 || dto.reason.length > 2000) throw new BadRequestError('Registra un motivo de entre 5 y 2000 caracteres')
+    const { plan, application, evidence, originalActivities, initial, adjusted, previewToken } = await this.prepareFormative(institutionId, actor, planId, dto)
+    if (dto.expectedPreviewToken !== previewToken) throw new ConflictError('Las notas o la configuración cambiaron. Revisa nuevamente la vista previa antes de aplicar.')
+    return prisma.$transaction(async (tx) => {
+      const scope = `${institutionId}:${dto.studentId}:${plan.courseAssignmentId}:${plan.academicPeriodId}`
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${scope}))`
+      const previous = await tx.formativeReinforcementResult.findFirst({
+        where: { institutionId, studentId: dto.studentId, courseAssignmentId: plan.courseAssignmentId, academicPeriodId: plan.academicPeriodId },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      })
+      if ((previous?.id ?? null) !== (dto.expectedResultId ?? null)) throw new ConflictError('El resultado cambió. Actualiza la página y revisa la nueva versión antes de aplicar.')
+      return tx.formativeReinforcementResult.create({ data: {
+        institutionId, studentId: dto.studentId, courseAssignmentId: plan.courseAssignmentId, academicPeriodId: plan.academicPeriodId,
+        planId, recordedBy: actor.userId, reason: dto.reason!.trim(),
+        createdAt: new Date(Math.max(Date.now(), (previous?.createdAt.getTime() ?? 0) + 1)),
+        payload: { ...application, evidence, originalActivities, initialFormative: initial.insumosBase, adjustedFormative: adjusted.insumosBase, initialTotal: initial.total, adjustedTotal: adjusted.total } as unknown as Prisma.InputJsonValue,
+      } })
+    })
   }
 
   // ─── Sesiones de refuerzo ───────────────────────────────────────────────
@@ -364,23 +482,31 @@ export class PrismaReinforcementDeskRepository {
       if (!ATTENDANCE.includes(it.status)) throw new BadRequestError('Estado de asistencia inválido')
       if (it.score != null && (!Number.isFinite(it.score) || it.score < 0)) throw new BadRequestError('Nota inválida')
     }
+    const config = await institutionRepo.getGradingConfig(institutionId)
+    const target = s.targetActivityId ? await prisma.activity.findFirst({ where: { id: s.targetActivityId, institutionId }, include: { activityType: true } }) : null
+    const formative = !!config.formativeReinforcement.mode && (!target || activityKind(target.activityType.code) === 'regular')
+    if (formative && items.some((i) => i.score != null && i.score > config.gradingScaleMax)) throw new BadRequestError('La nota supera la escala institucional')
+    const old = formative ? await prisma.reinforcementSessionAttendance.findMany({ where: { sessionId, appliedScore: { not: null } } }) : []
+    if (old.length) throw new ConflictError('Esta sesión ya aplicó notas con el procedimiento anterior. Conserva su registro y crea una sesión nueva para el plan formativo.')
     for (const it of items ?? []) {
       const score = it.status === 'present' && it.score != null ? it.score : null
       let applied: { score: number | null; mode: string | null } = { score: null, mode: null }
-      if (s.targetActivityId) {
+      if (s.targetActivityId && !formative) {
         applied = await applyReinforcementToGrade({ institutionId, activityId: s.targetActivityId, studentId: it.studentId, reinforcementScore: score, gradedBy: actor.userId })
       }
       await prisma.reinforcementSessionAttendance.upsert({
         where: { sessionId_studentId: { sessionId, studentId: it.studentId } },
         create: {
           sessionId, studentId: it.studentId, status: it.status, score, observation: it.observation?.trim() || null,
-          appliedScore: s.targetActivityId && score != null ? applied.score : null,
-          appliedMode: s.targetActivityId && score != null ? applied.mode : null,
+          scoreScaleMax: formative && score != null ? config.gradingScaleMax : null,
+          appliedScore: s.targetActivityId && !formative && score != null ? applied.score : null,
+          appliedMode: s.targetActivityId && !formative && score != null ? applied.mode : null,
         },
         update: {
           status: it.status, score, observation: it.observation?.trim() || null,
-          appliedScore: s.targetActivityId && score != null ? applied.score : null,
-          appliedMode: s.targetActivityId && score != null ? applied.mode : null,
+          scoreScaleMax: formative && score != null ? config.gradingScaleMax : null,
+          appliedScore: s.targetActivityId && !formative && score != null ? applied.score : null,
+          appliedMode: s.targetActivityId && !formative && score != null ? applied.mode : null,
         },
       })
     }

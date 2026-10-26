@@ -1,3 +1,4 @@
+import { validateFormativePolicy } from '../../../../shared/domain/formative-reinforcement'
 import { validPeriodWeights } from '../../../../shared/domain/grade-math'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
@@ -48,6 +49,11 @@ function extractGradingConfig(settings: unknown): GradingConfig {
     promotion: { ...DEFAULT_GRADING_CONFIG.promotion, ...(gc.promotion ?? {}) },
     defaultExamWeight: gc.defaultExamWeight ?? DEFAULT_GRADING_CONFIG.defaultExamWeight,
     defaultProjectWeight: gc.defaultProjectWeight ?? (gc.defaultExamWeight ?? DEFAULT_GRADING_CONFIG.defaultExamWeight) / 2,
+    formativeReinforcement: {
+      ...DEFAULT_GRADING_CONFIG.formativeReinforcement,
+      cap: DEFAULT_GRADING_CONFIG.formativeReinforcement.cap * (gc.gradingScaleMax ?? DEFAULT_GRADING_CONFIG.gradingScaleMax) / DEFAULT_GRADING_CONFIG.gradingScaleMax,
+      ...(gc.formativeReinforcement ?? {}),
+    },
     pedagogicRecovery: {
       ...DEFAULT_GRADING_CONFIG.pedagogicRecovery,
       ...(gc.pedagogicRecovery ?? {}),
@@ -188,6 +194,7 @@ export class PrismaInstitutionRepository {
       promotion: { ...current.promotion, ...(dto.promotion ?? {}) },
       defaultExamWeight: dto.defaultExamWeight ?? current.defaultExamWeight,
       defaultProjectWeight: dto.defaultProjectWeight ?? (dto.defaultExamWeight !== undefined && dto.defaultExamWeight !== current.defaultExamWeight ? dto.defaultExamWeight / 2 : current.defaultProjectWeight),
+      formativeReinforcement: { ...current.formativeReinforcement, ...(dto.formativeReinforcement ?? {}) },
       pedagogicRecovery: { ...current.pedagogicRecovery, ...(dto.pedagogicRecovery ?? {}) },
       activityGradeReinforcement: {
         ...current.activityGradeReinforcement,
@@ -196,6 +203,9 @@ export class PrismaInstitutionRepository {
       educarEcuadorExportEnabled:
         dto.educarEcuadorExportEnabled ?? current.educarEcuadorExportEnabled,
     }
+
+    const policyError = validateFormativePolicy(next.formativeReinforcement, next.gradingScaleMax)
+    if (policyError) throw new BadRequestError(policyError)
 
     if (!validPeriodWeights(next.defaultExamWeight, next.defaultProjectWeight)) {
       throw new BadRequestError('Los porcentajes de examen y proyecto deben ser positivos o cero y sumar como máximo 100%.')

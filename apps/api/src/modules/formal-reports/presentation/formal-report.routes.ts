@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify'
+import { FastifyInstance, type FastifyRequest, type FastifyReply } from 'fastify'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import { actorOf } from '../../../shared/infrastructure/services/actor'
@@ -6,8 +6,11 @@ import { storage } from '../../../shared/infrastructure/services/storage.service
 import { BadRequestError } from '../../../shared/domain/errors/app.errors'
 import type { ReportTypeConfig } from '../../../shared/domain/reports-flow'
 import { PrismaFormalReportRepository, personName } from '../infrastructure/repositories/prisma-formal-report.repository'
-import { buildFormalReportPdf } from '../application/services/formal-report-pdf.service'
+import { buildFormalReportPdf, type FormalReportPdfData } from '../application/services/formal-report-pdf.service'
+import { buildOriginalAnnexDocx } from '../application/services/original-annex-document.service'
 import { buildDossier } from '../application/services/dossier.service'
+import { uploadDossierFile, dossierFileForDownload, deleteDossierFile, setDossierApplicability } from '../application/services/dossier-files.service'
+import type { DossierContext } from '../application/services/dossier-access.service'
 import type {
   AttendReportDto,
   CopyCaseAttachmentsDto,
@@ -31,14 +34,39 @@ export default async function formalReportRoutes(app: FastifyInstance) {
     reply.send(await repo.counts(req.user.institutionId, actorOf(req.user))))
 
   // Expediente de respaldo por estudiante y año (checklist configurable)
-  app.get<{ Querystring: { studentId: string; academicYearId: string } }>(
+  const dossierRead = { preHandler: [requirePermission('student_folder', 'read')] }
+  app.get<{ Querystring: DossierContext }>(
     '/formal-reports/dossier',
     { preHandler: [requirePermission('student_folder', 'read')] },
     async (req, reply) => {
       if (!req.query.studentId || !req.query.academicYearId) throw new BadRequestError('Se requiere estudiante y año lectivo')
-      return reply.send(await buildDossier(req.user.institutionId, actorOf(req.user), req.query.studentId, req.query.academicYearId))
+      return reply.send(await buildDossier(req.user.institutionId, actorOf(req.user), req.query.studentId, req.query.academicYearId, req.query.courseAssignmentId))
     },
   )
+
+  app.post<{ Querystring: DossierContext & { itemKey: string; isSigned?: string; observation?: string } }>('/formal-reports/dossier/files', dossierRead, async (req, reply) => {
+    if (!req.query.studentId || !req.query.academicYearId || !req.query.itemKey) throw new BadRequestError('Se requiere estudiante, año y documento del checklist')
+    const file = await req.file()
+    if (!file) throw new BadRequestError('Selecciona el archivo PDF o escaneado')
+    const buffer = await file.toBuffer()
+    return reply.code(201).send(await uploadDossierFile(req.user.institutionId, actorOf(req.user), { ...req.query, isSigned: req.query.isSigned === 'true' }, { filename: file.filename, mimetype: file.mimetype, buffer }))
+  })
+
+  app.get<{ Params: { id: string } }>('/formal-reports/dossier/files/:id', dossierRead, async (req, reply) => {
+    const file = await dossierFileForDownload(req.user.institutionId, actorOf(req.user), req.params.id)
+    const stream = await storage.getStream(file.storedName)
+    if (!stream) return reply.code(404).send({ message: 'Archivo no encontrado' })
+    return reply.header('Content-Type', file.mimeType).header('Content-Disposition', `attachment; filename="${encodeURIComponent(file.fileName)}"`).send(stream)
+  })
+  app.delete<{ Params: { id: string } }>('/formal-reports/dossier/files/:id', dossierRead, async (req, reply) => {
+    await deleteDossierFile(req.user.institutionId, actorOf(req.user), req.params.id)
+    return reply.code(204).send()
+  })
+  app.put<{ Body: DossierContext & { itemKey: string; notApplicable: boolean; reason?: string } }>('/formal-reports/dossier/applicability', dossierRead, async (req, reply) => {
+    if (!req.body?.studentId || !req.body.academicYearId || !req.body.itemKey || typeof req.body.notApplicable !== 'boolean') throw new BadRequestError('Datos de aplicabilidad incompletos')
+    await setDossierApplicability(req.user.institutionId, actorOf(req.user), req.body)
+    return reply.code(204).send()
+  })
 
   app.post<{ Body: CreateFormalReportDto }>('/formal-reports', write, async (req, reply) =>
     reply.code(201).send(await repo.create(req.user.institutionId, actorOf(req.user), req.body)))
@@ -104,14 +132,15 @@ export default async function formalReportRoutes(app: FastifyInstance) {
       .send(stream)
   })
 
-  app.get<{ Params: { id: string } }>('/formal-reports/:id/pdf', read, async (req, reply) => {
+  async function exportDocument(req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply, format: 'pdf' | 'docx') {
     const { report: r, institution, receivedByName, snapshot } = await repo.forPdf(req.user.institutionId, actorOf(req.user), req.params.id)
     const t = r.typeConfig as unknown as ReportTypeConfig
     const settings = (institution?.settings ?? {}) as { branding?: { logoUrl?: string | null } }
-    const pdf = await buildFormalReportPdf({
+    const data: FormalReportPdfData = {
       institutionName: institution?.name ?? '',
       logoUrl: settings.branding?.logoUrl ?? null,
       title: t.pdfTitle || r.typeLabel.toUpperCase(),
+      pdfTemplate: t.pdfTemplate,
       footer: t.pdfFooter ?? null,
       folio: r.folio,
       status: r.status,
@@ -129,10 +158,13 @@ export default async function formalReportRoutes(app: FastifyInstance) {
       signatures: t.signatures ?? [],
       returnNote: r.returnNote,
       responseNote: r.responseNote,
-    })
+    }
+    const buffer = format === 'docx' ? await buildOriginalAnnexDocx(data) : await buildFormalReportPdf(data)
     return reply
-      .header('Content-Type', 'application/pdf')
-      .header('Content-Disposition', `attachment; filename="${r.folio ?? 'borrador'}-${r.typeKey}.pdf"`)
-      .send(pdf)
-  })
+      .header('Content-Type', format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+      .header('Content-Disposition', `attachment; filename="${r.folio ?? 'borrador'}-${r.typeKey}.${format}"`)
+      .send(buffer)
+  }
+  app.get<{ Params: { id: string } }>('/formal-reports/:id/pdf', read, (req, reply) => exportDocument(req, reply, 'pdf'))
+  app.get<{ Params: { id: string } }>('/formal-reports/:id/docx', read, (req, reply) => exportDocument(req, reply, 'docx'))
 }

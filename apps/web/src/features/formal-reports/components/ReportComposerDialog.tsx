@@ -8,6 +8,8 @@ import {
 } from '@/shared/components/ui/dialog'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
+import { Label } from '@/shared/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { cn, getErrorMessage } from '@/shared/lib/utils'
 import { usePermissions } from '@/shared/hooks/usePermissions'
@@ -34,6 +36,7 @@ export function ReportComposerDialog({
   typeKeys,
   defaultTypeKey,
   onCreated,
+  students,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -41,10 +44,12 @@ export function ReportComposerDialog({
   typeKeys?: string[]
   defaultTypeKey?: string
   onCreated?: (reportId: string) => void
+  students?: Array<{ id: string; name: string }>
 }) {
   const navigate = useNavigate()
   const { roles, hasRole } = usePermissions()
   const [selected, setSelected] = React.useState<string | null>(defaultTypeKey ?? null)
+  const [studentId, setStudentId] = React.useState('')
   const { data, isLoading } = useQuery({
     queryKey: ['reports-flow'],
     queryFn: formalReportsApi.reportsFlow,
@@ -53,7 +58,7 @@ export function ReportComposerDialog({
   })
 
   React.useEffect(() => {
-    if (open) setSelected(defaultTypeKey ?? null)
+    if (open) { setSelected(defaultTypeKey ?? null); setStudentId(context.studentId ?? (students?.length === 1 ? students[0].id : '')) }
   }, [open, defaultTypeKey])
 
   const isAuthority = hasRole('admin') || hasRole('rector')
@@ -69,6 +74,7 @@ export function ReportComposerDialog({
   }, [data, typeKeys, context.reinforcementPlanId, isAuthority, roles])
 
   const unavailableReason = (t: ReportTypeConfig): string | null => {
+    if (t.pdfTemplate && !context.alertId && !context.reinforcementPlanId && (!context.courseAssignmentId || !context.academicPeriodId)) return 'Requiere asignatura y periodo'
     if (t.scope === 'student' && !hasStudent) return 'Requiere un estudiante'
     if (t.scope === 'parallel' && !hasParallel) return 'Requiere un paralelo'
     return null
@@ -81,6 +87,7 @@ export function ReportComposerDialog({
       formalReportsApi.create({
         typeKey,
         ...Object.fromEntries(Object.entries(context).filter(([, v]) => !!v)),
+        ...(studentId ? { studentId } : {}),
       }),
     onSuccess: (report) => {
       toast.success('Borrador creado')
@@ -148,8 +155,17 @@ export function ReportComposerDialog({
           </div>
         )}
         <DialogFooter>
+          {!!students?.length && current?.scope === 'student' && (
+            <div className="mr-auto w-full space-y-1 sm:w-64">
+              <Label>Estudiante del informe individual</Label>
+              <Select value={studentId} onValueChange={setStudentId}>
+                <SelectTrigger><SelectValue placeholder="Selecciona un estudiante" /></SelectTrigger>
+                <SelectContent>{students.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button disabled={!current || !!(current && unavailableReason(current)) || create.isPending} onClick={() => current && create.mutate(current.key)}>
+          <Button disabled={!current || !!(current && unavailableReason(current)) || (!!students?.length && current?.scope === 'student' && !studentId) || create.isPending} onClick={() => current && create.mutate(current.key)}>
             {create.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Crear borrador
           </Button>

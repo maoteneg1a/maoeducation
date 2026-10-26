@@ -53,4 +53,22 @@ describe('administrator period grading percentages', () => {
     expect(db.courseAssignment.updateMany).not.toHaveBeenCalled()
     expect(db.institution.update).not.toHaveBeenCalled()
   })
+
+  it('persists both institutional formative modalities without changing subject weights', async () => {
+    for (const mode of ['activity_set', 'period_formative'] as const) {
+      const config = await repo.updateGradingConfig('school', { formativeReinforcement: { mode, reinforcementWeight: 40, cap: 7 } })
+      expect(config.formativeReinforcement).toEqual({ mode, reinforcementWeight: 40, cap: 7 })
+    }
+    expect(db.courseAssignment.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('keeps existing institutions unconfigured and derives the default cap from their scale', async () => {
+    db.institution.findUnique.mockResolvedValue({ settings: { gradingConfig: { gradingScaleMax: 5 } } })
+    expect((await repo.getGradingConfig('school')).formativeReinforcement).toEqual({ mode: null, reinforcementWeight: 50, cap: 3.5 })
+  })
+
+  it('rejects an invalid formative policy before persisting settings', async () => {
+    await expect(repo.updateGradingConfig('school', { formativeReinforcement: { reinforcementWeight: 100 } })).rejects.toMatchObject({ statusCode: 400 })
+    expect(db.$transaction).not.toHaveBeenCalled()
+  })
 })

@@ -60,6 +60,7 @@ export function activityKind(activityTypeCode: string): ActivityKind {
 
 /** Actividad para el cálculo: su nota (cruda), su puntaje máximo y su tipo. */
 export interface ScoredActivity {
+  id?: string
   score: number | null
   maxScore: number
   kind: ActivityKind
@@ -82,6 +83,14 @@ export function insumoGroupAverage(activities: ScoredActivity[], gradingScaleMax
 }
 
 export interface PeriodSummary {
+  formativeReinforcement?: {
+    mode: 'activity_set' | 'period_formative'
+    initial: number
+    result: number
+    adjusted: number
+    weight: number
+    cap: number
+  }
   insumoAvgs: Array<{ id: string; name: string; avg: number | null }>
   insumosBase: number | null
   examenAvg: number | null

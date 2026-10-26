@@ -1,3 +1,6 @@
+import { DOSSIER_CHECKLIST } from './dossier-checklist'
+import { REPORT_PDF_TEMPLATES, withReinforcementAnnexes, type ReportPdfTemplate } from './reinforcement-annexes'
+
 /**
  * Flujo de INFORMES entre instancias de la escuela (alertas tempranas, refuerzo,
  * DECE, junta, familia) — 100 % parametrizable por institución.
@@ -30,7 +33,7 @@ export interface ReportInstance {
 export type ReportScope = 'student' | 'parallel' | 'institution'
 export type ReportFieldType = 'text' | 'textarea' | 'date'
 /** Datos que el sistema adjunta solos al informe (congelados al enviarlo). */
-export type ReportSnapshotSource = 'none' | 'grades' | 'reinforcement_case' | 'reinforcement_sessions'
+export type ReportSnapshotSource = 'none' | 'grades' | 'reinforcement_case' | 'reinforcement_sessions' | 'early_alerts'
 
 export interface ReportField {
   key: string
@@ -38,6 +41,7 @@ export interface ReportField {
   type: ReportFieldType
   required: boolean
   placeholder?: string
+  defaultValue?: string
 }
 
 export interface ReportTypeConfig {
@@ -66,6 +70,7 @@ export interface ReportTypeConfig {
   canDeriveTo: string[]
   /** Encabezado y pie del PDF. */
   pdfTitle: string
+  pdfTemplate?: ReportPdfTemplate
   pdfFooter?: string
   signatures: string[]
 }
@@ -87,6 +92,7 @@ export interface DossierItem {
   perSubject: boolean
   /** Si el ítem solo aplica cuando existe el antecedente (p. ej. informe técnico DECE). */
   optional: boolean
+  requiresSignature?: boolean
 }
 
 export interface AttachmentCategory {
@@ -133,7 +139,7 @@ const base = (o: Partial<ReportTypeConfig> & Pick<ReportTypeConfig, 'key' | 'lab
   ...o,
 })
 
-export const DEFAULT_REPORTS_FLOW: ReportsFlowConfig = {
+const BASE_REPORTS_FLOW: ReportsFlowConfig = {
   folioPrefix: 'INF',
   instances: [
     { key: 'tutor', label: 'Tutor de grado/curso', resolver: 'tutor_of_parallel' },
@@ -241,21 +247,7 @@ export const DEFAULT_REPORTS_FLOW: ReportsFlowConfig = {
   dossier: {
     enabled: true,
     subniveles: ['media', 'superior', 'bgu'],
-    items: [
-      { key: 'd1', label: 'Acta de socialización de criterios de evaluación', source: 'formal_report', reportType: 'acta_socializacion_criterios', minCount: 1, perSubject: false, optional: false },
-      { key: 'd2', label: 'Informe de rendimiento a los representantes', source: 'formal_report', reportType: 'informe_familia', minCount: 1, perSubject: true, optional: false },
-      { key: 'd3', label: 'Informe del plan de refuerzo pedagógico', source: 'formal_report', reportType: 'plan_refuerzo', minCount: 1, perSubject: true, optional: false },
-      { key: 'd4', label: 'Reporte de resultados del refuerzo', source: 'formal_report', reportType: 'resultados_refuerzo', minCount: 1, perSubject: true, optional: false },
-      { key: 'd5', label: 'Registro de asistencia al refuerzo', source: 'formal_report', reportType: 'asistencia_refuerzo', minCount: 1, perSubject: true, optional: false },
-      { key: 'd6', label: 'Carta de compromiso firmada', source: 'formal_report', reportType: 'carta_compromiso', minCount: 1, perSubject: true, optional: false },
-      { key: 'd7', label: 'Informes al tutor por bajo rendimiento', source: 'formal_report', reportType: 'bajo_rendimiento_tutor', minCount: 3, perSubject: true, optional: false },
-      { key: 'd8', label: 'Ficha de detección remitida al DECE', source: 'formal_report', reportType: 'ficha_deteccion_dece', minCount: 1, perSubject: false, optional: false },
-      { key: 'd9', label: 'Adaptaciones curriculares', source: 'enrollment_adaptation', minCount: 1, perSubject: false, optional: true },
-      { key: 'd10', label: 'Acta de socialización de lineamientos de mejora', source: 'formal_report', reportType: 'acta_socializacion_mejora', minCount: 1, perSubject: false, optional: false },
-      { key: 'd11', label: 'Actas de reunión con el representante', source: 'parent_meetings', minCount: 1, perSubject: false, optional: false },
-      { key: 'd12', label: 'Acta de junta con estrategias metodológicas', source: 'formal_report', reportType: 'acta_junta', minCount: 1, perSubject: false, optional: false },
-      { key: 'd13', label: 'Informe técnico del DECE', source: 'formal_report', reportType: 'informe_tecnico_dece', minCount: 1, perSubject: false, optional: true },
-    ],
+    items: DOSSIER_CHECKLIST,
   },
   attachments: {
     maxSizeMb: 10,
@@ -272,6 +264,8 @@ export const DEFAULT_REPORTS_FLOW: ReportsFlowConfig = {
   },
 }
 
+export const DEFAULT_REPORTS_FLOW = withReinforcementAnnexes(BASE_REPORTS_FLOW)
+
 type Obj = Record<string, unknown>
 const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v)
 
@@ -280,11 +274,26 @@ export function extractReportsFlow(settings: unknown): ReportsFlowConfig {
   const s = (isObj(settings) ? settings : {}) as Obj
   const rf = (isObj(s.reportsFlow) ? s.reportsFlow : {}) as Partial<ReportsFlowConfig>
   const d = DEFAULT_REPORTS_FLOW
+  let types = Array.isArray(rf.reportTypes) && rf.reportTypes.length ? rf.reportTypes : d.reportTypes
+  // Corrige exclusivamente la asociación anterior entre el Anexo 1 y el informe al tutor.
+  const misplaced = types.find((t) => t.key === 'bajo_rendimiento_tutor' && t.pdfTemplate === 'annex_alerts')
+  if (misplaced) {
+    types = types.filter((t) => t !== misplaced)
+    if (!types.some((t) => t.key === 'acta_entrega_alertas')) types = [...types, { ...misplaced, key: 'acta_entrega_alertas' }]
+    types = [...types, structuredClone(d.reportTypes.find((t) => t.key === 'bajo_rendimiento_tutor')!)]
+  }
+  const dossier = isObj(rf.dossier) ? { ...d.dossier, ...rf.dossier } : d.dossier
+  const dossierItems = dossier.items.map((item) => ({
+    ...item,
+    requiresSignature: item.requiresSignature ?? (item.reportType === 'carta_compromiso' || item.source === 'parent_meetings'),
+    label: item.reportType === 'bajo_rendimiento_tutor' && item.label === 'Informes a las autoridades por bajo rendimiento'
+      ? 'Informe remitido al tutor de aula o grado por el bajo rendimiento (mínimo tres).' : item.label,
+  }))
   return {
     folioPrefix: typeof rf.folioPrefix === 'string' && rf.folioPrefix.trim() ? rf.folioPrefix.trim() : d.folioPrefix,
     instances: Array.isArray(rf.instances) && rf.instances.length ? rf.instances : d.instances,
-    reportTypes: Array.isArray(rf.reportTypes) && rf.reportTypes.length ? rf.reportTypes : d.reportTypes,
-    dossier: isObj(rf.dossier) ? { ...d.dossier, ...rf.dossier } : d.dossier,
+    reportTypes: types,
+    dossier: { ...dossier, items: dossierItems },
     attachments: isObj(rf.attachments) ? { ...d.attachments, ...rf.attachments } : d.attachments,
   }
 }
@@ -307,6 +316,10 @@ export function validateReportsFlow(cfg: ReportsFlowConfig): string[] {
     if (!keyRe.test(t.key)) errors.push(`Clave de informe inválida: "${t.key}"`)
     if (typeKeys.has(t.key)) errors.push(`Tipo de informe duplicado: "${t.key}"`)
     typeKeys.add(t.key)
+    if (t.pdfTemplate && !REPORT_PDF_TEMPLATES.includes(t.pdfTemplate)) errors.push(`Formato PDF inválido en "${t.label}"`)
+    if (t.snapshot === 'early_alerts' && (t.scope !== 'parallel' || cfg.instances.find((i) => i.key === t.to)?.resolver === 'guardians_of_student')) errors.push(`La nómina de alertas requiere alcance por paralelo y destinatario del personal ("${t.label}")`)
+    const sources = { annex_alerts: 'early_alerts', annex_commitment: 'grades', annex_plan: 'reinforcement_case', annex_progress: 'reinforcement_case', annex_attendance: 'reinforcement_sessions' }
+    if (t.pdfTemplate && REPORT_PDF_TEMPLATES.includes(t.pdfTemplate) && t.snapshot !== sources[t.pdfTemplate]) errors.push(`El formato de anexo necesita sus datos automáticos correspondientes ("${t.label}")`)
     if (!t.label?.trim()) errors.push(`El informe "${t.key}" necesita un nombre`)
     if (!instanceKeys.has(t.to)) errors.push(`El informe "${t.label}" apunta a una instancia inexistente: "${t.to}"`)
     if (t.escalateTo && !instanceKeys.has(t.escalateTo)) errors.push(`El informe "${t.label}" escala a una instancia inexistente: "${t.escalateTo}"`)

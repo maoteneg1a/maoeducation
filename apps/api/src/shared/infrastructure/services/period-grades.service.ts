@@ -1,5 +1,9 @@
+import { applyFormativeReinforcement } from '../../domain/formative-reinforcement'
+import { loadFormativeApplications } from './formative-reinforcement.service'
 import { prisma } from '../database/prisma'
 import {
+  average,
+  periodTotal,
   activityKind,
   computePeriodSummary,
   effectiveActivityScore,
@@ -16,7 +20,7 @@ import {
  */
 export async function computePeriodGrades(
   institutionId: string,
-  params: { assignmentIds: string[]; periodIds: string[]; studentIds: string[]; gradingScaleMax: number },
+  params: { assignmentIds: string[]; periodIds: string[]; studentIds: string[]; gradingScaleMax: number; ignoreFormativeApplications?: boolean },
 ): Promise<Map<string, PeriodSummary>> {
   const { assignmentIds, periodIds, studentIds, gradingScaleMax } = params
   const out = new Map<string, PeriodSummary>()
@@ -36,6 +40,7 @@ export async function computePeriodGrades(
   const [insumos, standalone] = await Promise.all([
     prisma.insumo.findMany({
       where: { institutionId, courseAssignmentId: { in: assignmentIds }, academicPeriodId: { in: periodIds } },
+      orderBy: { id: 'asc' },
       select: {
         id: true,
         name: true,
@@ -43,13 +48,14 @@ export async function computePeriodGrades(
         academicPeriodId: true,
         activities: {
           where: { isPublished: true },
-          select: { maxScore: true, activityType: { select: { code: true } }, grades: gradeSelect },
+          select: { id: true, maxScore: true, activityType: { select: { code: true } }, grades: gradeSelect },
         },
       },
     }),
     prisma.activity.findMany({
       where: { institutionId, courseAssignmentId: { in: assignmentIds }, academicPeriodId: { in: periodIds }, isPublished: true, insumoId: null },
-      select: { courseAssignmentId: true, academicPeriodId: true, maxScore: true, activityType: { select: { code: true } }, grades: gradeSelect },
+      orderBy: { id: 'asc' },
+      select: { id: true, courseAssignmentId: true, academicPeriodId: true, maxScore: true, activityType: { select: { code: true } }, grades: gradeSelect },
     }),
   ])
 
@@ -59,7 +65,7 @@ export async function computePeriodGrades(
     insumoName: string,
     assignmentId: string,
     periodId: string,
-    act: { maxScore: unknown; activityType: { code: string }; grades: Array<{ studentId: string; score: unknown; baseScore: unknown; reinforcementScore: unknown; reinforcementMode: string | null }> },
+    act: { id: string; maxScore: unknown; activityType: { code: string }; grades: Array<{ studentId: string; score: unknown; baseScore: unknown; reinforcementScore: unknown; reinforcementMode: string | null }> },
   ) => {
     const byStudent = new Map(act.grades.map((g) => [g.studentId, effectiveActivityScore(g)]))
     for (const sId of studentIds) {
@@ -69,6 +75,7 @@ export async function computePeriodGrades(
       if (!groups.has(insumoId)) groups.set(insumoId, { id: insumoId, name: insumoName, activities: [] })
       const raw = byStudent.get(sId)
       groups.get(insumoId)!.activities.push({
+        id: act.id,
         score: raw != null ? Number(raw) : null,
         maxScore: Number(act.maxScore),
         kind: activityKind(act.activityType.code),
@@ -78,11 +85,29 @@ export async function computePeriodGrades(
   for (const i of insumos) for (const a of i.activities) push(i.id, i.name, i.courseAssignmentId, i.academicPeriodId, a)
   for (const a of standalone) push('no-insumo', 'Sin insumo', a.courseAssignmentId, a.academicPeriodId, a)
 
+  const applications = params.ignoreFormativeApplications ? new Map() : await loadFormativeApplications(institutionId, assignmentIds, periodIds, studentIds)
+  const manual = await prisma.manualInsumoAverage.findMany({
+    where: { institutionId, studentId: { in: studentIds }, insumo: { courseAssignmentId: { in: assignmentIds }, academicPeriodId: { in: periodIds } }, score: { not: null } },
+    orderBy: { id: 'asc' },
+    select: { studentId: true, insumoId: true, score: true, insumo: { select: { courseAssignmentId: true, academicPeriodId: true, name: true } } },
+  })
+  for (const m of manual) {
+    const key = `${m.studentId}:${m.insumo.courseAssignmentId}:${m.insumo.academicPeriodId}`
+    if (!bucket.has(key)) bucket.set(key, new Map())
+    if (!bucket.get(key)!.has(m.insumoId)) bucket.get(key)!.set(m.insumoId, { id: m.insumoId, name: m.insumo.name, activities: [] })
+  }
   for (const [k, groups] of bucket) {
     const assignmentId = k.split(':')[1]
     const w = weights.get(assignmentId)
     if (!w) continue
-    out.set(k, computePeriodSummary([...groups.values()], w.examWeight, gradingScaleMax, w.projectWeight ?? undefined))
+    let summary = computePeriodSummary([...groups.values()], w.examWeight, gradingScaleMax, w.projectWeight ?? undefined)
+    const overrides = manual.filter((m) => `${m.studentId}:${m.insumo.courseAssignmentId}:${m.insumo.academicPeriodId}` === k)
+    if (overrides.length) {
+      summary.insumoAvgs = summary.insumoAvgs.map((i) => ({ ...i, avg: overrides.find((m) => m.insumoId === i.id)?.score != null ? Number(overrides.find((m) => m.insumoId === i.id)!.score) : i.avg }))
+      summary.insumosBase = average(summary.insumoAvgs.map((i) => i.avg))
+      summary.total = periodTotal(summary.insumosBase, summary.summativeAvg, w.examWeight, summary.hasSummative)
+    }
+    out.set(k, applyFormativeReinforcement(summary, [...groups.values()], applications.get(k), w.examWeight, gradingScaleMax))
   }
   return out
 }

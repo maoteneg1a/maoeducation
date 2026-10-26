@@ -290,21 +290,35 @@ function ReportTypeForm({
       <CheckGroup label="El destinatario puede derivarlo a" options={instanceOptions} values={t.canDeriveTo ?? []} onChange={(v) => onChange({ canDeriveTo: v })} />
 
       <FieldGrid>
-        <div className="space-y-1 sm:col-span-2">
+        <SelectField
+          label="Formato del documento"
+          value={t.pdfTemplate ?? NONE}
+          onChange={(v) => onChange({ pdfTemplate: v === NONE ? undefined : v as ReportTypeConfig['pdfTemplate'] })}
+          options={[
+            { value: NONE, label: 'Informe general' },
+            { value: 'annex_alerts', label: 'Anexo 1 · Informe a las autoridades' },
+            { value: 'annex_commitment', label: 'Anexo 2 · Compromiso familiar' },
+            { value: 'annex_plan', label: 'Anexo 3 · Plan individual' },
+            { value: 'annex_progress', label: 'Anexo 4 · Avances' },
+            { value: 'annex_attendance', label: 'Anexo 5 · Asistencia' },
+          ]}
+        />
+        {!t.pdfTemplate && <div className="space-y-1 sm:col-span-2">
           <Label className="text-xs">Título del PDF</Label>
           <Input value={t.pdfTitle} onChange={(e) => onChange({ pdfTitle: e.target.value })} />
-        </div>
-        <ListEditor label="Firmas" values={t.signatures} onChange={(v) => onChange({ signatures: v })} placeholder="Docente, Representante legal" />
+        </div>}
+        {!t.pdfTemplate && <ListEditor label="Firmas" values={t.signatures} onChange={(v) => onChange({ signatures: v })} placeholder="Docente, Representante legal" />}
       </FieldGrid>
-      <div className="space-y-1">
+      {t.pdfTemplate && <p className="text-sm text-muted-foreground">El anexo conserva los textos, membrete, tablas y firmas del Word original. Los campos siguientes completan sus espacios de datos.</p>}
+      {!t.pdfTemplate && <div className="space-y-1">
         <Label className="text-xs">Pie del PDF</Label>
         <Input value={t.pdfFooter ?? ''} onChange={(e) => onChange({ pdfFooter: e.target.value })} />
-      </div>
+      </div>}
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-xs">Campos que redacta el autor</Label>
-          <Button
+          {!t.pdfTemplate && <Button
             size="sm"
             variant="outline"
             onClick={() => {
@@ -314,13 +328,13 @@ function ReportTypeForm({
             }}
           >
             <Plus className="mr-1 h-4 w-4" />Campo
-          </Button>
+          </Button>}
         </div>
         {t.fields.map((f, i) => (
           <div key={i} className="grid items-end gap-2 rounded border p-2 md:grid-cols-[1fr_2fr_1fr_auto_auto]">
             <div className="space-y-1">
               <Label className="text-[11px]">Clave</Label>
-              <Input value={f.key} onChange={(e) => setField(i, { key: slug(e.target.value) })} />
+              <Input value={f.key} disabled={!!t.pdfTemplate} onChange={(e) => setField(i, { key: slug(e.target.value) })} />
             </div>
             <div className="space-y-1">
               <Label className="text-[11px]">Etiqueta</Label>
@@ -333,12 +347,16 @@ function ReportTypeForm({
               options={[{ value: 'textarea', label: 'Texto largo' }, { value: 'text', label: 'Texto corto' }, { value: 'date', label: 'Fecha' }]}
             />
             <CheckField label="Obligatorio" checked={f.required} onChange={(v) => setField(i, { required: v })} />
-            <div className="flex">
+            {!t.pdfTemplate && <div className="flex">
               <Button size="icon" variant="ghost" onClick={() => onChange({ fields: move(t.fields, i, -1) })}><ArrowUp className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" onClick={() => onChange({ fields: move(t.fields, i, 1) })}><ArrowDown className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" onClick={() => onChange({ fields: t.fields.filter((_, idx) => idx !== i) })}>
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
+            </div>}
+            <div className="space-y-1 md:col-span-5">
+              <Label className="text-[11px]">Contenido inicial para nuevos informes (opcional)</Label>
+              <Textarea rows={2} value={f.defaultValue ?? ''} onChange={(e) => setField(i, { defaultValue: e.target.value || undefined })} />
             </div>
           </div>
         ))}

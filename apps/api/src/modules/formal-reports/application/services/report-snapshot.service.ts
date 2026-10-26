@@ -1,8 +1,9 @@
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
-import { applyDecimals, extractAgreementRules } from '../../../../shared/domain/agreement-rules'
+import { applyDecimals, extractAgreementRules, extractNormativeProfile, frameworkForYear } from '../../../../shared/domain/agreement-rules'
 import type { ReportSnapshotSource } from '../../../../shared/domain/reports-flow'
 import { computePeriodGrades } from '../../../../shared/infrastructure/services/period-grades.service'
 import { institutionSettings } from '../../../../shared/infrastructure/services/agreement.service'
+import { BadRequestError } from '../../../../shared/domain/errors/app.errors'
 
 export interface SnapshotContext {
   institutionId: string
@@ -10,6 +11,7 @@ export interface SnapshotContext {
   parallelId: string | null
   courseAssignmentId: string | null
   academicPeriodId: string | null
+  academicYearId?: string | null
   alertId: string | null
   reinforcementPlanId: string | null
 }
@@ -40,11 +42,12 @@ export async function buildSnapshot(source: ReportSnapshotSource, ctx: SnapshotC
   if (source === 'grades') base.grades = await gradesSnapshot(ctx)
   if (source === 'reinforcement_case') base.reinforcementCase = await caseSnapshot(ctx)
   if (source === 'reinforcement_sessions') base.sessions = await sessionsSnapshot(ctx)
+  if (source === 'early_alerts') base.alertRoster = await alertRosterSnapshot(ctx)
   return base
 }
 
 async function contextHeader(ctx: SnapshotContext) {
-  const [student, parallel, assignment, period] = await Promise.all([
+  const [student, parallel, assignment, period, year, settings] = await Promise.all([
     ctx.studentId
       ? prisma.user.findFirst({ where: { id: ctx.studentId, institutionId: ctx.institutionId }, select: { email: true, profile: { select: { firstName: true, lastName: true, dni: true } } } })
       : null,
@@ -54,14 +57,43 @@ async function contextHeader(ctx: SnapshotContext) {
     ctx.courseAssignmentId
       ? prisma.courseAssignment.findFirst({ where: { id: ctx.courseAssignmentId, institutionId: ctx.institutionId }, select: { subject: { select: { name: true } }, teacher: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } } } })
       : null,
-    ctx.academicPeriodId ? prisma.academicPeriod.findFirst({ where: { id: ctx.academicPeriodId }, select: { name: true } }) : null,
+    ctx.academicPeriodId ? prisma.academicPeriod.findFirst({ where: { id: ctx.academicPeriodId, academicYear: { institutionId: ctx.institutionId } }, select: { name: true } }) : null,
+    ctx.academicYearId ? prisma.academicYear.findFirst({ where: { id: ctx.academicYearId, institutionId: ctx.institutionId }, select: { name: true } }) : null,
+    institutionSettings(ctx.institutionId),
   ])
   return {
     student: student ? { name: name(student), dni: student.profile?.dni ?? null } : null,
-    parallel: parallel ? { name: `${parallel.level.name} ${parallel.name}`, tutor: name(parallel.tutor) || null } : null,
+    parallel: parallel ? { name: `${parallel.level.name} ${parallel.name}`, grade: parallel.level.name, section: parallel.name, tutor: name(parallel.tutor) || null } : null,
     subject: assignment ? { name: assignment.subject.name, teacher: name(assignment.teacher) } : null,
     period: period ? { name: period.name } : null,
+    academicYear: year ? { name: year.name } : null,
+    framework: frameworkForYear(extractNormativeProfile(settings), ctx.academicYearId),
   }
+}
+
+/** Nómina del periodo y la asignatura elegidos; nunca incluye otros paralelos ni años. */
+async function alertRosterSnapshot(ctx: SnapshotContext) {
+  if (!ctx.parallelId || !ctx.academicPeriodId || !ctx.academicYearId || !ctx.courseAssignmentId) return []
+  const assignment = await prisma.courseAssignment.findFirst({
+    where: { id: ctx.courseAssignmentId, institutionId: ctx.institutionId, parallelId: ctx.parallelId, academicYearId: ctx.academicYearId },
+    select: { id: true },
+  })
+  if (!assignment) throw new BadRequestError('La asignatura no corresponde al paralelo y año del acta')
+  const alerts = await prisma.earlyAlert.findMany({
+    where: {
+      institutionId: ctx.institutionId, academicYearId: ctx.academicYearId,
+      academicPeriodId: ctx.academicPeriodId, courseAssignmentId: ctx.courseAssignmentId,
+      status: { in: ['OPEN', 'IN_PROGRESS'] },
+      student: { studentEnrollments: { some: { institutionId: ctx.institutionId, academicYearId: ctx.academicYearId, parallelId: ctx.parallelId } } },
+    },
+    select: {
+      studentId: true,
+      student: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+      currentScore: true, qualitativeCode: true,
+    },
+  })
+  return alerts.map((a) => ({ studentId: a.studentId, student: name(a.student), result: a.qualitativeCode ?? (a.currentScore != null ? Number(a.currentScore).toFixed(2) : 'Sin calificación') }))
+    .sort((a, b) => a.student.localeCompare(b.student, 'es'))
 }
 
 async function alertInfo(ctx: SnapshotContext) {
@@ -120,19 +152,20 @@ async function caseSnapshot(ctx: SnapshotContext) {
       communications: { orderBy: { date: 'asc' } },
       commitments: { orderBy: { createdAt: 'asc' } },
       followUps: { orderBy: { date: 'asc' } },
-      reevaluations: { orderBy: { date: 'asc' }, include: { outcomes: true } },
+      reevaluations: { orderBy: { date: 'asc' }, include: { outcomes: { where: ctx.studentId ? { studentId: ctx.studentId } : undefined } } },
       units: { orderBy: { temporalIndex: 'asc' } },
-      sessions: { orderBy: { date: 'asc' }, include: { attendances: true } },
+      sessions: { orderBy: { date: 'asc' }, include: { attendances: { where: ctx.studentId ? { studentId: ctx.studentId } : undefined } } },
     },
   })
   if (!p) return null
   return {
     caseStatus: p.caseStatus,
     cycleNumber: p.cycleNumber,
+    attendedClasses: p.sessions.filter((s) => s.attendances.some((a) => a.status === 'present')).length,
     detection: {
       source: p.detectionSourceCode,
       observation: p.detectionObservation,
-      initialResult: p.detectionInitialResult,
+      initialResult: !ctx.studentId || p.studentId === ctx.studentId ? p.detectionInitialResult : null,
       detectedOn: iso(p.detectedOn),
     },
     learningTarget: p.learningTargetTitle,
@@ -153,8 +186,8 @@ async function caseSnapshot(ctx: SnapshotContext) {
     reevaluations: p.reevaluations.map((r) => ({
       date: iso(r.date),
       evaluation: r.evaluation,
-      initialResult: r.initialResult,
-      subsequentResult: r.subsequentResult,
+      initialResult: !ctx.studentId || p.studentId === ctx.studentId ? r.initialResult : null,
+      subsequentResult: ctx.studentId ? r.outcomes.find((o) => o.studentId === ctx.studentId)?.assessmentValue ?? (p.studentId === ctx.studentId ? r.subsequentResult : null) : r.subsequentResult,
       decision: r.pedagogicalDecision,
       outcomes: r.outcomes.map((o) => ({ result: o.result, value: o.assessmentValue })),
     })),
@@ -170,7 +203,7 @@ async function sessionsSnapshot(ctx: SnapshotContext) {
   if (!ctx.reinforcementPlanId) return []
   const sessions = await prisma.reinforcementSession.findMany({
     where: { planId: ctx.reinforcementPlanId, institutionId: ctx.institutionId },
-    include: { attendances: { include: { student: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } } } } },
+    include: { attendances: { where: ctx.studentId ? { studentId: ctx.studentId } : undefined, include: { student: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } } } } },
     orderBy: { date: 'asc' },
   })
   return sessions.map((s) => ({

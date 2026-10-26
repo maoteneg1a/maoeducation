@@ -37,6 +37,7 @@ export function NormativeSettingsPage() {
     mutationFn: (c: ReportsFlowConfig) => normativeApi.updateReportsFlow(c),
     onSuccess: (res) => {
       qc.setQueryData(['reports-flow'], res)
+      qc.invalidateQueries({ queryKey: ['dossier'] })
       toast.success('Configuración de informes guardada')
     },
     onError: (e) => toast.error(getErrorMessage(e), { duration: 10000 }),
@@ -45,6 +46,7 @@ export function NormativeSettingsPage() {
     mutationFn: normativeApi.resetReportsFlow,
     onSuccess: (res) => {
       qc.setQueryData(['reports-flow'], res)
+      qc.invalidateQueries({ queryKey: ['dossier'] })
       toast.success('Configuración restaurada')
     },
     onError: (e) => toast.error(getErrorMessage(e)),
@@ -58,6 +60,21 @@ export function NormativeSettingsPage() {
       destructive: true,
     })
     if (ok) resetFlow.mutate()
+  }
+
+  const loadAnnexes = () => {
+    if (!draft || !flow.data) return
+    const next = structuredClone(draft)
+    const defaults = flow.data.defaults
+    const instance = defaults.instances.find((i) => i.key === 'subdireccion')
+    if (instance && !next.instances.some((i) => i.key === instance.key)) next.instances.push(structuredClone(instance))
+    for (const type of defaults.reportTypes.filter((t) => t.pdfTemplate)) {
+      const index = next.reportTypes.findIndex((t) => t.key === type.key)
+      if (index < 0) next.reportTypes.push(structuredClone(type))
+      else next.reportTypes[index] = structuredClone(type)
+    }
+    setDraft(next)
+    toast.info('Anexos cargados en el formulario. Revisa responsables y campos antes de guardar.')
   }
 
   if (profile.isLoading || flow.isLoading || !profile.data || !flow.data || !draft) return <PageLoader />
@@ -100,6 +117,16 @@ export function NormativeSettingsPage() {
           <RulesForm data={profile.data} />
         </TabsContent>
         <TabsContent value="reports" className="mt-4 space-y-4">
+          <div className="space-y-2 rounded-md border p-4">
+            <p className="text-sm font-medium">Los cinco anexos de refuerzo pedagógico</p>
+            <p className="text-sm text-muted-foreground">
+              Carga informe de alertas a las autoridades (Anexo 1), compromiso familiar, plan individual, avances y asistencia.
+              Sustituye esos cinco modelos en este formulario. Guarda para usarlos en nuevos informes.
+              En la instancia Subdirección / responsable del refuerzo selecciona las personas correspondientes;
+              inicialmente se dirige al rol Rector. Los anexos conservan el membrete, texto, tablas y firmas del Word original.
+            </p>
+            <Button variant="outline" onClick={loadAnnexes}>Cargar los cinco anexos</Button>
+          </div>
           <ReportsFlowEditor
             config={draft}
             onChange={setDraft}
@@ -111,7 +138,7 @@ export function NormativeSettingsPage() {
           {flowActions}
         </TabsContent>
         <TabsContent value="dossier" className="mt-4 space-y-4">
-          <DossierEditor config={draft} onChange={setDraft} roles={flow.data.roles} />
+          <DossierEditor config={draft} onChange={setDraft} roles={flow.data.roles} defaults={flow.data.defaults} />
           {flowActions}
         </TabsContent>
       </Tabs>

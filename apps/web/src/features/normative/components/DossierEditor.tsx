@@ -32,11 +32,12 @@ function move<T>(list: T[], i: number, dir: -1 | 1): T[] {
 }
 
 export function DossierEditor({
-  config, onChange, roles,
+  config, onChange, roles, defaults,
 }: {
   config: ReportsFlowConfig
   onChange: (c: ReportsFlowConfig) => void
   roles: Array<{ name: string; label: string }>
+  defaults: ReportsFlowConfig
 }) {
   const d = config.dossier
   const a = config.attachments
@@ -55,9 +56,9 @@ export function DossierEditor({
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <CardTitle className="text-base">Expediente de respaldo</CardTitle>
+              <CardTitle className="text-base">Checklist de respaldo ante riesgo de reprobar</CardTitle>
               <CardDescription>
-                Lista de documentos que se verifican por estudiante (p. ej. en caso de reprobar el año). Solo cuentan los informes con acuse de recibo.
+                Documentos por estudiante, año y asignatura en seguimiento. Se completan con informes de Auleka o PDF y escaneados. Los documentos con firma requieren su respaldo firmado.
               </CardDescription>
             </div>
             <Button
@@ -74,6 +75,7 @@ export function DossierEditor({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Button variant="outline" onClick={() => setDossier({ items: structuredClone(defaults.dossier.items) })}>Cargar checklist de los 13 documentos</Button>
           <CheckField label="Expediente activo" checked={d.enabled} onChange={(v) => setDossier({ enabled: v })} />
           <CheckGroup
             label="Subniveles a los que aplica (ninguno = todos)"
@@ -106,8 +108,9 @@ export function DossierEditor({
                   </Button>
                 </div>
                 <div className="flex flex-wrap gap-x-6 gap-y-1 md:col-span-5">
-                  <CheckField label="Por cada asignatura en riesgo" checked={it.perSubject} onChange={(v) => setItem(i, { perSubject: v })} />
-                  <CheckField label="Opcional (solo si existe el antecedente)" checked={it.optional} onChange={(v) => setItem(i, { optional: v })} />
+                  <CheckField label="Por asignatura en seguimiento" checked={it.perSubject} onChange={(v) => setItem(i, { perSubject: v })} />
+                  <CheckField label="Si corresponde (permite justificar que no aplica)" checked={it.optional} onChange={(v) => setItem(i, { optional: v })} />
+                  <CheckField label="Requiere respaldo firmado" checked={it.requiresSignature === true} onChange={(v) => setItem(i, { requiresSignature: v })} />
                 </div>
               </div>
             ))}

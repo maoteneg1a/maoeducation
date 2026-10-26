@@ -1,9 +1,46 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_REPORTS_FLOW, extractReportsFlow, validateReportsFlow } from './reports-flow'
+import { REINFORCEMENT_ANNEXES, withReinforcementAnnexes } from './reinforcement-annexes'
 
 const clone = () => structuredClone(DEFAULT_REPORTS_FLOW)
 
 describe('reports flow — configuración por institución', () => {
+  it('separa el Anexo 1 grupal del documento 7 del checklist, que sigue siendo un informe al tutor', () => {
+    const cfg = clone()
+    const tutor = cfg.reportTypes.findIndex((t) => t.key === 'bajo_rendimiento_tutor')
+    cfg.reportTypes[tutor] = { ...cfg.reportTypes.find((t) => t.key === 'acta_entrega_alertas')!, key: 'bajo_rendimiento_tutor' }
+    cfg.reportTypes = cfg.reportTypes.filter((t) => t.key !== 'acta_entrega_alertas')
+    const result = extractReportsFlow({ reportsFlow: cfg })
+    expect(result.reportTypes.find((t) => t.key === 'acta_entrega_alertas')).toMatchObject({ snapshot: 'early_alerts', scope: 'parallel', to: 'subdireccion' })
+    expect(result.reportTypes.find((t) => t.key === 'bajo_rendimiento_tutor')).toMatchObject({ snapshot: 'grades', scope: 'student', to: 'tutor' })
+    expect(result.dossier.items.find((i) => i.key === 'd7')).toMatchObject({ reportType: 'bajo_rendimiento_tutor', minCount: 3 })
+    expect(result.reportTypes.filter((t) => t.pdfTemplate === 'annex_alerts')).toHaveLength(1)
+  })
+  it('adapta los cinco anexos sin eliminar informes propios ni cambiar el expediente', () => {
+    const cfg = clone()
+    cfg.reportTypes.push({ ...cfg.reportTypes[0], key: 'informe_propio', label: 'Informe propio' })
+    cfg.instances.find((i) => i.key === 'subdireccion')!.role = 'inspector'
+    const next = withReinforcementAnnexes(cfg)
+    expect(next.reportTypes.filter((t) => t.pdfTemplate)).toHaveLength(5)
+    expect(next.reportTypes.find((t) => t.key === 'informe_propio')).toEqual(cfg.reportTypes.at(-1))
+    expect(next.instances.find((i) => i.key === 'subdireccion')?.role).toBe('inspector')
+    expect(next.dossier).toEqual(cfg.dossier)
+    expect(withReinforcementAnnexes(next)).toEqual(next)
+    expect(validateReportsFlow(next)).toEqual([])
+  })
+
+  it('mantiene una configuración previamente guardada hasta cargar los anexos explícitamente', () => {
+    const cfg = clone()
+    cfg.reportTypes = [{ ...cfg.reportTypes[0], pdfTemplate: undefined, fields: [] }]
+    expect(extractReportsFlow({ reportsFlow: cfg }).reportTypes).toEqual(cfg.reportTypes)
+    expect(REINFORCEMENT_ANNEXES.find((t) => t.pdfTemplate === 'annex_plan')?.fields.map((f) => f.key)).toEqual(expect.arrayContaining(['lengua_competencia', 'matematica_indicador', 'matematica_saberes', 'horario', 'entorno', 'agrupacion']))
+  })
+
+  it('rechaza una nómina de alertas configurada para representantes', () => {
+    const cfg = clone()
+    cfg.reportTypes.find((t) => t.pdfTemplate === 'annex_alerts')!.to = 'representante'
+    expect(validateReportsFlow(cfg).some((e) => e.includes('destinatario del personal'))).toBe(true)
+  })
   it('el preset es válido', () => {
     expect(validateReportsFlow(DEFAULT_REPORTS_FLOW)).toEqual([])
   })

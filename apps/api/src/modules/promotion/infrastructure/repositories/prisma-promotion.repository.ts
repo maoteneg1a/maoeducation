@@ -1,3 +1,4 @@
+import { computePeriodGrades } from '../../../../shared/infrastructure/services/period-grades.service'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { BadRequestError, ConflictError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import {
@@ -226,6 +227,7 @@ export class PrismaPromotionRepository {
     })
     const decisionByStudent = new Map(decisions.map((d) => [d.studentId, d]))
 
+    const canonical = await computePeriodGrades(institutionId, { assignmentIds, periodIds, studentIds, gradingScaleMax })
     const students = enrollments
       .map((e) => {
         const sId = e.studentId
@@ -235,8 +237,7 @@ export class PrismaPromotionRepository {
         const subjects: PromotionSubjectDto[] = assignments.map((a) => {
           const annualByPeriod = periodIds.map((pId) => {
             const groups = bucket.get(key(sId, a.id, pId))
-            if (!groups) return null
-            const rawTotal = computePeriodSummary([...groups.values()], a.examWeight, gradingScaleMax, a.projectWeight ?? undefined).total
+            const rawTotal = canonical.get(`${sId}:${a.id}:${pId}`)?.total ?? (groups ? computePeriodSummary([...groups.values()], a.examWeight, gradingScaleMax, a.projectWeight ?? undefined).total : null)
             const pedRec = pedRecMap.get(`${sId}:${a.id}:${pId}`) ?? null
             if (!agreement) return applyRecovery(rawTotal, pedRec, pedRecoveryMode)
             return applyDecimals(

@@ -1,3 +1,4 @@
+import { computePeriodGrades } from '../../../shared/infrastructure/services/period-grades.service'
 import { bulletinGradeColumns } from '../application/services/bulletin-grade-columns'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { NotFoundError } from '../../../shared/domain/errors/app.errors'
@@ -178,6 +179,7 @@ export class PrismaReportRepository {
       }
     }
 
+    const canonical = await computePeriodGrades(institutionId, { assignmentIds: [assignment.id], periodIds: [query.periodId], studentIds: enrollments.map((e) => e.studentId), gradingScaleMax })
     const examWeight = assignment.examWeight ?? 30
 
     return {
@@ -198,11 +200,11 @@ export class PrismaReportRepository {
         }))
         const studentManual = manualByStudent.get(e.studentId) ?? new Map<string, number>()
         const summary = {
-          ...this.applyManualInsumoAverages(
+          ...(canonical.get(`${e.studentId}:${assignment.id}:${query.periodId}`) ?? this.applyManualInsumoAverages(
             computePeriodSummary(groups, examWeight, gradingScaleMax, assignment.projectWeight ?? undefined),
             studentManual,
             examWeight,
-          ),
+          )),
           examWeight,
         }
         return {
@@ -235,6 +237,7 @@ export class PrismaReportRepository {
       orderBy: { subject: { name: 'asc' } },
     })
 
+    const canonical = await computePeriodGrades(institutionId, { assignmentIds: assignments.map((a) => a.id), periodIds: [periodId], studentIds: [studentId], gradingScaleMax })
     const results = []
     for (const assignment of assignments) {
       const insumos = await prisma.insumo.findMany({
@@ -296,7 +299,7 @@ export class PrismaReportRepository {
         where: { institutionId, studentId, insumoId: { in: insumos.map((insumo) => insumo.id) }, score: { not: null } },
         select: { insumoId: true, score: true },
       })
-      const summary = this.applyManualInsumoAverages(
+      const summary = canonical.get(`${studentId}:${assignment.id}:${periodId}`) ?? this.applyManualInsumoAverages(
         computePeriodSummary(groups, examWeight, gradingScaleMax, assignment.projectWeight ?? undefined),
         new Map(manualRows.map((row) => [row.insumoId, Number(row.score)])),
         examWeight,
@@ -779,6 +782,7 @@ export class PrismaReportRepository {
       (institution?.settings as { gradingConfig?: { qualitativeValueScale?: QualitativeBand[] } } | null)
         ?.gradingConfig?.qualitativeValueScale ?? DEFAULT_QUALITATIVE_VALUE_SCALE
 
+    const canonical = await computePeriodGrades(institutionId, { assignmentIds, periodIds, studentIds: [query.studentId], gradingScaleMax })
     const subjects = assignments.map((assignment) => {
       const isQualitative = assignment.subject.isQualitative
       const periodGrades = periods.map((period) => {
@@ -788,7 +792,7 @@ export class PrismaReportRepository {
             .filter((row) => row.insumo.courseAssignmentId === assignment.id && row.insumo.academicPeriodId === period.id)
             .map((row) => [row.insumoId, Number(row.score)]),
         )
-        const s = this.applyManualInsumoAverages(
+        const s = canonical.get(`${query.studentId}:${assignment.id}:${period.id}`) ?? this.applyManualInsumoAverages(
           computePeriodSummary(groups, assignment.examWeight, gradingScaleMax, assignment.projectWeight ?? undefined),
           manualMap,
           assignment.examWeight,

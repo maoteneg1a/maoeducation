@@ -27,7 +27,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'incidentes', label: 'Incidentes' },
   { id: 'actas', label: 'Actas' },
   { id: 'atenciones', label: 'Atenciones' },
-  { id: 'expediente', label: 'Expediente de respaldo' },
+  { id: 'expediente', label: 'Bitácora de respaldo' },
 ]
 
 const STATUS_LABELS: Record<string, string> = {

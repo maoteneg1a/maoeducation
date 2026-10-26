@@ -1,3 +1,4 @@
+import { FormativeResultTab } from '../components/FormativeResultTab'
 import * as React from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -99,11 +100,13 @@ export function ReinforcementCaseDetailPage() {
         <TabsList className="flex-wrap">
           <TabsTrigger value="summary">Resumen del caso</TabsTrigger>
           <TabsTrigger value="sessions">Sesiones y asistencia ({data.sessions.length})</TabsTrigger>
+          <TabsTrigger value="formative">Resultado formativo</TabsTrigger>
           <TabsTrigger value="files">Archivos ({data.attachments.length})</TabsTrigger>
           <TabsTrigger value="reports">Informes ({data.reports.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="summary"><CaseSummaryTab kase={k} /></TabsContent>
         <TabsContent value="sessions"><SessionsTab planId={id} detail={data} /></TabsContent>
+        <TabsContent value="formative"><FormativeResultTab planId={id} detail={data} /></TabsContent>
         <TabsContent value="files"><AttachmentsTab planId={id} detail={data} /></TabsContent>
         <TabsContent value="reports"><ReportsTab planId={id} detail={data} /></TabsContent>
       </Tabs>
@@ -146,6 +149,7 @@ function ReportsTab({ planId, detail }: { planId: string; detail: CaseDetail }) 
         </div>
       )}
       <ReportComposerDialog
+        students={detail.students}
         open={open}
         onOpenChange={setOpen}
         context={{

@@ -71,7 +71,7 @@ export interface NormativeProfileResponse {
 export type InstanceResolver = 'tutor_of_parallel' | 'teachers_of_parallel' | 'role' | 'users' | 'guardians_of_student'
 export type ReportScope = 'student' | 'parallel' | 'institution'
 export type ReportFieldType = 'text' | 'textarea' | 'date'
-export type ReportSnapshotSource = 'none' | 'grades' | 'reinforcement_case' | 'reinforcement_sessions'
+export type ReportSnapshotSource = 'none' | 'grades' | 'reinforcement_case' | 'reinforcement_sessions' | 'early_alerts'
 export type DossierSource = 'formal_report' | 'parent_meetings' | 'reinforcement_case' | 'enrollment_adaptation'
 
 export interface ReportInstance {
@@ -88,6 +88,7 @@ export interface ReportField {
   type: ReportFieldType
   required: boolean
   placeholder?: string
+  defaultValue?: string
 }
 
 export interface ReportTypeConfig {
@@ -107,6 +108,7 @@ export interface ReportTypeConfig {
   confidential: boolean
   canDeriveTo: string[]
   pdfTitle: string
+  pdfTemplate?: 'annex_alerts' | 'annex_commitment' | 'annex_plan' | 'annex_progress' | 'annex_attendance'
   pdfFooter?: string
   signatures: string[]
 }
@@ -119,6 +121,7 @@ export interface DossierItem {
   minCount: number
   perSubject: boolean
   optional: boolean
+  requiresSignature?: boolean
 }
 
 export interface AttachmentCategory {
@@ -186,6 +189,7 @@ export const RESOLVER_LABEL: Record<InstanceResolver, string> = {
 }
 
 export const SNAPSHOT_LABEL: Record<ReportSnapshotSource, string> = {
+  early_alerts: 'Nómina de alertas del paralelo (personal de la institución)',
   none: 'Ninguno',
   grades: 'Notas del periodo (motor de notas)',
   reinforcement_case: 'Resumen del caso de refuerzo',

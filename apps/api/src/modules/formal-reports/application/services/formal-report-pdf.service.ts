@@ -1,11 +1,14 @@
 import PDFDocument from 'pdfkit'
 import { resolveLogo, drawHeader, drawWatermark } from '../../../../shared/infrastructure/services/pdf-helpers'
 import type { ReportField } from '../../../../shared/domain/reports-flow'
+import type { ReportPdfTemplate } from '../../../../shared/domain/reinforcement-annexes'
+import { buildOriginalAnnexPdf } from './original-annex-document.service'
 
 export interface FormalReportPdfData {
   institutionName: string
   logoUrl?: string | null
   title: string
+  pdfTemplate?: ReportPdfTemplate
   footer?: string | null
   folio: string | null
   status: string
@@ -34,6 +37,8 @@ const STATUS_LABEL: Record<string, string> = {
 const ATTENDANCE_LABEL: Record<string, string> = { present: 'Asistió', absent: 'No asistió', justified: 'Justificado' }
 
 type Snap = {
+  academicYear?: { name: string } | null
+  framework?: string
   student?: { name: string; dni: string | null } | null
   parallel?: { name: string; tutor: string | null } | null
   subject?: { name: string; teacher: string } | null
@@ -54,6 +59,7 @@ type Snap = {
 
 /** PDF de un informe formal. Los borradores llevan marca "BORRADOR". */
 export function buildFormalReportPdf(data: FormalReportPdfData): Promise<Buffer> {
+  if (data.pdfTemplate) return buildOriginalAnnexPdf(data)
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 50 })
     const chunks: Buffer[] = []
@@ -66,9 +72,11 @@ export function buildFormalReportPdf(data: FormalReportPdfData): Promise<Buffer>
     drawHeader(doc, logo, data.institutionName, data.title)
 
     if (data.status === 'DRAFT') {
+      const { x, y } = doc
       doc.save().rotate(-30, { origin: [300, 420] }).fontSize(70).fillColor('#dc2626').opacity(0.12)
         .text('BORRADOR', 80, 380, { width: 450, align: 'center' }).restore()
       doc.opacity(1).fillColor('black')
+      doc.x = x; doc.y = y
     }
 
     const snap = data.snapshot as Snap
@@ -89,10 +97,12 @@ export function buildFormalReportPdf(data: FormalReportPdfData): Promise<Buffer>
     row('Elaborado por', data.authorName)
     row('Dirigido a', `${data.recipientLabel}${data.recipientNames.length ? ` — ${data.recipientNames.join(', ')}` : ''}`)
     row('Fecha de envío', fmtDate(data.sentAt))
+    if (snap.academicYear) row('Año lectivo', snap.academicYear.name)
+    if (data.pdfTemplate && snap.framework) row('Marco normativo del año', snap.framework === 'LEGACY' ? 'Marco anterior (Acuerdo 2024-00031-A)' : snap.framework)
     if (data.receivedAt) row('Acuse de recibo', `${fmtDate(data.receivedAt)}${data.receivedByName ? ` — ${data.receivedByName}` : ''}`)
 
     if (snap.student || snap.parallel || snap.subject || snap.period) {
-      section('Datos del estudiante')
+      section(snap.student ? 'Datos del estudiante' : 'Datos académicos')
       if (snap.student) row('Estudiante', `${snap.student.name}${snap.student.dni ? ` (C.I. ${snap.student.dni})` : ''}`)
       if (snap.parallel) row('Grado/curso', `${snap.parallel.name}${snap.parallel.tutor ? ` — Tutor: ${snap.parallel.tutor}` : ''}`)
       if (snap.subject) row('Asignatura', `${snap.subject.name} — Docente: ${snap.subject.teacher}`)
@@ -122,6 +132,7 @@ export function buildFormalReportPdf(data: FormalReportPdfData): Promise<Buffer>
     if (data.fields.length) {
       section('Contenido')
       for (const f of data.fields) {
+        doc.x = 50
         doc.font('Helvetica-Bold').fontSize(9.5).text(f.label)
         doc.font('Helvetica').text(data.content[f.key]?.trim() || '—', { align: 'justify' })
         doc.moveDown(0.4)
@@ -129,7 +140,7 @@ export function buildFormalReportPdf(data: FormalReportPdfData): Promise<Buffer>
     }
 
     const rc = snap.reinforcementCase
-    if (rc) {
+    if (rc && data.pdfTemplate !== 'annex_plan' && data.pdfTemplate !== 'annex_progress') {
       section('Plan de refuerzo pedagógico')
       if (rc.learningTarget) row('Aprendizaje a reforzar', rc.learningTarget)
       row('Objetivo', rc.proposal.objective)
@@ -154,7 +165,7 @@ export function buildFormalReportPdf(data: FormalReportPdfData): Promise<Buffer>
       }
     }
 
-    if (snap.sessions?.length) {
+    if (snap.sessions?.length && data.pdfTemplate !== 'annex_attendance') {
       section('Registro de asistencia al refuerzo')
       for (const s of snap.sessions) {
         doc.font('Helvetica-Bold').fontSize(9.5).text(`${s.date ?? ''} — ${s.title}`)

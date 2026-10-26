@@ -1,3 +1,4 @@
+import type { FormativeReinforcementConfig } from '@/features/settings/api/settings.api'
 import { apiClient, apiDelete, apiGet, apiPatch, apiPost, apiPut } from '@/shared/lib/api-client'
 
 export type CaseStatus = 'DETECTED' | 'PLANNED' | 'IN_REINFORCEMENT' | 'EVALUATED' | 'CLOSED' | 'CONTINUES_REINFORCEMENT'
@@ -174,9 +175,43 @@ export interface AttendanceInput {
   observation?: string | null
 }
 
+export interface FormativeResultInput {
+  studentId: string
+  activityIds: string[]
+  sessionIds: string[]
+  reason?: string
+  revoke?: boolean
+  expectedPreviewToken?: string
+  expectedResultId?: string | null
+}
+export interface FormativeHistory {
+  id: string
+  studentId: string
+  planId: string
+  recordedBy: string
+  recordedByName: string
+  createdAt: string
+  reason: string
+  payload: FormativeReinforcementConfig & { activityIds: string[]; score: number | null; initialFormative: number | null; adjustedFormative: number | null }
+}
+export interface FormativeOptions {
+  policy: FormativeReinforcementConfig
+  scale: number
+  canApply: boolean
+  history: FormativeHistory[]
+}
+export interface FormativePreview {
+  previewToken: string
+  application: FormativeReinforcementConfig & { score: number | null }
+  initial: { formative: number | null; total: number | null }
+  adjusted: { formative: number | null; total: number | null }
+}
 const base = 'reinforcement-desk/cases'
 
 export const reinforcementDeskApi = {
+  formativeOptions: (id: string) => apiGet<FormativeOptions>(`${base}/${id}/formative`),
+  previewFormative: (id: string, data: FormativeResultInput) => apiPost<FormativePreview>(`${base}/${id}/formative/preview`, data),
+  applyFormative: (id: string, data: FormativeResultInput) => apiPost<FormativeHistory>(`${base}/${id}/formative/apply`, data),
   list: (params: ListCasesParams) => apiGet<CaseListItem[]>(base, params as Record<string, string | undefined>),
   detail: (id: string) => apiGet<CaseDetail>(`${base}/${id}`),
   activities: (id: string) => apiGet<CaseActivity[]>(`${base}/${id}/activities`),

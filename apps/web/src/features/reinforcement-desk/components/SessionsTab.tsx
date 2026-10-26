@@ -43,14 +43,14 @@ export function SessionsTab({ planId, detail }: Props) {
     queryKey: ['reinforcement-desk-activities', planId],
     queryFn: () => reinforcementDeskApi.activities(planId),
   })
+  const { data: formative } = useQuery({ queryKey: ['reinforcement-formative', planId], queryFn: () => reinforcementDeskApi.formativeOptions(planId) })
   const activityById = new Map(activities.map((a) => [a.id, a]))
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          Cada sesión registra la asistencia al refuerzo. Si apunta a una actividad original, la nota se aplica a esa
-          actividad con las reglas de la institución.
+          {formative?.policy.mode ? 'Registra las actividades del plan, su horario y asistencia. Las notas formativas se aplican desde Resultado formativo, después de revisar la vista previa. Puedes dejar prácticas sin nota.' : 'Cada sesión registra la asistencia al refuerzo. Si apunta a una actividad original, la nota se aplica con las reglas de la institución.'}
         </p>
         {detail.canEdit && (
           <Button size="sm" onClick={() => setEditing('new')}><Plus className="mr-1.5 h-4 w-4" /> Nueva sesión</Button>
@@ -65,6 +65,7 @@ export function SessionsTab({ planId, detail }: Props) {
             key={s.id}
             planId={planId}
             session={s}
+            formativeScale={formative?.policy.mode ? formative.scale : undefined}
             detail={detail}
             activity={s.targetActivityId ? activityById.get(s.targetActivityId) ?? null : null}
             onEdit={() => setEditing(s)}
@@ -78,6 +79,7 @@ export function SessionsTab({ planId, detail }: Props) {
           session={editing === 'new' ? null : editing}
           activities={activities}
           students={detail.students}
+          formativeEnabled={!!formative?.policy.mode}
           onClose={() => setEditing(null)}
         />
       )}
@@ -91,14 +93,18 @@ function SessionCard({
   detail,
   activity,
   onEdit,
+  formativeScale,
 }: {
   planId: string
   session: CaseSession
   detail: CaseDetail
   activity: CaseActivity | null
   onEdit: () => void
+  formativeScale?: number
 }) {
   const qc = useQueryClient()
+  const formativeMode = formativeScale != null && !activity?.summative
+  const showScore = !!activity || formativeMode
   type Row = { status: AttendanceStatus; score: string; observation: string }
   const initial = React.useCallback((): Record<string, Row> => {
     const out: Record<string, Row> = {}
@@ -114,13 +120,14 @@ function SessionCard({
   const save = useMutation({
     mutationFn: () => reinforcementDeskApi.saveAttendance(planId, session.id, detail.students.map((st) => {
       const r = rows[st.id]
-      const score = r.status === 'present' && session.targetActivityId && r.score.trim() !== '' ? Number(r.score) : null
+      const score = r.status === 'present' && showScore && r.score.trim() !== '' ? Number(r.score) : null
       return { studentId: st.id, status: r.status, score, observation: r.observation || null }
     })),
     onSuccess: () => {
       toast.success('Asistencia guardada')
       qc.invalidateQueries({ queryKey: ['reinforcement-desk-detail', planId] })
       qc.invalidateQueries({ queryKey: ['reinforcement-desk-activities', planId] })
+      qc.invalidateQueries({ queryKey: ['reinforcement-formative', planId] })
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   })
@@ -137,7 +144,7 @@ function SessionCard({
   async function onDelete() {
     const ok = await confirmDialog({
       title: 'Eliminar sesión',
-      description: 'Se eliminará la sesión y su asistencia. Las notas que esta sesión aplicó a la actividad original se revertirán a la nota inicial.',
+      description: formativeMode ? 'Se eliminará la sesión y su asistencia. Los resultados formativos ya aplicados conservan sus evidencias y calificaciones; puedes retirarlos desde Resultado formativo.' : 'Se eliminará la sesión y su asistencia. Las notas que esta sesión aplicó a la actividad original se revertirán a la nota inicial.',
       confirmText: 'Eliminar',
       destructive: true,
     })
@@ -156,7 +163,7 @@ function SessionCard({
             <p className="mt-1 text-xs text-muted-foreground">
               {activity
                 ? <>Actividad original: <span className="font-medium">{activity.name}</span> ({activity.type}{activity.summative ? ' · sumativa' : ' · formativa'}, sobre {activity.maxScore})</>
-                : 'Sin actividad original: solo registra asistencia y observaciones.'}
+                : formativeMode ? `Actividad del plan de refuerzo. Calificación opcional sobre ${formativeScale}.` : 'Sin actividad original: solo registra asistencia y observaciones.'}
             </p>
           </div>
           {detail.canEdit && (
@@ -174,8 +181,8 @@ function SessionCard({
                 <th className="py-2 pr-2">Estudiante</th>
                 <th className="py-2 pr-2">Asistencia</th>
                 {activity && <th className="py-2 pr-2">Nota inicial</th>}
-                {activity && <th className="py-2 pr-2">Nota de refuerzo</th>}
-                {activity && <th className="py-2 pr-2">Registrada</th>}
+                {showScore && <th className="py-2 pr-2">{formativeMode ? `Resultado / ${formativeScale}` : 'Nota de refuerzo'}</th>}
+                {activity && !formativeMode && <th className="py-2 pr-2">Registrada</th>}
                 <th className="py-2 pr-2">Observación</th>
               </tr>
             </thead>
@@ -185,7 +192,7 @@ function SessionCard({
                 if (!r) return null
                 const att = session.attendances.find((x) => x.studentId === st.id)
                 const original = activity?.grades.find((g) => g.studentId === st.id)?.original ?? null
-                const canScore = detail.canEdit && !!activity && r.status === 'present'
+                const canScore = detail.canEdit && showScore && r.status === 'present'
                 return (
                   <tr key={st.id} className="border-b last:border-0">
                     <td className="py-2 pr-2 font-medium">{st.name}</td>
@@ -200,13 +207,13 @@ function SessionCard({
                       ) : ATTENDANCE_LABEL[r.status]}
                     </td>
                     {activity && <td className="py-2 pr-2">{n(original)}</td>}
-                    {activity && (
+                    {showScore && (
                       <td className="py-2 pr-2">
                         <Input
                           type="number"
                           step="0.01"
                           min={0}
-                          max={activity.maxScore}
+                          max={formativeMode ? formativeScale : activity?.maxScore}
                           className="h-8 w-24"
                           value={r.score}
                           disabled={!canScore}
@@ -214,7 +221,7 @@ function SessionCard({
                         />
                       </td>
                     )}
-                    {activity && (
+                    {activity && !formativeMode && (
                       <td className="py-2 pr-2 text-xs">
                         {att?.appliedScore != null ? (
                           <div>
@@ -256,12 +263,14 @@ function SessionDialog({
   session,
   activities,
   students,
+  formativeEnabled,
   onClose,
 }: {
   planId: string
   session: CaseSession | null
   activities: CaseActivity[]
   students: Array<{ id: string; name: string }>
+  formativeEnabled: boolean
   onClose: () => void
 }) {
   const qc = useQueryClient()
@@ -290,9 +299,7 @@ function SessionDialog({
         <DialogHeader>
           <DialogTitle>{session ? 'Editar sesión' : 'Nueva sesión de refuerzo'}</DialogTitle>
           <DialogDescription>
-            La nota se aplica con las reglas configuradas por la institución: en actividades formativas se promedia con
-            la nota inicial hasta el tope; en sumativas aplica la mejora directa o con refuerzo, con sus límites por
-            asignatura y por año.
+            {formativeEnabled ? 'Registra una actividad del plan de refuerzo y su fecha. Su calificación formativa es opcional y se aplica desde Resultado formativo. Las evaluaciones sumativas conservan su procedimiento individual.' : 'La nota se aplica a la actividad original con las reglas de mejora configuradas por la institución.'}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -315,7 +322,7 @@ function SessionDialog({
             <Select value={target} onValueChange={setTarget}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>Sin actividad original (solo asistencia)</SelectItem>
+                <SelectItem value={NONE}>{formativeEnabled ? 'Actividad del plan sin actividad original' : 'Sin actividad original (solo asistencia)'}</SelectItem>
                 {activities.map((a) => (
                   <SelectItem key={a.id} value={a.id}>
                     {a.name} · {a.type}{a.summative ? ' (sumativa)' : ''}{a.date ? ` · ${a.date}` : ''}

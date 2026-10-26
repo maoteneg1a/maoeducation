@@ -10,6 +10,7 @@ export interface ReportField {
   type: ReportFieldType
   required: boolean
   placeholder?: string
+  defaultValue?: string
 }
 
 export interface ReportTypeConfig {
@@ -22,13 +23,14 @@ export interface ReportTypeConfig {
   to: string
   triggeredByAlert: boolean
   requiresReinforcementCase: boolean
-  snapshot: 'none' | 'grades' | 'reinforcement_case' | 'reinforcement_sessions'
+  snapshot: 'none' | 'grades' | 'reinforcement_case' | 'reinforcement_sessions' | 'early_alerts'
   fields: ReportField[]
   ackDeadlineDays: number
   escalateTo?: string | null
   confidential: boolean
   canDeriveTo: string[]
   pdfTitle: string
+  pdfTemplate?: 'annex_alerts' | 'annex_commitment' | 'annex_plan' | 'annex_progress' | 'annex_attendance'
   pdfFooter?: string
   signatures: string[]
 }
@@ -168,9 +170,13 @@ export const formalReportsApi = {
     const blob = await apiClient.get(`formal-reports/${id}/attachments/${attachmentId}`).blob()
     saveBlob(blob, fileName)
   },
-  pdfBlob: (id: string) => apiClient.get(`formal-reports/${id}/pdf`, { timeout: 60000 }).blob(),
+  pdfBlob: (id: string) => apiClient.get(`formal-reports/${id}/pdf`, { timeout: 150000 }).blob(),
   downloadPdf: async (id: string, fileName: string) => {
-    const blob = await apiClient.get(`formal-reports/${id}/pdf`, { timeout: 60000 }).blob()
+    const blob = await apiClient.get(`formal-reports/${id}/pdf`, { timeout: 150000 }).blob()
+    saveBlob(blob, fileName)
+  },
+  downloadDocx: async (id: string, fileName: string) => {
+    const blob = await apiClient.get(`formal-reports/${id}/docx`).blob()
     saveBlob(blob, fileName)
   },
   reportsFlow: () =>
