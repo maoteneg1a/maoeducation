@@ -113,6 +113,14 @@ Password: Admin1234!
 Institution code: ESCUELA_DEMO
 ```
 
+## Usabilidad para docentes y directivos
+
+- Priorizar pocos clics y pocos datos por completar. Reutilizar el contexto y los datos ya registrados.
+- Preferir selectores y opciones sugeridas, conservando la posibilidad de escribir un caso particular.
+- Mostrar la siguiente acción; agrupar opciones secundarias sin ocultar tareas pendientes importantes.
+- Las sugerencias requieren confirmación del usuario. No inventar hechos pedagógicos, firmas, horarios o resultados, ni aplicar cambios de notas automáticamente.
+- Mantener separados el estado académico, la valoración del aprendizaje y la recepción de documentos.
+
 ## Key Domain Concepts
 
 - **Periodo académico:** trimestres (default, 3) or quimestres (2) — driven by `academic_period_schemes`, never hardcoded

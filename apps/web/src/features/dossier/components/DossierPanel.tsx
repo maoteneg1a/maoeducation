@@ -43,6 +43,7 @@ export function DossierPanel({ studentId }: { studentId: string }) {
   const [observation, setObservation] = React.useState('')
   const [exception, setException] = React.useState<DossierItem | null>(null)
   const [reason, setReason] = React.useState('')
+  const autoCase = React.useRef('')
   const onError = (e: unknown) => toast.error(getErrorMessage(e))
   const refresh = () => qc.invalidateQueries({ queryKey: ['dossier', studentId] })
   const context = (item: DossierItem) => ({ studentId, academicYearId: yearId, courseAssignmentId: subjectId || undefined, itemKey: item.key })
@@ -54,6 +55,12 @@ export function DossierPanel({ studentId }: { studentId: string }) {
   React.useEffect(() => { if (!periodId && periods.length) setPeriodId(periods.find((p) => p.isActive)?.id || periods[0].id) }, [periodId, periods])
   const { data, isLoading, isError, error } = useQuery({ queryKey: ['dossier', studentId, yearId, subjectId], queryFn: () => getDossier(studentId, yearId, subjectId || undefined), enabled: !!yearId })
   React.useEffect(() => { if (!subjectId && data?.subjects.length) setSubjectId(data.subjects[0].id) }, [data, subjectId])
+  React.useEffect(() => {
+    const context = `${studentId}:${yearId}:${subjectId}:${periodId}`
+    if (caseId !== 'none' || !subjectId || !periodId || autoCase.current === context) return
+    const matches = data?.cases.filter((entry) => entry.periodId === periodId) ?? []
+    if (matches.length === 1) { autoCase.current = context; setCaseId(matches[0].id) }
+  }, [data, studentId, yearId, subjectId, periodId, caseId])
   const selectedCase = data?.cases.find((c) => c.id === caseId)
   const saveFile = useMutation({ mutationFn: () => uploadDossierFile(context(upload!), file!, signed, observation), onSuccess: () => { toast.success('Documento agregado a la bitácora'); setUpload(null); setFile(null); refresh() }, onError })
   const removeFile = useMutation({ mutationFn: removeDossierFile, onSuccess: () => { toast.success('Archivo retirado'); refresh() }, onError })

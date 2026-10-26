@@ -1,4 +1,5 @@
 import { StartReinforcementDialog } from '@/features/reinforcement-desk/components/StartReinforcementDialog'
+import { CASE_STATUS_LABEL } from '@/features/reinforcement-desk/api/reinforcement-desk.api'
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
@@ -204,7 +205,7 @@ export function EarlyAlertsPage() {
         context={composerFor ? { alertId: composerFor.id, reinforcementPlanId: composerFor.reinforcementCase?.id } : {}}
         existingReports={composerFor?.reports.filter((r) => r.grouped && r.reportId).map((r) => ({ typeKey: r.typeKey, reportId: r.reportId! }))}
       />
-      <StartReinforcementDialog alerts={startAlerts} onClose={() => setStartAlerts([])} />
+      <StartReinforcementDialog alerts={startAlerts} periodId={periodId} onClose={() => setStartAlerts([])} />
       <DismissDialog alert={dismissFor} onClose={() => setDismissFor(null)} onDone={refresh} />
       <LinkCaseDialog alert={linkFor} periodId={periodId} onClose={() => setLinkFor(null)} onDone={refresh} onStart={() => { if (linkFor) setStartAlerts([linkFor]); setLinkFor(null) }} />
     </div>
@@ -246,7 +247,7 @@ function AlertCard({ a, onCompose, onDismiss, onReopen, onLink, onStart, selecte
           {a.dismissedReason && <p className="text-xs text-muted-foreground">Descartada: {a.dismissedReason}</p>}
           <p className="text-xs">
             {a.reinforcementCase ? (
-              <Link className="text-primary hover:underline" to={`/refuerzo/casos/${a.reinforcementCase.id}`}>Caso de refuerzo ({a.reinforcementCase.caseStatus})</Link>
+              <Link className="text-primary hover:underline" to={`/refuerzo/casos/${a.reinforcementCase.id}`}>Abrir plan · {CASE_STATUS_LABEL[a.reinforcementCase.caseStatus] ?? a.reinforcementCase.caseStatus}</Link>
             ) : <span className="text-muted-foreground">Sin caso de refuerzo vinculado</span>}
           </p>
         </div>
@@ -256,9 +257,11 @@ function AlertCard({ a, onCompose, onDismiss, onReopen, onLink, onStart, selecte
         {a.canAct && (
           <div className="flex flex-row flex-wrap gap-2 md:flex-col">
             {a.canStartReinforcement && <Button size="sm" onClick={onStart}>Iniciar plan de refuerzo</Button>}
-            {a.status !== 'DISMISSED' && <Button size="sm" onClick={onCompose}><FilePen className="mr-1 h-4 w-4" /> Redactar informe</Button>}
-            {!a.reinforcementCase && <Button size="sm" variant="outline" onClick={onLink}><Link2 className="mr-1 h-4 w-4" /> Vincular caso</Button>}
-            {a.status === 'OPEN' && <Button size="sm" variant="ghost" onClick={onDismiss}>Descartar</Button>}
+            {a.status !== 'DISMISSED' && <Button size="sm" onClick={onCompose}><FilePen className="mr-1 h-4 w-4" /> Preparar informe</Button>}
+            {(a.status === 'OPEN' || !a.reinforcementCase) && <details><summary className="cursor-pointer text-xs text-muted-foreground">Otras acciones</summary><div className="mt-2 flex flex-wrap gap-2">
+              {!a.reinforcementCase && <Button size="sm" variant="outline" onClick={onLink}><Link2 className="mr-1 h-4 w-4" /> Vincular plan existente</Button>}
+              {a.status === 'OPEN' && <Button size="sm" variant="ghost" onClick={onDismiss}>Descartar alerta</Button>}
+            </div></details>}
             {a.status === 'DISMISSED' && <Button size="sm" variant="ghost" onClick={onReopen}><RotateCcw className="mr-1 h-4 w-4" /> Reabrir</Button>}
           </div>
         )}

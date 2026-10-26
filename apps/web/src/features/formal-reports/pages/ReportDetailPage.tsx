@@ -149,6 +149,7 @@ export function ReportDetailPage() {
       <Link to={`/informes?section=documents&box=${r.permissions.isAuthor ? r.status === 'DRAFT' ? 'drafts' : 'sent' : 'inbox'}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> Informes
       </Link>
+      {r.reinforcementPlanId && <Link className="inline-flex text-sm text-primary hover:underline" to={`/refuerzo/casos/${r.reinforcementPlanId}?tab=documents`}>Volver al plan de refuerzo</Link>}
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
@@ -195,7 +196,7 @@ export function ReportDetailPage() {
         </div>
       </div>
 
-      {r.permissions.canEdit && <p className="text-sm text-muted-foreground">{r.typeConfig.pdfTemplate ? 'Revisa el borrador en Word; se guardarán tus cambios antes de descargarlo. Después de enviar estará disponible el PDF con el folio y la firma del envío.' : 'Revisa el borrador antes de enviar. Después del envío podrás descargar el PDF definitivo.'}</p>}
+      {r.permissions.canEdit && <p className="text-sm text-muted-foreground">{r.typeConfig.pdfTemplate ? 'Edita los datos en Auleka y revisa el borrador en Word. Los cambios del archivo descargado no se sincronizan. Al enviar tendrás el PDF con folio y firma.' : 'Revisa el borrador antes de enviar. Después del envío podrás descargar el PDF definitivo.'}</p>}
       {r.permissions.canEdit && missing.length > 0 && <p className="text-sm text-amber-700">Para enviar, completa: {missing.map((field) => field.label).join(', ')}.</p>}
       {activeAction === 'pdf' && <p role="status" className="text-sm text-muted-foreground">Preparando el PDF. Puede tardar unos segundos; espera a que termine la descarga.</p>}
 
@@ -242,6 +243,11 @@ export function ReportDetailPage() {
                               <input type="radio" name={`jornada-${r.id}`} value={shift} checked={content[f.key]?.trim().toLowerCase() === shift.toLowerCase()} onChange={() => { setContent({ ...content, [f.key]: shift }); setDirty(true) }} className="h-4 w-4 accent-primary" />{shift}
                             </label>)}
                           </fieldset>
+                        ) : r.typeConfig.pdfTemplate && ['entorno', 'agrupacion'].includes(f.key) ? (
+                          <Select disabled={busy} value={content[f.key] ?? ''} onValueChange={(value) => { setContent({ ...content, [f.key]: value }); setDirty(true) }}>
+                            <SelectTrigger aria-label={f.label}><SelectValue placeholder="Selecciona una opción" /></SelectTrigger>
+                            <SelectContent>{[...new Set([...(f.key === 'entorno' ? ['Dentro del aula', 'Extra-clase'] : ['Pequeño grupo', 'Individual']), ...(content[f.key]?.trim() ? [content[f.key]] : [])])].map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent>
+                          </Select>
                         ) : f.type === 'textarea' ? (
                           <Textarea rows={4} value={content[f.key] ?? ''} placeholder={f.placeholder} onChange={(e) => { setContent({ ...content, [f.key]: e.target.value }); setDirty(true) }} />
                         ) : (
@@ -352,6 +358,7 @@ export function ReportDetailPage() {
         description="El autor verá tus observaciones y podrá crear una nueva versión."
         required
         confirm="Solicitar cambios"
+        suggestions={['Completar los datos pendientes del informe.', 'Revisar la nómina de estudiantes y sus resultados.', 'Revisar las fechas y actividades del plan.', 'Adjuntar los respaldos o evidencias faltantes.']}
         onConfirm={(note) => formalReportsApi.returnReport(id, note).then((x) => { setReport(x); setDialog(null); toast.success('Informe devuelto') })}
       />
       <NoteDialog
@@ -360,6 +367,7 @@ export function ReportDetailPage() {
         title="Marcar como atendido"
         description="Registra la respuesta o acción tomada (opcional)."
         confirm="Marcar atendido"
+        suggestions={['Informe revisado y seguimiento registrado.', 'Se coordinaron las acciones de acompañamiento correspondientes.', 'Se comunicaron las observaciones al responsable del seguimiento.']}
         onConfirm={(note) => formalReportsApi.attend(id, note || undefined).then((x) => { setReport(x); setDialog(null); toast.success('Informe atendido') })}
       />
       <DeriveDialog
@@ -411,8 +419,8 @@ function UploadButton({ categories, accept, busy, uploading, onUpload }: { categ
   )
 }
 
-function NoteDialog({ open, onOpenChange, title, description, confirm, required, onConfirm }: {
-  open: boolean; onOpenChange: (o: boolean) => void; title: string; description: string; confirm: string; required?: boolean; onConfirm: (note: string) => Promise<unknown>
+function NoteDialog({ open, onOpenChange, title, description, confirm, required, onConfirm, suggestions = [] }: {
+  open: boolean; onOpenChange: (o: boolean) => void; title: string; description: string; confirm: string; required?: boolean; onConfirm: (note: string) => Promise<unknown>; suggestions?: string[]
 }) {
   const [note, setNote] = React.useState('')
   const { busy, runAction } = useExclusiveReportAction()
@@ -421,7 +429,8 @@ function NoteDialog({ open, onOpenChange, title, description, confirm, required,
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
       <DialogContent>
         <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
-        <Textarea disabled={busy} rows={5} value={note} onChange={(e) => setNote(e.target.value)} />
+        {!!suggestions.length && <Select disabled={busy} value={suggestions.includes(note) ? note : ''} onValueChange={setNote}><SelectTrigger aria-label="Seleccionar observación"><SelectValue placeholder="Elige una observación o escribe una propia" /></SelectTrigger><SelectContent>{suggestions.map((suggestion) => <SelectItem key={suggestion} value={suggestion}>{suggestion}</SelectItem>)}</SelectContent></Select>}
+        <Textarea aria-label="Observaciones" disabled={busy} rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder={required ? 'Selecciona una observación o escribe la tuya.' : 'Observación adicional (opcional).'} />
         <DialogFooter>
           <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button

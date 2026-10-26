@@ -205,6 +205,7 @@ function ReportRow({ r, box }: { r: FormalReport; box: ReportBox }) {
 
 /** Selección simple de año → paralelo → estudiante (opcional) antes de elegir el tipo. */
 function NewReportPicker({ open, onOpenChange, onContinue }: { open: boolean; onOpenChange: (o: boolean) => void; onContinue: (ctx: ReportComposerContext) => void }) {
+  const autoContext = React.useRef({ period: '', parallel: '', assignment: '' })
   const [yearId, setYearId] = React.useState('')
   const [parallelId, setParallelId] = React.useState('')
   const [studentId, setStudentId] = React.useState('none')
@@ -225,6 +226,25 @@ function NewReportPicker({ open, onOpenChange, onContinue }: { open: boolean; on
   }, [open, yearId, years])
   React.useEffect(() => { setParallelId(''); setStudentId('none'); setPeriodId('none') }, [yearId])
   React.useEffect(() => { setStudentId('none'); setAssignmentId('none') }, [parallelId])
+  React.useEffect(() => {
+    if (open && yearId && periods.length && autoContext.current.period !== yearId) {
+      autoContext.current.period = yearId
+      setPeriodId(periods.find((period) => period.isActive)?.id ?? (periods.length === 1 ? periods[0].id : 'none'))
+    }
+  }, [open, yearId, periods])
+  React.useEffect(() => {
+    if (open && !parallelId && parallels.length === 1 && autoContext.current.parallel !== yearId) {
+      autoContext.current.parallel = yearId
+      setParallelId(parallels[0].id)
+    }
+  }, [open, parallelId, parallels, yearId])
+  React.useEffect(() => {
+    const context = `${yearId}:${parallelId}`
+    if (open && parallelId && assignments.length === 1 && autoContext.current.assignment !== context) {
+      autoContext.current.assignment = context
+      setAssignmentId(assignments[0].id)
+    }
+  }, [open, yearId, parallelId, assignments])
 
   const { data: plans = [], isError: plansError } = useQuery({
     queryKey: ['report-picker-plans', assignmentId, periodId],

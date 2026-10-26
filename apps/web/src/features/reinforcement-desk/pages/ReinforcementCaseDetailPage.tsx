@@ -1,7 +1,7 @@
 import { PlanTab } from '../components/PlanTab'
 import { FormativeResultTab } from '../components/FormativeResultTab'
 import * as React from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, FilePlus2, Lock } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
@@ -17,6 +17,7 @@ import { caseStatusVariant } from './ReinforcementCasesPage'
 import { CaseSummaryTab } from '../components/CaseSummaryTab'
 import { SessionsTab } from '../components/SessionsTab'
 import { AttachmentsTab } from '../components/AttachmentsTab'
+import { caseGuidance } from '../lib/case-guidance'
 
 const n = (v: number | null | undefined) => (v == null ? '—' : v.toFixed(2))
 
@@ -37,6 +38,10 @@ function LocalReportStatus({ status }: { status: string }) {
 export function ReinforcementCaseDetailPage() {
   const { id = '' } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [params, setParams] = useSearchParams()
+  const requestedTab = params.get('tab') ?? 'plan'
+  const tab = ['results', 'formative'].includes(requestedTab) ? 'results' : ['documents', 'files', 'reports'].includes(requestedTab) ? 'documents' : requestedTab === 'sessions' ? 'sessions' : 'plan'
+  const openTab = (value: string) => setParams((previous) => { const next = new URLSearchParams(previous); next.set('tab', value); next.delete('newSession'); return next })
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['reinforcement-desk-detail', id],
     queryFn: () => reinforcementDeskApi.detail(id),
@@ -56,6 +61,7 @@ export function ReinforcementCaseDetailPage() {
   }
 
   const k = data.case
+  const guidance = caseGuidance(data)
   return (
     <div className="space-y-6 p-4 sm:p-6">
       <div>
@@ -72,6 +78,16 @@ export function ReinforcementCaseDetailPage() {
           {k.courseAssignment.subject.name} · {k.courseAssignment.parallel.level.name} {k.courseAssignment.parallel.name} · {k.academicPeriod.name}
         </p>
       </div>
+
+      <Card className="border-primary/30 bg-primary/5"><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+        <div><p className="font-semibold">{data.canEdit && k.caseStatus !== 'CLOSED' ? 'Siguiente paso' : 'Seguimiento'}: {guidance.next.label}</p><p className="mt-1 text-sm text-muted-foreground">{guidance.next.description}</p>
+          <p className="mt-2 text-xs">Plan {guidance.planReady ? 'completo' : 'por completar'} · Asistencia {guidance.attendanceReady ? 'registrada' : 'pendiente'} · Aprendizaje {guidance.learningReviewed ? 'valorado' : 'por valorar'} · Informes enviados: {data.reports.filter((report) => report.status !== 'DRAFT').length}</p>
+        </div>
+        <Button onClick={() => {
+          if (guidance.next.tab === 'sessions' && (!data.sessions.length || k.caseStatus === 'CONTINUES_REINFORCEMENT')) setParams({ tab: 'sessions', newSession: '1' })
+          else openTab(guidance.next.tab)
+        }}>{guidance.next.label}</Button>
+      </CardContent></Card>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {data.scores.map((s) => {
@@ -97,21 +113,17 @@ export function ReinforcementCaseDetailPage() {
         })}
       </div>
 
-      <Tabs defaultValue="plan">
+      <Tabs value={tab} onValueChange={openTab}>
         <TabsList className="flex-wrap">
-          <TabsTrigger value="plan">Plan y seguimiento</TabsTrigger>
-          <TabsTrigger value="summary">Resumen del caso</TabsTrigger>
-          <TabsTrigger value="sessions">Sesiones y asistencia ({data.sessions.length})</TabsTrigger>
-          <TabsTrigger value="formative">Resultado formativo</TabsTrigger>
-          <TabsTrigger value="files">Archivos ({data.attachments.length})</TabsTrigger>
-          <TabsTrigger value="reports">Informes ({data.reports.length})</TabsTrigger>
+          <TabsTrigger value="plan">1. Plan</TabsTrigger>
+          <TabsTrigger value="sessions">2. Actividades y asistencia</TabsTrigger>
+          <TabsTrigger value="results">3. Resultados</TabsTrigger>
+          <TabsTrigger value="documents">4. Documentos</TabsTrigger>
         </TabsList>
-        <TabsContent value="plan"><PlanTab planId={id} detail={data} /></TabsContent>
-        <TabsContent value="summary"><CaseSummaryTab kase={k} /></TabsContent>
+        <TabsContent value="plan"><PlanTab planId={id} detail={data} /><details className="mt-5 rounded border p-3"><summary className="cursor-pointer text-sm">Ver antecedentes del caso</summary><div className="mt-3"><CaseSummaryTab kase={k} /></div></details></TabsContent>
         <TabsContent value="sessions"><SessionsTab planId={id} detail={data} /></TabsContent>
-        <TabsContent value="formative"><FormativeResultTab planId={id} detail={data} /></TabsContent>
-        <TabsContent value="files"><AttachmentsTab planId={id} detail={data} /></TabsContent>
-        <TabsContent value="reports"><ReportsTab planId={id} detail={data} /></TabsContent>
+        <TabsContent value="results" className="space-y-6"><details open={data.sessions.some((session) => session.attendances.some((attendance) => attendance.status === 'present' && attendance.score != null && attendance.appliedScore == null))} className="rounded border p-4"><summary className="cursor-pointer font-medium">Mejora de la nota formativa · si corresponde</summary><div className="mt-4"><FormativeResultTab planId={id} detail={data} /></div></details><PlanTab planId={id} detail={data} section="decision" onOpenPlan={() => openTab('plan')} /></TabsContent>
+        <TabsContent value="documents" className="space-y-6"><ReportsTab planId={id} detail={data} /><details className="rounded border p-4"><summary className="cursor-pointer font-medium">Archivos y respaldos ({data.attachments.length})</summary><div className="mt-4"><AttachmentsTab planId={id} detail={data} /></div></details></TabsContent>
       </Tabs>
     </div>
   )
@@ -157,7 +169,7 @@ function ReportsTab({ planId, detail }: { planId: string; detail: CaseDetail }) 
         onOpenChange={setOpen}
         context={{
           reinforcementPlanId: planId,
-          studentId: k.studentId,
+          studentId: detail.students.length === 1 ? detail.students[0].id : undefined,
           courseAssignmentId: k.courseAssignmentId,
           academicPeriodId: k.academicPeriodId,
         }}

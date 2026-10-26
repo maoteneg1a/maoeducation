@@ -9,6 +9,7 @@ const db = vi.hoisted(() => ({
   formalReport: { create: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), count: vi.fn() },
   formalReportRecipient: { update: vi.fn(), updateMany: vi.fn() },
   institution: { findUnique: vi.fn().mockResolvedValue({ name: 'Escuela' }) },
+  reinforcementPlan: { findFirst: vi.fn() }, studentEnrollment: { findFirst: vi.fn() },
 }))
 const snapshotMock = vi.hoisted(() => vi.fn())
 vi.mock('../../application/services/report-snapshot.service', () => ({ buildSnapshot: snapshotMock }))
@@ -44,6 +45,20 @@ beforeEach(() => {
 })
 
 describe('bandejas y acciones del informe', () => {
+  it('al generar el anexo reutiliza el plan autorizado y conserva las correcciones del docente', async () => {
+    db.reinforcementPlan.findFirst.mockResolvedValue({ studentId: 'student', courseAssignmentId: 'assignment', academicPeriodId: 'period', participants: [], mode: 'INDIVIDUAL',
+      proposalLearningToReinforce: 'Fracciones equivalentes', proposalObjective: 'Objetivo del plan', proposalActiveStrategy: 'Práctica guiada', proposalResource: 'Guía', proposalEvaluation: 'Rúbrica',
+      courseAssignment: { subject: { name: 'Matemática' }, teacher: person('teacher') }, sessions: [{ date: new Date('2026-10-26T00:00:00Z') }],
+    })
+    db.studentEnrollment.findFirst.mockResolvedValue({ parallelId: 'parallel' })
+    db.formalReport.create.mockImplementation(async ({ data }) => { row = { ...row, ...data, status: 'DRAFT' }; return row })
+    await repo.create('school', teacher, { typeKey: 'plan_refuerzo', reinforcementPlanId: 'plan', content: { objetivo: 'Objetivo adaptado para este informe' } })
+    expect(db.reinforcementPlan.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'plan', institutionId: 'school' } }))
+    expect(db.formalReport.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      studentId: 'student', courseAssignmentId: 'assignment', academicPeriodId: 'period', reinforcementPlanId: 'plan',
+      content: expect.objectContaining({ objetivo: 'Objetivo adaptado para este informe', docente_refuerzo: 'teacher Persona', agrupacion: 'Individual', fecha_inicio: '2026-10-26', matematica_saberes: 'Fracciones equivalentes', matematica_estrategias: 'Práctica guiada' }),
+    }) }))
+  })
   it('muestra la firma actual en el borrador sin firmarlo ni guardar una copia de envío', async () => {
     row.status = 'DRAFT'
     vi.mocked(getOwnSignature).mockResolvedValue({ imageData: 'preview-image', updatedAt: null })

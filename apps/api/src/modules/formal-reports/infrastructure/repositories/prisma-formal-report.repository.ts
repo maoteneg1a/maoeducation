@@ -1,5 +1,6 @@
 import { captureDocumentSignature, getOwnSignature, type DocumentSignatureImage } from '../../../users/application/services/user-signature.service'
 import { withDocumentDateDefault } from '../../application/services/report-content-defaults'
+import { withPlanReportDefaults, type PlanReportDefaults } from '../../application/services/plan-report-defaults'
 import crypto from 'crypto'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
@@ -283,6 +284,7 @@ export class PrismaFormalReportRepository {
     let { studentId = null, parallelId = null, courseAssignmentId = null, academicPeriodId = null, academicYearId = null } = dto as unknown as Record<string, string | null>
     let alertId = dto.alertId ?? null
     let planId = dto.reinforcementPlanId ?? null
+    let planDefaults: PlanReportDefaults | null = null
 
     if (alertId) {
       const a = await prisma.earlyAlert.findFirst({ where: { id: alertId, institutionId } })
@@ -291,12 +293,22 @@ export class PrismaFormalReportRepository {
       planId = planId ?? a.reinforcementPlanId
     }
     if (planId) {
-      const p = await prisma.reinforcementPlan.findFirst({ where: { id: planId, institutionId }, select: { studentId: true, courseAssignmentId: true, academicPeriodId: true, participants: { select: { studentId: true } } } })
+      const p = await prisma.reinforcementPlan.findFirst({ where: { id: planId, institutionId }, select: {
+        studentId: true, courseAssignmentId: true, academicPeriodId: true, participants: { select: { studentId: true } },
+        mode: true, proposalLearningToReinforce: true, proposalObjective: true, proposalActiveStrategy: true, proposalResource: true, proposalEvaluation: true,
+        courseAssignment: { select: { subject: { select: { name: true } }, teacher: { select: personSelect } } },
+        sessions: { orderBy: { date: 'asc' }, take: 1, select: { date: true } },
+      } })
       if (!p) throw new NotFoundError('Caso de refuerzo no encontrado')
       if (courseAssignmentId && courseAssignmentId !== p.courseAssignmentId) throw new BadRequestError('La asignatura no corresponde al caso de refuerzo')
       if (academicPeriodId && academicPeriodId !== p.academicPeriodId) throw new BadRequestError('El periodo no corresponde al caso de refuerzo')
       if (studentId && studentId !== p.studentId && !p.participants.some((x) => x.studentId === studentId)) throw new BadRequestError('El estudiante no participa en el caso de refuerzo')
       studentId = studentId ?? p.studentId; courseAssignmentId = courseAssignmentId ?? p.courseAssignmentId; academicPeriodId = academicPeriodId ?? p.academicPeriodId
+      planDefaults = {
+        teacher: p.courseAssignment ? personName(p.courseAssignment.teacher) : '', mode: p.mode, subject: p.courseAssignment?.subject.name ?? '',
+        learningTarget: p.proposalLearningToReinforce, objective: p.proposalObjective, strategy: p.proposalActiveStrategy,
+        resources: p.proposalResource, evaluation: p.proposalEvaluation, startDate: p.sessions?.[0]?.date.toISOString().slice(0, 10) ?? null,
+      }
     }
     if (t.requiresReinforcementCase && !planId) throw new BadRequestError('Este informe debe vincularse a un caso de refuerzo')
     if (courseAssignmentId) {
@@ -339,7 +351,7 @@ export class PrismaFormalReportRepository {
     if (!opts.skipAuthorCheck) await this.assertAuthor(institutionId, actor, t, { parallelId, courseAssignmentId, studentId })
 
     const defaults = Object.fromEntries(t.fields.filter((f) => f.defaultValue !== undefined).map((f) => [f.key, f.defaultValue!]))
-    const content = this.cleanContent(t, withDocumentDateDefault(t, { ...defaults, ...(dto.content ?? {}) }))
+    const content = this.cleanContent(t, withDocumentDateDefault(t, withPlanReportDefaults(t, { ...defaults, ...(dto.content ?? {}) }, planDefaults)))
     const data: Prisma.FormalReportUncheckedCreateInput = {
         institutionId,
         academicYearId,

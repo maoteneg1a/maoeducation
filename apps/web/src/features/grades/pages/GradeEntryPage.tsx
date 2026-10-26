@@ -1257,7 +1257,7 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
               {activities.length > 0 && (
                 <button type="button" onClick={() => setMobileSubject(subject)} className="mt-3 w-full rounded-md border px-3 py-2 text-xs font-medium text-primary">
                   Ver actividades ({activities.length})
-                  {reinforcementCount > 0 && ` · ${reinforcementCount} con refuerzo`}
+                  {reinforcementCount > 0 && ` · ${reinforcementCount} con mejora individual`}
                 </button>
               )}
             </article>
@@ -1315,7 +1315,7 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
                 {activities.length > 0 && (
                   <button type="button" onClick={() => toggleDetails(s.assignmentId)} className="mt-1 text-[11px] font-normal text-primary hover:underline">
                     {isExpanded ? 'Ocultar actividades' : `Ver actividades (${activities.length})`}
-                    {reinforcementCount > 0 && ` · ${reinforcementCount} con refuerzo`}
+                    {reinforcementCount > 0 && ` · ${reinforcementCount} con mejora individual`}
                   </button>
                 )}
               </td>
@@ -1364,7 +1364,7 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
                         <th className="px-3 py-2 text-left font-medium">Actividad</th>
                         <th className="px-3 py-2 text-left font-medium">Insumo</th>
                         <th className="px-3 py-2 text-center font-medium">Nota anterior</th>
-                        <th className="px-3 py-2 text-center font-medium">Refuerzo</th>
+                        <th className="px-3 py-2 text-center font-medium">Mejora individual</th>
                         <th className="px-3 py-2 text-center font-medium">Nota final</th>
                       </tr></thead>
                       <tbody>{activities.map((activity) => (
@@ -1399,7 +1399,7 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
                 <div className="mb-3 text-xs text-muted-foreground">{activity.insumoName}</div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div><div className="text-[10px] text-muted-foreground">Nota anterior</div><div className="mt-1 font-medium tabular-nums">{activity.previousScore?.toFixed(2) ?? '—'}</div></div>
-                  <div><div className="text-[10px] text-muted-foreground">Refuerzo</div><div className={cn('mt-1 font-medium tabular-nums', activity.reinforcementScore != null && 'text-primary')}>{activity.reinforcementScore?.toFixed(2) ?? '—'}</div></div>
+                  <div><div className="text-[10px] text-muted-foreground">Mejora individual</div><div className={cn('mt-1 font-medium tabular-nums', activity.reinforcementScore != null && 'text-primary')}>{activity.reinforcementScore?.toFixed(2) ?? '—'}</div></div>
                   <div><div className="text-[10px] text-muted-foreground">Nota final</div><div className="mt-1 font-bold tabular-nums">{activity.finalScore?.toFixed(2) ?? '—'}</div></div>
                 </div>
               </div>
@@ -2030,7 +2030,7 @@ export function GradeEntryPage() {
             </p>
           </div>
 
-          {reinforcementEnabled && <p className="text-xs text-muted-foreground">El campo Refuerzo registra una mejora individual de esta actividad. No inicia un plan ni consume sus intentos. Si persiste el bajo desempeño, revisa las alertas tempranas para iniciar el plan.</p>}
+          {reinforcementEnabled && <p className="text-xs text-muted-foreground">La mejora individual corresponde únicamente a esta actividad. No inicia un plan ni consume sus intentos. Si persiste el bajo desempeño, revisa las alertas tempranas para iniciar el plan.</p>}
 
           {/* Grade table */}
           <Card className="overflow-x-auto">
@@ -2039,7 +2039,7 @@ export function GradeEntryPage() {
                 <TableRow className="hover:bg-transparent">
                   <TableHead>Estudiante</TableHead>
                   <TableHead>Nota</TableHead>
-                  {reinforcementEnabled && <TableHead>Refuerzo</TableHead>}
+                  {reinforcementEnabled && <TableHead>Mejora individual</TableHead>}
                   {reinforcementEnabled && <TableHead>Nota final</TableHead>}
                   <TableHead>Entrega</TableHead>
                   <TableHead className="w-32">Estado</TableHead>
