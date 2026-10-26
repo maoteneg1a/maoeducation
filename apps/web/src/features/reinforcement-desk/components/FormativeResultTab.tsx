@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/shared/components/ui/button'
-import { Textarea } from '@/shared/components/ui/textarea'
 import { Label } from '@/shared/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select'
 import { Card, CardContent } from '@/shared/components/ui/card'
 import { getErrorMessage } from '@/shared/lib/utils'
 import { reinforcementDeskApi, type CaseDetail, type FormativePreview, type FormativeResultInput } from '../api/reinforcement-desk.api'
+import { PlanTextChoice } from './PlanTextChoice'
 
 const n = (v: number | null) => v == null ? '—' : v.toFixed(2)
 const modeName = (mode: string | null) => mode === 'activity_set' ? 'Por aprendizajes: conjunto de actividades' : mode === 'period_formative' ? 'Integral del período: promedio formativo' : 'Sin configurar'
@@ -22,6 +22,12 @@ export function FormativeResultTab({ planId, detail }: { planId: string; detail:
   const [reason, setReason] = useState('')
   const [revoke, setRevoke] = useState(false)
   const [preview, setPreview] = useState<{ key: string; data: FormativePreview } | null>(null)
+  const actionLock = useRef(false)
+  const runOnce = async (action: () => Promise<unknown>) => {
+    if (actionLock.current) return
+    actionLock.current = true
+    try { await action() } catch { /* La mutación muestra el error. */ } finally { actionLock.current = false }
+  }
   useEffect(() => { setActivityIds([]); setSessionIds([]); setRevoke(false); setReason(''); setPreview(null) }, [studentId, planId])
   const history = options.data?.history.filter((r) => r.studentId === studentId) ?? []
   const latest = history[0]
@@ -47,6 +53,12 @@ export function FormativeResultTab({ planId, detail }: { planId: string; detail:
   if (!options.data || !activities.data) return <p>Cargando procedimiento institucional…</p>
   const { policy, scale, canApply } = options.data
   const busy = calculate.isPending || apply.isPending
+  const eligibleSessions = detail.sessions.filter((session) => {
+    const attendance = session.attendances.find((entry) => entry.studentId === studentId)
+    return attendance?.status === 'present' && attendance.score != null && attendance.appliedScore == null && !activities.data.find((activity) => activity.id === session.targetActivityId)?.summative
+  })
+  const linkedActivities = [...new Set(eligibleSessions.map((session) => session.targetActivityId).filter((id): id is string => !!id))]
+    .filter((id) => activities.data.some((activity) => activity.id === id && !activity.summative && activity.grades.some((grade) => grade.studentId === studentId && grade.effective != null)))
   return (
     <div className="space-y-4">
       <Card><CardContent className="space-y-2 p-4">
@@ -62,9 +74,9 @@ export function FormativeResultTab({ planId, detail }: { planId: string; detail:
       </div>
       {canApply && (policy.mode || latest?.payload.score != null) && (
         <fieldset disabled={busy} className="space-y-4">
-          {latest?.payload.score != null && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={revoke} onChange={(e) => setRevoke(e.target.checked)} /> Retirar la aplicación vigente y conservar su historial</label>}
+          {latest?.payload.score != null && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={revoke} onChange={(e) => { setRevoke(e.target.checked); setReason('') }} /> Retirar la aplicación vigente y conservar su historial</label>}
           {!revoke && policy.mode === 'activity_set' && <div className="space-y-2">
-            <p className="font-medium">Actividades formativas atendidas por el plan</p>
+            <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-medium">Actividades formativas atendidas por el plan</p><Button size="sm" variant="outline" disabled={!linkedActivities.length} onClick={() => setActivityIds(linkedActivities)}>Usar vinculadas al plan ({linkedActivities.length})</Button></div>
             <p className="text-sm text-muted-foreground">El conjunto mantiene su peso dentro de los insumos. El cálculo parte de las notas vigentes, incluidas sus mejoras individuales; estas no consumen intentos del plan.</p>
             {activities.data.filter((a) => !a.summative).map((a) => {
               const score = a.grades.find((g) => g.studentId === studentId)?.effective
@@ -72,9 +84,9 @@ export function FormativeResultTab({ planId, detail }: { planId: string; detail:
             })}
           </div>}
           {!revoke && <div className="space-y-2">
-            <p className="font-medium">Actividades calificadas del refuerzo</p>
+            <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-medium">Actividades calificadas del refuerzo</p><Button size="sm" variant="outline" disabled={!eligibleSessions.length} onClick={() => setSessionIds(eligibleSessions.map((session) => session.id))}>Seleccionar todas disponibles ({eligibleSessions.length})</Button></div>
             <p className="text-sm text-muted-foreground">Se promedian las seleccionadas, con igual peso. Las prácticas sin calificación quedan como evidencia del acompañamiento.</p>
-            {!detail.sessions.length && <p className="text-sm">Registra las actividades y sus resultados en Sesiones y asistencia.</p>}
+            {!detail.sessions.length && <p className="text-sm">Registra las actividades y sus resultados en Actividades y asistencia.</p>}
             {detail.sessions.map((s) => {
               const att = s.attendances.find((a) => a.studentId === studentId)
               const summative = activities.data.find((a) => a.id === s.targetActivityId)?.summative
@@ -82,13 +94,13 @@ export function FormativeResultTab({ planId, detail }: { planId: string; detail:
               return <label key={s.id} className="flex items-center gap-2 rounded border p-2 text-sm"><input type="checkbox" disabled={!eligible} checked={sessionIds.includes(s.id)} onChange={() => toggle(sessionIds, s.id, setSessionIds)} />{s.date} · {s.title} · {att?.score == null ? 'Sin nota' : `${att.score}/${scale}`}{!eligible ? ' · No disponible para este cálculo' : ''}</label>
             })}
           </div>}
-          <Button variant="outline" onClick={() => calculate.mutate({ data: input, key: fingerprint })} loading={calculate.isPending}>Ver resultado antes de aplicar</Button>
+          <Button variant="outline" disabled={!revoke && (!sessionIds.length || (policy.mode === 'activity_set' && !activityIds.length))} onClick={() => runOnce(() => calculate.mutateAsync({ data: input, key: fingerprint }))} loading={calculate.isPending}>Ver resultado antes de aplicar</Button>
           {shown && <Card><CardContent className="space-y-3 p-4">
             <p className="font-medium">Formativa: {n(shown.initial.formative)} → {n(shown.adjusted.formative)}</p>
             <p className="text-sm">Total del período: {n(shown.initial.total)} → {n(shown.adjusted.total)}</p>
             {!revoke && <p className="text-sm">Resultado del refuerzo: {n(shown.application.score)} / {scale}. La aplicación sustituye la anterior de este estudiante, asignatura y período; no se acumula sobre ella.</p>}
-            <div className="space-y-1.5"><Label>Motivo y observaciones</Label><Textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={2000} /></div>
-            <Button onClick={() => apply.mutate()} loading={apply.isPending} disabled={reason.trim().length < 5}>Aplicar y guardar registro</Button>
+            <PlanTextChoice label="Motivo del registro" value={reason} onChange={setReason} options={revoke ? ['Retiro de la aplicación para revisar las actividades y su resultado.', 'Corrección de un registro aplicado por error.'] : ['Aplicación del resultado de las actividades del plan de refuerzo, revisado por el docente.', 'Actualización del resultado después de nuevas actividades de refuerzo.']} />
+            <Button onClick={() => runOnce(() => apply.mutateAsync())} loading={apply.isPending} disabled={reason.trim().length < 5}>Aplicar y guardar registro</Button>
           </CardContent></Card>}
         </fieldset>
       )}

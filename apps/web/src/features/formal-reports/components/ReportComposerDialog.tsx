@@ -60,6 +60,7 @@ export function ReportComposerDialog({
   const { roles, hasRole } = usePermissions()
   const [selected, setSelected] = React.useState<string | null>(defaultTypeKey ?? null)
   const [studentId, setStudentId] = React.useState('')
+  const createLock = React.useRef(false)
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['reports-flow'],
     queryFn: formalReportsApi.reportsFlow,
@@ -70,6 +71,9 @@ export function ReportComposerDialog({
   React.useEffect(() => {
     if (open) { setSelected(defaultTypeKey ?? null); setStudentId(context.studentId ?? (students?.length === 1 ? students[0].id : '')) }
   }, [open, defaultTypeKey])
+  React.useEffect(() => {
+    if (open && !studentId && students?.length === 1) setStudentId(students[0].id)
+  }, [open, studentId, students])
 
   const isAuthority = hasRole('admin') || hasRole('rector')
   const hasStudent = !!(context.studentId || context.alertId || context.reinforcementPlanId)
@@ -114,11 +118,11 @@ export function ReportComposerDialog({
     onError: (e) => toast.error(getErrorMessage(e)),
   })
 
-  const current = types.find((t) => t.key === selected) ?? null
+  const current = types.find((t) => t.key === selected) ?? (types.length === 1 ? types[0] : null)
   const existing = existingReports?.find((r) => r.typeKey === current?.key)
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => !createLock.current && onOpenChange(next)}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Redactar informe</DialogTitle>
@@ -142,11 +146,11 @@ export function ReportComposerDialog({
                 <button
                   key={t.key}
                   type="button"
-                  disabled={!!reason}
+                  disabled={!!reason || create.isPending}
                   onClick={() => setSelected(t.key)}
                   className={cn(
                     'w-full rounded-lg border p-3 text-left transition-colors',
-                    selected === t.key ? 'border-primary bg-primary/5' : 'hover:bg-muted/50',
+                    current?.key === t.key ? 'border-primary bg-primary/5' : 'hover:bg-muted/50',
                     reason && 'cursor-not-allowed opacity-50',
                   )}
                 >
@@ -184,10 +188,11 @@ export function ReportComposerDialog({
               </Select>
             </div>
           )}
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button disabled={!current || !!(current && unavailableReason(current)) || (!!students?.length && current?.scope === 'student' && !studentId) || create.isPending} onClick={() => {
+          <Button variant="outline" disabled={create.isPending} onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button disabled={!current || !!(current && unavailableReason(current)) || (!!students?.length && current?.scope === 'student' && !studentId) || create.isPending} onClick={async () => {
+            if (createLock.current) return
             if (existing) { onOpenChange(false); navigate(`/informes/${existing.reportId}`) }
-            else if (current) create.mutate(current.key)
+            else if (current) { createLock.current = true; try { await create.mutateAsync(current.key) } catch { /* La mutación muestra el error. */ } finally { createLock.current = false } }
           }}>
             {create.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {existing ? 'Abrir informe agrupado' : 'Crear borrador'}

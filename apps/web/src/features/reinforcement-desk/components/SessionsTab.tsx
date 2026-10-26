@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Pencil, Plus, Save, Trash2 } from 'lucide-react'
@@ -13,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { getErrorMessage } from '@/shared/lib/utils'
+import { todayInEcuador } from '@/shared/lib/today-in-ecuador'
+import { PlanTextChoice, SESSION_TITLES } from './PlanTextChoice'
 import {
   reinforcementDeskApi,
   type AttendanceStatus,
@@ -39,6 +42,13 @@ interface Props {
 
 export function SessionsTab({ planId, detail }: Props) {
   const [editing, setEditing] = React.useState<CaseSession | 'new' | null>(null)
+  const [params, setParams] = useSearchParams()
+  React.useEffect(() => {
+    if (params.get('newSession') === '1' && detail.canEdit && detail.case.caseStatus !== 'CLOSED') {
+      setEditing('new')
+      setParams((previous) => { const next = new URLSearchParams(previous); next.delete('newSession'); return next }, { replace: true })
+    }
+  }, [params, setParams, detail.canEdit, detail.case.caseStatus])
   const { data: activities = [] } = useQuery({
     queryKey: ['reinforcement-desk-activities', planId],
     queryFn: () => reinforcementDeskApi.activities(planId),
@@ -50,9 +60,9 @@ export function SessionsTab({ planId, detail }: Props) {
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          {formative?.policy.mode ? 'Registra las actividades del plan, su horario y asistencia. Las notas formativas se aplican desde Resultado formativo, después de revisar la vista previa. Puedes dejar prácticas sin nota.' : 'Cada sesión registra la asistencia al refuerzo. Si apunta a una actividad original, la nota se aplica con las reglas de la institución.'}
+          {formative?.policy.mode ? 'Registra las actividades del plan, su horario y asistencia. Las notas formativas se aplican en Resultados → Mejora de la nota formativa, después de revisar la vista previa. Puedes dejar prácticas sin nota.' : 'Cada sesión registra la asistencia al refuerzo. Si apunta a una actividad original, la nota se aplica con las reglas de la institución.'}
         </p>
-        {detail.canEdit && (
+        {detail.canEdit && detail.case.caseStatus !== 'CLOSED' && (
           <Button size="sm" onClick={() => setEditing('new')}><Plus className="mr-1.5 h-4 w-4" /> Nueva sesión</Button>
         )}
       </div>
@@ -144,7 +154,7 @@ function SessionCard({
   async function onDelete() {
     const ok = await confirmDialog({
       title: 'Eliminar sesión',
-      description: formativeMode ? 'Se eliminará la sesión y su asistencia. Los resultados formativos ya aplicados conservan sus evidencias y calificaciones; puedes retirarlos desde Resultado formativo.' : 'Se eliminará la sesión y su asistencia. Las notas que esta sesión aplicó a la actividad original se revertirán a la nota inicial.',
+      description: formativeMode ? 'Se eliminará la sesión y su asistencia. Los resultados formativos ya aplicados conservan sus evidencias y calificaciones; puedes retirarlos en Resultados → Mejora de la nota formativa.' : 'Se eliminará la sesión y su asistencia. Las notas que esta sesión aplicó a la actividad original se revertirán a la nota inicial.',
       confirmText: 'Eliminar',
       destructive: true,
     })
@@ -274,10 +284,11 @@ function SessionDialog({
   onClose: () => void
 }) {
   const qc = useQueryClient()
-  const [date, setDate] = React.useState(session?.date ?? new Date().toISOString().slice(0, 10))
+  const [date, setDate] = React.useState(session?.date ?? todayInEcuador())
   const [title, setTitle] = React.useState(session?.title ?? '')
   const [description, setDescription] = React.useState(session?.description ?? '')
   const [target, setTarget] = React.useState(session?.targetActivityId ?? NONE)
+  const lock = React.useRef(false)
   const selected = activities.find((a) => a.id === target) ?? null
 
   const save = useMutation({
@@ -294,29 +305,26 @@ function SessionDialog({
   })
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
+    <Dialog open onOpenChange={(o) => !o && !save.isPending && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{session ? 'Editar sesión' : 'Nueva sesión de refuerzo'}</DialogTitle>
           <DialogDescription>
-            {formativeEnabled ? 'Registra una actividad del plan de refuerzo y su fecha. Su calificación formativa es opcional y se aplica desde Resultado formativo. Las evaluaciones sumativas conservan su procedimiento individual.' : 'La nota se aplica a la actividad original con las reglas de mejora configuradas por la institución.'}
+            {formativeEnabled ? 'Registra una actividad del plan de refuerzo y su fecha. Su calificación formativa es opcional y se aplica en Resultados → Mejora de la nota formativa. Las evaluaciones sumativas conservan su procedimiento individual.' : 'La nota se aplica a la actividad original con las reglas de mejora configuradas por la institución.'}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
+        <fieldset disabled={save.isPending} className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label>Fecha</Label>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
-            <div className="space-y-1">
-              <Label>Título</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej. Taller de fracciones" />
-            </div>
+            <PlanTextChoice label="Actividad de refuerzo" value={title} onChange={setTitle} options={SESSION_TITLES} />
           </div>
-          <div className="space-y-1">
+          <details><summary className="cursor-pointer text-sm text-primary">Descripción adicional · opcional</summary><div className="mt-2 space-y-1">
             <Label>Descripción</Label>
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-          </div>
+          </div></details>
           <div className="space-y-1">
             <Label>Actividad original (opcional)</Label>
             <Select value={target} onValueChange={setTarget}>
@@ -347,10 +355,10 @@ function SessionDialog({
               })}
             </div>
           )}
-        </div>
+        </fieldset>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!title.trim() || !date}>Guardar</Button>
+          <Button variant="outline" disabled={save.isPending} onClick={onClose}>Cancelar</Button>
+          <Button onClick={async () => { if (lock.current) return; lock.current = true; try { await save.mutateAsync() } catch { /* La mutación muestra el error. */ } finally { lock.current = false } }} loading={save.isPending} disabled={!title.trim() || !date}>Guardar actividad</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
