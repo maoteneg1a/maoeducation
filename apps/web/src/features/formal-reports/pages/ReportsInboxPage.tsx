@@ -1,8 +1,10 @@
+import { ReportMailbox } from '../components/ReportMailbox'
+import { Input } from '@/shared/components/ui/input'
 import { reinforcementDeskApi } from '@/features/reinforcement-desk/api/reinforcement-desk.api'
 import * as React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
-import { FileText, Inbox, Plus, Send, PencilLine, Layers } from 'lucide-react'
+import { FileText, Inbox, Plus, Send, PencilLine, Layers, Clock3, LayoutList, Table2, Search } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { Card, CardContent } from '@/shared/components/ui/card'
@@ -31,21 +33,25 @@ export function ReportsInboxPage({ embedded = false }: { embedded?: boolean }) {
   const [params, setParams] = useSearchParams()
   const requestedBox = params.get('box')
   const box: ReportBox = requestedBox === 'sent' || requestedBox === 'drafts' || requestedBox === 'inbox' || (requestedBox === 'all' && canSeeAll)
-    ? requestedBox : canWrite ? 'drafts' : 'inbox'
+    ? requestedBox : 'inbox'
   const setBox = (value: ReportBox) => {
-    setStatus('all'); setOverdueOnly(false)
+    setStatus('all'); setOverdueOnly(false); setSearch('')
     setParams((previous) => { const next = new URLSearchParams(previous); next.set('section', 'documents'); next.set('box', value); return next })
   }
   const [status, setStatus] = React.useState<'all' | FormalReportStatus>('all')
+  const [search, setSearch] = React.useState('')
+  const tableView = params.get('view') === 'table'
+  const setView = (view: string) => setParams((previous) => { const next = new URLSearchParams(previous); next.set('view', view); return next })
   const [typeKey, setTypeKey] = React.useState('all')
   const [overdueOnly, setOverdueOnly] = React.useState(false)
   const [pickerOpen, setPickerOpen] = React.useState(false)
   const [composer, setComposer] = React.useState<ReportComposerContext | null>(null)
 
-  const { data: counts } = useQuery({ queryKey: ['formal-reports-counts'], queryFn: formalReportsApi.counts, staleTime: 30_000 })
+  const { data: counts } = useQuery({ queryKey: ['formal-reports-counts'], queryFn: formalReportsApi.counts, staleTime: 30_000, refetchInterval: 30_000 })
   const { data: flow } = useQuery({ queryKey: ['reports-flow'], queryFn: formalReportsApi.reportsFlow, staleTime: 60_000 })
   const { data: reports = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['formal-reports', box, status, typeKey, overdueOnly],
+    staleTime: 0, refetchInterval: 30_000,
     queryFn: () =>
       formalReportsApi.list({
         box,
@@ -55,20 +61,38 @@ export function ReportsInboxPage({ embedded = false }: { embedded?: boolean }) {
       }),
   })
 
+  const needle = search.trim().toLocaleLowerCase('es')
+  const visibleReports = reports.filter((r) => !needle || [r.folio, r.typeLabel, r.student?.name, r.author.name, r.recipientInstanceLabel].some((value) => value?.toLocaleLowerCase('es').includes(needle)))
+  const boxTitle = box === 'inbox' ? 'Buzón de recibidos' : box === 'sent' ? 'Informes enviados' : box === 'drafts' ? 'Mis borradores' : 'Informes de la institución'
+
   return (
     <div className={embedded ? "space-y-6" : "space-y-6 p-4 sm:p-6"}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           {!embedded && <h1 className="text-2xl font-bold">Informes</h1>}
-          <p className="mt-1 text-sm text-muted-foreground">
-            Aquí se guardan también los informes creados desde alertas y planes. Usa Borradores, Enviados o Recibidos para encontrarlos.
-          </p>
+          <h2 className="text-lg font-semibold">{boxTitle}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{box === 'inbox' ? 'Revisa lo que te enviaron y registra su recepción. Abrir un informe no confirma su acuse.' : 'Aquí también encuentras los documentos creados desde alertas y planes de refuerzo.'}</p>
         </div>
         {canWrite && (
           <Button onClick={() => setPickerOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> Nuevo informe
           </Button>
         )}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <button type="button" onClick={() => { setBox('inbox'); setStatus('SENT') }} className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-left transition-colors hover:bg-amber-50 focus-visible:ring-2 focus-visible:ring-ring">
+          <span className="rounded-lg bg-amber-100 p-2 text-amber-700"><Inbox className="h-5 w-5" /></span>
+          <span><span className="block text-2xl font-bold">{counts?.inboxPending ?? '—'}</span><span className="text-sm text-muted-foreground">Pendientes de tu acuse</span></span>
+        </button>
+        <button type="button" onClick={() => setBox('drafts')} className="flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring">
+          <span className="rounded-lg bg-primary/10 p-2 text-primary"><PencilLine className="h-5 w-5" /></span>
+          <span><span className="block text-2xl font-bold">{counts?.drafts ?? '—'}</span><span className="text-sm text-muted-foreground">Borradores por completar</span></span>
+        </button>
+        <button type="button" onClick={() => { setBox('sent'); setOverdueOnly(true) }} className="flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring">
+          <span className="rounded-lg bg-muted p-2 text-muted-foreground"><Clock3 className="h-5 w-5" /></span>
+          <span><span className="block text-2xl font-bold">{counts?.overdueSent ?? '—'}</span><span className="text-sm text-muted-foreground">Envíos con acuse vencido</span></span>
+        </button>
       </div>
 
       <Tabs value={box} onValueChange={(v) => setBox(v as ReportBox)}>
@@ -118,13 +142,18 @@ export function ReportsInboxPage({ embedded = false }: { embedded?: boolean }) {
         )}
       </div>
 
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="pl-9" aria-label="Buscar en esta bandeja" placeholder="Buscar por estudiante, remitente, tipo o folio…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+        <div className="flex gap-1"><Button variant={tableView ? 'outline' : 'secondary'} size="sm" onClick={() => setView('mailbox')} aria-pressed={!tableView}><LayoutList className="mr-1 h-4 w-4" />Buzón</Button><Button variant={tableView ? 'secondary' : 'outline'} size="sm" onClick={() => setView('table')} aria-pressed={tableView}><Table2 className="mr-1 h-4 w-4" />Tabla</Button></div>
+      </div>
+
       {isLoading ? (
         <PageLoader />
       ) : isError ? (
         <div className="space-y-2"><EmptyState title="No se pudieron cargar los informes" description={getErrorMessage(error)} /><Button variant="outline" onClick={() => refetch()}>Reintentar</Button></div>
-      ) : reports.length === 0 ? (
-        <Card><CardContent><EmptyState icon={FileText} title="No hay informes" description="Cuando envíes o recibas informes aparecerán aquí." /></CardContent></Card>
-      ) : (
+      ) : visibleReports.length === 0 ? (
+        <Card><CardContent><EmptyState icon={box === 'inbox' ? Inbox : FileText} title={search || status !== 'all' || typeKey !== 'all' || overdueOnly ? 'Sin coincidencias con estos filtros' : box === 'inbox' ? 'Tu buzón está al día' : box === 'drafts' ? 'No tienes borradores' : 'Sin informes en esta bandeja'} description={box === 'inbox' ? 'Los informes que te envíen aparecerán aquí. Puedes revisar Enviados y Borradores en sus bandejas.' : 'Los documentos de esta bandeja aparecerán aquí.'} /></CardContent></Card>
+      ) : !tableView ? <ReportMailbox reports={visibleReports} box={box} /> : (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full min-w-[820px] text-sm">
             <thead>
@@ -139,7 +168,7 @@ export function ReportsInboxPage({ embedded = false }: { embedded?: boolean }) {
               </tr>
             </thead>
             <tbody>
-              {reports.map((r) => <ReportRow key={r.id} r={r} box={box} />)}
+              {visibleReports.map((r) => <ReportRow key={r.id} r={r} box={box} />)}
             </tbody>
           </table>
         </div>

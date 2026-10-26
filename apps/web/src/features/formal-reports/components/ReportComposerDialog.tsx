@@ -102,7 +102,7 @@ export function ReportComposerDialog({
     onSuccess: (report) => {
       qc.invalidateQueries({ queryKey: ['formal-reports'] })
       qc.invalidateQueries({ queryKey: ['formal-reports-counts'] })
-      toast.success('Borrador creado')
+      toast.success(report.status === 'DRAFT' ? 'Borrador abierto' : 'Se abrió el informe agrupado existente; puedes preparar una ampliación desde allí')
       onOpenChange(false)
       onCreated?.(report.id)
       navigate(`/informes/${report.id}`)

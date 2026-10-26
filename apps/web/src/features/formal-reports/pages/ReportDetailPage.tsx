@@ -1,3 +1,4 @@
+import { MySignatureDialog } from '@/features/user-signature/components/MySignatureDialog'
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -32,13 +33,29 @@ export function ReportDetailPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { data: r, isLoading, isError, error, refetch } = useQuery({ queryKey: ['formal-report', id], queryFn: () => formalReportsApi.get(id), enabled: !!id })
+  React.useEffect(() => {
+    if (r) {
+      qc.invalidateQueries({ queryKey: ['formal-reports'] })
+      qc.invalidateQueries({ queryKey: ['formal-reports-counts'] })
+    }
+  }, [r?.id])
   const { data: flow } = useQuery({ queryKey: ['reports-flow'], queryFn: formalReportsApi.reportsFlow, staleTime: 60_000 })
   const [content, setContent] = React.useState<Record<string, string>>({})
+  const [signatureOpen, setSignatureOpen] = React.useState(false)
   const [dirty, setDirty] = React.useState(false)
   const [dialog, setDialog] = React.useState<null | 'return' | 'attend' | 'derive' | 'fromCase'>(null)
 
   React.useEffect(() => {
-    if (r) { setContent(r.content ?? {}); setDirty(false) }
+    if (r) {
+      const next = { ...r.content }
+      const needsDate = r.permissions.canEdit && !next.fecha_documento?.trim() && r.typeConfig.fields?.some((f) => f.key === 'fecha_documento' && f.type === 'date')
+      if (needsDate) {
+        const parts = new Intl.DateTimeFormat('en', { timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
+        const part = (name: string) => parts.find((p) => p.type === name)!.value
+        next.fecha_documento = `${part('year')}-${part('month')}-${part('day')}`
+      }
+      setContent(next); setDirty(!!needsDate)
+    }
   }, [r])
 
   const setReport = (next: FormalReport) => {
@@ -63,6 +80,7 @@ export function ReportDetailPage() {
   })
   const remove = useMutation({ mutationFn: () => formalReportsApi.remove(id), onSuccess: () => { qc.invalidateQueries({ queryKey: ['formal-reports'] }); qc.invalidateQueries({ queryKey: ['dossier'] }); toast.success('Borrador eliminado'); navigate('/informes') }, onError: onErr })
   const receive = useMutation({ mutationFn: () => formalReportsApi.receive(id), onSuccess: (x) => { setReport(x); toast.success('Acuse de recibo registrado') }, onError: onErr })
+  const amendment = useMutation({ mutationFn: () => formalReportsApi.amendment(id), onSuccess: (x) => { qc.invalidateQueries({ queryKey: ['formal-reports'] }); navigate(`/informes/${x.id}`) }, onError: onErr })
   const newVersion = useMutation({ mutationFn: () => formalReportsApi.newVersion(id), onSuccess: (x) => navigate(`/informes/${x.id}`), onError: onErr })
   const upload = useMutation({
     mutationFn: ({ file, category }: { file: File; category: string }) => formalReportsApi.uploadAttachment(id, file, category),
@@ -87,7 +105,7 @@ export function ReportDetailPage() {
     if (missing.length) { toast.error(`Completa: ${missing.map((m) => m.label).join(', ')}`); return }
     const ok = await confirmDialog({
       title: 'Enviar informe',
-      description: `Se enviará a ${r.recipientInstanceLabel}. Al enviarlo recibe un folio y queda inmutable: ya no podrás editarlo (si te lo devuelven, podrás crear una nueva versión).`,
+      description: `Se enviará a ${r.recipientInstanceLabel}. Si guardaste tu firma personal, se incorporará al documento. Al enviarlo recibe un folio y queda inmutable: ya no podrás editarlo (si te lo devuelven, podrás crear una nueva versión).`,
       confirmText: 'Enviar',
     })
     if (ok) send.mutate()
@@ -141,28 +159,35 @@ export function ReportDetailPage() {
               </Button>
             </>
           )}
-          {r.permissions.canReceive && (
-            <Button disabled={receive.isPending} onClick={() => receive.mutate()}>
-              <CheckCircle2 className="mr-2 h-4 w-4" /> Acusar recibo
-            </Button>
-          )}
-          {r.permissions.canReturn && (
-            <Button variant="outline" onClick={() => setDialog('return')}><Undo2 className="mr-2 h-4 w-4" /> Devolver</Button>
-          )}
-          {r.permissions.canAttend && (
-            <Button variant="outline" onClick={() => setDialog('attend')}><CheckCircle2 className="mr-2 h-4 w-4" /> Marcar atendido</Button>
-          )}
+
           {r.permissions.canDerive && (r.typeConfig.canDeriveTo?.length ?? 0) > 0 && (
             <Button variant="outline" onClick={() => setDialog('derive')}><GitBranch className="mr-2 h-4 w-4" /> Derivar</Button>
           )}
+          {r.permissions.isAuthor && r.typeConfig.pdfTemplate === 'annex_alerts' && ['SENT', 'RECEIVED', 'ATTENDED'].includes(r.status) && <Button variant="outline" disabled={amendment.isPending} onClick={() => amendment.mutate()}><CopyPlus className="mr-2 h-4 w-4" />Preparar ampliación</Button>}
           {r.permissions.canNewVersion && (
-            <Button onClick={() => newVersion.mutate()} disabled={newVersion.isPending}><CopyPlus className="mr-2 h-4 w-4" /> Crear nueva versión</Button>
+            <Button onClick={() => newVersion.mutate()} disabled={newVersion.isPending}><CopyPlus className="mr-2 h-4 w-4" /> Corregir informe</Button>
           )}
         </div>
       </div>
 
+      {r.typeConfig.pdfTemplate === 'annex_alerts' && <p className="rounded-lg border bg-muted/30 p-3 text-sm">{r.permissions.canEdit ? 'Este borrador agrupa a los alumnos de la misma asignatura y período. Actualiza la nómina antes de enviar; no necesitas un informe por alumno.' : 'Informe agrupado. Los alumnos adicionales se incorporan en una ampliación vinculada; esta versión conserva lo que se entregó.'}</p>}
+      {!!r.subsequentVersions?.length && <div className="rounded-lg border p-3 text-sm"><p className="font-medium">Correcciones y ampliaciones vinculadas</p>{r.subsequentVersions.map((version) => <Link key={version.id} to={`/informes/${version.id}`} className="mt-1 block text-primary hover:underline">{version.folio ?? 'Borrador de actualización'} · {version.status === 'DRAFT' ? 'Por completar' : 'Enviado'}</Link>)}</div>}
+      {(r.permissions.canEdit || r.permissions.canReceive) && <p className="text-sm text-muted-foreground">Si guardaste tu firma, se incorporará al {r.permissions.canEdit ? 'enviar' : 'registrar el acuse'}. <button className="font-medium text-primary hover:underline" onClick={() => setSignatureOpen(true)}>Configurar mi firma</button></p>}
+      {(r.signatures?.author || r.signatures?.recipient) && <div className="rounded-lg border p-3 text-sm">{r.signatures.author && <p>Firmado al enviar por {r.signatures.author.name} · {fmtDT(r.signatures.author.signedAt)}</p>}{r.signatures.recipient && <p>Firmado al recibir por {r.signatures.recipient.name} · {fmtDT(r.signatures.recipient.signedAt)}</p>}</div>}
+      {(r.permissions.canReceive || r.permissions.canReturn || r.permissions.canAttend) && <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="space-y-3 p-4">
+          <div><h2 className="font-semibold">Acciones del destinatario</h2><p className="mt-1 text-sm text-muted-foreground">{r.permissions.canReceive ? 'Revisa el PDF o Word y confirma que recibiste el informe. Si necesita correcciones, solicita cambios al docente.' : 'La recepción ya quedó registrada. Puedes marcarlo como atendido o solicitar cambios con observaciones.'}</p></div>
+          <div className="flex flex-wrap gap-2">
+            {r.permissions.canReceive && <Button disabled={receive.isPending} onClick={() => receive.mutate()}><CheckCircle2 className="mr-2 h-4 w-4" />Registrar acuse de recibo</Button>}
+            {r.permissions.canReturn && <Button variant="outline" onClick={() => setDialog('return')}><Undo2 className="mr-2 h-4 w-4" />Solicitar cambios</Button>}
+            {r.permissions.canAttend && <Button onClick={() => setDialog('attend')}><CheckCircle2 className="mr-2 h-4 w-4" />Marcar como atendido</Button>}
+          </div>
+        </CardContent>
+      </Card>}
+      {!r.permissions.isAuthor && !r.permissions.isRecipient && r.status !== 'DRAFT' && <p className="rounded-lg border bg-muted/30 p-4 text-sm">Estás en modo consulta. El acuse corresponde a los destinatarios registrados: {r.recipients.map((recipient) => recipient.name).join(', ') || r.recipientInstanceLabel}.</p>}
+      {r.permissions.isAuthor && r.status === 'SENT' && <p className="rounded-lg border bg-muted/30 p-4 text-sm">Informe enviado a {r.recipientInstanceLabel}. Está pendiente de su acuse de recibo. El formulario se habilita en una versión de corrección si el destinatario solicita cambios.</p>}
       {r.status === 'RETURNED' && r.returnNote && (
-        <Card className="border-amber-300 bg-amber-50"><CardContent className="p-4 text-sm"><p className="font-medium text-amber-800">Devuelto con observaciones</p><p className="mt-1 whitespace-pre-wrap">{r.returnNote}</p></CardContent></Card>
+        <Card className="border-amber-300 bg-amber-50"><CardContent className="p-4 text-sm"><p className="font-medium text-amber-800">Devuelto con observaciones</p><p className="mt-1 whitespace-pre-wrap">{r.returnNote}</p>{r.permissions.canNewVersion && <p className="mt-2 text-xs">Pulsa Corregir informe para abrir una versión editable. Luego podrás guardarla y enviarla; el informe anterior conservará su historial.</p>}</CardContent></Card>
       )}
       {r.responseNote && (
         <Card className="border-emerald-300 bg-emerald-50"><CardContent className="p-4 text-sm"><p className="font-medium text-emerald-800">Respuesta / atención</p><p className="mt-1 whitespace-pre-wrap">{r.responseNote}</p></CardContent></Card>
@@ -174,7 +199,7 @@ export function ReportDetailPage() {
             <Card><CardContent className="flex items-center gap-3 p-6 text-sm text-muted-foreground"><Lock className="h-5 w-5" /> Contenido confidencial: solo lo ven el autor y los destinatarios.</CardContent></Card>
           ) : (
             <>
-              <Card>
+              {r.permissions.canEdit && <Card>
                 <CardHeader><CardTitle className="text-base">Contenido</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   {fields.length === 0 && <p className="text-sm text-muted-foreground">Este informe no tiene campos de texto.</p>}
@@ -182,7 +207,13 @@ export function ReportDetailPage() {
                     <div key={f.key} className="space-y-1">
                       <Label>{f.label}{f.required && <span className="text-destructive"> *</span>}</Label>
                       {r.permissions.canEdit ? (
-                        f.type === 'textarea' ? (
+                        f.key === 'jornada' && r.typeConfig.pdfTemplate ? (
+                          <fieldset className="flex flex-wrap gap-3" aria-label="Jornada">
+                            {['Matutina', 'Vespertina'].map((shift) => <label key={shift} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-3 text-sm ${content[f.key]?.trim().toLowerCase() === shift.toLowerCase() ? 'border-primary bg-primary/5 font-medium' : 'hover:bg-muted/40'}`}>
+                              <input type="radio" name={`jornada-${r.id}`} value={shift} checked={content[f.key]?.trim().toLowerCase() === shift.toLowerCase()} onChange={() => { setContent({ ...content, [f.key]: shift }); setDirty(true) }} className="h-4 w-4 accent-primary" />{shift}
+                            </label>)}
+                          </fieldset>
+                        ) : f.type === 'textarea' ? (
                           <Textarea rows={4} value={content[f.key] ?? ''} placeholder={f.placeholder} onChange={(e) => { setContent({ ...content, [f.key]: e.target.value }); setDirty(true) }} />
                         ) : (
                           <Input type={f.type === 'date' ? 'date' : 'text'} value={content[f.key] ?? ''} placeholder={f.placeholder} onChange={(e) => { setContent({ ...content, [f.key]: e.target.value }); setDirty(true) }} />
@@ -193,11 +224,11 @@ export function ReportDetailPage() {
                     </div>
                   ))}
                 </CardContent>
-              </Card>
+              </Card>}
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Datos del sistema</CardTitle>
+                  <CardTitle className="text-base">Datos del sistema</CardTitle>{r.permissions.canEdit && r.typeConfig.pdfTemplate === 'annex_alerts' && <Button variant="outline" size="sm" disabled={preview.isFetching} onClick={() => preview.refetch()}>Actualizar nómina</Button>}
                   <p className="text-xs text-muted-foreground">
                     {r.status === 'DRAFT' ? 'Vista previa: se congelan al enviar el informe.' : 'Congelados al momento del envío.'}
                   </p>
@@ -284,13 +315,14 @@ export function ReportDetailPage() {
         </div>
       </div>
 
+      <MySignatureDialog open={signatureOpen} onOpenChange={setSignatureOpen} />
       <NoteDialog
         open={dialog === 'return'}
         onOpenChange={(o) => !o && setDialog(null)}
-        title="Devolver con observaciones"
+        title="Solicitar cambios al docente"
         description="El autor verá tus observaciones y podrá crear una nueva versión."
         required
-        confirm="Devolver"
+        confirm="Solicitar cambios"
         onConfirm={(note) => formalReportsApi.returnReport(id, note).then((x) => { setReport(x); setDialog(null); toast.success('Informe devuelto') })}
       />
       <NoteDialog

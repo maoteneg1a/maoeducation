@@ -1,3 +1,4 @@
+import { getOwnSignature, saveOwnSignature, deleteOwnSignature } from '../application/services/user-signature.service'
 import { FastifyInstance } from 'fastify'
 import { assertPlanCapacity } from '../../../shared/infrastructure/services/plan-limits.service'
 import { audit } from '../../../shared/infrastructure/services/audit.service'
@@ -12,6 +13,12 @@ const repo = new PrismaUserRepository()
 
 export default async function userRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware)
+
+  // La firma personal se administra únicamente por su dueño, sin un permiso administrativo.
+  app.get('/users/me/signature', async (req, reply) => reply.send(await getOwnSignature(req.user.institutionId, req.user.sub)))
+  app.put<{ Body: { imageData: string } }>('/users/me/signature', { bodyLimit: 3_000_000, schema: { body: { type: 'object', required: ['imageData'], additionalProperties: false, properties: { imageData: { type: 'string', maxLength: 3_000_000 } } } } }, async (req, reply) =>
+    reply.send(await saveOwnSignature(req.user.institutionId, req.user.sub, req.body.imageData)))
+  app.delete('/users/me/signature', async (req, reply) => { await deleteOwnSignature(req.user.institutionId, req.user.sub); return reply.code(204).send() })
 
   app.get<{ Querystring: ListUsersQueryDto }>(
     '/users',

@@ -1,3 +1,4 @@
+import type { DocumentSignature } from '../../users/application/services/user-signature.service'
 import { FastifyInstance, type FastifyRequest, type FastifyReply } from 'fastify'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
@@ -92,14 +93,17 @@ export default async function formalReportRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string } }>('/formal-reports/:id/receive', read, async (req, reply) =>
     reply.send(await repo.receive(req.user.institutionId, actorOf(req.user), req.params.id)))
 
-  app.post<{ Params: { id: string }; Body: ReturnReportDto }>('/formal-reports/:id/return', write, async (req, reply) =>
+  app.post<{ Params: { id: string }; Body: ReturnReportDto }>('/formal-reports/:id/return', read, async (req, reply) =>
     reply.send(await repo.returnReport(req.user.institutionId, actorOf(req.user), req.params.id, req.body?.note)))
 
-  app.post<{ Params: { id: string }; Body: AttendReportDto }>('/formal-reports/:id/attend', write, async (req, reply) =>
+  app.post<{ Params: { id: string }; Body: AttendReportDto }>('/formal-reports/:id/attend', read, async (req, reply) =>
     reply.send(await repo.attend(req.user.institutionId, actorOf(req.user), req.params.id, req.body?.note)))
 
   app.post<{ Params: { id: string }; Body: DeriveReportDto }>('/formal-reports/:id/derive', write, async (req, reply) =>
     reply.code(201).send(await repo.derive(req.user.institutionId, actorOf(req.user), req.params.id, req.body?.typeKey)))
+
+  app.post<{ Params: { id: string } }>('/formal-reports/:id/amendment', write, async (req, reply) =>
+    reply.code(201).send(await repo.amendment(req.user.institutionId, actorOf(req.user), req.params.id)))
 
   app.post<{ Params: { id: string } }>('/formal-reports/:id/new-version', write, async (req, reply) =>
     reply.code(201).send(await repo.newVersion(req.user.institutionId, actorOf(req.user), req.params.id)))
@@ -151,6 +155,8 @@ export default async function formalReportRoutes(app: FastifyInstance) {
       sentAt: r.sentAt,
       receivedAt: r.receivedAt,
       receivedByName,
+      authorSignature: r.authorSignature as unknown as DocumentSignature | null,
+      recipientSignature: r.recipientSignature as unknown as DocumentSignature | null,
       fields: t.fields ?? [],
       content: (r.content ?? {}) as Record<string, string>,
       snapshot,

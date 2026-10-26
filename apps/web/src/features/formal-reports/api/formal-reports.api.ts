@@ -73,6 +73,7 @@ export interface FormalReport {
   alertId: string | null
   reinforcementPlanId: string | null
   parentReport: { id: string; folio: string | null; typeLabel: string } | null
+  subsequentVersions?: Array<{ id: string; folio: string | null; status: FormalReportStatus }>
   previousVersionId: string | null
   derived: Array<{ id: string; folio: string | null; typeLabel: string; status: FormalReportStatus; recipientInstanceLabel: string }>
   author: { id: string; name: string }
@@ -82,6 +83,7 @@ export interface FormalReport {
   content: Record<string, string>
   snapshot: Record<string, unknown>
   typeConfig: Partial<ReportTypeConfig>
+  signatures?: { author: { name: string; signedAt: string } | null; recipient: { name: string; signedAt: string } | null }
   contentHash: string | null
   sentAt: string | null
   ackDeadlineAt: string | null
@@ -141,6 +143,7 @@ function saveBlob(blob: Blob, fileName: string) {
 }
 
 export const formalReportsApi = {
+  amendment: (id: string) => apiPost<FormalReport>(`formal-reports/${id}/amendment`),
   list: (params: ListFormalReportsParams = {}) =>
     apiGet<FormalReport[]>('formal-reports', params as Record<string, string | undefined>),
   counts: () => apiGet<{ inboxPending: number; overdueSent: number; drafts: number }>('formal-reports/counts'),

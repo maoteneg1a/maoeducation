@@ -103,6 +103,7 @@ model User {
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
   institution Institution @relation(fields: [institutionId], references: [id])
+  savedSignature UserSignature?
   profile     Profile?
   userRoles   UserRole[]
 
@@ -212,6 +213,15 @@ model User {
 
   @@unique([institutionId, email])
   @@map("users")
+}
+
+model UserSignature {
+  userId String @id @map("user_id")
+  imageData String @map("image_data") @db.Text
+  sha256 String @db.VarChar(64)
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("user_signatures")
 }
 
 model Profile {
@@ -2581,6 +2591,8 @@ model FormalReport {
   typeConfig             Json      @default("{}") @map("type_config")
   // DRAFT | SENT | RECEIVED | RETURNED | ATTENDED
   status                 String    @default("DRAFT") @db.VarChar(20)
+  authorSignature Json? @map("author_signature")
+  recipientSignature Json? @map("recipient_signature")
   contentHash            String?   @map("content_hash") @db.VarChar(64)
   sentAt                 DateTime? @map("sent_at")
   ackDeadlineAt          DateTime? @map("ack_deadline_at")

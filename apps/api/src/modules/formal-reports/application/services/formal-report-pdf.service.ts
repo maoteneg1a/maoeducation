@@ -1,3 +1,4 @@
+import type { DocumentSignature } from '../../../users/application/services/user-signature.service'
 import PDFDocument from 'pdfkit'
 import { resolveLogo, drawHeader, drawWatermark } from '../../../../shared/infrastructure/services/pdf-helpers'
 import type { ReportField } from '../../../../shared/domain/reports-flow'
@@ -24,6 +25,8 @@ export interface FormalReportPdfData {
   snapshot: Record<string, unknown>
   attachments: string[]
   signatures: string[]
+  authorSignature?: DocumentSignature | null
+  recipientSignature?: DocumentSignature | null
   returnNote?: string | null
   responseNote?: string | null
 }
@@ -196,6 +199,10 @@ export function buildFormalReportPdf(data: FormalReportPdfData): Promise<Buffer>
         const col = i % per
         if (i > 0 && col === 0) { y += 70 }
         const x = 50 + col * (width + 20)
+        const authorIndex = data.signatures.findIndex((text) => /docente|tutor|remitente|elaborado|responsable|profesional/i.test(text))
+        const index = authorIndex < 0 ? 0 : authorIndex
+        const signature = i === index ? data.authorSignature : i === data.signatures.findIndex((_, n) => n !== index) ? data.recipientSignature : null
+        if (signature?.imageData) doc.image(Buffer.from(signature.imageData.split(',')[1], 'base64'), x + 5, y - 35, { fit: [width - 10, 32], align: 'center' })
         doc.moveTo(x, y).lineTo(x + width, y).stroke()
         doc.font('Helvetica').fontSize(9).text(label, x, y + 4, { width, align: 'center' })
       })
