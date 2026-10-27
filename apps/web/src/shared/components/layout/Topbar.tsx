@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu'
 import { openCommandPalette } from './CommandPalette'
+import { detachPushSubscription } from '@/shared/lib/push-subscription'
 
 interface TopbarProps {
   onMobileMenuClick: () => void
@@ -47,6 +48,7 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
   const [pwOpen, setPwOpen] = useState(false)
 
   async function handleLogout() {
+    try { await detachPushSubscription() } catch (error) { console.warn('No se pudo desvincular el dispositivo al cerrar sesión', error) }
     try { await apiPost('/auth/logout') } catch { /* ignore */ }
     clearAuth()
     navigate('/login')
