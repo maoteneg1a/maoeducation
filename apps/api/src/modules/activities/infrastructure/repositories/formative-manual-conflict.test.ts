@@ -1,7 +1,9 @@
+vi.mock('../../../../shared/infrastructure/services/period-grades.service', () => ({ computePeriodGrades: vi.fn().mockResolvedValue(new Map()) }))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PrismaActivityRepository } from './prisma-activity.repository'
 
 const db = vi.hoisted(() => ({
+  reinforcementPlan: { findMany: vi.fn() }, $executeRaw: vi.fn(),
   insumo: { findMany: vi.fn() }, studentEnrollment: { findMany: vi.fn() }, institution: { findUnique: vi.fn() },
   formativeReinforcementResult: { findMany: vi.fn() }, manualInsumoAverage: { upsert: vi.fn() }, $transaction: vi.fn(),
 }))
@@ -10,11 +12,12 @@ const repo = new PrismaActivityRepository()
 const dto = { items: [{ studentId: 'student', insumoId: 'insumo', score: 6, reason: 'Promedio verificado' }] }
 beforeEach(() => {
   vi.clearAllMocks()
+  db.reinforcementPlan.findMany.mockResolvedValue([])
   db.insumo.findMany.mockResolvedValue([{ id: 'insumo', courseAssignmentId: 'assignment', academicPeriodId: 'period', academicPeriod: { isClosed: false }, courseAssignment: { teacherId: 'teacher', parallelId: 'parallel', academicYearId: 'year' } }])
   db.studentEnrollment.findMany.mockResolvedValue([{ studentId: 'student', parallelId: 'parallel', academicYearId: 'year' }])
   db.institution.findUnique.mockResolvedValue({ settings: {} })
   db.manualInsumoAverage.upsert.mockResolvedValue({ id: 'manual' })
-  db.$transaction.mockImplementation(async (items) => Promise.all(items))
+  db.$transaction.mockImplementation(async (items) => typeof items === 'function' ? items(db) : Promise.all(items))
 })
 const result = (mode: string, score: number | null) => ({ studentId: 'student', courseAssignmentId: 'assignment', academicPeriodId: 'period', payload: { mode, score } })
 

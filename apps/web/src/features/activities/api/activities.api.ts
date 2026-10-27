@@ -45,6 +45,7 @@ export interface Activity {
 export type GradeStatus = 'entregado' | 'no_realizado' | 'atrasado' | 'excusado'
 
 export interface StudentGrade {
+  closedPlanId?: string | null
   studentId: string
   studentName: string
   activityId: string
@@ -58,6 +59,7 @@ export interface StudentGrade {
 }
 
 interface GradeApiRow {
+  closedPlanId?: string | null
   student: { id: string; profile: { firstName: string; lastName: string } }
   enrollmentStatus: string
   grade: {
@@ -139,6 +141,7 @@ export const activitiesApi = {
   getGradesByActivity: (activityId: string) =>
     apiGet<GradeApiRow[]>('grades', { activityId }).then((rows) =>
       rows.map((r): StudentGrade => ({
+        closedPlanId: r.closedPlanId,
         studentId: r.student.id,
         studentName: `${r.student.profile.firstName} ${r.student.profile.lastName}`,
         activityId,

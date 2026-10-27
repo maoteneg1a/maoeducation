@@ -1,3 +1,4 @@
+import { closedReinforcementPlans } from '../../../shared/infrastructure/services/reinforcement-grade-lock.service'
 import { computePeriodGrades } from '../../../shared/infrastructure/services/period-grades.service'
 import { bulletinGradeColumns } from '../application/services/bulletin-grade-columns'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
@@ -180,6 +181,7 @@ export class PrismaReportRepository {
     }
 
     const canonical = await computePeriodGrades(institutionId, { assignmentIds: [assignment.id], periodIds: [query.periodId], studentIds: enrollments.map((e) => e.studentId), gradingScaleMax })
+    const closedPlans = await closedReinforcementPlans(prisma, institutionId, enrollments.map((enrollment) => ({ studentId: enrollment.studentId, courseAssignmentId: assignment.id, academicPeriodId: query.periodId })))
     const examWeight = assignment.examWeight ?? 30
 
     return {
@@ -208,6 +210,7 @@ export class PrismaReportRepository {
           examWeight,
         }
         return {
+          closedPlanId: closedPlans.find((plan) => plan.studentId === e.studentId || plan.participants.some((participant) => participant.studentId === e.studentId))?.id ?? null,
           student: e.student,
           grades: grades.size > 0 ? Object.fromEntries(grades) : {},
           summary,

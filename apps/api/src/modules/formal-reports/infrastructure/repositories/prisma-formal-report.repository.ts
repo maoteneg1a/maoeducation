@@ -226,6 +226,7 @@ export class PrismaFormalReportRepository {
     }
     if (q.status) where.status = q.status
     if (q.typeKey) where.typeKey = q.typeKey
+    if (q.annexOnly === 'true') where.typeKey = { in: flow.reportTypes.filter((type) => !!type.pdfTemplate && (!q.typeKey || type.key === q.typeKey)).map((type) => type.key) }
     if (q.studentId) where.studentId = q.studentId
     if (q.academicYearId) where.academicYearId = q.academicYearId
     if (q.overdue === 'true') Object.assign(where, { status: 'SENT', ackDeadlineAt: { lt: new Date() } })
@@ -237,12 +238,14 @@ export class PrismaFormalReportRepository {
     })
   }
 
-  async counts(institutionId: string, actor: Actor) {
+  async counts(institutionId: string, actor: Actor, annexOnly = false) {
+    const flow = annexOnly ? await this.flow(institutionId) : null
+    const filter = flow ? { typeKey: { in: flow.reportTypes.filter((type) => !!type.pdfTemplate).map((type) => type.key) } } : {}
     const supersededIds = await this.supersededGroupIds(institutionId, actor)
     const [inboxPending, overdueSent, drafts] = await Promise.all([
-      prisma.formalReport.count({ where: { institutionId, id: { notIn: supersededIds }, authorId: { not: actor.userId }, status: 'SENT', recipients: { some: { userId: actor.userId } } } }),
-      prisma.formalReport.count({ where: { institutionId, id: { notIn: supersededIds }, authorId: actor.userId, status: 'SENT', ackDeadlineAt: { lt: new Date() } } }),
-      prisma.formalReport.count({ where: { institutionId, authorId: actor.userId, status: 'DRAFT' } }),
+      prisma.formalReport.count({ where: { ...filter, institutionId, id: { notIn: supersededIds }, authorId: { not: actor.userId }, status: 'SENT', recipients: { some: { userId: actor.userId } } } }),
+      prisma.formalReport.count({ where: { ...filter, institutionId, id: { notIn: supersededIds }, authorId: actor.userId, status: 'SENT', ackDeadlineAt: { lt: new Date() } } }),
+      prisma.formalReport.count({ where: { ...filter, institutionId, authorId: actor.userId, status: 'DRAFT' } }),
     ])
     return { inboxPending, overdueSent, drafts }
   }

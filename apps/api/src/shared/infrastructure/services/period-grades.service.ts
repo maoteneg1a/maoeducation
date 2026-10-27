@@ -1,3 +1,4 @@
+import { mergeLiveFormativeRegister } from './live-formative-register.service'
 import { applyFormativeReinforcement } from '../../domain/formative-reinforcement'
 import { loadFormativeApplications } from './formative-reinforcement.service'
 import { prisma } from '../database/prisma'
@@ -98,6 +99,7 @@ export async function computePeriodGrades(
     if (!bucket.has(key)) bucket.set(key, new Map())
     if (!bucket.get(key)!.has(m.insumoId)) bucket.get(key)!.set(m.insumoId, { id: m.insumoId, name: m.insumo.name, activities: [] })
   }
+  if (!params.ignoreFormativeApplications) await mergeLiveFormativeRegister(institutionId, params, applications, bucket, db)
   for (const [k, groups] of bucket) {
     const assignmentId = k.split(':')[1]
     const w = weights.get(assignmentId)

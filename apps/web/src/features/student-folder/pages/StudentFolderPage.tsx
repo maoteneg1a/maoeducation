@@ -1,5 +1,6 @@
+import { StudentReinforcements } from '../components/StudentReinforcements'
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ArrowLeft, Download, FileText, ChevronRight } from 'lucide-react'
@@ -18,12 +19,13 @@ import {
   type FolderEnrollment,
 } from '../api/student-folder.api'
 
-type Tab = 'resumen' | 'matriculas' | 'calificaciones' | 'incidentes' | 'actas' | 'atenciones' | 'expediente'
+type Tab = 'resumen' | 'matriculas' | 'calificaciones' | 'incidentes' | 'actas' | 'atenciones' | 'refuerzos' | 'expediente'
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'resumen', label: 'Resumen' },
   { id: 'matriculas', label: 'Matrículas' },
   { id: 'calificaciones', label: 'Calificaciones' },
+  { id: 'refuerzos', label: 'Refuerzos' },
   { id: 'incidentes', label: 'Incidentes' },
   { id: 'actas', label: 'Actas' },
   { id: 'atenciones', label: 'Atenciones' },
@@ -48,7 +50,9 @@ const personName = (p: { profile: { firstName: string; lastName: string } | null
 export function StudentFolderPage() {
   const { id = '' } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [tab, setTab] = useState<Tab>('resumen')
+  const [params, setParams] = useSearchParams()
+  const tab = (TABS.find((item) => item.id === params.get('tab'))?.id ?? 'resumen')
+  const setTab = (value: Tab) => setParams((previous) => { const next = new URLSearchParams(previous); next.set('tab', value); return next })
 
   const { data: folder, isLoading, isError, error } = useStudentFolder(id)
 
@@ -109,6 +113,7 @@ export function StudentFolderPage() {
       {tab === 'incidentes' && <IncidentesTab folder={folder} />}
       {tab === 'actas' && <ActasTab folder={folder} />}
       {tab === 'atenciones' && <AtencionesTab folder={folder} />}
+      {tab === 'refuerzos' && <StudentReinforcements key={id} studentId={id} enrollments={folder.enrollments} />}
       {tab === 'expediente' && <DossierPanel studentId={id} />}
     </div>
   )

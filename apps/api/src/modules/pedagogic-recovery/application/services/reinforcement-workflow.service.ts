@@ -1,3 +1,4 @@
+import { saveReinforcementRegister } from '../../infrastructure/services/reinforcement-grade-register.service'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import { hasPermission, isAuthority, type Actor } from '../../../../shared/infrastructure/services/actor'
@@ -79,7 +80,7 @@ export async function startReinforcementFromAlerts(institutionId: string, actor:
   })
 }
 
-/** Guarda la planificación y la decisión docente dentro de la misma ficha. No modifica notas. */
+/** Guarda el plan; al finalizar confirma el cálculo y la valoración en la misma transacción. */
 export async function saveReinforcementPlan(institutionId: string, actor: Actor, planId: string, dto: SaveReinforcementPlanDto) {
   if (!hasPermission(actor, 'grades', 'write', 'own')) throw new ForbiddenError()
   if (![dto.learningTarget, dto.objective, dto.strategies].every((s) => typeof s === 'string' && s.trim().length >= 3 && s.length <= 6000)) throw new BadRequestError('Completa aprendizaje, objetivo y estrategias')
@@ -97,6 +98,7 @@ export async function saveReinforcementPlan(institutionId: string, actor: Actor,
       if (!dto.outcomes || dto.outcomes.length !== students.length || new Set(dto.outcomes.map((o) => o.studentId)).size !== students.length || dto.outcomes.some((o) => !students.includes(o.studentId) || !['CONSOLIDATED', 'NOT_CONSOLIDATED'].includes(o.result))) throw new BadRequestError('Registra el resultado de aprendizaje de cada participante')
       const performed = await tx.reinforcementSession.count({ where: { institutionId, planId } })
       if (!performed) throw new ConflictError('Registra las actividades y su seguimiento antes de concluir')
+      await saveReinforcementRegister(institutionId, actor, planId, [], undefined, tx)
       const allAchieved = dto.outcomes.every((o) => o.result === 'CONSOLIDATED')
       await tx.reinforcementReevaluation.create({ data: {
         planId, createdBy: actor.userId, date: new Date(), evaluation: dto.evaluation?.trim() || 'Valoración docente del plan de refuerzo',
@@ -117,5 +119,26 @@ export async function saveReinforcementPlan(institutionId: string, actor: Actor,
       caseStatus: action === 'close' ? 'CLOSED' : action === 'continue' ? 'CONTINUES_REINFORCEMENT' : plan.caseStatus === 'DETECTED' ? 'PLANNED' : plan.caseStatus,
       status: action === 'close' ? 'cerrado' : 'activo',
     } })
+  }, { timeout: 60000 })
+}
+
+/** La única entrada a corregir un registro finalizado; conserva la conclusión y registra la reapertura. */
+export async function reopenReinforcementForCorrection(institutionId: string, actor: Actor, planId: string, reason: string) {
+  if (!hasPermission(actor, 'grades', 'write', 'own')) throw new ForbiddenError()
+  const reasons = ['Corregir una nota mal digitada', 'Completar una evidencia pendiente', 'Corregir asistencia o actividad']
+  if (!reasons.includes(reason)) throw new BadRequestError('Selecciona el motivo de la corrección')
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`reinforcement-plan:${institutionId}:${planId}`}))`
+    const plan = await tx.reinforcementPlan.findFirst({ where: { id: planId, institutionId, planType: 'academico' }, include: { participants: true, courseAssignment: true } })
+    if (!plan) throw new NotFoundError('Plan no encontrado')
+    if (plan.courseAssignment.teacherId !== actor.userId && !isAuthority(actor)) throw new ForbiddenError()
+    const period = await tx.academicPeriod.findFirst({ where: { id: plan.academicPeriodId, academicYear: { institutionId } } })
+    if (!period || period.isClosed) throw new ConflictError('El período está cerrado')
+    const students = [...new Set([plan.studentId, ...plan.participants.map((p) => p.studentId)])].sort()
+    for (const student of students) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${institutionId}:${student}:${plan.courseAssignmentId}:${plan.academicPeriodId}`}))`
+    if (plan.caseStatus !== 'CLOSED') return { id: plan.id }
+    await tx.reinforcementFollowUp.create({ data: { planId, date: new Date(), strategyApplied: 'Reapertura para corrección de calificaciones', evidence: 'Registro de notas y actividades', observation: reason, nextAction: 'Revisar las notas y finalizar nuevamente el seguimiento', createdBy: actor.userId } })
+    await tx.reinforcementPlan.update({ where: { id: plan.id }, data: { caseStatus: 'IN_REINFORCEMENT', status: 'activo' } })
+    return { id: plan.id }
   })
 }

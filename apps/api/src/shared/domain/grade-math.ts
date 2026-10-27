@@ -170,8 +170,8 @@ export function effectiveActivityScore(grade?: {
   if (base == null) return reinforcement
   // Modos del Acuerdo 2026-00082-A (agreement_*): la nota final ya se calculó con los
   // topes configurados al guardar, así que `score` es la fuente de verdad.
-  if (grade.reinforcementMode?.startsWith('agreement_') && grade.score != null) return Number(grade.score)
-  return grade.reinforcementMode === 'average' ? (base + reinforcement) / 2 : reinforcement
+  if (grade.reinforcementMode?.startsWith('agreement_') && grade.score != null) return grade.reinforcementMode === 'agreement_formative' ? Math.max(base, Number(grade.score)) : Number(grade.score)
+  return Math.max(base, grade.reinforcementMode === 'average' ? (base + reinforcement) / 2 : reinforcement)
 }
 
 /**

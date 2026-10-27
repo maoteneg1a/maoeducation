@@ -62,7 +62,7 @@ export function SessionsTab({ planId, detail }: Props) {
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          {formative?.policy.mode ? 'Crea las actividades, escribe las notas y guarda. El promedio se calcula automáticamente. Puedes dejar prácticas sin nota.' : 'Cada sesión registra la asistencia al refuerzo. Si apunta a una actividad original, la nota se aplica con las reglas de la institución.'}
+          {detail.case.caseStatus === 'CLOSED' ? 'Consulta las actividades y el resultado del refuerzo finalizado.' : formative?.policy.mode ? 'Crea las actividades, escribe las notas y guarda. El promedio se calcula automáticamente. Puedes dejar prácticas sin nota.' : 'Cada sesión registra la asistencia al refuerzo. Si apunta a una actividad original, la nota se aplica con las reglas de la institución.'}
         </p>
         {detail.canEdit && detail.case.caseStatus !== 'CLOSED' && (
           <Button size="sm" disabled={registerBusy || loadingRule || ruleError} onClick={() => setEditing('new')}><Plus className="mr-1.5 h-4 w-4" /> Nueva actividad</Button>

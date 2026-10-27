@@ -6,7 +6,7 @@ import { extractGradingConfig } from '../../../institution/infrastructure/reposi
 import { computePeriodGrades } from '../../../../shared/infrastructure/services/period-grades.service'
 import { activityKind, effectiveActivityScore, type InsumoGroupInput } from '../../../../shared/domain/grade-math'
 import { applyFormativeReinforcement, validateFormativePolicy } from '../../../../shared/domain/formative-reinforcement'
-import { automaticRegisterInput, type RegisterEvidence } from '../../application/services/automatic-register-input'
+import { automaticRegisterInput, type RegisterEvidence } from '../../../../shared/domain/reinforcement-register'
 
 type Attendance = 'present' | 'absent' | 'justified'
 export interface RegisterCell {
@@ -17,10 +17,10 @@ export interface RegisterCell {
 export type RegisterSessionChange = { sessionId: string; remove?: boolean; data?: { date?: string; title?: string; description?: string | null; targetActivityId?: string | null } }
 
 /** Notas, cálculo e historial se confirman juntos. No hay una segunda acción de «aplicar». */
-export async function saveReinforcementRegister(institutionId: string, actor: Actor, planId: string, cells: RegisterCell[], sessionChange?: RegisterSessionChange) {
+export async function saveReinforcementRegister(institutionId: string, actor: Actor, planId: string, cells: RegisterCell[], sessionChange?: RegisterSessionChange, transaction?: Prisma.TransactionClient) {
   if (!hasPermission(actor, 'grades', 'write', 'own')) throw new ForbiddenError()
   if (!Array.isArray(cells) || cells.length > 5000) throw new BadRequestError('Registro de notas inválido')
-  return prisma.$transaction(async (tx) => {
+  const execute = async (tx: Prisma.TransactionClient) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`reinforcement-plan:${institutionId}:${planId}`}))`
     const plan = await tx.reinforcementPlan.findFirst({ where: { id: planId, institutionId, planType: 'academico' }, include: { participants: true, courseAssignment: true } })
     if (!plan) throw new NotFoundError('Plan de refuerzo no encontrado')
@@ -31,6 +31,7 @@ export async function saveReinforcementRegister(institutionId: string, actor: Ac
     const institution = await tx.institution.findUnique({ where: { id: institutionId }, select: { settings: true } })
     const config = extractGradingConfig(institution?.settings)
     const policy = config.formativeReinforcement
+    if (!policy.mode && !cells.length && !sessionChange) return { ok: true }
     if (!policy.mode) throw new BadRequestError('La institución debe seleccionar la regla de refuerzo formativo en Configuración de calificación')
     const error = validateFormativePolicy(policy, config.gradingScaleMax)
     if (error) throw new BadRequestError(error)
@@ -113,5 +114,6 @@ export async function saveReinforcementRegister(institutionId: string, actor: Ac
       await tx.formativeReinforcementResult.create({ data: { institutionId, studentId, courseAssignmentId: plan.courseAssignmentId, academicPeriodId: plan.academicPeriodId, planId, recordedBy: actor.userId, reason: 'Cálculo automático al guardar el registro de actividades de refuerzo', createdAt: new Date(Math.max(Date.now(), (previous?.createdAt.getTime() ?? 0) + 1)), payload: { ...calculation, source: 'grade_register', calculation, changes: changes.filter((change) => !change.studentId || change.studentId === studentId) } as unknown as Prisma.InputJsonValue } })
     }
     return { ok: true }
-  }, { timeout: 60000 })
+  }
+  return transaction ? execute(transaction) : prisma.$transaction(execute, { timeout: 60000 })
 }

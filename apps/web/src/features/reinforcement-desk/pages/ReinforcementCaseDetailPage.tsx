@@ -1,3 +1,4 @@
+import { CorrectionDialog } from '../components/CorrectionDialog'
 import { PlanTab } from '../components/PlanTab'
 import { FormativeResultTab } from '../components/FormativeResultTab'
 import * as React from 'react'
@@ -39,6 +40,7 @@ export function ReinforcementCaseDetailPage() {
   const { id = '' } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
+  const [correctionOpen, setCorrectionOpen] = React.useState(false)
   const openTab = (value: string) => setParams((previous) => { const next = new URLSearchParams(previous); next.set('tab', value); next.delete('newSession'); return next })
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['reinforcement-desk-detail', id],
@@ -52,7 +54,7 @@ export function ReinforcementCaseDetailPage() {
   if (isError || !data) {
     return (
       <div className="space-y-4 p-6">
-        <Button variant="ghost" size="sm" className="-ml-2" onClick={() => navigate('/refuerzo/casos')}>
+        <Button variant="ghost" size="sm" className="-ml-2" onClick={() => navigate(params.get('fromStudent') ? `/student-folder/${encodeURIComponent(params.get('fromStudent')!)}?tab=refuerzos` : '/refuerzo/casos')}>
           <ArrowLeft className="mr-1.5 h-4 w-4" /> Volver
         </Button>
         <EmptyState title="No se pudo cargar el caso" description={getErrorMessage(error)} />
@@ -64,13 +66,15 @@ export function ReinforcementCaseDetailPage() {
   const guidance = caseGuidance(data)
   return (
     <div className="space-y-6 p-4 sm:p-6">
+      <CorrectionDialog planId={id} open={data.canEdit && k.caseStatus === 'CLOSED' && (correctionOpen || params.get('correction') === '1')} onClose={() => { setCorrectionOpen(false); setParams((previous) => { const next = new URLSearchParams(previous); next.delete('correction'); next.set('tab', 'sessions'); return next }, { replace: true }) }} />
       <div>
-        <Button variant="ghost" size="sm" className="-ml-2 mb-2" onClick={() => navigate('/refuerzo/casos')}>
-          <ArrowLeft className="mr-1.5 h-4 w-4" /> Casos de refuerzo
+        <Button variant="ghost" size="sm" className="-ml-2 mb-2" onClick={() => navigate(params.get('fromStudent') ? `/student-folder/${encodeURIComponent(params.get('fromStudent')!)}?tab=refuerzos` : '/refuerzo/casos')}>
+          <ArrowLeft className="mr-1.5 h-4 w-4" /> {params.get('fromStudent') ? 'Carpeta del estudiante' : 'Casos de refuerzo'}
         </Button>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-bold">{data.students.map((s) => s.name).join(', ')}</h1>
           <Badge variant={caseStatusVariant(k.caseStatus)}>{CASE_STATUS_LABEL[k.caseStatus] ?? k.caseStatus}</Badge>
+          {data.canEdit && k.caseStatus === 'CLOSED' && <Button size="sm" variant="outline" onClick={() => setCorrectionOpen(true)}>Corregir notas</Button>}
           {k.cycleNumber > 1 && <Badge variant="outline">Ciclo {k.cycleNumber}</Badge>}
           {!data.canEdit && <Badge variant="outline"><Lock className="mr-1 h-3 w-3" /> Solo lectura</Badge>}
         </div>
@@ -98,8 +102,8 @@ export function ReinforcementCaseDetailPage() {
               <CardContent className="space-y-1 p-4">
                 <p className="text-sm font-medium">{name}</p>
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">Al detectar</span>
-                  <span className="font-semibold">{n(s.atDetection)}</span>
+                  <span className="text-muted-foreground">Formativa antes</span>
+                  <span className="font-semibold">{n(s.beforeReinforcement)}</span>
                   <span className="text-muted-foreground">→ Formativa actual</span>
                   <span className={reached ? 'font-semibold text-green-600' : 'font-semibold'}>{n(s.formative)}</span>
                 </div>

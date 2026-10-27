@@ -1,5 +1,5 @@
 import type { RegisterCell } from '../infrastructure/services/reinforcement-grade-register.service'
-import { startReinforcementFromAlerts, saveReinforcementPlan, type StartReinforcementDto, type SaveReinforcementPlanDto } from '../application/services/reinforcement-workflow.service'
+import { startReinforcementFromAlerts, saveReinforcementPlan, reopenReinforcementForCorrection, type StartReinforcementDto, type SaveReinforcementPlanDto } from '../application/services/reinforcement-workflow.service'
 import { FastifyInstance } from 'fastify'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { actorOf } from '../../../shared/infrastructure/services/actor'
@@ -54,6 +54,8 @@ export default async function reinforcementDeskRoutes(app: FastifyInstance) {
       } } },
     },
   } } }, async (req, reply) => reply.send(await saveReinforcementPlan(req.user.institutionId, actorOf(req.user), req.params.id, req.body)))
+
+  app.post<{ Params: { id: string }; Body: { reason: string } }>('/reinforcement-desk/cases/:id/correction', { schema: { body: { type: 'object', additionalProperties: false, required: ['reason'], properties: { reason: { type: 'string', enum: ['Corregir una nota mal digitada', 'Completar una evidencia pendiente', 'Corregir asistencia o actividad'] } } } } }, async (req, reply) => reply.send(await reopenReinforcementForCorrection(req.user.institutionId, actorOf(req.user), req.params.id, req.body.reason)))
 
   app.get<{ Querystring: ListCasesQuery }>('/reinforcement-desk/cases', async (req, reply) =>
     reply.send(await repo.list(req.user.institutionId, actorOf(req.user), req.query)))

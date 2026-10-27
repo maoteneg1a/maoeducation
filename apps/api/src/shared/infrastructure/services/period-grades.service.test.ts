@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { computePeriodGrades } from './period-grades.service'
 
 const db = vi.hoisted(() => ({
+  reinforcementSession: { findMany: vi.fn() }, institution: { findUnique: vi.fn() },
   courseAssignment: { findMany: vi.fn() }, insumo: { findMany: vi.fn() }, activity: { findMany: vi.fn() },
   manualInsumoAverage: { findMany: vi.fn() }, formativeReinforcementResult: { findMany: vi.fn() },
 }))
@@ -12,6 +13,7 @@ const application = { mode: 'period_formative', reinforcementWeight: 50, cap: 7,
 const row = (payload = application) => ({ studentId: 'student', courseAssignmentId: 'assignment', academicPeriodId: 'period', payload })
 beforeEach(() => {
   vi.clearAllMocks()
+  db.reinforcementSession.findMany.mockResolvedValue([])
   db.courseAssignment.findMany.mockResolvedValue([{ id: 'assignment', examWeight: 30, projectWeight: 0 }])
   const activity = (id: string, score: number, code = 'task') => ({ id, maxScore: 10, activityType: { code }, grades: [{ studentId: 'student', score }] })
   db.insumo.findMany.mockResolvedValue([
@@ -76,5 +78,45 @@ describe('resumen único del período con refuerzo', () => {
     const result = (await computePeriodGrades('school', { ...params, gradingScaleMax: 5 })).get(key)!
     expect(result.insumosBase).toBeCloseTo(3.375)
     expect(result.total).toBeCloseTo(3.7125)
+  })
+})
+
+
+describe('regresión: las actividades de refuerzo son la fuente compartida', () => {
+  const setup = (score: number | null = 10) => {
+    const activity = (id: string, score: number) => ({ id, maxScore: 10, activityType: { code: 'task' }, grades: [{ studentId: 'student', score }] })
+    db.insumo.findMany.mockResolvedValue([
+      { id: 'tests', name: 'Pruebas', courseAssignmentId: 'assignment', academicPeriodId: 'period', activities: [activity('test', 2)] },
+      { id: 'tasks', name: 'Tareas', courseAssignmentId: 'assignment', academicPeriodId: 'period', activities: [activity('task', 7)] },
+    ])
+    db.institution.findUnique.mockResolvedValue({ settings: { gradingConfig: { formativeReinforcement: { mode: 'period_formative', reinforcementWeight: 50, cap: 7 } } } })
+    db.reinforcementSession.findMany.mockResolvedValue([{ id: 'session', planId: 'closed-plan', date: new Date('2026-10-26'), title: 'Resolución de problemas', targetActivityId: null,
+      plan: { studentId: 'student', participants: [], courseAssignmentId: 'assignment', academicPeriodId: 'period' },
+      attendances: [{ studentId: 'student', status: 'present', score, scoreScaleMax: 10, appliedScore: null }],
+    }])
+  }
+  it('corrige el caso de la captura: base 4,50 y refuerzo 10 dan 7, incluso sin aplicación histórica', async () => {
+    setup()
+    const summary = (await computePeriodGrades('school', params)).get(key)!
+    expect(summary.formativeReinforcement).toMatchObject({ initial: 4.5, result: 10, adjusted: 7 })
+    expect(summary.insumosBase).toBe(7)
+    expect(summary.total).toBe(7)
+    expect(db.reinforcementSession.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ institutionId: 'school' }) }))
+  })
+  it('corregir una nota de refuerzo actualiza el resultado sin depender del historial anterior', async () => {
+    setup(6)
+    db.formativeReinforcementResult.findMany.mockResolvedValue([row({ ...application, score: 10 })])
+    expect((await computePeriodGrades('school', params)).get(key)!.insumosBase).toBe(5.25)
+  })
+  it('borrar la nota del refuerzo retira el efecto aunque quede un historial anterior', async () => {
+    setup(null)
+    db.formativeReinforcementResult.findMany.mockResolvedValue([row()])
+    expect((await computePeriodGrades('school', params)).get(key)!.insumosBase).toBe(4.5)
+  })
+  it('no incorpora evidencias de un estudiante que no participa en el plan', async () => {
+    setup()
+    const sessions = await db.reinforcementSession.findMany({})
+    sessions[0].plan.studentId = 'someone-else'
+    expect((await computePeriodGrades('school', params)).get(key)!.insumosBase).toBe(4.5)
   })
 })

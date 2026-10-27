@@ -91,6 +91,8 @@ export interface CaseScore {
   alertId: string | null
   alertStatus: string | null
   atDetection: number | null
+  beforeReinforcement?: number | null
+  reinforcementAverage?: number | null
   formative: number | null
   summative: number | null
   total: number | null
@@ -233,6 +235,7 @@ export interface SaveReinforcementPlanInput {
 }
 export const reinforcementDeskApi = {
   startFromAlerts: (data: StartReinforcementInput) => apiPost<{ id: string; alreadyLinked: boolean }>(`${base}/from-alerts`, data),
+  reopenForCorrection: (id: string, reason: string) => apiPost(`${base}/${id}/correction`, { reason }),
   savePlan: (id: string, data: SaveReinforcementPlanInput) => apiPut(`${base}/${id}/plan`, data),
   formativeOptions: (id: string) => apiGet<FormativeOptions>(`${base}/${id}/formative`),
   previewFormative: (id: string, data: FormativeResultInput) => apiPost<FormativePreview>(`${base}/${id}/formative/preview`, data),

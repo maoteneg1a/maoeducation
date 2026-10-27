@@ -107,3 +107,14 @@ describe('separate exam and project percentages', () => {
     expect(validPeriodWeights(total, project)).toBe(false)
   })
 })
+
+
+describe('mejora individual sin descenso de la actividad', () => {
+  it('reconcilia valores históricos: original 3 y mejora 1 conservan 3 aunque se hubiera guardado 2', () => {
+    expect(effectiveActivityScore({ score: 2, baseScore: 3, reinforcementScore: 1, reinforcementMode: 'agreement_formative' })).toBe(3)
+    expect(effectiveActivityScore({ score: 2.5, baseScore: 3, reinforcementScore: 2, reinforcementMode: 'agreement_formative' })).toBe(3)
+  })
+  it('conserva el comportamiento sumativo separado', () => {
+    expect(effectiveActivityScore({ score: 6, baseScore: 5, reinforcementScore: 7, reinforcementMode: 'agreement_with_reinforcement' })).toBe(6)
+  })
+})

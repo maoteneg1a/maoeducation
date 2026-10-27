@@ -35,6 +35,7 @@ export function ReportComposerDialog({
   onOpenChange,
   context,
   typeKeys,
+  dossier = false,
   defaultTypeKey,
   onCreated,
   students: providedStudents,
@@ -43,6 +44,7 @@ export function ReportComposerDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   context: ReportComposerContext
+  dossier?: boolean
   typeKeys?: string[]
   defaultTypeKey?: string
   onCreated?: (reportId: string) => void
@@ -80,12 +82,12 @@ export function ReportComposerDialog({
   const hasParallel = hasStudent || !!context.parallelId || !!context.courseAssignmentId
 
   const types = React.useMemo(() => {
-    const list = (data?.config.reportTypes ?? []).filter((t) => t.enabled)
+    const list = (data?.config.reportTypes ?? []).filter((t) => t.enabled && (dossier || !!t.pdfTemplate))
     return list
       .filter((t) => !typeKeys || typeKeys.includes(t.key))
       .filter((t) => !t.requiresReinforcementCase || !!context.reinforcementPlanId)
       .filter((t) => isAuthority || t.authorRoles.includes('tutor') || t.authorRoles.some((r) => roles.includes(r)))
-  }, [data, typeKeys, context.reinforcementPlanId, isAuthority, roles])
+  }, [data, dossier, typeKeys, context.reinforcementPlanId, isAuthority, roles])
 
   const unavailableReason = (t: ReportTypeConfig): string | null => {
     if (context.reinforcementPlanId && !providedStudents && plan.isPending) return 'Cargando los participantes del plan'

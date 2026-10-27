@@ -17,6 +17,7 @@ export interface GradesReportData {
     activities: Array<{ id: string; name: string; maxScore: number; activityDate: string | null; activityType: { code: string; name: string } }>
   }>
   students: Array<{
+    closedPlanId?: string | null
     student: { id: string; profile: { firstName: string; lastName: string; dni?: string } }
     grades: Record<string, number | null>
     summary: GradeSummary

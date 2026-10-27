@@ -1,5 +1,6 @@
+vi.mock('../../infrastructure/services/reinforcement-grade-register.service', () => ({ saveReinforcementRegister: vi.fn().mockResolvedValue({ ok: true }) }))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { startReinforcementFromAlerts, saveReinforcementPlan } from './reinforcement-workflow.service'
+import { startReinforcementFromAlerts, saveReinforcementPlan, reopenReinforcementForCorrection } from './reinforcement-workflow.service'
 
 const db = vi.hoisted(() => ({
   $transaction: vi.fn(), $executeRaw: vi.fn(),
@@ -7,6 +8,7 @@ const db = vi.hoisted(() => ({
   courseAssignment: { findFirst: vi.fn() }, academicPeriod: { findFirst: vi.fn() },
   studentEnrollment: { findMany: vi.fn() },
   reinforcementPlan: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+  reinforcementFollowUp: { create: vi.fn() },
   reinforcementSession: { count: vi.fn() }, reinforcementReevaluation: { create: vi.fn() },
 }))
 vi.mock('../../../../shared/infrastructure/database/prisma', () => ({ prisma: db }))
@@ -80,5 +82,30 @@ describe('seguimiento y decisión docente', () => {
     await expect(saveReinforcementPlan('school', teacher, 'plan', { ...save, action: 'close', notes: 'Conclusión final', outcomes: [{ studentId: 'student', result: 'CONSOLIDATED' }] })).rejects.toThrow('actividades')
     db.reinforcementPlan.findFirst.mockResolvedValue({ studentId: 'student', participants: [], caseStatus: 'CLOSED', courseAssignment: { teacherId: 'teacher' } })
     await expect(saveReinforcementPlan('school', teacher, 'plan', save)).rejects.toThrow('cerrado')
+  })
+})
+
+
+describe('corrección explícita sin formularios adicionales', () => {
+  const closed = { id: 'plan', studentId: 'student', participants: [], courseAssignmentId: 'assignment', academicPeriodId: 'period', caseStatus: 'CLOSED', courseAssignment: { teacherId: 'teacher' } }
+  it('registra el motivo y habilita el mismo plan sin duplicar el seguimiento', async () => {
+    db.reinforcementPlan.findFirst.mockResolvedValue(closed)
+    await reopenReinforcementForCorrection('school', teacher, 'plan', 'Corregir una nota mal digitada')
+    expect(db.reinforcementFollowUp.create).toHaveBeenCalledWith({ data: expect.objectContaining({ planId: 'plan', createdBy: 'teacher', observation: 'Corregir una nota mal digitada' }) })
+    expect(db.reinforcementPlan.update).toHaveBeenCalledWith({ where: { id: 'plan' }, data: { caseStatus: 'IN_REINFORCEMENT', status: 'activo' } })
+    expect(db.reinforcementPlan.create).not.toHaveBeenCalled()
+  })
+  it('reintentar una reapertura ya hecha no duplica el registro', async () => {
+    db.reinforcementPlan.findFirst.mockResolvedValue({ ...closed, caseStatus: 'IN_REINFORCEMENT' })
+    await reopenReinforcementForCorrection('school', teacher, 'plan', 'Corregir una nota mal digitada')
+    expect(db.reinforcementFollowUp.create).not.toHaveBeenCalled()
+  })
+  it('rechaza docentes ajenos, períodos cerrados y motivos desconocidos', async () => {
+    db.reinforcementPlan.findFirst.mockResolvedValue(closed)
+    await expect(reopenReinforcementForCorrection('school', { ...teacher, userId: 'other' }, 'plan', 'Corregir una nota mal digitada')).rejects.toThrow()
+    db.academicPeriod.findFirst.mockResolvedValue({ isClosed: true })
+    await expect(reopenReinforcementForCorrection('school', teacher, 'plan', 'Corregir una nota mal digitada')).rejects.toThrow('cerrado')
+    await expect(reopenReinforcementForCorrection('school', teacher, 'plan', 'otro')).rejects.toThrow('motivo')
+    expect(db.reinforcementFollowUp.create).not.toHaveBeenCalled()
   })
 })
