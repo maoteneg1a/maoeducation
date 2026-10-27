@@ -1,6 +1,7 @@
 import { applyFormativeReinforcement } from '../../domain/formative-reinforcement'
 import { loadFormativeApplications } from './formative-reinforcement.service'
 import { prisma } from '../database/prisma'
+import type { Prisma } from '@prisma/client'
 import {
   average,
   periodTotal,
@@ -21,12 +22,13 @@ import {
 export async function computePeriodGrades(
   institutionId: string,
   params: { assignmentIds: string[]; periodIds: string[]; studentIds: string[]; gradingScaleMax: number; ignoreFormativeApplications?: boolean },
+  db: Prisma.TransactionClient = prisma,
 ): Promise<Map<string, PeriodSummary>> {
   const { assignmentIds, periodIds, studentIds, gradingScaleMax } = params
   const out = new Map<string, PeriodSummary>()
   if (!assignmentIds.length || !periodIds.length || !studentIds.length) return out
 
-  const assignments = await prisma.courseAssignment.findMany({
+  const assignments = await db.courseAssignment.findMany({
     where: { institutionId, id: { in: assignmentIds } },
     select: { id: true, examWeight: true, projectWeight: true },
   })
@@ -38,7 +40,7 @@ export async function computePeriodGrades(
   } as const
 
   const [insumos, standalone] = await Promise.all([
-    prisma.insumo.findMany({
+    db.insumo.findMany({
       where: { institutionId, courseAssignmentId: { in: assignmentIds }, academicPeriodId: { in: periodIds } },
       orderBy: { id: 'asc' },
       select: {
@@ -52,7 +54,7 @@ export async function computePeriodGrades(
         },
       },
     }),
-    prisma.activity.findMany({
+    db.activity.findMany({
       where: { institutionId, courseAssignmentId: { in: assignmentIds }, academicPeriodId: { in: periodIds }, isPublished: true, insumoId: null },
       orderBy: { id: 'asc' },
       select: { id: true, courseAssignmentId: true, academicPeriodId: true, maxScore: true, activityType: { select: { code: true } }, grades: gradeSelect },
@@ -85,8 +87,8 @@ export async function computePeriodGrades(
   for (const i of insumos) for (const a of i.activities) push(i.id, i.name, i.courseAssignmentId, i.academicPeriodId, a)
   for (const a of standalone) push('no-insumo', 'Sin insumo', a.courseAssignmentId, a.academicPeriodId, a)
 
-  const applications = params.ignoreFormativeApplications ? new Map() : await loadFormativeApplications(institutionId, assignmentIds, periodIds, studentIds)
-  const manual = await prisma.manualInsumoAverage.findMany({
+  const applications = params.ignoreFormativeApplications ? new Map() : await loadFormativeApplications(institutionId, assignmentIds, periodIds, studentIds, db)
+  const manual = await db.manualInsumoAverage.findMany({
     where: { institutionId, studentId: { in: studentIds }, insumo: { courseAssignmentId: { in: assignmentIds }, academicPeriodId: { in: periodIds } }, score: { not: null } },
     orderBy: { id: 'asc' },
     select: { studentId: true, insumoId: true, score: true, insumo: { select: { courseAssignmentId: true, academicPeriodId: true, name: true } } },

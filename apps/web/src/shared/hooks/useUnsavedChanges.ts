@@ -16,7 +16,7 @@ const DISCARD_OPTIONS = {
  * - pide confirmación al navegar a otra ruta de la app;
  * - devuelve `confirmDiscard()` para usar antes de cambiar de curso/fecha/actividad.
  */
-export function useUnsavedChanges(isDirty: boolean) {
+export function useUnsavedChanges(isDirty: boolean, includeSearch = false) {
   useEffect(() => {
     if (!isDirty) return
     const handler = (e: BeforeUnloadEvent) => {
@@ -28,7 +28,7 @@ export function useUnsavedChanges(isDirty: boolean) {
   }, [isDirty])
 
   const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) => isDirty && currentLocation.pathname !== nextLocation.pathname,
+    ({ currentLocation, nextLocation }) => isDirty && (currentLocation.pathname !== nextLocation.pathname || (includeSearch && currentLocation.search !== nextLocation.search)),
   )
 
   useEffect(() => {

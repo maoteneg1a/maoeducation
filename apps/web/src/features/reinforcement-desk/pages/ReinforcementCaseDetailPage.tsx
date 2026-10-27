@@ -39,8 +39,6 @@ export function ReinforcementCaseDetailPage() {
   const { id = '' } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
-  const requestedTab = params.get('tab') ?? 'plan'
-  const tab = ['results', 'formative'].includes(requestedTab) ? 'results' : ['documents', 'files', 'reports'].includes(requestedTab) ? 'documents' : requestedTab === 'sessions' ? 'sessions' : 'plan'
   const openTab = (value: string) => setParams((previous) => { const next = new URLSearchParams(previous); next.set('tab', value); next.delete('newSession'); return next })
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['reinforcement-desk-detail', id],
@@ -48,6 +46,8 @@ export function ReinforcementCaseDetailPage() {
     enabled: !!id,
   })
 
+  const requestedTab = params.get('tab') ?? (data && caseGuidance(data).planReady ? 'sessions' : 'plan')
+  const tab = ['results', 'formative'].includes(requestedTab) ? 'results' : ['documents', 'files', 'reports'].includes(requestedTab) ? 'documents' : requestedTab === 'sessions' ? 'sessions' : 'plan'
   if (isLoading) return <PageLoader />
   if (isError || !data) {
     return (
@@ -122,7 +122,7 @@ export function ReinforcementCaseDetailPage() {
         </TabsList>
         <TabsContent value="plan"><PlanTab planId={id} detail={data} /><details className="mt-5 rounded border p-3"><summary className="cursor-pointer text-sm">Ver antecedentes del caso</summary><div className="mt-3"><CaseSummaryTab kase={k} /></div></details></TabsContent>
         <TabsContent value="sessions"><SessionsTab planId={id} detail={data} /></TabsContent>
-        <TabsContent value="results" className="space-y-6"><details open={data.sessions.some((session) => session.attendances.some((attendance) => attendance.status === 'present' && attendance.score != null && attendance.appliedScore == null))} className="rounded border p-4"><summary className="cursor-pointer font-medium">Mejora de la nota formativa · si corresponde</summary><div className="mt-4"><FormativeResultTab planId={id} detail={data} /></div></details><PlanTab planId={id} detail={data} section="decision" onOpenPlan={() => openTab('plan')} /></TabsContent>
+        <TabsContent value="results" className="space-y-6"><FormativeResultTab planId={id} detail={data} /><PlanTab planId={id} detail={data} section="decision" onOpenPlan={() => openTab('plan')} /></TabsContent>
         <TabsContent value="documents" className="space-y-6"><ReportsTab planId={id} detail={data} /><details className="rounded border p-4"><summary className="cursor-pointer font-medium">Archivos y respaldos ({data.attachments.length})</summary><div className="mt-4"><AttachmentsTab planId={id} detail={data} /></div></details></TabsContent>
       </Tabs>
     </div>
