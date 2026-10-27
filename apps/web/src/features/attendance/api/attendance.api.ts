@@ -72,6 +72,7 @@ export interface StudentAbsenceRecord {
 }
 
 export interface StudentAbsencesData {
+  student: { id: string; fullName: string; dni: string | null }
   attendanceMode: 'per_subject' | 'daily'
   parallelName: string
   levelName: string

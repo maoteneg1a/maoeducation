@@ -47,6 +47,7 @@ export function DashboardPage() {
     staleTime: 60_000,
   })
   const greeting = getGreeting()
+  const isFamilyView = (hasRole('student') || hasRole('guardian')) && !isInstitutionAdmin && !hasRole('teacher') && !hasRole('inspector') && !hasRole('dece')
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -82,6 +83,7 @@ export function DashboardPage() {
       ) : (
         <>
           {hasRole('teacher') && !isInstitutionAdmin && <TeacherToday />}
+          {isFamilyView && <FamilyToday />}
 
           <DashboardShortcuts stats={stats} />
 
@@ -144,7 +146,6 @@ export function DashboardPage() {
               <NumberCard icon={MessageSquare} label="Mensajes pendientes" value={stats?.messages.unread ?? 0} />
             </div>
           )}
-          {(hasRole('student') || hasRole('guardian')) && !isInstitutionAdmin && !hasRole('teacher') && !hasRole('inspector') && !hasRole('dece') && <FamilyToday />}
         </>
       )}
     </div>
@@ -180,13 +181,13 @@ function DashboardShortcuts({ stats }: { stats?: DashboardStats }) {
   })
   if (!shortcuts.length) return null
   return (
-    <nav aria-label="Accesos rápidos" className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-6 xl:grid-cols-8">
+    <nav aria-label="Accesos rápidos" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {shortcuts.map(({ path, label, icon: Icon, color }) => {
         const count = path === '/messages' ? stats?.messages.unread : path === '/incidents' ? stats?.incidents.pending : path === '/dece' ? stats?.dece.openCases : 0
-        return <Link key={path} to={path} className={`relative flex aspect-square min-w-0 flex-col items-center justify-center gap-2 rounded-xl border border-current/10 p-2 text-center transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${color}`}>
-          <Icon className="h-6 w-6 shrink-0" aria-hidden="true" />
-          <span className="text-xs font-semibold leading-tight sm:text-sm">{label}</span>
-          {!!count && count > 0 && <span className="absolute right-1.5 top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs font-semibold text-destructive-foreground"><span className="sr-only">Pendientes: </span>{count > 99 ? '99+' : count}</span>}
+        return <Link key={path} to={path} className={`relative flex min-h-20 min-w-0 items-center gap-3 rounded-xl border border-current/10 p-3 text-left transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-24 sm:p-4 ${color}`}>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/60 dark:bg-black/10"><Icon className="h-5 w-5" aria-hidden="true" /></span>
+          <span className="break-words text-sm font-semibold leading-snug">{label}</span>
+          {!!count && count > 0 && <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs font-semibold text-destructive-foreground"><span className="sr-only">Pendientes: </span>{count > 99 ? '99+' : count}</span>}
         </Link>
       })}
     </nav>

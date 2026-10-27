@@ -12,7 +12,7 @@ import { requirePermission } from '../../../shared/infrastructure/middleware/rba
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { ForbiddenError, BadRequestError } from '../../../shared/domain/errors/app.errors'
 import type { BulkAttendanceDto, CreateJustificationDto } from '../application/dtos/attendance.dto'
-import { notifyGuardiansOfStudent } from '../../../shared/infrastructure/services/push.service'
+import { notifyGuardiansOfStudent, notifyStudentAndGuardians } from '../../../shared/infrastructure/services/push.service'
 
 const repo = new PrismaAttendanceRepository()
 
@@ -277,11 +277,10 @@ async function sendAttendanceNotifications(
   const label: Record<string, string> = { absent: 'faltó', late: 'llegó tarde' }
   await Promise.allSettled(
     absent.map((r) =>
-      // notifyGuardiansOfStudent reemplaza "Tu representado" por el nombre real del alumno
-      notifyGuardiansOfStudent(r.studentId, {
+      notifyStudentAndGuardians(r.studentId, {
         title: 'Asistencia — Auleka',
         body: `Tu representado ${label[r.status] ?? r.status} el ${date}`,
-        url: '/attendance',
+        url: '/dashboard',
       }),
     ),
   )

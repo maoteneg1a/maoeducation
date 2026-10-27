@@ -99,13 +99,13 @@ export function TeacherToday() {
       <div className="grid grid-cols-3 gap-2">
         {panels.map(({ id, icon: Icon, label, detail, count }) => {
           const active = expanded === id
-          return <button key={id} type="button" aria-expanded={active} onClick={() => setExpanded(active ? null : id)} className={`min-w-0 rounded-lg border px-2 py-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-3 ${active ? 'border-primary bg-primary/5' : 'bg-background'}`}>
+          return <button key={id} type="button" aria-expanded={active} onClick={() => setExpanded(active ? null : id)} className={`min-h-24 min-w-0 rounded-lg border px-2 py-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4 sm:py-4 ${active ? 'border-primary bg-primary/5' : 'bg-background'}`}>
             <span className="flex items-center gap-2">
               <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-primary' : 'text-muted-foreground'}`} aria-hidden />
-              <span className="truncate text-sm font-semibold">{label}</span>
+              <span className="text-sm font-semibold leading-tight">{label}</span>
               <span className="ml-auto text-lg font-bold leading-none tabular-nums">{count}</span>
             </span>
-            <span className="mt-1 block truncate text-[11px] text-muted-foreground sm:text-xs">{detail}</span>
+            <span className="mt-2 block text-[11px] leading-snug text-muted-foreground sm:text-xs">{detail}</span>
           </button>
         })}
       </div>
