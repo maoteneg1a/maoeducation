@@ -4,6 +4,7 @@ import { CheckCircle2, FileDown, FileText } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
 import { getErrorMessage } from '@/shared/lib/utils'
+import { useAsyncAction } from '@/shared/hooks/useAsyncAction'
 import { formalReportsApi } from '../api/formal-reports.api'
 import { ReportStatusBadge } from './ReportStatusBadge'
 
@@ -13,6 +14,7 @@ import { ReportStatusBadge } from './ReportStatusBadge'
  */
 export function GuardianReportsCard() {
   const qc = useQueryClient()
+  const downloads = useAsyncAction()
   const { data = [] } = useQuery({
     queryKey: ['formal-reports', 'inbox', 'guardian'],
     queryFn: () => formalReportsApi.list({ box: 'inbox' }),
@@ -40,8 +42,11 @@ export function GuardianReportsCard() {
               <div className="mt-1"><ReportStatusBadge status={r.status} /></div>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => formalReportsApi.downloadPdf(r.id, `${r.folio ?? 'informe'}.pdf`).catch((e) => toast.error(getErrorMessage(e)))}>
-                <FileDown className="mr-1 h-4 w-4" /> PDF
+              <Button size="sm" variant="outline" loading={downloads.isPending(r.id)} onClick={() => downloads.run(r.id, async () => {
+                try { await formalReportsApi.downloadPdf(r.id, `${r.folio ?? 'informe'}.pdf`) }
+                catch (e) { toast.error(getErrorMessage(e)) }
+              })}>
+                {!downloads.isPending(r.id) && <FileDown className="mr-1 h-4 w-4" />} PDF
               </Button>
               {r.permissions.canReceive && (
                 <Button size="sm" disabled={receive.isPending} onClick={() => receive.mutate(r.id)}>

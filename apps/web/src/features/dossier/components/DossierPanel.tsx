@@ -19,6 +19,7 @@ import { getYears } from '@/features/enrollment/api/enrollment.api'
 import { academicApi } from '@/features/academic/api/academic.api'
 import { ReportComposerDialog } from '@/features/formal-reports/components/ReportComposerDialog'
 import { getDossier, uploadDossierFile, downloadDossierFile, removeDossierFile, setDossierApplicability, type DossierEvidence, type DossierItem, type DossierItemStatus } from '../api/dossier.api'
+import { useAsyncAction } from '@/shared/hooks/useAsyncAction'
 
 const STATUS: Record<DossierItemStatus, { label: string; icon: React.ElementType; className: string }> = {
   ok: { label: 'Completo', icon: CheckCircle2, className: 'text-green-700' },
@@ -44,6 +45,7 @@ export function DossierPanel({ studentId }: { studentId: string }) {
   const [exception, setException] = React.useState<DossierItem | null>(null)
   const [reason, setReason] = React.useState('')
   const autoCase = React.useRef('')
+  const downloads = useAsyncAction()
   const onError = (e: unknown) => toast.error(getErrorMessage(e))
   const refresh = () => qc.invalidateQueries({ queryKey: ['dossier', studentId] })
   const context = (item: DossierItem) => ({ studentId, academicYearId: yearId, courseAssignmentId: subjectId || undefined, itemKey: item.key })
@@ -88,7 +90,7 @@ export function DossierPanel({ studentId }: { studentId: string }) {
           {item.notApplicableReason && <p className="text-sm text-muted-foreground">Motivo de no aplicación: {item.notApplicableReason}</p>}
           {!!item.evidence.length && <ul className="divide-y rounded-md border text-sm">{item.evidence.map((e) => {
             const href = evidenceLink(e)
-            return <li key={`${e.kind}-${e.id}`} className="flex items-start justify-between gap-2 p-3"><div className="min-w-0"><p className="text-xs text-muted-foreground">{e.kind === 'uploaded_file' ? 'Archivo subido' : 'Generado / registrado en Auleka'} · {e.date || 'Sin fecha'}{e.uploader ? ` · ${e.uploader}` : ''}</p>{href && e.canOpen ? <Link className="text-primary hover:underline" to={href}>{e.folio ? `${e.folio} · ` : ''}{e.label}</Link> : <p className="break-words">{e.label}</p>}<p className="text-xs text-muted-foreground">{LABEL[e.status] || e.status}</p>{e.observation && <p className="text-xs">{e.observation}</p>}</div><div className="flex shrink-0 gap-1">{e.kind === 'uploaded_file' && e.canOpen && <Button size="icon" variant="ghost" title="Descargar respaldo" onClick={() => downloadDossierFile(e.id, e.label).catch(onError)}><Download className="h-4 w-4" /></Button>}{e.canRemove && <Button size="icon" variant="ghost" title="Retirar archivo" disabled={removeFile.isPending} onClick={async () => { if (await confirmDialog({ title: 'Retirar archivo del expediente', description: e.label, confirmText: 'Retirar', destructive: true })) removeFile.mutate(e.id) }}><Trash2 className="h-4 w-4" /></Button>}</div></li>
+            return <li key={`${e.kind}-${e.id}`} className="flex items-start justify-between gap-2 p-3"><div className="min-w-0"><p className="text-xs text-muted-foreground">{e.kind === 'uploaded_file' ? 'Archivo subido' : 'Generado / registrado en Auleka'} · {e.date || 'Sin fecha'}{e.uploader ? ` · ${e.uploader}` : ''}</p>{href && e.canOpen ? <Link className="text-primary hover:underline" to={href}>{e.folio ? `${e.folio} · ` : ''}{e.label}</Link> : <p className="break-words">{e.label}</p>}<p className="text-xs text-muted-foreground">{LABEL[e.status] || e.status}</p>{e.observation && <p className="text-xs">{e.observation}</p>}</div><div className="flex shrink-0 gap-1">{e.kind === 'uploaded_file' && e.canOpen && <Button size="icon" variant="ghost" title="Descargar respaldo" loading={downloads.isPending(e.id)} onClick={() => downloads.run(e.id, async () => { try { await downloadDossierFile(e.id, e.label) } catch (error) { onError(error) } })}>{!downloads.isPending(e.id) && <Download className="h-4 w-4" />}</Button>}{e.canRemove && <Button size="icon" variant="ghost" title="Retirar archivo" disabled={removeFile.isPending} onClick={async () => { if (await confirmDialog({ title: 'Retirar archivo del expediente', description: e.label, confirmText: 'Retirar', destructive: true })) removeFile.mutate(e.id) }}><Trash2 className="h-4 w-4" /></Button>}</div></li>
           })}</ul>}
           {item.status !== 'na' && <div className="flex flex-wrap gap-2">
             {item.canGenerate && item.reportType && <Button size="sm" variant="outline" disabled={!data.applies || !periodId || (item.requiresReinforcementCase && !selectedCase)} onClick={() => setGenerate(item)}><FilePlus2 className="mr-1 h-4 w-4" />Generar en Auleka</Button>}

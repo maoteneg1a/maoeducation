@@ -13,6 +13,7 @@ import { cn, getErrorMessage } from '@/shared/lib/utils'
 import { downloadBulletinPdf, getStudentBulletin } from '@/features/reports/api/reports.api'
 import { useStudentFolder } from '../hooks/useStudentFolder'
 import { DossierPanel } from '@/features/dossier/components/DossierPanel'
+import { useAsyncAction } from '@/shared/hooks/useAsyncAction'
 import {
   downloadEnrollmentCertificate,
   downloadActaByUrl,
@@ -168,12 +169,13 @@ function MatriculasTab({
   studentId: string
   enrollments: FolderEnrollment[]
 }) {
+  const documents = useAsyncAction()
+
   async function download(enrollmentId: string) {
-    try {
-      await downloadEnrollmentCertificate(studentId, enrollmentId)
-    } catch (e) {
-      toast.error(getErrorMessage(e))
-    }
+    await documents.run(enrollmentId, async () => {
+      try { await downloadEnrollmentCertificate(studentId, enrollmentId) }
+      catch (e) { toast.error(getErrorMessage(e)) }
+    })
   }
 
   if (enrollments.length === 0) {
@@ -195,9 +197,9 @@ function MatriculasTab({
               <Badge variant={e.status === 'active' ? 'success' : 'secondary'}>
                 {STATUS_LABELS[e.status] ?? e.status}
               </Badge>
-              <Button variant="outline" size="sm" onClick={() => download(e.id)}>
-                <Download className="mr-1 h-4 w-4" />
-                Certificado
+              <Button variant="outline" size="sm" loading={documents.isPending(e.id)} onClick={() => download(e.id)}>
+                {!documents.isPending(e.id) && <Download className="mr-1 h-4 w-4" />}
+                {documents.isPending(e.id) ? 'Generando…' : 'Certificado'}
               </Button>
             </div>
           </CardContent>
@@ -248,6 +250,7 @@ function YearGrades({
   open: boolean
   onToggle: () => void
 }) {
+  const documents = useAsyncAction()
   const bulletinQ = useQuery({
     queryKey: ['student-bulletin', enrollment.academicYear.id, enrollment.parallel.id, studentId],
     queryFn: () =>
@@ -260,15 +263,17 @@ function YearGrades({
   })
 
   async function downloadCert() {
-    try {
-      await downloadBulletinPdf({
-        yearId: enrollment.academicYear.id,
-        parallelId: enrollment.parallel.id,
-        studentId,
-      })
-    } catch (e) {
-      toast.error(getErrorMessage(e))
-    }
+    await documents.run('bulletin', async () => {
+      try {
+        await downloadBulletinPdf({
+          yearId: enrollment.academicYear.id,
+          parallelId: enrollment.parallel.id,
+          studentId,
+        })
+      } catch (e) {
+        toast.error(getErrorMessage(e))
+      }
+    })
   }
 
   return (
@@ -284,9 +289,9 @@ function YearGrades({
               </p>
             </div>
           </button>
-          <Button variant="outline" size="sm" onClick={downloadCert}>
-            <Download className="mr-1 h-4 w-4" />
-            Certificado de notas
+          <Button variant="outline" size="sm" loading={documents.isPending('bulletin')} onClick={downloadCert}>
+            {!documents.isPending('bulletin') && <Download className="mr-1 h-4 w-4" />}
+            {documents.isPending('bulletin') ? 'Generando…' : 'Certificado de notas'}
           </Button>
         </div>
 
@@ -370,12 +375,13 @@ function ActasTab({
 }: {
   folder: NonNullable<ReturnType<typeof useStudentFolder>['data']>
 }) {
+  const documents = useAsyncAction()
+
   async function download(downloadUrl: string, id: string) {
-    try {
-      await downloadActaByUrl(downloadUrl, `acta-${id}.pdf`)
-    } catch (e) {
-      toast.error(getErrorMessage(e))
-    }
+    await documents.run(id, async () => {
+      try { await downloadActaByUrl(downloadUrl, `acta-${id}.pdf`) }
+      catch (e) { toast.error(getErrorMessage(e)) }
+    })
   }
 
   if (folder.actas.length === 0) {
@@ -397,9 +403,9 @@ function ActasTab({
                 </p>
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={() => download(a.downloadUrl, a.id)}>
-              <Download className="mr-1 h-4 w-4" />
-              PDF
+            <Button variant="outline" size="sm" loading={documents.isPending(a.id)} onClick={() => download(a.downloadUrl, a.id)}>
+              {!documents.isPending(a.id) && <Download className="mr-1 h-4 w-4" />}
+              {documents.isPending(a.id) ? 'Descargando…' : 'PDF'}
             </Button>
           </CardContent>
         </Card>

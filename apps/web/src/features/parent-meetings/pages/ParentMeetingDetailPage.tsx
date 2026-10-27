@@ -14,6 +14,9 @@ import {
 } from '../hooks/useParentMeetings'
 import { downloadActaPdf } from '../api/parent-meetings.api'
 import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
+import { toast } from 'sonner'
+import { getErrorMessage } from '@/shared/lib/utils'
+import { useAsyncAction } from '@/shared/hooks/useAsyncAction'
 
 const personName = (p: { profile: { firstName: string; lastName: string } } | null | undefined) =>
   p?.profile ? `${p.profile.firstName} ${p.profile.lastName}` : '—'
@@ -45,6 +48,7 @@ export function ParentMeetingDetailPage() {
   const { data: meeting, isLoading } = useParentMeeting(id)
   const saveSignature = useSaveSignature(id)
   const deleteMutation = useDeleteParentMeeting()
+  const documents = useAsyncAction()
 
   const [signature, setSignature] = useState<string | null>(null)
 
@@ -76,9 +80,12 @@ export function ParentMeetingDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => downloadActaPdf(id)}>
-            <Download className="mr-1 h-4 w-4" />
-            Generar acta (PDF)
+          <Button variant="outline" loading={documents.isPending('acta')} onClick={() => documents.run('acta', async () => {
+            try { await downloadActaPdf(id) }
+            catch (error) { toast.error(getErrorMessage(error)) }
+          })}>
+            {!documents.isPending('acta') && <Download className="mr-1 h-4 w-4" />}
+            {documents.isPending('acta') ? 'Generando acta…' : 'Generar acta (PDF)'}
           </Button>
           {canWrite && (
             <Button variant="ghost" onClick={handleDelete} disabled={deleteMutation.isPending}>

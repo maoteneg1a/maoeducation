@@ -12,6 +12,7 @@ import { listEnrollments } from '@/features/enrollment/api/enrollment.api'
 import { usePlannedSkills, usePlannedCompetencies } from '@/features/planning/hooks/usePlanning'
 import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { CheckBox } from '@/features/planning/components/SkillAndSaberSelector'
+import { useAsyncAction } from '@/shared/hooks/useAsyncAction'
 import {
   listReinforcementPlans,
   updateReinforcementPlan,
@@ -121,6 +122,7 @@ function PlanRow({
   academicPeriodId: string
 }) {
   const qc = useQueryClient()
+  const documents = useAsyncAction()
   const [expanded, setExpanded] = React.useState(false)
   const [objetivo, setObjetivo] = React.useState(plan.objetivoGeneral ?? '')
   const [estrategias, setEstrategias] = React.useState(plan.estrategias ?? '')
@@ -215,9 +217,12 @@ function PlanRow({
             />
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => openReinforcementPlanPdf(plan.id)}>
-              <Download className="h-4 w-4" />
-              PDF
+            <Button variant="outline" size="sm" loading={documents.isPending('pdf')} onClick={() => documents.run('pdf', async () => {
+              try { await openReinforcementPlanPdf(plan.id) }
+              catch (error) { toast.error(getErrorMessage(error)) }
+            })}>
+              {!documents.isPending('pdf') && <Download className="h-4 w-4" />}
+              {documents.isPending('pdf') ? 'Generando…' : 'PDF'}
             </Button>
             <Button
               size="sm"
