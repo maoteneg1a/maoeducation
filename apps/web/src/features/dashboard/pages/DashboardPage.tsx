@@ -81,6 +81,8 @@ export function DashboardPage() {
         <PageLoader />
       ) : (
         <>
+          {hasRole('teacher') && !isInstitutionAdmin && <TeacherToday />}
+
           <DashboardShortcuts stats={stats} />
 
           {/* Stats row */}
@@ -135,7 +137,6 @@ export function DashboardPage() {
             </Card>
           )}
 
-          {hasRole('teacher') && !isInstitutionAdmin && <TeacherToday />}
           {hasRole('dece') && !isInstitutionAdmin && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <NumberCard icon={AlertTriangle} label="Casos DECE abiertos" value={stats?.dece.openCases ?? 0} />
@@ -158,6 +159,7 @@ const SHORTCUTS = [
   { path: '/attendance', color: 'bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-200' },
   { path: '/academic-alerts', color: 'bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200' },
   { path: '/refuerzo/casos', color: 'bg-orange-50 text-orange-800 dark:bg-orange-950 dark:text-orange-200' },
+  { path: '/reports', color: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200' },
   { path: '/informes', color: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200' },
   { path: '/dece', color: 'bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-200' },
   { path: '/student-folder', color: 'bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-200' },

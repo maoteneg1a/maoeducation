@@ -406,8 +406,17 @@ export const router = createBrowserRouter([
           },
         ],
       },
-      // Enlaces anteriores siguen llegando al centro de informes.
-      { path: 'reports', element: <Navigate to="/informes?section=academic" replace /> },
+      // ---- Boletines y reportes académicos ----
+      {
+        path: 'reports',
+        element: <PermissionGuard permission="reports:read" />,
+        children: [{
+          index: true,
+          lazy: () => import('@/features/reports/pages/ReportsPage').then((m) => ({
+            Component: m.ReportsPage,
+          })),
+        }],
+      },
       // ---- Incidents ----
       {
         path: 'incidents',

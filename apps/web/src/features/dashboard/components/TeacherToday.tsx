@@ -46,8 +46,11 @@ export function TeacherToday() {
 
   if (isLoading) {
     return (
-      <div className="grid gap-4 lg:grid-cols-2">
-        {[0, 1, 2].map((i) => <Skeleton key={i} className="h-40 w-full" />)}
+      <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+        <Skeleton className="mb-4 h-8 w-40" />
+        <div className="grid gap-4 lg:grid-cols-3">
+          {[0, 1, 2].map((i) => <Skeleton key={i} className="h-40 w-full" />)}
+        </div>
       </div>
     )
   }
@@ -58,13 +61,16 @@ export function TeacherToday() {
     perSubjectClasses.filter((c) => !c.attendanceTaken).length + data.dailyAttendance.filter((d) => !d.taken).length
 
   return (
-    <div className="space-y-4">
+    <section className="space-y-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 shadow-sm sm:p-5" aria-labelledby="teacher-today-title">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold">Tu día</h2>
+        <div>
+          <h2 id="teacher-today-title" className="text-xl font-bold tracking-tight">Tu día</h2>
+          <p className="text-sm text-muted-foreground">Lo esencial para avanzar hoy: clases, deberes y calificaciones.</p>
+        </div>
         {data.period && <span className="text-xs text-muted-foreground">{data.period.name}</span>}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Panel
           icon={CalendarClock}
           title="Clases de hoy"
@@ -139,13 +145,13 @@ export function TeacherToday() {
           )}
         </Panel>
       </div>
-    </div>
+    </section>
   )
 }
 
 function Panel({ icon: Icon, title, badge, children }: { icon: ElementType; title: string; badge?: string; children: ReactNode }) {
   return (
-    <Card>
+    <Card className="bg-background/95 shadow-sm">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />

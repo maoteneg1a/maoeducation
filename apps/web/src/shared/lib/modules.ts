@@ -84,7 +84,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   academic: 'Configuración Académica',
   enrollment: 'Matrículas',
   anamnesis: 'Ficha de Anamnesis',
-  activities: 'Actividades',
+  activities: 'Insumos',
   grades: 'Calificaciones',
   behavior: 'Comportamiento',
   pedagogic_recovery: 'Recuperación Pedagógica',
@@ -98,7 +98,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   tasks: 'Deberes',
   calendar: 'Calendario',
   schedules: 'Horario',
-  reports: 'Reportes',
+  reports: 'Reportes de calificaciones',
   branding: 'Personalización',
 }
 

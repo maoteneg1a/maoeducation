@@ -518,8 +518,8 @@ export function ActivitiesPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Actividades</h1>
-          <p className="text-muted-foreground text-sm mt-1">Actividades agrupadas por categoría (insumo).</p>
+          <h1 className="text-2xl font-bold tracking-tight">Insumos</h1>
+          <p className="text-muted-foreground text-sm mt-1">Organiza tus insumos de evaluación. Cada insumo puede contener una o varias actividades.</p>
         </div>
         <div className="flex flex-wrap gap-2">{canWriteInsumos && ownAssignments.length > 0 && <Button variant="outline" onClick={() => setBulkInsumos(true)}>Crear insumos en mis materias</Button>}<Button onClick={() => openCreate()} disabled={!canCreate}>
           <Plus className="h-4 w-4" />
