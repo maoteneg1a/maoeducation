@@ -1228,7 +1228,7 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
   }
   return (
     <>
-      <div className="space-y-3 sm:hidden">
+      <div className="hidden">
         {subjects.map((subject) => {
           const activities = subject.activityGrades ?? []
           const reinforcementCount = activities.filter((activity) => activity.reinforcementScore != null).length
@@ -1273,11 +1273,11 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
         })}
       </div>
 
-      <div className="hidden overflow-x-auto rounded-lg border sm:block">
-      <table className="text-sm border-collapse w-full">
+      <div className="overflow-x-auto rounded-lg border bg-background shadow-sm">
+      <table className="min-w-[760px] w-full border-collapse text-xs sm:text-sm">
         <thead>
           <tr className="bg-muted/60">
-            <th className="sticky left-0 z-20 bg-muted border border-border px-3 py-2 text-left font-semibold min-w-[160px]">
+            <th className="sticky left-0 z-20 w-36 min-w-36 max-w-36 border border-border bg-muted px-2 py-2 text-left font-semibold sm:w-48 sm:min-w-48 sm:max-w-48 sm:px-3">
               Materia
             </th>
             {allInsumoNames.map((name) => (
@@ -1317,9 +1317,9 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
             const isExpanded = expanded.has(s.assignmentId)
             return <React.Fragment key={s.assignmentId}>
             <tr className={cn('hover:bg-muted/20', i % 2 === 0 ? 'bg-white' : 'bg-muted/10')}>
-              <td className="sticky left-0 z-10 bg-background border-r-2 border border-border px-3 py-2 font-medium whitespace-nowrap">
-                <div>{s.subjectName}</div>
-                <div className="text-xs text-muted-foreground">{s.teacherName}</div>
+              <td className="sticky left-0 z-10 whitespace-normal border border-r-2 border-border bg-background px-2 py-2 font-medium sm:px-3">
+                <div className="break-words leading-tight">{s.subjectName}</div>
+                <div className="mt-0.5 break-words text-[10px] leading-tight text-muted-foreground sm:text-xs">{s.teacherName}</div>
                 {activities.length > 0 && (
                   <button type="button" onClick={() => toggleDetails(s.assignmentId)} className="mt-1 text-[11px] font-normal text-primary hover:underline">
                     {isExpanded ? 'Ocultar actividades' : `Ver actividades (${activities.length})`}
@@ -1421,7 +1421,6 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
 
 /** Vista anual del alumno/representante: consolida sus materias en todos los trimestres. */
 function StudentAnnualView({ periods }: { periods: AcademicPeriod[] }) {
-  const [view, setView] = React.useState<AnnualView>('byPeriod')
   const sortedPeriods = React.useMemo(
     () => [...periods].sort((a, b) => a.periodNumber - b.periodNumber),
     [periods],
@@ -1446,50 +1445,10 @@ function StudentAnnualView({ periods }: { periods: AcademicPeriod[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <span className="text-sm text-muted-foreground">
-          Vista anual · {loaded.length} de {sortedPeriods.length} período(s) con datos
-        </span>
-        <div className="grid w-full grid-cols-2 overflow-hidden rounded-md border text-xs sm:flex sm:w-auto sm:self-start">
-          <button
-            type="button"
-            onClick={() => setView('byPeriod')}
-            className={cn(
-              'px-2 py-1.5 text-center font-medium leading-tight transition-colors sm:px-3',
-              view === 'byPeriod' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted',
-            )}
-          >
-            Promedio por trimestre
-          </button>
-          <button
-            type="button"
-            onClick={() => setView('detail')}
-            className={cn(
-              'border-l px-2 py-1.5 text-center font-medium leading-tight transition-colors sm:px-3',
-              view === 'detail' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted',
-            )}
-          >
-            Detalle por trimestre
-          </button>
-        </div>
-      </div>
-
-      {view === 'byPeriod' ? (
-        <StudentAnnualByPeriodGrid periodData={periodData} />
-      ) : (
-        <div className="space-y-6">
-          {periodData.map(({ period, subjects }) => (
-            <div key={period.id} className="space-y-2">
-              <h3 className="text-sm font-semibold">{period.name}</h3>
-              {subjects.length > 0 ? (
-                <StudentGradesTable subjects={subjects} />
-              ) : (
-                <p className="text-xs text-muted-foreground">Sin notas registradas en este período.</p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <p className="text-sm text-muted-foreground">
+        Resumen anual · {loaded.length} de {sortedPeriods.length} trimestre(s) con datos
+      </p>
+      <StudentAnnualByPeriodGrid periodData={periodData} />
     </div>
   )
 }
@@ -1521,41 +1480,11 @@ function StudentAnnualByPeriodGrid({
   }
 
   return (
-    <>
-      <div className="space-y-3 sm:hidden">
-        {subjects.map((subject) => {
-          const perPeriod = periodData.map((period) => totalByKey.get(`${subject.assignmentId}:${period.period.id}`) ?? null)
-          const annual = mean(perPeriod)
-          return (
-            <article key={subject.assignmentId} className="min-w-0 overflow-hidden rounded-lg border bg-background p-3 shadow-sm">
-              <h4 className="break-words text-sm font-semibold leading-snug">{subject.subjectName}</h4>
-              <p className="mt-0.5 break-words text-xs text-muted-foreground">{subject.teacherName}</p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {periodData.map(({ period }, index) => (
-                  <div key={period.id} className="min-w-0 rounded-md bg-muted/50 px-2 py-2 text-center">
-                    <div className="truncate text-[10px] text-muted-foreground" title={period.name}>{period.name}</div>
-                    <div className={cn('mt-0.5 font-semibold tabular-nums', scoreColor(perPeriod[index], gradingScaleMax))}>
-                      {perPeriod[index] != null ? perPeriod[index]!.toFixed(2) : '—'}
-                    </div>
-                  </div>
-                ))}
-                <div className="col-span-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-2 text-center">
-                  <div className="text-[10px] font-medium text-muted-foreground">Promedio anual</div>
-                  <div className={cn('mt-0.5 text-base font-bold tabular-nums', scoreColor(annual, gradingScaleMax))}>
-                    {annual != null ? annual.toFixed(2) : '—'}
-                  </div>
-                </div>
-              </div>
-            </article>
-          )
-        })}
-      </div>
-
-      <div className="hidden overflow-x-auto rounded-lg border sm:block">
-      <table className="w-full border-collapse text-sm">
+    <div className="overflow-x-auto rounded-lg border bg-background shadow-sm">
+      <table className="min-w-[620px] w-full border-collapse text-xs sm:text-sm">
         <thead>
           <tr className="bg-muted/60">
-            <th className="sticky left-0 z-20 w-28 min-w-28 max-w-28 md:w-auto md:min-w-[180px] md:max-w-none border border-border bg-muted px-3 py-2 text-left font-semibold">
+            <th className="sticky left-0 z-20 w-36 min-w-36 max-w-36 border border-border bg-muted px-2 py-2 text-left font-semibold sm:w-48 sm:min-w-48 sm:max-w-48 sm:px-3">
               Materia
             </th>
             {periodData.map(({ period }) => (
@@ -1572,9 +1501,9 @@ function StudentAnnualByPeriodGrid({
             const annual = mean(perPeriod)
             return (
               <tr key={s.assignmentId} className={cn('hover:bg-muted/20', i % 2 === 0 ? 'bg-white' : 'bg-muted/10')}>
-                <td className="sticky left-0 z-10 whitespace-nowrap border border-r-2 border-border bg-background px-3 py-2 font-medium">
-                  <div>{s.subjectName}</div>
-                  <div className="text-xs text-muted-foreground">{s.teacherName}</div>
+                <td className="sticky left-0 z-10 whitespace-normal border border-r-2 border-border bg-background px-2 py-2 font-medium sm:px-3">
+                  <div className="break-words leading-tight">{s.subjectName}</div>
+                  <div className="mt-0.5 break-words text-[10px] leading-tight text-muted-foreground sm:text-xs">{s.teacherName}</div>
                 </td>
                 {perPeriod.map((v, idx) => (
                   <td key={periodData[idx].period.id} className="border border-border px-3 py-2 text-center tabular-nums">
@@ -1589,8 +1518,7 @@ function StudentAnnualByPeriodGrid({
           })}
         </tbody>
       </table>
-      </div>
-    </>
+    </div>
   )
 }
 
@@ -1638,8 +1566,13 @@ export function GradeEntryPage() {
   }, [defaultAssignmentId])
 
   React.useEffect(() => {
-    if (defaultPeriodId && selectedAssignmentId && !selectedPeriodId) setSelectedPeriodId(defaultPeriodId)
-  }, [defaultPeriodId, selectedAssignmentId])
+    if (selectedPeriodId) return
+    if (isStudentOrGuardian && studentPeriods.length > 0) {
+      setSelectedPeriodId(ALL_PERIODS)
+    } else if (defaultPeriodId && selectedAssignmentId) {
+      setSelectedPeriodId(defaultPeriodId)
+    }
+  }, [defaultPeriodId, isStudentOrGuardian, selectedAssignmentId, selectedPeriodId, studentPeriods.length])
 
   const { data: activitiesList = [] } = useQuery({
     queryKey: ['activities', selectedAssignmentId, selectedPeriodId],
@@ -1810,14 +1743,20 @@ export function GradeEntryPage() {
     <div className="space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Notas</h1>
-          <p className="text-muted-foreground text-sm mt-1">Ingresa y consulta las notas de los estudiantes</p>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {isStudentOrGuardian ? 'Mis calificaciones' : 'Notas'}
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {isStudentOrGuardian
+              ? 'Consulta tus resultados por trimestre'
+              : 'Ingresa y consulta las notas de los estudiantes'}
+          </p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b">
-        {!isStudentOrGuardian && (
+      {!isStudentOrGuardian && (
+        <div className="flex gap-1 border-b">
           <button
             type="button"
             onClick={() => setActiveTab('entry')}
@@ -1830,8 +1769,7 @@ export function GradeEntryPage() {
           >
             Ingresar Notas
           </button>
-        )}
-        {canEnterManualGrades && (
+          {canEnterManualGrades && (
           <button
             type="button"
             onClick={() => {
@@ -1847,20 +1785,21 @@ export function GradeEntryPage() {
           >
             Ingreso manual de calificaciones
           </button>
-        )}
-        <button
-          type="button"
-          onClick={() => setActiveTab('summary')}
-          className={cn(
-            'px-4 py-2 text-sm font-medium border-b-2 transition-colors',
-            activeTab === 'summary'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground',
           )}
-        >
-          {isStudentOrGuardian ? 'Mis Calificaciones' : 'Ver Resumen'}
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('summary')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium border-b-2 transition-colors',
+              activeTab === 'summary'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            Ver Resumen
+          </button>
+        </div>
+      )}
 
       {/* Filter bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
@@ -1881,27 +1820,43 @@ export function GradeEntryPage() {
           </div>
         )}
 
-        <div className="w-full sm:w-44">
-          <Select
-            value={selectedPeriodId}
-            onValueChange={guarded(setSelectedPeriodId, selectedPeriodId)}
-            disabled={!isStudentOrGuardian && !selectedAssignmentId}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Período" />
-            </SelectTrigger>
-            <SelectContent>
-              {activeTab === 'summary' && (
-                <SelectItem value={ALL_PERIODS}>Todos los trimestres</SelectItem>
-              )}
-              {periods.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {isStudentOrGuardian ? (
+          <div className="-mx-1 flex w-[calc(100%+0.5rem)] gap-2 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Trimestre">
+            {[{ id: ALL_PERIODS, name: 'Todos' }, ...periods.map((period) => ({ id: period.id, name: period.name }))].map((period) => (
+              <button
+                key={period.id}
+                type="button"
+                role="tab"
+                aria-selected={selectedPeriodId === period.id}
+                onClick={() => setSelectedPeriodId(period.id)}
+                className={cn(
+                  'shrink-0 rounded-md border px-3 py-2 text-sm font-medium transition-colors',
+                  selectedPeriodId === period.id
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'bg-background text-muted-foreground hover:bg-muted',
+                )}
+              >
+                {period.name}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="w-full sm:w-44">
+            <Select
+              value={selectedPeriodId}
+              onValueChange={guarded(setSelectedPeriodId, selectedPeriodId)}
+              disabled={!selectedAssignmentId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                {activeTab === 'summary' && <SelectItem value={ALL_PERIODS}>Todos los trimestres</SelectItem>}
+                {periods.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {activeTab === 'entry' && !isStudentOrGuardian && (
           <div className="w-full sm:w-52">
