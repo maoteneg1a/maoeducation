@@ -118,7 +118,7 @@ Institution code: ESCUELA_DEMO
 - Priorizar pocos clics y pocos datos por completar. Reutilizar el contexto y los datos ya registrados.
 - Preferir selectores y opciones sugeridas, conservando la posibilidad de escribir un caso particular.
 - Mostrar la siguiente acción; agrupar opciones secundarias sin ocultar tareas pendientes importantes.
-- Las sugerencias requieren confirmación del usuario. No inventar hechos pedagógicos, firmas, horarios o resultados, ni aplicar cambios de notas automáticamente.
+- Las sugerencias requieren confirmación del usuario. No inventar hechos pedagógicos, firmas, horarios o resultados, ni decidir promociones automáticamente. Guardar notas de actividades de refuerzo confirma su cálculo según la regla institucional y debe conservar historial, sin un segundo paso de aplicar.
 - Mantener separados el estado académico, la valoración del aprendizaje y la recepción de documentos.
 
 ## Key Domain Concepts

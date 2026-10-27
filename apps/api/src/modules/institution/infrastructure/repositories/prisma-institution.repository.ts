@@ -33,7 +33,7 @@ function extractBranding(settings: unknown): InstitutionBranding {
 }
 
 /** Devuelve la config de calificación con fallback a los defaults MINEDUC. */
-function extractGradingConfig(settings: unknown): GradingConfig {
+export function extractGradingConfig(settings: unknown): GradingConfig {
   const s = (settings ?? {}) as Record<string, unknown>
   const gc = (s.gradingConfig ?? {}) as Partial<GradingConfig>
   return {

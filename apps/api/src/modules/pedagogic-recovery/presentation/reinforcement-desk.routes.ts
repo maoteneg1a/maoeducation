@@ -1,3 +1,4 @@
+import type { RegisterCell } from '../infrastructure/services/reinforcement-grade-register.service'
 import { startReinforcementFromAlerts, saveReinforcementPlan, type StartReinforcementDto, type SaveReinforcementPlanDto } from '../application/services/reinforcement-workflow.service'
 import { FastifyInstance } from 'fastify'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
@@ -65,6 +66,20 @@ export default async function reinforcementDeskRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string } }>('/reinforcement-desk/cases/:id/formative', async (req, reply) =>
     reply.send(await repo.formativeOptions(req.user.institutionId, actorOf(req.user), req.params.id)))
+
+  app.put<{ Params: { id: string }; Body: { items: RegisterCell[] } }>('/reinforcement-desk/cases/:id/grade-register', { schema: { body: {
+    type: 'object', required: ['items'], additionalProperties: false,
+    properties: { items: { type: 'array', maxItems: 5000, items: {
+      type: 'object', required: ['sessionId', 'studentId', 'score', 'status', 'expected'], additionalProperties: false,
+      properties: {
+        sessionId: { type: 'string', minLength: 1, maxLength: 128 }, studentId: { type: 'string', minLength: 1, maxLength: 128 },
+        score: { type: ['number', 'null'], minimum: 0 }, status: { type: 'string', enum: ['present', 'absent', 'justified'] },
+        expected: { type: 'object', required: ['score', 'status'], additionalProperties: false, properties: {
+          score: { type: ['number', 'null'] }, status: { type: ['string', 'null'], enum: ['present', 'absent', 'justified', null] },
+        } },
+      },
+    } } },
+  } } }, async (req, reply) => reply.send(await repo.saveGradeRegister(req.user.institutionId, actorOf(req.user), req.params.id, req.body.items)))
 
   app.post<{ Params: { id: string }; Body: FormativeResultDto }>('/reinforcement-desk/cases/:id/formative/preview', { schema: { body: formativeBody } }, async (req, reply) =>
     reply.send(await repo.previewFormative(req.user.institutionId, actorOf(req.user), req.params.id, req.body)))

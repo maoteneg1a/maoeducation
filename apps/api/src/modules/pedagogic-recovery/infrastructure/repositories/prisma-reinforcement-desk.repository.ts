@@ -1,3 +1,4 @@
+import { saveReinforcementRegister, type RegisterCell } from '../services/reinforcement-grade-register.service'
 import { Prisma } from '@prisma/client'
 import { applyFormativeReinforcement, validateFormativePolicy, type FormativeApplication } from '../../../../shared/domain/formative-reinforcement'
 import type { InsumoGroupInput } from '../../../../shared/domain/grade-math'
@@ -416,6 +417,7 @@ export class PrismaReinforcementDeskRepository {
     if (!dto.title?.trim()) throw new BadRequestError('La sesión necesita un título')
     if (!dto.date || Number.isNaN(Date.parse(dto.date))) throw new BadRequestError('Fecha inválida')
     const targetActivityId = await this.validateTarget(institutionId, plan, dto.targetActivityId)
+    const grading = await institutionRepo.getGradingConfig(institutionId)
     const s = await prisma.reinforcementSession.create({
       data: {
         institutionId,
@@ -425,7 +427,7 @@ export class PrismaReinforcementDeskRepository {
         description: dto.description?.trim() || null,
         targetActivityId,
         createdBy: actor.userId,
-        attendances: { create: this.studentIdsOf(plan).map((studentId) => ({ studentId, status: 'present' })) },
+        ...(grading.formativeReinforcement.mode ? {} : { attendances: { create: this.studentIdsOf(plan).map((studentId) => ({ studentId, status: 'present' })) } }),
       },
     })
     await prisma.reinforcementPlan.updateMany({ where: { id: planId, institutionId, caseStatus: { in: ['PLANNED', 'CONTINUES_REINFORCEMENT'] } }, data: { caseStatus: 'IN_REINFORCEMENT' } })
@@ -438,6 +440,11 @@ export class PrismaReinforcementDeskRepository {
     if (!s) throw new NotFoundError('Sesión no encontrada')
     if (dto.targetActivityId !== undefined && dto.targetActivityId !== s.targetActivityId && s.attendances.some((a) => a.appliedScore != null)) {
       throw new ConflictError('La sesión ya aplicó notas: quítalas antes de cambiar la actividad original')
+    }
+    const config = await institutionRepo.getGradingConfig(institutionId)
+    if (config.formativeReinforcement.mode && !s.attendances.some((a) => a.appliedScore != null)) {
+      await saveReinforcementRegister(institutionId, actor, planId, [], { sessionId, data: dto })
+      return { id: sessionId }
     }
     const targetActivityId = dto.targetActivityId !== undefined ? await this.validateTarget(institutionId, plan, dto.targetActivityId) : undefined
     return prisma.reinforcementSession.update({
@@ -455,6 +462,11 @@ export class PrismaReinforcementDeskRepository {
     await this.editable(institutionId, actor, planId)
     const s = await prisma.reinforcementSession.findFirst({ where: { id: sessionId, planId, institutionId }, include: { attendances: true } })
     if (!s) throw new NotFoundError('Sesión no encontrada')
+    const config = await institutionRepo.getGradingConfig(institutionId)
+    if (config.formativeReinforcement.mode && !s.attendances.some((a) => a.appliedScore != null)) {
+      await saveReinforcementRegister(institutionId, actor, planId, [], { sessionId, remove: true })
+      return
+    }
     // Revierte las notas aplicadas a la actividad original
     if (s.targetActivityId) {
       for (const a of s.attendances.filter((x) => x.appliedScore != null)) {
@@ -469,6 +481,11 @@ export class PrismaReinforcementDeskRepository {
    * actividad original y el estudiante asistió con nota, se aplica al refuerzo
    * de esa nota con las reglas configuradas (tope, mejora, límites).
    */
+  async saveGradeRegister(institutionId: string, actor: Actor, planId: string, cells: RegisterCell[]) {
+    await saveReinforcementRegister(institutionId, actor, planId, cells)
+    return this.detail(institutionId, actor, planId)
+  }
+
   async saveAttendance(
     institutionId: string,
     actor: Actor,
@@ -490,6 +507,7 @@ export class PrismaReinforcementDeskRepository {
     const formative = !!config.formativeReinforcement.mode && (!target || activityKind(target.activityType.code) === 'regular')
     if (formative && items.some((i) => i.score != null && i.score > config.gradingScaleMax)) throw new BadRequestError('La nota supera la escala institucional')
     const old = formative ? await prisma.reinforcementSessionAttendance.findMany({ where: { sessionId, appliedScore: { not: null } } }) : []
+    if (formative && !old.length) return this.saveGradeRegister(institutionId, actor, planId, items.map((item) => ({ ...item, sessionId, score: item.status === 'present' ? item.score ?? null : null })))
     if (old.length) throw new ConflictError('Esta sesión ya aplicó notas con el procedimiento anterior. Conserva su registro y crea una sesión nueva para el plan formativo.')
     for (const it of items ?? []) {
       const score = it.status === 'present' && it.score != null ? it.score : null

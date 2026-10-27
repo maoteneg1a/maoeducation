@@ -168,6 +168,11 @@ export interface SessionInput {
   targetActivityId?: string | null
 }
 
+export interface RegisterCell {
+  sessionId: string; studentId: string; score: number | null; status: AttendanceStatus
+  expected: { score: number | null; status: AttendanceStatus | null }
+}
+
 export interface AttendanceInput {
   studentId: string
   status: AttendanceStatus
@@ -239,6 +244,7 @@ export const reinforcementDeskApi = {
   updateSession: (id: string, sessionId: string, data: Partial<SessionInput>) =>
     apiPatch<{ id: string }>(`${base}/${id}/sessions/${sessionId}`, data),
   deleteSession: (id: string, sessionId: string) => apiDelete(`${base}/${id}/sessions/${sessionId}`),
+  saveRegister: (id: string, items: RegisterCell[]) => apiPut<CaseDetail>(`${base}/${id}/grade-register`, { items }),
   saveAttendance: (id: string, sessionId: string, items: AttendanceInput[]) =>
     apiPut<CaseDetail>(`${base}/${id}/sessions/${sessionId}/attendance`, { items }),
   uploadAttachment: (id: string, file: File, category: string, sessionId?: string) => {

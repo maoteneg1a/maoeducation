@@ -1,3 +1,4 @@
+import { ReinforcementGradeRegister } from './ReinforcementGradeRegister'
 import * as React from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -41,6 +42,7 @@ interface Props {
 }
 
 export function SessionsTab({ planId, detail }: Props) {
+  const [registerBusy, setRegisterBusy] = React.useState(false)
   const [editing, setEditing] = React.useState<CaseSession | 'new' | null>(null)
   const [params, setParams] = useSearchParams()
   React.useEffect(() => {
@@ -53,21 +55,21 @@ export function SessionsTab({ planId, detail }: Props) {
     queryKey: ['reinforcement-desk-activities', planId],
     queryFn: () => reinforcementDeskApi.activities(planId),
   })
-  const { data: formative } = useQuery({ queryKey: ['reinforcement-formative', planId], queryFn: () => reinforcementDeskApi.formativeOptions(planId) })
+  const { data: formative, isLoading: loadingRule, isError: ruleError } = useQuery({ queryKey: ['reinforcement-formative', planId], queryFn: () => reinforcementDeskApi.formativeOptions(planId) })
   const activityById = new Map(activities.map((a) => [a.id, a]))
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          {formative?.policy.mode ? 'Registra las actividades del plan, su horario y asistencia. Las notas formativas se aplican en Resultados → Mejora de la nota formativa, después de revisar la vista previa. Puedes dejar prácticas sin nota.' : 'Cada sesión registra la asistencia al refuerzo. Si apunta a una actividad original, la nota se aplica con las reglas de la institución.'}
+          {formative?.policy.mode ? 'Crea las actividades, escribe las notas y guarda. El promedio se calcula automáticamente. Puedes dejar prácticas sin nota.' : 'Cada sesión registra la asistencia al refuerzo. Si apunta a una actividad original, la nota se aplica con las reglas de la institución.'}
         </p>
         {detail.canEdit && detail.case.caseStatus !== 'CLOSED' && (
-          <Button size="sm" onClick={() => setEditing('new')}><Plus className="mr-1.5 h-4 w-4" /> Nueva sesión</Button>
+          <Button size="sm" disabled={registerBusy || loadingRule || ruleError} onClick={() => setEditing('new')}><Plus className="mr-1.5 h-4 w-4" /> Nueva actividad</Button>
         )}
       </div>
 
-      {detail.sessions.length === 0 ? (
+      {loadingRule ? <p className="text-sm text-muted-foreground">Cargando registro…</p> : ruleError ? <p role="alert">No se pudo cargar la regla institucional. Actualiza la página para volver a intentar.</p> : formative?.policy.mode ? <ReinforcementGradeRegister planId={planId} detail={detail} options={formative} activities={activities} onEdit={setEditing} onBusyChange={setRegisterBusy} /> : detail.sessions.length === 0 ? (
         <EmptyState title="Sin sesiones de refuerzo" description="Registra la primera sesión para llevar la asistencia." />
       ) : (
         detail.sessions.map((s) => (
@@ -87,9 +89,10 @@ export function SessionsTab({ planId, detail }: Props) {
         <SessionDialog
           planId={planId}
           session={editing === 'new' ? null : editing}
-          activities={activities}
+          activities={formative?.policy.mode ? activities.filter((activity) => !activity.summative) : activities}
           students={detail.students}
           formativeEnabled={!!formative?.policy.mode}
+          originalRequired={formative?.policy.mode === 'activity_set'}
           onClose={() => setEditing(null)}
         />
       )}
@@ -154,7 +157,7 @@ function SessionCard({
   async function onDelete() {
     const ok = await confirmDialog({
       title: 'Eliminar sesión',
-      description: formativeMode ? 'Se eliminará la sesión y su asistencia. Los resultados formativos ya aplicados conservan sus evidencias y calificaciones; puedes retirarlos en Resultados → Mejora de la nota formativa.' : 'Se eliminará la sesión y su asistencia. Las notas que esta sesión aplicó a la actividad original se revertirán a la nota inicial.',
+      description: formativeMode ? 'Se eliminará la actividad y se recalculará el promedio. El historial conservará el cambio.' : 'Se eliminará la sesión y su asistencia. Las notas que esta sesión aplicó a la actividad original se revertirán a la nota inicial.',
       confirmText: 'Eliminar',
       destructive: true,
     })
@@ -274,6 +277,7 @@ function SessionDialog({
   activities,
   students,
   formativeEnabled,
+  originalRequired,
   onClose,
 }: {
   planId: string
@@ -281,6 +285,7 @@ function SessionDialog({
   activities: CaseActivity[]
   students: Array<{ id: string; name: string }>
   formativeEnabled: boolean
+  originalRequired: boolean
   onClose: () => void
 }) {
   const qc = useQueryClient()
@@ -297,8 +302,8 @@ function SessionDialog({
       return session ? reinforcementDeskApi.updateSession(planId, session.id, data) : reinforcementDeskApi.createSession(planId, data)
     },
     onSuccess: () => {
-      toast.success(session ? 'Sesión actualizada' : 'Sesión creada')
-      qc.invalidateQueries({ queryKey: ['reinforcement-desk-detail', planId] })
+      toast.success(session ? 'Actividad actualizada' : 'Actividad creada')
+      qc.invalidateQueries({ predicate: (query) => /reinforcement|grade|report|alert|dossier|boletin/i.test(String(query.queryKey[0])) })
       onClose()
     },
     onError: (e) => toast.error(getErrorMessage(e)),
@@ -308,9 +313,9 @@ function SessionDialog({
     <Dialog open onOpenChange={(o) => !o && !save.isPending && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{session ? 'Editar sesión' : 'Nueva sesión de refuerzo'}</DialogTitle>
+          <DialogTitle>{session ? 'Editar actividad' : 'Nueva actividad de refuerzo'}</DialogTitle>
           <DialogDescription>
-            {formativeEnabled ? 'Registra una actividad del plan de refuerzo y su fecha. Su calificación formativa es opcional y se aplica en Resultados → Mejora de la nota formativa. Las evaluaciones sumativas conservan su procedimiento individual.' : 'La nota se aplica a la actividad original con las reglas de mejora configuradas por la institución.'}
+            {formativeEnabled ? 'Registra una actividad del plan de refuerzo y su fecha. Después podrás calificarla en la tabla. Al guardar las notas se actualiza el promedio según la regla institucional.' : 'La nota se aplica a la actividad original con las reglas de mejora configuradas por la institución.'}
           </DialogDescription>
         </DialogHeader>
         <fieldset disabled={save.isPending} className="space-y-3">
@@ -326,7 +331,7 @@ function SessionDialog({
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
           </div></details>
           <div className="space-y-1">
-            <Label>Actividad original (opcional)</Label>
+            <Label>Actividad original {originalRequired ? '(requerida para calificar)' : '(opcional)'}</Label>
             <Select value={target} onValueChange={setTarget}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -339,6 +344,7 @@ function SessionDialog({
               </SelectContent>
             </Select>
           </div>
+          {originalRequired && activities.length === 0 && <p className="text-sm text-amber-700">Primero registra y publica una actividad formativa en Notas; esta regla necesita una actividad original.</p>}
           {selected && (
             <div className="rounded-md border bg-muted/40 p-3 text-xs">
               <div className="mb-1 flex items-center gap-2">
@@ -358,7 +364,7 @@ function SessionDialog({
         </fieldset>
         <DialogFooter>
           <Button variant="outline" disabled={save.isPending} onClick={onClose}>Cancelar</Button>
-          <Button onClick={async () => { if (lock.current) return; lock.current = true; try { await save.mutateAsync() } catch { /* La mutación muestra el error. */ } finally { lock.current = false } }} loading={save.isPending} disabled={!title.trim() || !date}>Guardar actividad</Button>
+          <Button onClick={async () => { if (lock.current) return; lock.current = true; try { await save.mutateAsync() } catch { /* La mutación muestra el error. */ } finally { lock.current = false } }} loading={save.isPending} disabled={!title.trim() || !date || (originalRequired && target === NONE)}>Guardar actividad</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
