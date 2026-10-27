@@ -18,6 +18,9 @@ import { useAiEnabled, useDraftProject } from '@/features/ai-assistant/hooks/use
 import { ContributionCard } from '../components/ContributionCard'
 import { useProject, useUpdateProject, useJoinProject } from '../hooks/useInterdisciplinaryProjects'
 import { interdisciplinaryProjectApi, type InterdisciplinaryProjectStatus } from '../api/interdisciplinary-project.api'
+import { useAsyncAction } from '@/shared/hooks/useAsyncAction'
+import { toast } from 'sonner'
+import { getErrorMessage } from '@/shared/lib/utils'
 
 const STATUS_LABEL: Record<InterdisciplinaryProjectStatus, { label: string; variant: 'success' | 'warning' | 'secondary' }> = {
   borrador: { label: 'Borrador', variant: 'secondary' },
@@ -28,6 +31,7 @@ const STATUS_LABEL: Record<InterdisciplinaryProjectStatus, { label: string; vari
 export function InterdisciplinaryProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { hasPermission } = usePermissions()
+  const documents = useAsyncAction()
   const canApprove = hasPermission('planning:manage')
 
   const qc = useQueryClient()
@@ -95,9 +99,12 @@ export function InterdisciplinaryProjectDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={STATUS_LABEL[project.status].variant}>{STATUS_LABEL[project.status].label}</Badge>
-          <Button variant="outline" size="sm" onClick={() => interdisciplinaryProjectApi.openProjectPdf(project.id)}>
-            <Download className="h-4 w-4" />
-            PDF
+          <Button variant="outline" size="sm" loading={documents.isPending('pdf')} onClick={() => documents.run('pdf', async () => {
+            try { await interdisciplinaryProjectApi.openProjectPdf(project.id) }
+            catch (error) { toast.error(getErrorMessage(error)) }
+          })}>
+            {!documents.isPending('pdf') && <Download className="h-4 w-4" />}
+            {documents.isPending('pdf') ? 'Generando…' : 'PDF'}
           </Button>
         </div>
       </div>

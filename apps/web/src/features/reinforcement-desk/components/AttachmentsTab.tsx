@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { getErrorMessage } from '@/shared/lib/utils'
+import { useAsyncAction } from '@/shared/hooks/useAsyncAction'
 import { reinforcementDeskApi, type CaseDetail } from '../api/reinforcement-desk.api'
 
 const NONE = 'none'
@@ -22,6 +23,7 @@ export function AttachmentsTab({ planId, detail }: { planId: string; detail: Cas
   const [category, setCategory] = React.useState(cfg.categories[0]?.key ?? '')
   const [sessionId, setSessionId] = React.useState(NONE)
   const inputRef = React.useRef<HTMLInputElement>(null)
+  const downloads = useAsyncAction()
 
   const refresh = (data: CaseDetail) => qc.setQueryData(['reinforcement-desk-detail', planId], data)
 
@@ -51,11 +53,10 @@ export function AttachmentsTab({ planId, detail }: { planId: string; detail: Cas
   }
 
   async function download(a: { id: string; fileName: string }) {
-    try {
-      await reinforcementDeskApi.downloadAttachment(planId, a)
-    } catch (e) {
-      toast.error(getErrorMessage(e))
-    }
+    await downloads.run(a.id, async () => {
+      try { await reinforcementDeskApi.downloadAttachment(planId, a) }
+      catch (e) { toast.error(getErrorMessage(e)) }
+    })
   }
 
   return (
@@ -111,7 +112,7 @@ export function AttachmentsTab({ planId, detail }: { planId: string; detail: Cas
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-2">
-                    <Button variant="outline" size="sm" onClick={() => download(a)}><Download className="h-3.5 w-3.5" /></Button>
+                    <Button variant="outline" size="sm" loading={downloads.isPending(a.id)} onClick={() => download(a)}>{!downloads.isPending(a.id) && <Download className="h-3.5 w-3.5" />}</Button>
                     {a.canDelete && (
                       <Button variant="outline" size="sm" onClick={() => onDelete(a.id, a.fileName)} disabled={remove.isPending}>
                         <Trash2 className="h-3.5 w-3.5" />

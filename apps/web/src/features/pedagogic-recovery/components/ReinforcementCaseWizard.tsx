@@ -9,6 +9,7 @@ import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select'
 import { getErrorMessage } from '@/shared/lib/utils'
+import { useAsyncAction } from '@/shared/hooks/useAsyncAction'
 import {
   listReinforcementCases,
   createReinforcementCase,
@@ -408,6 +409,7 @@ function ReevaluationsSection({ kase }: { kase: ReinforcementCase }) {
 }
 
 function ActionsBar({ kase, onChanged }: { kase: ReinforcementCase; onChanged: () => void }) {
+  const documents = useAsyncAction()
   const confirmPlan = useMutation({
     mutationFn: () => confirmReinforcementPlan(kase.id),
     onSuccess: () => {
@@ -454,9 +456,12 @@ function ActionsBar({ kase, onChanged }: { kase: ReinforcementCase; onChanged: (
           </Button>
         )}
       </div>
-      <Button variant="outline" size="sm" onClick={() => openReinforcementCasePdf(kase.id)}>
-        <Download className="h-4 w-4" />
-        PDF
+      <Button variant="outline" size="sm" loading={documents.isPending('pdf')} onClick={() => documents.run('pdf', async () => {
+        try { await openReinforcementCasePdf(kase.id) }
+        catch (error) { toast.error(getErrorMessage(error)) }
+      })}>
+        {!documents.isPending('pdf') && <Download className="h-4 w-4" />}
+        {documents.isPending('pdf') ? 'Generando…' : 'PDF'}
       </Button>
     </div>
   )

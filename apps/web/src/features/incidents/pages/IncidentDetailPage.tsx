@@ -22,6 +22,7 @@ import {
   getUsers, getIncidentAttachmentUrl, type Incident,
 } from '../api/incidents.api'
 import { openProtectedFile } from '@/shared/lib/protected-file'
+import { useAsyncAction } from '@/shared/hooks/useAsyncAction'
 
 const WORKFLOW_STATES = [
   'reportado', 'en_revision', 'derivado_dece', 'medidas_definidas',
@@ -57,6 +58,7 @@ export function IncidentDetailPage() {
   const canManage = hasPermission('incidents:manage')
   const canWrite = hasPermission('incidents:write')
   const fileInput = useRef<HTMLInputElement>(null)
+  const documents = useAsyncAction()
 
   const [newState, setNewState] = useState('')
   const [deceId, setDeceId] = useState('')
@@ -201,8 +203,11 @@ export function IncidentDetailPage() {
                       {' · '}{personName(c.creator)}
                     </p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => downloadCommitmentPdf(id, c.id).catch((e) => toast.error(getErrorMessage(e)))}>
-                    <Download className="mr-1.5 h-4 w-4" /> PDF
+                  <Button size="sm" variant="outline" loading={documents.isPending(c.id)} onClick={() => documents.run(c.id, async () => {
+                    try { await downloadCommitmentPdf(id, c.id) }
+                    catch (e) { toast.error(getErrorMessage(e)) }
+                  })}>
+                    {!documents.isPending(c.id) && <Download className="mr-1.5 h-4 w-4" />} PDF
                   </Button>
                 </div>
               ))}

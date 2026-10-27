@@ -40,6 +40,7 @@ import {
   type BulletinSubject,
 } from '../api/reports.api'
 import { exportAttendanceReport, exportEnrollmentReport, exportGradesReport } from '../lib/excel-export'
+import { useAsyncAction } from '@/shared/hooks/useAsyncAction'
 
 type Tab = 'bulletin' | 'grades' | 'attendance' | 'enrollment'
 
@@ -131,7 +132,7 @@ function BulletinReportTab() {
   const [selectedParallelId, setSelectedParallelId] = React.useState('')
   const [selectedStudentId, setSelectedStudentId] = React.useState('')
   const [enabled, setEnabled] = React.useState(false)
-  const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false)
+  const downloads = useAsyncAction()
   const [globalForm, setGlobalForm] = React.useState<BulletinBranding>(DEFAULT_BRANDING)
   const [ownForm, setOwnForm] = React.useState<BulletinBranding>({ ...DEFAULT_BRANDING, enabled: false })
 
@@ -221,32 +222,32 @@ function BulletinReportTab() {
     }
   }
 
-  const [isDownloadingParallel, setIsDownloadingParallel] = React.useState(false)
   async function handleParallelPdfDownload() {
-    setIsDownloadingParallel(true)
-    try {
-      await downloadParallelBulletinsPdf({ yearId: selectedYearId, parallelId: selectedParallelId })
-    } catch (err) {
-      toast.error(getErrorMessage(err))
-    } finally {
-      setIsDownloadingParallel(false)
-    }
+    await downloads.run('parallel', async () => {
+      try {
+        await downloadParallelBulletinsPdf({ yearId: selectedYearId, parallelId: selectedParallelId })
+      } catch (err) {
+        toast.error(getErrorMessage(err))
+      }
+    })
   }
 
   async function handlePdfDownload() {
-    setIsDownloadingPdf(true)
-    try {
-      await downloadBulletinPdf({
-        yearId: selectedYearId,
-        parallelId: selectedParallelId,
-        studentId: selectedStudentId,
-      })
-    } catch (err) {
-      toast.error(getErrorMessage(err))
-    } finally {
-      setIsDownloadingPdf(false)
-    }
+    await downloads.run('student', async () => {
+      try {
+        await downloadBulletinPdf({
+          yearId: selectedYearId,
+          parallelId: selectedParallelId,
+          studentId: selectedStudentId,
+        })
+      } catch (err) {
+        toast.error(getErrorMessage(err))
+      }
+    })
   }
+
+  const isDownloadingParallel = downloads.isPending('parallel')
+  const isDownloadingPdf = downloads.isPending('student')
 
   const years = options?.years ?? []
   const parallels = options?.parallels ?? []
