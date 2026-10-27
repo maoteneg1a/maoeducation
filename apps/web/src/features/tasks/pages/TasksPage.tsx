@@ -309,7 +309,7 @@ function TaskDetailSheet({ task, isTeacher, onClose, onEdit, onPublish, onDelete
 interface TaskFormProps {
   open: boolean
   onClose: () => void
-  /** `gradable`: tras crear la tarea, abrir el paso de "crear como actividad calificable". */
+  /** `gradable`: tras crear el deber, abrir el paso de "crear como actividad calificable". */
   onSave: (data: CreateTaskPayload, opts: { gradable: boolean }) => void
   isPending: boolean
   assignments: Array<{ id: string; subject: { name: string }; parallel: { name: string; level: { name: string } } }>
@@ -349,7 +349,7 @@ function TaskFormDialog({ open, onClose, onSave, isPending, assignments, default
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{initial ? 'Editar tarea' : 'Nueva tarea'}</DialogTitle>
+          <DialogTitle>{initial ? 'Editar deber' : 'Nuevo deber'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
@@ -408,7 +408,7 @@ function TaskFormDialog({ open, onClose, onSave, isPending, assignments, default
           )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={isPending}>{isPending ? 'Guardando…' : initial ? 'Guardar cambios' : 'Crear tarea'}</Button>
+            <Button type="submit" disabled={isPending}>{isPending ? 'Guardando…' : initial ? 'Guardar cambios' : 'Crear deber'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -682,8 +682,8 @@ export function TasksPage() {
     onSuccess: (created, { gradable }) => {
       qc.invalidateQueries({ queryKey: ['tasks'] })
       setShowForm(false)
-      toast.success('Tarea creada')
-      // Flujo en un paso: la tarea calificable pasa directo a "crear como actividad".
+      toast.success('Deber creado')
+      // Flujo en un paso: el deber calificable pasa directo a "crear como actividad".
       if (gradable) setConverting(created)
     },
     onError: (e) => toast.error(getErrorMessage(e)),
@@ -691,19 +691,19 @@ export function TasksPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: CreateTaskPayload }) => tasksApi.update(id, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }); setEditing(null); setShowForm(false); toast.success('Tarea actualizada') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }); setEditing(null); setShowForm(false); toast.success('Deber actualizado') },
     onError: (e) => toast.error(getErrorMessage(e)),
   })
 
   const publishMutation = useMutation({
     mutationFn: (id: string) => tasksApi.publish(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }); toast.success('Tarea publicada') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }); toast.success('Deber publicado') },
     onError: (e) => toast.error(getErrorMessage(e)),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => tasksApi.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }); toast.success('Tarea eliminada') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }); toast.success('Deber eliminado') },
     onError: (e) => toast.error(getErrorMessage(e)),
   })
 
@@ -730,14 +730,14 @@ export function TasksPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Tareas</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Deberes</h1>
           <p className="text-sm text-muted-foreground">
-            {canWriteTasks ? 'Crea y gestiona tareas para tus alumnos' : 'Tareas y trabajos pendientes'}
+            {canWriteTasks ? 'Crea y gestiona deberes para tus alumnos' : 'Deberes y trabajos pendientes'}
           </p>
         </div>
         {canWriteTasks && (
           <Button onClick={() => { setEditing(null); setShowForm(true) }}>
-            <Plus className="h-4 w-4 mr-2" />Nueva tarea
+            <Plus className="h-4 w-4 mr-2" />Nuevo deber
           </Button>
         )}
       </div>
@@ -745,7 +745,7 @@ export function TasksPage() {
       {pendingCount > 0 && (
         <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
           <Clock className="h-4 w-4 shrink-0" />
-          {pendingCount} {pendingCount === 1 ? 'tarea vence' : 'tareas vencen'} en los próximos 7 días
+          {pendingCount} {pendingCount === 1 ? 'deber vence' : 'deberes vencen'} en los próximos 7 días
         </div>
       )}
 
@@ -777,8 +777,8 @@ export function TasksPage() {
       {isLoading ? (
         <PageLoader />
       ) : filteredTasks.length === 0 ? (
-        <EmptyState icon={BookOpen} title="Sin tareas"
-          description={canWriteTasks ? 'Crea la primera tarea con el botón "Nueva tarea"' : 'No tienes tareas pendientes'} />
+        <EmptyState icon={BookOpen} title="Sin deberes"
+          description={canWriteTasks ? 'Crea el primer deber con el botón "Nuevo deber"' : 'No tienes deberes pendientes'} />
       ) : isTeacher || isAdmin ? (
         <div className="space-y-2">
           {filteredTasks.map((task) => (
@@ -807,7 +807,7 @@ export function TasksPage() {
         onPublish={(t) => publishMutation.mutate(t.id)}
         onDelete={async (t) => {
           const ok = await confirmDialog({
-            title: '¿Eliminar esta tarea?',
+            title: '¿Eliminar este deber?',
             description: 'Se eliminará para estudiantes y familias, junto con sus adjuntos.',
             confirmText: 'Eliminar',
             destructive: true,

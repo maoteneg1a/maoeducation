@@ -79,7 +79,7 @@ export default async function taskRoutes(app: FastifyInstance) {
       const task = await repo.publish(req.params.id, req.user.institutionId)
       if (!previousTask.isPublished) {
         void notifyGuardiansOfCourseAssignment(task.courseAssignmentId, {
-          title: 'Nueva tarea — Auleka',
+          title: 'Nuevo deber — Auleka',
           body: task.title,
           url: '/tasks',
         })
@@ -108,7 +108,7 @@ export default async function taskRoutes(app: FastifyInstance) {
       const task = await prisma.task.findFirst({
         where: { id: req.params.id, institutionId: req.user.institutionId },
       })
-      if (!task) throw new NotFoundError('Tarea no encontrada')
+      if (!task) throw new NotFoundError('Deber no encontrado')
 
       const data = await req.file()
       if (!data) return reply.status(400).send({ message: 'No se recibió ningún archivo' })

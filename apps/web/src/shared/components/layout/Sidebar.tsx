@@ -5,7 +5,7 @@ import {
   ClipboardList, AlertTriangle, MessageSquare, Calendar,
   FileText, ChevronRight, X, UserPlus, ShieldCheck,
   ClipboardCheck, CalendarDays, Palette, Smile, Award, HeartHandshake, FolderOpen, NotebookPen, Puzzle,
-  Sparkles, School, CreditCard,
+  School, CreditCard,
   Megaphone,
   ScrollText,
   Inbox,
@@ -58,26 +58,6 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    id: 'docencia',
-    label: 'Aula',
-    icon: Sparkles,
-    items: [
-      {
-        label: 'Actividades',
-        icon: BookOpen,
-        path: '/activities',
-        permission: 'activities:read',
-        module: 'activities',
-      },
-      {
-        label: 'Tareas',
-        icon: ClipboardCheck,
-        path: '/tasks',
-        module: 'tasks',
-      },
-    ],
-  },
-  {
     id: 'planificacion',
     label: 'Planificación',
     icon: NotebookPen,
@@ -107,9 +87,23 @@ export const NAV_SECTIONS: NavSection[] = [
   },
   {
     id: 'academico',
-    label: 'Gestión académica',
+    label: 'Aula y gestión académica',
     icon: GraduationCap,
     items: [
+      {
+        label: 'Actividades',
+        icon: BookOpen,
+        path: '/activities',
+        permission: 'activities:read',
+        module: 'activities',
+      },
+      {
+        label: 'Deberes',
+        icon: ClipboardCheck,
+        path: '/tasks',
+        module: 'tasks',
+      },
+
       {
         label: 'Calificaciones',
         icon: GraduationCap,
@@ -397,10 +391,10 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       const saved = JSON.parse(localStorage.getItem('auleka.sidebar.sections') ?? '[]')
       const savedSections = Array.isArray(saved) ? saved : []
       const lastSaved = savedSections[savedSections.length - 1]
-      const lastOpen = lastSaved === 'institucional' ? 'academico' : lastSaved
-      return new Set<string>(lastOpen ? [lastOpen] : ['docencia'])
+      const lastOpen = ['institucional', 'docencia'].includes(lastSaved) ? 'academico' : lastSaved
+      return new Set<string>(lastOpen ? [lastOpen] : ['academico'])
     } catch {
-      return new Set(['docencia'])
+      return new Set(['academico'])
     }
   })
   const institution = useAuthStore((s) => s.user?.institution ?? null)

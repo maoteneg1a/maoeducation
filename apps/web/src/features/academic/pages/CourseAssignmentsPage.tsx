@@ -185,7 +185,7 @@ export function CourseAssignmentsPage() {
   async function handleDelete(id: string) {
     const ok = await confirmDialog({
       title: '¿Eliminar esta asignación?',
-      description: 'Solo se puede eliminar si aún no tiene actividades, asistencia ni tareas. Para reemplazar al docente usa "Cambiar docente".',
+      description: 'Solo se puede eliminar si aún no tiene actividades, asistencia ni deberes. Para reemplazar al docente usa "Cambiar docente".',
       confirmText: 'Eliminar',
       destructive: true,
     })

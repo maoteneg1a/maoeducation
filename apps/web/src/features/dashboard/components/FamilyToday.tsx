@@ -53,7 +53,7 @@ export function FamilyToday() {
             </div>
           ))}
         </TodayCard>
-        <TodayCard title="Próximas tareas" icon={ClipboardCheck} href="/tasks" empty="No hay tareas próximas">
+        <TodayCard title="Próximos deberes" icon={ClipboardCheck} href="/tasks" empty="No hay deberes próximos">
           {data.tasks.slice(0, 5).map((item) => (
             <div key={item.id} className="border-b py-2 last:border-0"><p className="text-sm font-medium">{item.title}</p><p className="text-xs text-muted-foreground">{item.subject} · entrega {new Date(item.dueDate).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' })}</p></div>
           ))}

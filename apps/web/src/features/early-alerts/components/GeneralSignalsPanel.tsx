@@ -27,7 +27,7 @@ interface AlertsData {
   alerts: AlertItem[]
 }
 
-/** Señales generales (notas bajas, tareas, asistencia) — vista previa al flujo del acuerdo. */
+/** Señales generales (notas bajas, deberes, asistencia) — vista previa al flujo del acuerdo. */
 export function GeneralSignalsPanel() {
   const [yearId, setYearId] = React.useState('')
   const [parallelId, setParallelId] = React.useState('all')

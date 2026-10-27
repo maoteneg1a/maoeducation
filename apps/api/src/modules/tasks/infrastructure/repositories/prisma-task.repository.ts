@@ -123,7 +123,7 @@ export class PrismaTaskRepository {
 
   async getById(id: string, institutionId: string) {
     const task = await prisma.task.findFirst({ where: { id, institutionId }, include: taskInclude })
-    if (!task) throw new NotFoundError('Tarea no encontrada')
+    if (!task) throw new NotFoundError('Deber no encontrado')
     return task
   }
 
@@ -150,7 +150,7 @@ export class PrismaTaskRepository {
 
   async update(id: string, institutionId: string, dto: UpdateTaskDto) {
     const task = await prisma.task.findFirst({ where: { id, institutionId } })
-    if (!task) throw new NotFoundError('Tarea no encontrada')
+    if (!task) throw new NotFoundError('Deber no encontrado')
 
     return prisma.task.update({
       where: { id },
@@ -166,13 +166,13 @@ export class PrismaTaskRepository {
 
   async publish(id: string, institutionId: string) {
     const task = await prisma.task.findFirst({ where: { id, institutionId } })
-    if (!task) throw new NotFoundError('Tarea no encontrada')
+    if (!task) throw new NotFoundError('Deber no encontrado')
     return prisma.task.update({ where: { id }, data: { isPublished: true }, include: taskInclude })
   }
 
   async delete(id: string, institutionId: string) {
     const task = await prisma.task.findFirst({ where: { id, institutionId } })
-    if (!task) throw new NotFoundError('Tarea no encontrada')
+    if (!task) throw new NotFoundError('Deber no encontrado')
     await prisma.task.delete({ where: { id } })
   }
 }
