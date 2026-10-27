@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Save, GraduationCap, BarChart3, Settings2, ExternalLink, CheckCheck, Keyboard } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
@@ -63,7 +63,7 @@ function useBulkSaveGrades() {
   return useMutation({
     mutationFn: (grades: GradeInput[]) => activitiesApi.bulkSaveGrades(grades),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['grades'] })
+      qc.invalidateQueries({ predicate: (query) => /grade|report|reinforcement|early-alert|dossier/i.test(String(query.queryKey[0])) })
       toast.success('Notas guardadas correctamente')
     },
     onError: (err) => toast.error(getErrorMessage(err)),
@@ -130,11 +130,11 @@ function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcement
     : displayScore == null || reinforcementScore == null
       ? displayScore
       : reinforcementMode === 'average'
-        ? (displayScore + reinforcementScore) / 2
-        : reinforcementScore
+        ? Math.max(displayScore, (displayScore + reinforcementScore) / 2)
+        : Math.max(displayScore, reinforcementScore)
   const status = localStatus ?? grade.status
   // El puntaje solo se edita cuando hubo entrega (a tiempo o tarde).
-  const scoreEditable = status === 'entregado' || status === 'atrasado'
+  const scoreEditable = !grade.closedPlanId && (status === 'entregado' || status === 'atrasado')
   const outOfRange = displayScore != null && (Number.isNaN(displayScore) || displayScore < 0 || displayScore > maxScore)
 
   return (
@@ -195,6 +195,7 @@ function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcement
               min={0}
               max={maxScore}
               step={0.01}
+              disabled={!!grade.closedPlanId}
               value={reinforcementScore ?? ''}
               onChange={(e) => onReinforcementChange(
                 grade.studentId,
@@ -218,7 +219,7 @@ function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcement
         </TableCell>
       )}
       <TableCell>
-        <Select value={status} onValueChange={(v) => onStatusChange(grade.studentId, v as GradeStatus)}>
+        <Select disabled={!!grade.closedPlanId} value={status} onValueChange={(v) => onStatusChange(grade.studentId, v as GradeStatus)}>
           <SelectTrigger className="h-8 w-36 text-xs">
             <SelectValue />
           </SelectTrigger>
@@ -230,6 +231,7 @@ function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcement
         </Select>
       </TableCell>
       <TableCell>
+        {grade.closedPlanId && <Button asChild size="sm" variant="outline"><Link to={`/refuerzo/casos/${grade.closedPlanId}?correction=1`}>Corregir notas</Link></Button>}
         {isModified && (
           <Badge variant="warning" className="text-xs">
             Modificado
@@ -546,13 +548,16 @@ function ManualInsumoAveragesGrid({ data }: { data: GradesReportData }) {
   const examWeight = data.assignment.examWeight ?? 30
 
   function preview(row: GradesReportData['students'][number]) {
+    if (!insumos.some((insumo) => changed.has(`${row.student.id}:${insumo.id}`))) return { formative: row.summary.insumosBase, total: row.summary.total }
     const insumoScores = insumos.map((insumo) => {
       const key = `${row.student.id}:${insumo.id}`
       return values[key] ?? row.summary.insumoAvgs.find((average) => average.id === insumo.id)?.avg ?? null
     }).filter((score): score is number => score != null)
-    const formative = insumoScores.length > 0
+    let formative = insumoScores.length > 0
       ? insumoScores.reduce((sum, score) => sum + score, 0) / insumoScores.length
       : null
+    const reinforcement = row.summary.formativeReinforcement
+    if (reinforcement?.mode === 'period_formative' && formative != null) formative = Math.max(formative, Math.min(reinforcement.cap, formative * (1 - reinforcement.weight / 100) + reinforcement.result * reinforcement.weight / 100))
     const summative = row.summary.summativeAvg
     const total = examWeight === 0 ? formative : examWeight === 100 ? summative : row.summary.hasSummative
       ? formative != null && summative != null
@@ -576,6 +581,7 @@ function ManualInsumoAveragesGrid({ data }: { data: GradesReportData }) {
   })
 
   function update(studentIndex: number, insumoIndex: number, value: string) {
+    if (data.students[studentIndex].closedPlanId || data.students[studentIndex].summary.formativeReinforcement?.mode === 'activity_set') return
     const key = `${data.students[studentIndex].student.id}:${insumos[insumoIndex].id}`
     const score = value.trim() === '' ? null : Number(value.replace(',', '.'))
     if (score != null && (!Number.isFinite(score) || score < 0 || score > max)) return
@@ -617,11 +623,11 @@ function ManualInsumoAveragesGrid({ data }: { data: GradesReportData }) {
           <tbody>{data.students.map((row, rowIndex) => {
             const result = preview(row)
             return <tr key={row.student.id} className="border-t">
-            <td className="sticky left-0 z-10 bg-background px-3 py-2 font-medium">{row.student.profile.lastName}, {row.student.profile.firstName}</td>
+            <td className="sticky left-0 z-10 bg-background px-3 py-2 font-medium">{row.student.profile.lastName}, {row.student.profile.firstName}{row.closedPlanId ? <Button variant="link" size="sm" asChild><Link to={`/refuerzo/casos/${row.closedPlanId}?correction=1`}>Corregir notas</Link></Button> : row.summary.formativeReinforcement?.mode === 'activity_set' && <p className="text-xs font-normal text-muted-foreground">Con refuerzo por actividades: edita las notas de las actividades.</p>}</td>
             {insumos.map((insumo, columnIndex) => {
               const key = `${row.student.id}:${insumo.id}`
               const calculated = row.summary.insumoAvgs.find((average) => average.id === insumo.id)?.avg
-              return <td key={insumo.id} className="px-2 py-1.5"><Input type="number" min={0} max={max} step="0.01" className={cn('text-center', changed.has(key) && 'border-amber-400')} value={values[key] ?? ''} placeholder={calculated == null ? '—' : calculated.toFixed(2)} title={calculated == null ? 'Sin promedio calculado' : `Promedio calculado: ${calculated.toFixed(2)}`} onChange={(event) => update(rowIndex, columnIndex, event.target.value)} onPaste={(event) => paste(rowIndex, columnIndex, event)} /></td>
+              return <td key={insumo.id} className="px-2 py-1.5"><Input type="number" disabled={!!row.closedPlanId || row.summary.formativeReinforcement?.mode === 'activity_set'} min={0} max={max} step="0.01" className={cn('text-center', changed.has(key) && 'border-amber-400')} value={values[key] ?? ''} placeholder={calculated == null ? '—' : calculated.toFixed(2)} title={calculated == null ? 'Sin promedio calculado' : `Promedio calculado: ${calculated.toFixed(2)}`} onChange={(event) => update(rowIndex, columnIndex, event.target.value)} onPaste={(event) => paste(rowIndex, columnIndex, event)} /></td>
             })}
             <td className="bg-blue-50/40 px-3 py-2 text-center font-semibold tabular-nums">{result.formative?.toFixed(2) ?? '—'}</td>
             {showExam && <td className="px-3 py-2 text-center tabular-nums">{row.summary.examenAvg?.toFixed(2) ?? '—'}</td>}
@@ -1690,11 +1696,13 @@ export function GradeEntryPage() {
   }, [selectedPeriodId])
 
   function handleScoreChange(studentId: string, value: number | null) {
+    if (grades.find((grade) => grade.studentId === studentId)?.closedPlanId) return
     setLocalGrades((prev) => ({ ...prev, [studentId]: value }))
     setModified((prev) => new Set(prev).add(studentId))
   }
 
   function handleStatusChange(studentId: string, status: GradeStatus) {
+    if (grades.find((grade) => grade.studentId === studentId)?.closedPlanId) return
     setLocalStatus((prev) => ({ ...prev, [studentId]: status }))
     // Ajustar la nota según el estado: no realizado → 0, excusado → sin nota.
     if (status === 'no_realizado') {
@@ -1706,6 +1714,7 @@ export function GradeEntryPage() {
   }
 
   function handleReinforcementChange(studentId: string, value: number | null) {
+    if (grades.find((grade) => grade.studentId === studentId)?.closedPlanId) return
     setLocalReinforcementScores((prev) => ({ ...prev, [studentId]: value }))
     setModified((prev) => new Set(prev).add(studentId))
   }
@@ -2030,7 +2039,8 @@ export function GradeEntryPage() {
             </p>
           </div>
 
-          {reinforcementEnabled && <p className="text-xs text-muted-foreground">La mejora individual corresponde únicamente a esta actividad. No inicia un plan ni consume sus intentos. Si persiste el bajo desempeño, revisa las alertas tempranas para iniciar el plan.</p>}
+          {grades.some((grade) => grade.closedPlanId) && <p role="status" className="rounded border border-primary/30 bg-primary/5 p-3 text-sm">Hay notas protegidas por un refuerzo finalizado. Usa «Corregir notas» junto al estudiante; se abrirá su seguimiento y quedará registro del cambio.</p>}
+          {reinforcementEnabled && <p className="text-xs text-muted-foreground">La mejora individual afecta esta actividad y nunca reduce su nota. El plan de refuerzo se registra desde la alerta temprana.</p>}
 
           {/* Grade table */}
           <Card className="overflow-x-auto">
@@ -2040,7 +2050,7 @@ export function GradeEntryPage() {
                   <TableHead>Estudiante</TableHead>
                   <TableHead>Nota</TableHead>
                   {reinforcementEnabled && <TableHead>Mejora individual</TableHead>}
-                  {reinforcementEnabled && <TableHead>Nota final</TableHead>}
+                  {reinforcementEnabled && <TableHead>Resultado de la actividad</TableHead>}
                   <TableHead>Entrega</TableHead>
                   <TableHead className="w-32">Estado</TableHead>
                 </TableRow>

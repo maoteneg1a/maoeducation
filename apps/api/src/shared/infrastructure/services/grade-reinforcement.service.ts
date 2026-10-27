@@ -1,8 +1,8 @@
+import { assertReinforcementGradesOpen } from './reinforcement-grade-lock.service'
 import { prisma } from '../database/prisma'
 import { ConflictError, NotFoundError } from '../../domain/errors/app.errors'
 import { activityKind } from '../../domain/grade-math'
 import { improvedScore, resolveAgreement } from '../../domain/agreement-rules'
-import { institutionSettings } from './agreement.service'
 
 /**
  * Vuelca la nota de una actividad/sesión de refuerzo en la nota ORIGINAL de la
@@ -20,12 +20,14 @@ export async function applyReinforcementToGrade(params: {
   gradedBy: string
 }): Promise<{ score: number | null; mode: string | null }> {
   const { institutionId, activityId, studentId, reinforcementScore, gradedBy } = params
-  const activity = await prisma.activity.findFirst({
+  return prisma.$transaction(async (db) => {
+  const activity = await db.activity.findFirst({
     where: { id: activityId, institutionId },
     select: {
       id: true,
       maxScore: true,
       courseAssignmentId: true,
+      academicPeriodId: true,
       activityType: { select: { code: true } },
       academicPeriod: { select: { isClosed: true } },
       courseAssignment: { select: { academicYearId: true } },
@@ -34,12 +36,13 @@ export async function applyReinforcementToGrade(params: {
   if (!activity) throw new NotFoundError('Actividad original no encontrada')
   if (activity.academicPeriod.isClosed) throw new ConflictError('El periodo de la actividad está cerrado')
   const max = Number(activity.maxScore)
-  const grade = await prisma.grade.findUnique({ where: { activityId_studentId: { activityId, studentId } } })
+  const grade = await db.grade.findUnique({ where: { activityId_studentId: { activityId, studentId } } })
+  await assertReinforcementGradesOpen(db, institutionId, [{ studentId, courseAssignmentId: activity.courseAssignmentId, academicPeriodId: activity.academicPeriodId, recordedAt: grade?.gradedAt ?? grade?.createdAt ?? new Date(8640000000000000) }])
   const base = grade ? (grade.baseScore != null ? Number(grade.baseScore) : grade.score != null ? Number(grade.score) : null) : null
 
   if (reinforcementScore == null) {
     if (grade && grade.reinforcementScore != null) {
-      await prisma.grade.update({
+      await db.grade.update({
         where: { id: grade.id },
         data: { score: base, baseScore: null, reinforcementScore: null, reinforcementMode: null, reinforcementRecordedAt: null, gradedBy },
       })
@@ -49,7 +52,7 @@ export async function applyReinforcementToGrade(params: {
   if (reinforcementScore < 0 || reinforcementScore > max) throw new ConflictError(`La nota de refuerzo debe estar entre 0 y ${max}`)
   if (base == null) throw new ConflictError('El estudiante no tiene nota inicial en la actividad original')
 
-  const settings = await institutionSettings(institutionId)
+  const settings = ((await db.institution.findUnique({ where: { id: institutionId }, select: { settings: true } }))?.settings ?? {}) as Record<string, unknown>
   const rules = resolveAgreement(settings, activity.courseAssignment.academicYearId)
   let score: number
   let mode: string
@@ -61,7 +64,7 @@ export async function applyReinforcementToGrade(params: {
     score = r.score
     if (r.mode !== 'formative') {
       const rule = r.mode === 'direct' ? rules.summativeImprovement.direct : rules.summativeImprovement.withReinforcement
-      const prior = await prisma.grade.findMany({
+      const prior = await db.grade.findMany({
         where: {
           institutionId,
           studentId,
@@ -82,9 +85,9 @@ export async function applyReinforcementToGrade(params: {
   } else {
     const gc = (settings.gradingConfig ?? {}) as { activityGradeReinforcement?: { mode?: 'replace' | 'average' } }
     mode = gc.activityGradeReinforcement?.mode ?? 'replace'
-    score = mode === 'average' ? (base + reinforcementScore) / 2 : reinforcementScore
+    score = Math.max(base, mode === 'average' ? (base + reinforcementScore) / 2 : reinforcementScore)
   }
-  await prisma.grade.upsert({
+  await db.grade.upsert({
     where: { activityId_studentId: { activityId, studentId } },
     create: {
       institutionId, activityId, studentId, score, baseScore: base, reinforcementScore,
@@ -93,4 +96,5 @@ export async function applyReinforcementToGrade(params: {
     update: { score, baseScore: base, reinforcementScore, reinforcementMode: mode, reinforcementRecordedAt: new Date(), gradedBy },
   })
   return { score, mode }
+  }, { timeout: 60000 })
 }

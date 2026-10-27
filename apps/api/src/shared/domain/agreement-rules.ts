@@ -227,7 +227,7 @@ export function improvedScore(
   if (!isSummative) {
     const fr = rules.formativeReinforcement
     const raw = fr.method === 'average' ? (base + reinforcement) / 2 : reinforcement
-    return { score: capScore(raw, fr.cap == null ? null : fr.cap * k), mode: 'formative' }
+    return { score: Math.max(base, capScore(raw, fr.cap == null ? null : fr.cap * k)), mode: 'formative' }
   }
   const { direct, withReinforcement } = rules.summativeImprovement
   const b10 = base / k

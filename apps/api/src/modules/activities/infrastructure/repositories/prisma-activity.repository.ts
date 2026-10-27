@@ -1,3 +1,5 @@
+import { computePeriodGrades } from '../../../../shared/infrastructure/services/period-grades.service'
+import { assertReinforcementGradesOpen, closedReinforcementPlans } from '../../../../shared/infrastructure/services/reinforcement-grade-lock.service'
 import { loadFormativeApplications } from '../../../../shared/infrastructure/services/formative-reinforcement.service'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
@@ -23,6 +25,11 @@ import type {
 const GRADE_STATUSES = new Set(['entregado', 'no_realizado', 'atrasado', 'excusado'])
 
 export class PrismaActivityRepository {
+  private async protectActivityCalculation(db: Prisma.TransactionClient, institutionId: string, activity: { id: string; courseAssignmentId: string; academicPeriodId: string }) {
+    const grades = await db.grade.findMany({ where: { institutionId, activityId: activity.id }, select: { studentId: true, gradedAt: true, createdAt: true } })
+    await assertReinforcementGradesOpen(db, institutionId, grades.map((grade) => ({ studentId: grade.studentId, courseAssignmentId: activity.courseAssignmentId, academicPeriodId: activity.academicPeriodId, recordedAt: grade.gradedAt ?? grade.createdAt })))
+  }
+
   // ─── Activity Types ────────────────────────────────────────────────────────
 
   async listTypes(institutionId: string) {
@@ -271,7 +278,9 @@ export class PrismaActivityRepository {
       await assertCompetenciesArePlanned(activity.courseAssignmentId, activity.academicPeriodId, [dto.competencyId])
     }
 
-    return prisma.activity.update({
+    return prisma.$transaction(async (tx) => {
+      if (dto.maxScore !== undefined || 'insumoId' in dto) await this.protectActivityCalculation(tx, institutionId, activity)
+      return tx.activity.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -292,6 +301,7 @@ export class PrismaActivityRepository {
         competency: { select: { id: true, code: true, text: true } },
       },
     })
+    }, { timeout: 60000 })
   }
 
   /** Publica u oculta la actividad para estudiantes/representantes. */
@@ -299,10 +309,13 @@ export class PrismaActivityRepository {
     const activity = await prisma.activity.findFirst({ where: { id, institutionId } })
     if (!activity) throw new NotFoundError('Actividad no encontrada')
 
-    return prisma.activity.update({
+    return prisma.$transaction(async (tx) => {
+      if (activity.isPublished !== isPublished) await this.protectActivityCalculation(tx, institutionId, activity)
+      return tx.activity.update({
       where: { id },
       data: { isPublished },
     })
+    }, { timeout: 60000 })
   }
 
   async assignInsumo(id: string, institutionId: string, insumoId: string) {
@@ -312,7 +325,9 @@ export class PrismaActivityRepository {
     const insumo = await prisma.insumo.findFirst({ where: { id: insumoId, institutionId } })
     if (!insumo) throw new NotFoundError('Insumo no encontrado')
 
-    return prisma.activity.update({
+    return prisma.$transaction(async (tx) => {
+      if (activity.insumoId !== insumoId) await this.protectActivityCalculation(tx, institutionId, activity)
+      return tx.activity.update({
       where: { id },
       data: { insumoId },
       include: {
@@ -320,6 +335,7 @@ export class PrismaActivityRepository {
         insumo: { select: { id: true, name: true } },
       },
     })
+    }, { timeout: 60000 })
   }
 
   async delete(id: string, institutionId: string) {
@@ -378,6 +394,7 @@ export class PrismaActivityRepository {
       where: { activityId, institutionId },
     })
     const gradeMap = new Map(grades.map((g) => [g.studentId, g]))
+    const closedPlans = await closedReinforcementPlans(prisma, institutionId, enrollments.map((enrollment) => ({ studentId: enrollment.studentId, courseAssignmentId: activity.courseAssignmentId, academicPeriodId: activity.academicPeriodId, recordedAt: gradeMap.get(enrollment.studentId)?.gradedAt ?? gradeMap.get(enrollment.studentId)?.createdAt ?? new Date(8640000000000000) })))
 
     // Merge: cada estudiante activo recibe su nota (o null). Los retirados solo
     // aparecen si ya tenían nota registrada (historial), para no ensuciar la lista.
@@ -386,7 +403,8 @@ export class PrismaActivityRepository {
       .map((enrollment) => ({
       student: enrollment.student,
       enrollmentStatus: enrollment.status,
-      grade: gradeMap.get(enrollment.studentId) ?? null,
+      closedPlanId: closedPlans.find((plan) => (gradeMap.get(enrollment.studentId)?.gradedAt ?? gradeMap.get(enrollment.studentId)?.createdAt ?? new Date(8640000000000000)) <= plan.updatedAt && (plan.studentId === enrollment.studentId || plan.participants.some((participant) => participant.studentId === enrollment.studentId)))?.id ?? null,
+      grade: gradeMap.has(enrollment.studentId) ? { ...gradeMap.get(enrollment.studentId)!, score: effectiveActivityScore(gradeMap.get(enrollment.studentId)) } : null,
     }))
   }
 
@@ -411,6 +429,7 @@ export class PrismaActivityRepository {
         select: {
           id: true,
           activityTypeId: true,
+          academicPeriodId: true,
           maxScore: true,
           courseAssignmentId: true,
           activityType: { select: { code: true } },
@@ -571,12 +590,10 @@ export class PrismaActivityRepository {
           }
           score = r.score
         } else if (baseScore != null && reinforcementScore != null) {
-          score = reinforcementMode === 'average'
-            ? (baseScore + reinforcementScore) / 2
-            : reinforcementScore
+          score = Math.max(baseScore, reinforcementMode === 'average' ? (baseScore + reinforcementScore) / 2 : reinforcementScore)
         }
 
-        return prisma.grade.upsert({
+        return {
           where: {
             activityId_studentId: {
               activityId: g.activityId,
@@ -596,6 +613,7 @@ export class PrismaActivityRepository {
             isExcused,
             notes: g.notes,
             gradedBy: gradedById,
+            gradedAt: new Date(),
           },
           update: {
             score,
@@ -609,11 +627,17 @@ export class PrismaActivityRepository {
             isExcused,
             notes: g.notes,
             gradedBy: gradedById,
+            gradedAt: new Date(),
           },
-        })
+        } satisfies Prisma.GradeUpsertArgs
       })
     // Una sola transacción: si algo falla no quedan notas guardadas a medias.
-    return prisma.$transaction(operations)
+    return prisma.$transaction(async (tx) => {
+      await assertReinforcementGradesOpen(tx, institutionId, dto.grades.map((grade) => ({ studentId: grade.studentId, courseAssignmentId: activityById.get(grade.activityId)!.courseAssignmentId, academicPeriodId: activityById.get(grade.activityId)!.academicPeriodId, recordedAt: existingByKey.get(`${grade.activityId}:${grade.studentId}`)?.gradedAt ?? existingByKey.get(`${grade.activityId}:${grade.studentId}`)?.createdAt ?? new Date(8640000000000000) })))
+      const result = []
+      for (const operation of operations) result.push(await tx.grade.upsert(operation))
+      return result
+    }, { timeout: 60000 })
   }
 
   async bulkUpsertManualInsumoAverages(
@@ -673,18 +697,20 @@ export class PrismaActivityRepository {
       [...new Set(insumos.map((i) => i.academicPeriodId))],
       studentIds,
     )
+    const current = await computePeriodGrades(institutionId, { assignmentIds: [...new Set(insumos.map((insumo) => insumo.courseAssignmentId))], periodIds: [...new Set(insumos.map((insumo) => insumo.academicPeriodId))], studentIds, gradingScaleMax: max })
     for (const item of dto.items.filter((i) => i.score != null)) {
       const insumo = insumos.find((i) => i.id === item.insumoId)!
       const application = formative.get(`${item.studentId}:${insumo.courseAssignmentId}:${insumo.academicPeriodId}`)
-      if (application?.mode === 'activity_set' && application.score != null) {
+      if ((application?.mode === 'activity_set' && application.score != null) || current.get(`${item.studentId}:${insumo.courseAssignmentId}:${insumo.academicPeriodId}`)?.formativeReinforcement?.mode === 'activity_set') {
         throw new ConflictError('Existe refuerzo por conjunto de actividades. Retira su aplicación antes de ingresar promedios manuales por insumo.')
       }
     }
 
-    return prisma.$transaction(
-      dto.items.map((item) => {
+    return prisma.$transaction(async (tx) => {
+      await assertReinforcementGradesOpen(tx, institutionId, dto.items.map((item) => { const insumo = insumos.find((row) => row.id === item.insumoId)!; return { studentId: item.studentId, courseAssignmentId: insumo.courseAssignmentId, academicPeriodId: insumo.academicPeriodId } }))
+      return Promise.all(dto.items.map((item) => {
         if (item.score == null) {
-          return prisma.manualInsumoAverage.upsert({
+          return tx.manualInsumoAverage.upsert({
             where: { insumoId_studentId: { insumoId: item.insumoId, studentId: item.studentId } },
             create: { institutionId, insumoId: item.insumoId, studentId: item.studentId, score: null, reason: item.reason, recordedBy },
             update: { score: null, reason: item.reason, recordedBy },
@@ -693,13 +719,13 @@ export class PrismaActivityRepository {
         if (!Number.isFinite(item.score) || item.score < 0 || item.score > max) {
           throw new ConflictError(`El promedio manual debe estar entre 0 y ${max}`)
         }
-        return prisma.manualInsumoAverage.upsert({
+        return tx.manualInsumoAverage.upsert({
           where: { insumoId_studentId: { insumoId: item.insumoId, studentId: item.studentId } },
           create: { institutionId, insumoId: item.insumoId, studentId: item.studentId, score: item.score, reason: item.reason, recordedBy },
           update: { score: item.score, reason: item.reason, recordedBy },
         })
-      }),
-    )
+      }))
+    }, { timeout: 60000 })
   }
 
   async getStudentGrades(
@@ -739,7 +765,8 @@ export class PrismaActivityRepository {
     })
 
     // Group by insumo
-    const grouped = new Map<string, { insumo: object | null; activities: typeof grades }>()
+    type StudentGradeView = Omit<(typeof grades)[number], 'score'> & { score: number | null }
+    const grouped = new Map<string, { insumo: object | null; activities: StudentGradeView[] }>()
     for (const grade of grades) {
       const key = grade.activity.insumoId ?? '__no_insumo__'
       if (!grouped.has(key)) {
@@ -748,7 +775,7 @@ export class PrismaActivityRepository {
           activities: [],
         })
       }
-      grouped.get(key)!.activities.push(grade)
+      grouped.get(key)!.activities.push({ ...grade, score: effectiveActivityScore(grade) })
     }
 
     return Array.from(grouped.values())

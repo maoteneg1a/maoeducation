@@ -192,7 +192,7 @@ export class PrismaEarlyAlertRepository {
     })
 
     const alertIds = alerts.map((a) => a.id)
-    const alertTypes = flow.reportTypes.filter((t) => t.enabled && t.triggeredByAlert)
+    const alertTypes = flow.reportTypes.filter((t) => t.enabled && !!t.pdfTemplate && t.triggeredByAlert)
     const [reports, plans, groupedReports] = await Promise.all([
       alertIds.length
         ? prisma.formalReport.findMany({

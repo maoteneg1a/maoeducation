@@ -12,27 +12,29 @@ import { PlanTextChoice, PLAN_STRATEGIES, PLAN_RESOURCES, PLAN_EVALUATIONS, PLAN
 export function PlanTab({ planId, detail, section = 'plan', onOpenPlan }: { planId: string; detail: CaseDetail; section?: 'plan' | 'decision'; onOpenPlan?: () => void }) {
   const qc = useQueryClient()
   const k = detail.case
+  const lastReview = [...k.reevaluations].sort((a, b) => b.date.localeCompare(a.date))[0]
+  const initialOutcomes = () => Object.fromEntries((lastReview?.outcomes ?? []).map((outcome) => [outcome.studentId, outcome.result as 'CONSOLIDATED' | 'NOT_CONSOLIDATED']))
+  const initialAssessments = () => Object.fromEntries((lastReview?.outcomes ?? []).map((outcome) => [outcome.studentId, outcome.assessmentValue ?? '']))
   const initial = () => ({
     learningTarget: k.proposalLearningToReinforce ?? k.learningTargetDescription ?? k.learningTargetTitle ?? '',
     objective: k.proposalObjective ?? '', strategies: k.proposalActiveStrategy ?? '',
     resources: k.proposalResource ?? '', evaluation: k.proposalEvaluation ?? '',
-    schedule: k.proposalDurationFrequency ?? '', notes: '',
+    schedule: k.proposalDurationFrequency ?? '', notes: lastReview?.observedProgress ?? '',
   })
   const [form, setForm] = React.useState(initial)
-  const [outcomes, setOutcomes] = React.useState<Record<string, 'CONSOLIDATED' | 'NOT_CONSOLIDATED' | ''>>({})
-  const [assessments, setAssessments] = React.useState<Record<string, string>>({})
+  const [outcomes, setOutcomes] = React.useState<Record<string, 'CONSOLIDATED' | 'NOT_CONSOLIDATED' | ''>>(initialOutcomes)
+  const [assessments, setAssessments] = React.useState<Record<string, string>>(initialAssessments)
   const lock = React.useRef(false)
-  React.useEffect(() => { setForm(initial()); setOutcomes({}); setAssessments({}) }, [k])
+  React.useEffect(() => { setForm(initial()); setOutcomes(initialOutcomes()); setAssessments(initialAssessments()) }, [k])
   const editable = detail.canEdit && k.caseStatus !== 'CLOSED'
-  const lastReview = [...k.reevaluations].sort((a, b) => b.date.localeCompare(a.date))[0]
+
   const m = useMutation({
     mutationFn: (action: SaveReinforcementPlanInput['action']) => reinforcementDeskApi.savePlan(planId, {
       ...form, action,
       ...(action !== 'save' ? { outcomes: detail.students.map((s) => ({ studentId: s.id, result: outcomes[s.id] as 'CONSOLIDATED' | 'NOT_CONSOLIDATED', assessmentValue: assessments[s.id]?.trim() || undefined })) } : {}),
     }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['reinforcement-desk-detail', planId] })
-      qc.invalidateQueries({ queryKey: ['reinforcement-desk'] })
+      qc.invalidateQueries({ predicate: (query) => /grade|report|reinforcement|early-alert|dossier/i.test(String(query.queryKey[0])) })
       toast.success('Plan y seguimiento guardados')
     },
     onError: (e) => toast.error(getErrorMessage(e)),
@@ -41,7 +43,7 @@ export function PlanTab({ planId, detail, section = 'plan', onOpenPlan }: { plan
     if (lock.current) return
     lock.current = true
     try {
-      if (action === 'close' && !await confirmDialog({ title: 'Cerrar seguimiento pedagógico', description: 'Se guardará la valoración de los participantes. Las notas y las alertas conservan su estado; no se aprueba al estudiante automáticamente.', confirmText: 'Cerrar seguimiento' })) return
+      if (action === 'close' && !await confirmDialog({ title: 'Cerrar seguimiento pedagógico', description: 'Se guardará el resultado del refuerzo y se protegerán las notas registradas. Podrás modificarlas desde «Corregir notas». La valoración pedagógica y la alerta se conservan por separado.', confirmText: 'Cerrar seguimiento' })) return
       await m.mutateAsync(action)
     } catch { /* La mutación muestra el error. */ } finally { lock.current = false }
   }
@@ -87,7 +89,7 @@ export function PlanTab({ planId, detail, section = 'plan', onOpenPlan }: { plan
       <details><summary className="cursor-pointer text-sm text-primary">Valoración individual adicional · opcional</summary><div className="mt-3 space-y-2">{detail.students.map((s) => <div key={s.id} className="space-y-1"><Label>{s.name}</Label><Input aria-label={`Valoración posterior de ${s.name}`} maxLength={128} value={assessments[s.id] ?? ''} onChange={(e) => setAssessments((a) => ({ ...a, [s.id]: e.target.value }))} /></div>)}</div></details>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" disabled={!canConclude} loading={m.isPending} onClick={() => submit('continue')}>Continuar acompañamiento</Button>
-        <Button disabled={!canConclude} loading={m.isPending} onClick={() => submit('close')}>Cerrar seguimiento pedagógico</Button>
+        <Button disabled={!canConclude} loading={m.isPending} onClick={() => submit('close')}>Finalizar refuerzo</Button>
       </div>
     </fieldset></details>}
     </>}

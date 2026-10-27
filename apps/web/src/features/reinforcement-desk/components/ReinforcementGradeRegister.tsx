@@ -65,7 +65,7 @@ export function ReinforcementGradeRegister({ planId, detail, options, activities
   }
   return <div className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/40 p-3">
-      <div className="text-sm"><p>Escribe las notas y guarda. El promedio se actualiza con la regla institucional.</p>
+      <div className="text-sm"><p>{detail.case.caseStatus === 'CLOSED' ? 'Seguimiento finalizado. Las notas están protegidas; usa «Corregir notas» si necesitas un cambio.' : 'Escribe las notas y guarda. El promedio se actualiza con la regla institucional.'}</p>
         <p className="text-xs text-muted-foreground">{options.policy.mode === 'activity_set' ? 'Actividades originales vinculadas' : 'Promedio formativo del período'} · Refuerzo {options.policy.reinforcementWeight}% · Tope {options.policy.cap}. Vacío no cuenta; 0 sí cuenta.</p></div>
       {editable && <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={pending || !detail.sessions.length} onClick={() => {
         for (const session of detail.sessions) for (const student of detail.students) {
@@ -87,7 +87,7 @@ export function ReinforcementGradeRegister({ planId, detail, options, activities
           {session.targetActivityId && <div className="mt-1 text-xs font-normal">Original: {activities.find((activity) => activity.id === session.targetActivityId)?.name ?? 'Actividad anterior'}</div>}
           {options.policy.mode === 'activity_set' && !session.targetActivityId && <div className="text-xs font-normal text-amber-700">Edita esta columna para elegir su actividad original.</div>}
         </th>)}
-        <th className="p-3">Promedio del plan</th><th className="p-3">Formativa actual</th><th className="p-3">Total del período</th>
+        <th className="p-3">Promedio del refuerzo</th><th className="p-3">Formativa antes</th><th className="p-3">Formativa actual</th><th className="p-3">Total del período</th>
       </tr></thead><tbody>{detail.students.map((student, rowIndex) => {
         const graded = detail.sessions.filter((session) => !locked(student.id, session)).map((session) => read(student.id, session)).filter((cell) => cell.status === 'present' && cell.text.trim() !== '').map((cell) => Number(cell.text.replace(',', '.'))).filter((value) => Number.isFinite(value) && value >= 0 && value <= options.scale)
         const summary = detail.scores.find((score) => score.studentId === student.id)
@@ -125,7 +125,7 @@ export function ReinforcementGradeRegister({ planId, detail, options, activities
               {individual ? <p className="text-xs text-muted-foreground">Mejora individual · ver Notas</p> : <select aria-label={`Asistencia de ${student.name}, ${session.title}`} className="mt-1 block w-full bg-transparent text-xs text-muted-foreground" value={!drafts[keyOf(student.id, session.id)] && cell.expected.status === null ? 'unrecorded' : cell.status} disabled={disabled} onChange={(event) => { const status = event.target.value as AttendanceStatus; change(student.id, session, { status, ...(status !== 'present' ? { text: '' } : {}) }) }}><option value="unrecorded" disabled>Sin registrar</option><option value="present">Asistió</option><option value="absent">No asistió</option><option value="justified">Justificado</option></select>}
             </td>
           })}
-          <td className="p-3 text-center">{display(graded.length ? graded.reduce((sum, value) => sum + value, 0) / graded.length : null)}</td><td className="p-3 text-center font-medium">{display(summary?.formative)}</td><td className="p-3 text-center font-medium">{display(summary?.total)}</td>
+          <td className="p-3 text-center">{display(graded.length ? graded.reduce((sum, value) => sum + value, 0) / graded.length : null)}</td><td className="p-3 text-center">{display(summary?.beforeReinforcement)}</td><td className="p-3 text-center font-medium">{display(summary?.formative)}</td><td className="p-3 text-center font-medium">{display(summary?.total)}</td>
         </tr>
       })}</tbody></table>
     </div>

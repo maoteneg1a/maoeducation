@@ -123,6 +123,7 @@ export interface CreateFormalReportInput {
 }
 
 export interface ListFormalReportsParams {
+  annexOnly?: 'true' | 'false'
   box?: ReportBox
   status?: FormalReportStatus
   typeKey?: string
@@ -146,7 +147,7 @@ export const formalReportsApi = {
   amendment: (id: string) => apiPost<FormalReport>(`formal-reports/${id}/amendment`),
   list: (params: ListFormalReportsParams = {}) =>
     apiGet<FormalReport[]>('formal-reports', params as Record<string, string | undefined>),
-  counts: () => apiGet<{ inboxPending: number; overdueSent: number; drafts: number }>('formal-reports/counts'),
+  counts: (annexOnly = false) => apiGet<{ inboxPending: number; overdueSent: number; drafts: number }>('formal-reports/counts', annexOnly ? { annexOnly: 'true' } : undefined),
   get: (id: string) => apiGet<FormalReport>(`formal-reports/${id}`),
   create: (data: CreateFormalReportInput) => apiPost<FormalReport>('formal-reports', data),
   update: (id: string, content: Record<string, string>) => apiPatch<FormalReport>(`formal-reports/${id}`, { content }),

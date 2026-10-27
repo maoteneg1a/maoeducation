@@ -18,6 +18,7 @@ export interface UpdateFormalReportDto {
 }
 
 export interface ListFormalReportsQuery {
+  annexOnly?: 'true' | 'false'
   box?: ReportBox
   status?: FormalReportStatus
   typeKey?: string

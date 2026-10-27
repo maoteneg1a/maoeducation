@@ -47,14 +47,15 @@ export function ReportsInboxPage({ embedded = false }: { embedded?: boolean }) {
   const [pickerOpen, setPickerOpen] = React.useState(false)
   const [composer, setComposer] = React.useState<ReportComposerContext | null>(null)
 
-  const { data: counts } = useQuery({ queryKey: ['formal-reports-counts'], queryFn: formalReportsApi.counts, staleTime: 30_000, refetchInterval: 30_000 })
+  const { data: counts } = useQuery({ queryKey: ['formal-reports-counts', 'annexes'], queryFn: () => formalReportsApi.counts(true), staleTime: 30_000, refetchInterval: 30_000 })
   const { data: flow } = useQuery({ queryKey: ['reports-flow'], queryFn: formalReportsApi.reportsFlow, staleTime: 60_000 })
   const { data: reports = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['formal-reports', box, status, typeKey, overdueOnly],
+    queryKey: ['formal-reports', 'annexes', box, status, typeKey, overdueOnly],
     staleTime: 0, refetchInterval: 30_000,
     queryFn: () =>
       formalReportsApi.list({
         box,
+        annexOnly: 'true',
         status: status === 'all' ? undefined : status,
         typeKey: typeKey === 'all' ? undefined : typeKey,
         overdue: overdueOnly ? 'true' : undefined,
@@ -131,7 +132,7 @@ export function ReportsInboxPage({ embedded = false }: { embedded?: boolean }) {
           <SelectTrigger className="w-full sm:w-72"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los tipos</SelectItem>
-            {(flow?.config.reportTypes ?? []).map((t) => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}
+            {(flow?.config.reportTypes ?? []).filter((type) => !!type.pdfTemplate).map((t) => <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>)}
           </SelectContent>
         </Select>
         {box !== 'drafts' && (

@@ -49,6 +49,7 @@ export class PrismaReinforcementDeskRepository {
       select: {
         id: true,
         createdBy: true,
+        caseStatus: true,
         studentId: true,
         courseAssignmentId: true,
         academicPeriodId: true,
@@ -77,10 +78,12 @@ export class PrismaReinforcementDeskRepository {
 
   async list(institutionId: string, actor: Actor, q: ListCasesQuery) {
     const readAll = hasPermission(actor, 'reinforcement_cases', 'read', 'all')
+    const received = readAll ? [] : await prisma.formalReport.findMany({ where: { institutionId, reinforcementPlanId: { not: null }, status: { not: 'DRAFT' }, recipients: { some: { userId: actor.userId } } }, select: { reinforcementPlanId: true } })
     const plans = await prisma.reinforcementPlan.findMany({
       where: {
         institutionId,
         planType: 'academico',
+        ...(readAll ? {} : { AND: [{ OR: [{ courseAssignment: { OR: [{ teacherId: actor.userId }, { parallel: { tutorId: actor.userId } }] } }, { id: { in: received.flatMap((report) => report.reinforcementPlanId ? [report.reinforcementPlanId] : []) } }] }] }),
         ...(q.periodId ? { academicPeriodId: q.periodId } : {}),
         ...(q.yearId ? { academicPeriod: { academicYearId: q.yearId } } : {}),
         ...(q.courseAssignmentId ? { courseAssignmentId: q.courseAssignmentId } : {}),
@@ -88,7 +91,7 @@ export class PrismaReinforcementDeskRepository {
         ...(q.studentId ? { OR: [{ studentId: q.studentId }, { participants: { some: { studentId: q.studentId } } }] } : {}),
         courseAssignment: {
           ...(q.parallelId ? { parallelId: q.parallelId } : {}),
-          ...(readAll ? {} : { OR: [{ teacherId: actor.userId }, { parallel: { tutorId: actor.userId } }] }),
+
         },
       },
       select: {
@@ -166,6 +169,8 @@ export class PrismaReinforcementDeskRepository {
         alertStatus: alert?.status ?? null,
         atDetection: alert?.scoreAtDetection != null ? Number(alert.scoreAtDetection) : null,
         formative: d(s?.insumosBase),
+        beforeReinforcement: d(s?.formativeReinforcement?.initial ?? s?.insumosBase),
+        reinforcementAverage: d(s?.formativeReinforcement?.result),
         summative: d(s?.summativeAvg),
         total: d(s?.total),
         target: rules.formativeReinforcement.cap,
@@ -199,7 +204,7 @@ export class PrismaReinforcementDeskRepository {
       prisma.user.findMany({ where: { id: { in: studentIds } }, select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } }),
     ])
     const visible = attachments.filter((a) => this.canSeeAttachment(flow, actor, a))
-    const caseReportTypes = flow.reportTypes.filter((t) => t.enabled && (t.requiresReinforcementCase || t.triggeredByAlert))
+    const caseReportTypes = flow.reportTypes.filter((t) => t.enabled && !!t.pdfTemplate && (t.requiresReinforcementCase || t.triggeredByAlert))
     return {
       case: kase,
       canEdit,
@@ -232,7 +237,7 @@ export class PrismaReinforcementDeskRepository {
         canDelete: a.uploadedBy === actor.userId || isAuthority(actor),
         createdAt: a.createdAt,
       })),
-      reports,
+      reports: reports.filter((report) => flow.reportTypes.some((type) => type.key === report.typeKey && !!type.pdfTemplate)),
       reportTypes: caseReportTypes.map((t) => ({ key: t.key, label: t.label, to: t.to, requiresReinforcementCase: t.requiresReinforcementCase })),
       attachmentConfig: {
         categories: flow.attachments.categories.map((c) => ({ key: c.key, label: c.label })),
@@ -436,6 +441,7 @@ export class PrismaReinforcementDeskRepository {
 
   async updateSession(institutionId: string, actor: Actor, planId: string, sessionId: string, dto: { date?: string; title?: string; description?: string | null; targetActivityId?: string | null }) {
     const { plan } = await this.editable(institutionId, actor, planId)
+    if (plan.caseStatus === 'CLOSED') throw new ConflictError('El seguimiento está finalizado. Usa «Corregir notas» para habilitar una corrección registrada.')
     const s = await prisma.reinforcementSession.findFirst({ where: { id: sessionId, planId, institutionId }, include: { attendances: true } })
     if (!s) throw new NotFoundError('Sesión no encontrada')
     if (dto.targetActivityId !== undefined && dto.targetActivityId !== s.targetActivityId && s.attendances.some((a) => a.appliedScore != null)) {
@@ -459,7 +465,8 @@ export class PrismaReinforcementDeskRepository {
   }
 
   async deleteSession(institutionId: string, actor: Actor, planId: string, sessionId: string) {
-    await this.editable(institutionId, actor, planId)
+    const { plan } = await this.editable(institutionId, actor, planId)
+    if (plan.caseStatus === 'CLOSED') throw new ConflictError('El seguimiento está finalizado. Usa «Corregir notas» para habilitar una corrección registrada.')
     const s = await prisma.reinforcementSession.findFirst({ where: { id: sessionId, planId, institutionId }, include: { attendances: true } })
     if (!s) throw new NotFoundError('Sesión no encontrada')
     const config = await institutionRepo.getGradingConfig(institutionId)
@@ -494,6 +501,7 @@ export class PrismaReinforcementDeskRepository {
     items: Array<{ studentId: string; status: Attendance; score?: number | null; observation?: string | null }>,
   ) {
     const { plan } = await this.editable(institutionId, actor, planId)
+    if (plan.caseStatus === 'CLOSED') throw new ConflictError('El seguimiento está finalizado. Usa «Corregir notas» para habilitar una corrección registrada.')
     const s = await prisma.reinforcementSession.findFirst({ where: { id: sessionId, planId, institutionId } })
     if (!s) throw new NotFoundError('Sesión no encontrada')
     const allowed = new Set(this.studentIdsOf(plan))

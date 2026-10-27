@@ -48,6 +48,8 @@ describe('agreement rules — cálculo', () => {
   it('refuerzo formativo: promedio con tope 7,00 (art. 10.4)', () => {
     expect(improvedScore(P, 3, 10, false).score).toBe(6.5)
     expect(improvedScore(P, 6, 10, false).score).toBe(7)
+    expect(improvedScore(P, 3, 1, false).score).toBe(3)
+    expect(improvedScore(P, 8, 10, false).score).toBe(8)
   })
 
   it('mejora sumativa directa: 7,01–8,99 con tope 9,00 (art. 11)', () => {

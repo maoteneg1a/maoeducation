@@ -186,7 +186,7 @@ export function ReportDetailPage() {
             </>
           )}
 
-          {r.permissions.canDerive && (r.typeConfig.canDeriveTo?.length ?? 0) > 0 && (
+          {r.permissions.canDerive && (flow?.config.reportTypes ?? []).some((type) => type.enabled && !!type.pdfTemplate && (r.typeConfig.canDeriveTo ?? []).includes(type.to)) && (
             <Button variant="outline" disabled={busy} onClick={() => setDialog('derive')}><GitBranch className="mr-2 h-4 w-4" /> Derivar</Button>
           )}
           {r.permissions.isAuthor && r.typeConfig.pdfTemplate === 'annex_alerts' && ['SENT', 'RECEIVED', 'ATTENDED'].includes(r.status) && <Button variant="outline" disabled={busy} onClick={() => runAction('amendment', () => amendment.mutateAsync())}><ActionIcon active={activeAction === 'amendment'} icon={CopyPlus} />{activeAction === 'amendment' ? 'Preparando ampliación…' : 'Preparar ampliación'}</Button>}
@@ -374,7 +374,7 @@ export function ReportDetailPage() {
         open={dialog === 'derive'}
         onOpenChange={(o) => !o && setDialog(null)}
         report={r}
-        types={(flow?.config.reportTypes ?? []).filter((t) => t.enabled && (r.typeConfig.canDeriveTo ?? []).includes(t.to))}
+        types={(flow?.config.reportTypes ?? []).filter((t) => t.enabled && !!t.pdfTemplate && (r.typeConfig.canDeriveTo ?? []).includes(t.to))}
         instanceLabel={(k) => flow?.config.instances.find((i) => i.key === k)?.label ?? k}
         onDerived={(newId) => navigate(`/informes/${newId}`)}
       />

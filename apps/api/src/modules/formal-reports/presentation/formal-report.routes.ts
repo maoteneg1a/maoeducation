@@ -31,8 +31,8 @@ export default async function formalReportRoutes(app: FastifyInstance) {
   app.get<{ Querystring: ListFormalReportsQuery }>('/formal-reports', read, async (req, reply) =>
     reply.send(await repo.list(req.user.institutionId, actorOf(req.user), req.query)))
 
-  app.get('/formal-reports/counts', read, async (req, reply) =>
-    reply.send(await repo.counts(req.user.institutionId, actorOf(req.user))))
+  app.get<{ Querystring: { annexOnly?: string } }>('/formal-reports/counts', read, async (req, reply) =>
+    reply.send(await repo.counts(req.user.institutionId, actorOf(req.user), req.query.annexOnly === 'true')))
 
   // Expediente de respaldo por estudiante y año (checklist configurable)
   const dossierRead = { preHandler: [requirePermission('student_folder', 'read')] }

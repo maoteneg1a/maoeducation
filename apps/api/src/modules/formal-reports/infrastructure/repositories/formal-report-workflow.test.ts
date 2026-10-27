@@ -162,3 +162,18 @@ it('no cuenta como pendientes las versiones anteriores de un Anexo 1 ampliado', 
   expect(db.formalReport.count).toHaveBeenCalledWith({ where: expect.objectContaining({ id: { notIn: ['old-report'] }, authorId: { not: 'rector' } }) })
   expect(db.formalReport.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ status: { not: 'DRAFT' }, typeConfig: { path: ['pdfTemplate'], equals: 'annex_alerts' } }) }))
 })
+
+
+describe('buzón habitual limitado a anexos', () => {
+  it('filtra en el servidor los otros respaldos, incluidos filtros directos a un tipo oculto', async () => {
+    await repo.list('school', teacher, { box: 'drafts', annexOnly: 'true', typeKey: 'informe_tecnico_dece' })
+    expect(db.formalReport.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: expect.objectContaining({ institutionId: 'school', typeKey: { in: [] } }) }))
+  })
+  it('los contadores usan el mismo catálogo de anexos que la bandeja', async () => {
+    await repo.counts('school', teacher, true)
+    for (const [query] of db.formalReport.count.mock.calls) {
+      expect(query.where.typeKey.in).toContain('acta_entrega_alertas')
+      expect(query.where.typeKey.in).not.toContain('informe_tecnico_dece')
+    }
+  })
+})
