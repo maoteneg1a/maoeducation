@@ -85,11 +85,11 @@ export function ReportsPage({ embedded = false }: { embedded?: boolean }) {
   const [params, setParams] = useSearchParams()
   const requestedTab = params.get('report')
   const tab: Tab = requestedTab === 'grades' || requestedTab === 'attendance' || requestedTab === 'enrollment' ? requestedTab : 'bulletin'
-  const setTab = (value: Tab) => setParams((previous) => { const next = new URLSearchParams(previous); next.set('section', 'academic'); next.set('report', value); return next })
+  const setTab = (value: Tab) => setParams((previous) => { const next = new URLSearchParams(previous); next.delete('section'); next.set('report', value); return next })
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {!embedded && <div><h1 className="text-2xl font-bold tracking-tight">Reportes</h1><p className="mt-1 text-sm text-muted-foreground">Genera e imprime reportes del sistema</p></div>}
+      {!embedded && <div><h1 className="text-2xl font-bold tracking-tight">Reportes de calificaciones</h1><p className="mt-1 text-sm text-muted-foreground">Consulta, genera e imprime boletines y reportes académicos.</p></div>}
 
       <div className="flex flex-wrap gap-1 border-b">
         {([

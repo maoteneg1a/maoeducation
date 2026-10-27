@@ -91,7 +91,7 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: GraduationCap,
     items: [
       {
-        label: 'Actividades',
+        label: 'Insumos',
         icon: BookOpen,
         path: '/activities',
         permission: 'activities:read',
@@ -110,6 +110,13 @@ export const NAV_SECTIONS: NavSection[] = [
         path: '/grades',
         permission: 'grades:read',
         module: 'grades',
+      },
+      {
+        label: 'Reportes de calificaciones',
+        icon: FileText,
+        path: '/reports',
+        permission: 'reports:read',
+        module: 'reports',
       },
       {
         label: 'Recuperación',
@@ -179,10 +186,10 @@ export const NAV_SECTIONS: NavSection[] = [
         permission: 'early_alerts:read',
       },
       {
-        label: 'Informes y reportes',
+        label: 'Informes y anexos',
         icon: Inbox,
         path: '/informes',
-        anyPermissions: ['formal_reports:read', 'reports:read'],
+        permission: 'formal_reports:read',
       },
       {
         label: 'Refuerzo pedagógico',
@@ -348,7 +355,6 @@ export function useVisibleNavSections(): NavSection[] {
     (item.path !== '/dece' || deceContext.data?.visible === true) &&
     (!item.permission || hasPermission(item.permission)) &&
     (!item.anyPermissions || item.anyPermissions.some(hasPermission)) &&
-    (item.path !== '/informes' || hasPermission('formal_reports:read') || (!enabledModules || enabledModules.includes('reports'))) &&
     (!item.roles || hasAnyRole(...item.roles)) &&
     (!item.module || !enabledModules || enabledModules.includes(item.module))
 
