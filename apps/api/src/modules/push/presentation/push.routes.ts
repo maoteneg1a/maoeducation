@@ -46,10 +46,13 @@ export default async function pushRoutes(app: FastifyInstance) {
     '/push/subscribe',
     async (req, reply) => {
       const { endpoint, keys } = req.body
-      await prisma.pushSubscription.upsert({
-        where: { userId_endpoint: { userId: req.user.sub, endpoint } },
-        update: { p256dh: keys.p256dh, auth: keys.auth },
-        create: { userId: req.user.sub, endpoint, p256dh: keys.p256dh, auth: keys.auth },
+      // Una instalación pertenece a una sola cuenta a la vez. Al iniciar sesión
+      // con otra cuenta, transferimos el endpoint en lugar de duplicarlo.
+      await prisma.$transaction(async (tx) => {
+        await tx.pushSubscription.deleteMany({ where: { endpoint } })
+        await tx.pushSubscription.create({
+          data: { userId: req.user.sub, endpoint, p256dh: keys.p256dh, auth: keys.auth },
+        })
       })
       return reply.send({ ok: true })
     },

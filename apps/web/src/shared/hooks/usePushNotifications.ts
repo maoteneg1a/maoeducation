@@ -1,12 +1,5 @@
 import { useState, useEffect } from 'react'
-import { apiPost, apiGet } from '@/shared/lib/api-client'
-
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const raw = window.atob(base64)
-  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)))
-}
+import { detachPushSubscription, supportsPushNotifications, syncPushSubscription } from '@/shared/lib/push-subscription'
 
 type PushState = 'unsupported' | 'default' | 'granted' | 'denied'
 
@@ -15,7 +8,7 @@ export function usePushNotifications() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (!supportsPushNotifications()) {
       setState('unsupported')
       return
     }
@@ -26,59 +19,20 @@ export function usePushNotifications() {
     // silenciosamente al backend para que lleguen notificaciones aunque el
     // usuario no haya tocado "Activar" en esta sesión (p.ej. segundo teléfono).
     if (perm === 'granted') {
-      syncToBackend()
+      syncPushSubscription().catch((error) => console.warn('No se pudo vincular este dispositivo a la cuenta actual', error))
     }
   }, [])
-
-  async function syncToBackend() {
-    try {
-      const { publicKey } = await apiGet<{ publicKey: string | null }>('push/vapid-public-key')
-      if (!publicKey) return
-      const registration = await navigator.serviceWorker.ready
-      let sub = await registration.pushManager.getSubscription()
-      if (!sub) {
-        sub = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey),
-        })
-      }
-      const json = sub.toJSON()
-      await apiPost('push/subscribe', {
-        endpoint: sub.endpoint,
-        keys: { p256dh: json.keys!.p256dh, auth: json.keys!.auth },
-      })
-    } catch { /* silencioso — no bloquear la app */ }
-  }
 
   async function subscribe() {
     if (state !== 'default') return
     setLoading(true)
     try {
-      const { publicKey } = await apiGet<{ publicKey: string | null }>('push/vapid-public-key')
-      if (!publicKey) return
-
       const permission = await Notification.requestPermission()
       if (permission !== 'granted') { setState('denied'); return }
-
-      const registration = await navigator.serviceWorker.ready
-      // Reusar suscripción existente si hay una válida
-      let sub = await registration.pushManager.getSubscription()
-      if (!sub) {
-        sub = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey),
-        })
-      }
-
-      const json = sub.toJSON()
-      await apiPost('push/subscribe', {
-        endpoint: sub.endpoint,
-        keys: { p256dh: json.keys!.p256dh, auth: json.keys!.auth },
-      })
-
+      await syncPushSubscription()
       setState('granted')
-    } catch {
-      // usuario canceló o error de red
+    } catch (error) {
+      console.warn('No se pudieron activar las notificaciones', error)
     } finally {
       setLoading(false)
     }
@@ -90,7 +44,7 @@ export function usePushNotifications() {
       const registration = await navigator.serviceWorker.ready
       const sub = await registration.pushManager.getSubscription()
       if (sub) {
-        await apiPost('push/subscribe', { endpoint: sub.endpoint }) // delete via DELETE
+        await detachPushSubscription()
         await sub.unsubscribe()
       }
       setState('default')
