@@ -10,7 +10,7 @@ import { Label } from '@/shared/components/ui/label'
 import { useLogin } from '../hooks/useLogin'
 import { usePersonalLogin } from '@/features/personal/hooks/usePersonalAuth'
 import { useAuthStore } from '@/store/auth.store'
-import { getLoginTypePreference, type LoginType } from '@/shared/lib/login-preference'
+import { getLoginTypePreference, getRememberedInstitutionCode, type LoginType } from '@/shared/lib/login-preference'
 
 const institutionSchema = z.object({
   institutionCode: z.string().min(1, 'Requerido'),
@@ -44,7 +44,7 @@ export function LoginPage() {
 
   const institutionForm = useForm<InstitutionForm>({
     resolver: zodResolver(institutionSchema),
-    defaultValues: { institutionCode: 'ESCUELA_DEMO' },
+    defaultValues: { institutionCode: getRememberedInstitutionCode() },
   })
   const personalForm = useForm<PersonalForm>({ resolver: zodResolver(personalSchema) })
 
@@ -128,10 +128,10 @@ export function LoginPage() {
           </div>
 
           {isPersonal ? (
-            <form key="personal" onSubmit={personalForm.handleSubmit((data) => loginPersonal(data))} className="space-y-4">
+            <form key="personal" autoComplete="on" onSubmit={personalForm.handleSubmit((data) => loginPersonal(data))} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="p-email">Correo electrónico</Label>
-                <Input id="p-email" type="email" placeholder="profe@ejemplo.com" {...personalForm.register('email')} />
+                <Input id="p-email" type="email" autoComplete="username" placeholder="profe@ejemplo.com" {...personalForm.register('email')} />
                 {personalForm.formState.errors.email && (
                   <p className="text-xs text-destructive">{personalForm.formState.errors.email.message}</p>
                 )}
@@ -143,6 +143,7 @@ export function LoginPage() {
                   <Input
                     id="p-password"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
                     placeholder="••••••••"
                     className="pr-10"
                     {...personalForm.register('password')}
@@ -170,12 +171,15 @@ export function LoginPage() {
               </p>
             </form>
           ) : (
-            <form key="institution" onSubmit={institutionForm.handleSubmit((data) => loginInstitution(data))} className="space-y-4">
+            <form key="institution" autoComplete="on" onSubmit={institutionForm.handleSubmit((data) => loginInstitution(data))} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="institutionCode">Código de institución</Label>
                 <Input
                   id="institutionCode"
-                  placeholder="ESCUELA_DEMO"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  placeholder="Código asignado por tu institución"
                   {...institutionForm.register('institutionCode')}
                 />
                 {institutionForm.formState.errors.institutionCode && (
@@ -188,6 +192,7 @@ export function LoginPage() {
                 <Input
                   id="email"
                   type="text"
+                  autoComplete="username"
                   placeholder="correo@escuela.edu o cédula"
                   {...institutionForm.register('email')}
                 />
@@ -202,6 +207,7 @@ export function LoginPage() {
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
                     placeholder="••••••••"
                     {...institutionForm.register('password')}
                     className="pr-10"

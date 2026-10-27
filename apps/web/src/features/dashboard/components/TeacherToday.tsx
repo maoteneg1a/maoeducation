@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import type { ElementType, ReactNode } from 'react'
+import { useState, type ElementType, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarClock, CheckCircle2, ClipboardCheck, ClipboardList, Clock, GraduationCap } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
 import { Badge } from '@/shared/components/ui/badge'
 import { Skeleton } from '@/shared/components/ui/skeleton'
 import { apiGet } from '@/shared/lib/api-client'
@@ -37,6 +36,7 @@ interface TeacherTodayData {
 
 /** Panel "Hoy" del docente: todo lo accionable del día con enlace directo. */
 export function TeacherToday() {
+  const [expanded, setExpanded] = useState<'classes' | 'grades' | 'tasks' | null>(null)
   const date = todayLocalISO()
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-teacher-today', date],
@@ -46,10 +46,10 @@ export function TeacherToday() {
 
   if (isLoading) {
     return (
-      <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
-        <Skeleton className="mb-4 h-8 w-40" />
-        <div className="grid gap-4 lg:grid-cols-3">
-          {[0, 1, 2].map((i) => <Skeleton key={i} className="h-40 w-full" />)}
+      <div className="rounded-xl border bg-card p-3">
+        <Skeleton className="mb-3 h-5 w-28" />
+        <div className="grid grid-cols-3 gap-2">
+          {[0, 1, 2].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
         </div>
       </div>
     )
@@ -60,107 +60,58 @@ export function TeacherToday() {
   const pendingAttendance =
     perSubjectClasses.filter((c) => !c.attendanceTaken).length + data.dailyAttendance.filter((d) => !d.taken).length
 
+  const panels: Array<{ id: 'classes' | 'grades' | 'tasks'; icon: ElementType; label: string; detail: string; count: number; content: ReactNode }> = [
+    {
+      id: 'classes', icon: CalendarClock, label: 'Clases',
+      detail: pendingAttendance > 0 ? `${pendingAttendance} sin asistencia` : 'Asistencia al día',
+      count: data.dailyAttendance.length + perSubjectClasses.length,
+      content: data.classes.length === 0 && data.dailyAttendance.length === 0 ? (
+        <Empty>No tienes clases en el horario de hoy.</Empty>
+      ) : <ul className="divide-y">
+        {data.dailyAttendance.map((d) => <Row key={d.parallelId} to={`/attendance?parallel=${d.parallelId}&date=${data.date}`} primary={`Asistencia diaria · ${d.label}`} secondary="Como tutor/a" status={<AttendanceStatus taken={d.taken} />} />)}
+        {perSubjectClasses.map((c) => <Row key={`${c.courseAssignmentId}-${c.startTime}`} to={`/attendance?ca=${c.courseAssignmentId}&date=${data.date}`} primary={`${c.startTime}–${c.endTime} · ${c.subject}`} secondary={`${c.label}${c.room ? ` · ${c.room}` : ''}`} status={<AttendanceStatus taken={c.attendanceTaken} />} />)}
+      </ul>,
+    },
+    {
+      id: 'grades', icon: GraduationCap, label: 'Notas', count: data.pendingGrading.length,
+      detail: data.pendingGrading.length ? 'Pendientes de calificar' : 'Todo calificado',
+      content: data.pendingGrading.length === 0 ? <Empty><CheckCircle2 className="mr-1 inline h-4 w-4 text-green-600" aria-hidden />Todas tus actividades están calificadas.</Empty> : <ul className="divide-y">
+        {data.pendingGrading.map((a) => <Row key={a.activityId} to={`/grades?assignmentId=${a.courseAssignmentId}&periodId=${a.periodId}&activityId=${a.activityId}`} primary={a.activityName} secondary={`${a.subject} · ${a.label}`} status={<span className="text-xs tabular-nums text-muted-foreground">{a.graded}/{a.total}</span>} />)}
+      </ul>,
+    },
+    {
+      id: 'tasks', icon: ClipboardList, label: 'Deberes', count: data.tasksDue.length,
+      detail: data.tasksDue.length ? 'Vencen esta semana' : 'Sin vencimientos',
+      content: data.tasksDue.length === 0 ? <Empty>No hay deberes por vencer en los próximos 7 días.</Empty> : <ul className="divide-y">
+        {data.tasksDue.map((t) => <Row key={t.id} to="/tasks" primary={t.title} secondary={`${t.subject} · ${t.label} · entrega ${formatDate(t.dueDate)}`} status={!t.isPublished ? <Badge variant="secondary">Borrador</Badge> : undefined} />)}
+      </ul>,
+    },
+  ]
+  const selected = panels.find((panel) => panel.id === expanded)
+
   return (
-    <section className="space-y-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 shadow-sm sm:p-5" aria-labelledby="teacher-today-title">
+    <section className="space-y-3 rounded-xl border bg-card p-3 shadow-sm" aria-labelledby="teacher-today-title">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <h2 id="teacher-today-title" className="text-xl font-bold tracking-tight">Tu día</h2>
-          <p className="text-sm text-muted-foreground">Lo esencial para avanzar hoy: clases, deberes y calificaciones.</p>
-        </div>
+        <h2 id="teacher-today-title" className="text-base font-semibold">Tu día</h2>
         {data.period && <span className="text-xs text-muted-foreground">{data.period.name}</span>}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Panel
-          icon={CalendarClock}
-          title="Clases de hoy"
-          badge={pendingAttendance > 0 ? `${pendingAttendance} sin asistencia` : undefined}
-        >
-          {data.classes.length === 0 && data.dailyAttendance.length === 0 ? (
-            <Empty>No tienes clases en el horario de hoy.</Empty>
-          ) : (
-            <ul className="divide-y">
-              {data.dailyAttendance.map((d) => (
-                <Row
-                  key={d.parallelId}
-                  to={`/attendance?parallel=${d.parallelId}&date=${data.date}`}
-                  primary={`Asistencia diaria · ${d.label}`}
-                  secondary="Como tutor/a"
-                  status={<AttendanceStatus taken={d.taken} />}
-                />
-              ))}
-              {perSubjectClasses.map((c) => (
-                <Row
-                  key={`${c.courseAssignmentId}-${c.startTime}`}
-                  to={`/attendance?ca=${c.courseAssignmentId}&date=${data.date}`}
-                  primary={`${c.startTime}–${c.endTime} · ${c.subject}`}
-                  secondary={`${c.label}${c.room ? ` · ${c.room}` : ''}`}
-                  status={<AttendanceStatus taken={c.attendanceTaken} />}
-                />
-              ))}
-            </ul>
-          )}
-        </Panel>
-
-        <Panel
-          icon={GraduationCap}
-          title="Notas pendientes"
-          badge={data.pendingGrading.length > 0 ? String(data.pendingGrading.length) : undefined}
-        >
-          {data.pendingGrading.length === 0 ? (
-            <Empty>
-              <CheckCircle2 className="mr-1 inline h-4 w-4 text-green-600" aria-hidden />
-              Todas tus actividades están calificadas.
-            </Empty>
-          ) : (
-            <ul className="divide-y">
-              {data.pendingGrading.map((a) => (
-                <Row
-                  key={a.activityId}
-                  to={`/grades?assignmentId=${a.courseAssignmentId}&periodId=${a.periodId}&activityId=${a.activityId}`}
-                  primary={a.activityName}
-                  secondary={`${a.subject} · ${a.label}`}
-                  status={<span className="text-xs tabular-nums text-muted-foreground">{a.graded}/{a.total}</span>}
-                />
-              ))}
-            </ul>
-          )}
-        </Panel>
-
-        <Panel icon={ClipboardList} title="Deberes que vencen esta semana">
-          {data.tasksDue.length === 0 ? (
-            <Empty>No hay deberes por vencer en los próximos 7 días.</Empty>
-          ) : (
-            <ul className="divide-y">
-              {data.tasksDue.map((t) => (
-                <Row
-                  key={t.id}
-                  to="/tasks"
-                  primary={t.title}
-                  secondary={`${t.subject} · ${t.label} · entrega ${formatDate(t.dueDate)}`}
-                  status={!t.isPublished ? <Badge variant="secondary">Borrador</Badge> : undefined}
-                />
-              ))}
-            </ul>
-          )}
-        </Panel>
+      <div className="grid grid-cols-3 gap-2">
+        {panels.map(({ id, icon: Icon, label, detail, count }) => {
+          const active = expanded === id
+          return <button key={id} type="button" aria-expanded={active} onClick={() => setExpanded(active ? null : id)} className={`min-w-0 rounded-lg border px-2 py-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-3 ${active ? 'border-primary bg-primary/5' : 'bg-background'}`}>
+            <span className="flex items-center gap-2">
+              <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-primary' : 'text-muted-foreground'}`} aria-hidden />
+              <span className="truncate text-sm font-semibold">{label}</span>
+              <span className="ml-auto text-lg font-bold leading-none tabular-nums">{count}</span>
+            </span>
+            <span className="mt-1 block truncate text-[11px] text-muted-foreground sm:text-xs">{detail}</span>
+          </button>
+        })}
       </div>
-    </section>
-  )
-}
 
-function Panel({ icon: Icon, title, badge, children }: { icon: ElementType; title: string; badge?: string; children: ReactNode }) {
-  return (
-    <Card className="bg-background/95 shadow-sm">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-          <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
-          {title}
-          {badge && <Badge variant="warning" className="ml-auto">{badge}</Badge>}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0">{children}</CardContent>
-    </Card>
+      {selected && <div className="rounded-lg border bg-background px-3 py-1" role="region" aria-label={`Detalle de ${selected.label}`}>{selected.content}</div>}
+    </section>
   )
 }
 
