@@ -32,9 +32,14 @@ import {
   getDailyAttendance,
   bulkSaveDailyAttendance,
   getAssignments,
+  getStudentAbsences,
   type AttendanceEntry,
 } from '@/features/attendance/api/attendance.api'
 import { useUnsavedChanges } from '@/shared/hooks/useUnsavedChanges'
+import { usePermissions } from '@/shared/hooks/usePermissions'
+import { useAuthStore } from '@/store/auth.store'
+import { useGuardianStudentId } from '@/features/guardian/components/ChildSwitcher'
+import { RequestJustificationDialog } from '@/features/attendance/components/RequestJustificationDialog'
 
 // ---- Types ----
 
@@ -74,6 +79,12 @@ const ALL_STATUSES: AttendanceStatus[] = ['present', 'absent', 'late', 'excused'
 // ---- Main Page ----
 
 export function AttendancePage() {
+  const { hasAnyRole } = usePermissions()
+  if (hasAnyRole('student', 'guardian')) return <FamilyAttendancePage />
+  return <StaffAttendancePage />
+}
+
+function StaffAttendancePage() {
   const qc = useQueryClient()
   // Enlaces directos desde el panel "Hoy": ?ca=<asignación> o ?parallel=<paralelo>, y &date=
   const [searchParams] = useSearchParams()
@@ -380,10 +391,10 @@ export function AttendancePage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-xs text-muted-foreground">#{index + 1}</p>
-                        <p className="font-medium">{fullName}</p>
+                        <p className="break-words text-sm font-semibold leading-tight">{fullName}</p>
                         {entry.student.profile.dni && (
-                          <p className="text-xs text-muted-foreground">
-                            {entry.student.profile.dni}
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">
+                            CI: {entry.student.profile.dni}
                           </p>
                         )}
                       </div>
@@ -453,10 +464,10 @@ export function AttendancePage() {
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium text-sm">{fullName}</p>
+                          <p className="max-w-xs whitespace-normal break-words text-xs font-semibold leading-tight">{fullName}</p>
                           {entry.student.profile.dni && (
-                            <p className="text-xs text-muted-foreground">
-                              {entry.student.profile.dni}
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">
+                              CI: {entry.student.profile.dni}
                             </p>
                           )}
                         </div>
@@ -500,4 +511,70 @@ export function AttendancePage() {
       )}
     </div>
   )
+}
+
+function FamilyAttendancePage() {
+  const user = useAuthStore((state) => state.user)
+  const { hasAnyRole } = usePermissions()
+  const isGuardian = hasAnyRole('guardian')
+  const selectedChildId = useGuardianStudentId()
+  const studentId = isGuardian ? selectedChildId : user?.id
+  const [justifyOpen, setJustifyOpen] = useState(false)
+  const { data, isLoading } = useQuery({
+    queryKey: ['student-absences', studentId],
+    queryFn: () => getStudentAbsences(studentId!),
+    enabled: !!studentId,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  })
+
+  if (isLoading) return <PageLoader />
+  if (!studentId || !data) return <EmptyState icon={Users} title="Sin estudiante seleccionado" description="Selecciona un estudiante para consultar su asistencia." />
+
+  return (
+    <div className="space-y-5 p-4 sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Asistencia</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Ausencias y atrasos registrados por la institución.</p>
+        </div>
+        {data.records.length > 0 && <Button variant="outline" onClick={() => setJustifyOpen(true)}>Solicitar justificación</Button>}
+      </div>
+
+      <Card>
+        <div className="p-4">
+          <p className="break-words text-sm font-semibold leading-tight">{data.student.fullName}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {data.student.dni ? `CI: ${data.student.dni} · ` : ''}{data.levelName} {data.parallelName}
+          </p>
+        </div>
+      </Card>
+
+      {data.records.length === 0 ? (
+        <EmptyState icon={CheckCircle2} title="Sin novedades de asistencia" description="No hay ausencias ni atrasos registrados." />
+      ) : (
+        <div className="space-y-2">
+          {data.records.map((record) => (
+            <Card key={record.id}>
+              <div className="flex items-center justify-between gap-3 p-3 sm:p-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{formatAttendanceDate(record.date)}</p>
+                  <p className="truncate text-xs text-muted-foreground">{record.subject?.name ?? 'Jornada diaria'}{record.notes ? ` · ${record.notes}` : ''}</p>
+                </div>
+                <Badge variant={record.status === 'absent' ? 'destructive' : 'warning'}>{record.status === 'absent' ? 'Ausente' : 'Tarde'}</Badge>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+      <RequestJustificationDialog studentId={studentId} open={justifyOpen} onOpenChange={setJustifyOpen} />
+    </div>
+  )
+}
+
+function formatAttendanceDate(value: string) {
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number)
+  return new Intl.DateTimeFormat('es-EC', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    .format(new Date(year, month - 1, day))
 }

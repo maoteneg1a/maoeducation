@@ -243,6 +243,7 @@ export class PrismaAttendanceRepository {
     const enrollment = await prisma.studentEnrollment.findFirst({
       where: { institutionId, studentId },
       include: {
+        student: { select: { profile: { select: { firstName: true, lastName: true, dni: true } } } },
         parallel: {
           include: {
             level: { select: { name: true, attendanceMode: true } },
@@ -263,6 +264,13 @@ export class PrismaAttendanceRepository {
 
     const { parallel } = enrollment
     return {
+      student: {
+        id: studentId,
+        fullName: enrollment.student.profile
+          ? `${enrollment.student.profile.firstName} ${enrollment.student.profile.lastName}`
+          : 'Estudiante',
+        dni: enrollment.student.profile?.dni ?? null,
+      },
       attendanceMode: parallel.level.attendanceMode as 'per_subject' | 'daily',
       parallelName: parallel.name,
       levelName: parallel.level.name,

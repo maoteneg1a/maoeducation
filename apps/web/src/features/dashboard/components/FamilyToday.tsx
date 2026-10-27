@@ -31,6 +31,8 @@ export function FamilyToday() {
     queryFn: () => apiGet<TodayData>('dashboard/today', isGuardian && studentId ? { studentId } : undefined),
     enabled: !isGuardian || !!studentId,
     staleTime: 60_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   })
 
   const [justifyOpen, setJustifyOpen] = useState(false)
@@ -39,12 +41,12 @@ export function FamilyToday() {
   if (!data) return null
 
   return (
-    <div className="space-y-4">
+    <section className="space-y-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 shadow-sm sm:p-5" aria-labelledby="family-today-title">
       <div>
-        <h2 className="text-lg font-semibold">Hoy</h2>
-        <p className="text-xs text-muted-foreground">{data.student.parallel} · {data.student.academicYear}</p>
+        <h2 id="family-today-title" className="text-xl font-bold tracking-tight">Hoy</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{data.student.parallel} · {data.student.academicYear}</p>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         <TodayCard title="Horario de hoy" icon={CalendarClock} href="/schedules" empty="No hay clases registradas para hoy">
           {data.schedule.map((item) => (
             <div key={item.id} className="flex items-start justify-between gap-3 border-b py-2 last:border-0">
@@ -83,22 +85,22 @@ export function FamilyToday() {
       </div>
       {isGuardian && <GuardianReportsCard />}
       <RequestJustificationDialog studentId={data.student.id} open={justifyOpen} onOpenChange={setJustifyOpen} />
-    </div>
+    </section>
   )
 }
 
 function TodayCard({ title, icon: Icon, href, empty, action, children }: { title: string; icon: ElementType; href: string; empty: string; action?: ReactNode; children: ReactNode }) {
   const hasItems = Array.isArray(children) ? children.length > 0 : !!children
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm"><Icon className="h-4 w-4 text-primary" />{title}</CardTitle>
-        <div className="flex items-center gap-3">
+    <Card className="h-full bg-background/95 shadow-sm">
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 pb-2">
+        <CardTitle className="flex min-w-0 items-center gap-2 text-base leading-snug"><Icon className="h-5 w-5 shrink-0 text-primary" /><span>{title}</span></CardTitle>
+        <div className="ml-auto flex shrink-0 items-center gap-3">
           {action}
           <Link to={href} className="text-xs font-medium text-primary hover:underline">Ver todo</Link>
         </div>
       </CardHeader>
-      <CardContent>{hasItems ? children : <p className="py-5 text-center text-sm text-muted-foreground">{empty}</p>}</CardContent>
+      <CardContent className="text-sm">{hasItems ? children : <p className="py-5 text-center text-sm text-muted-foreground">{empty}</p>}</CardContent>
     </Card>
   )
 }

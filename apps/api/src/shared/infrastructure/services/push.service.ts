@@ -71,6 +71,23 @@ export async function notifyGuardiansOfStudent(
   await Promise.allSettled(links.map((l) => sendPushToUser(l.guardianId, personalizedPayload)))
 }
 
+/** Notifica al alumno y a sus representantes sin duplicar destinatarios. */
+export async function notifyStudentAndGuardians(
+  studentId: string,
+  payload: PushPayload,
+): Promise<void> {
+  const [links, profile] = await Promise.all([
+    prisma.guardianStudent.findMany({ where: { studentId }, select: { guardianId: true } }),
+    prisma.profile.findUnique({ where: { userId: studentId }, select: { firstName: true, lastName: true } }),
+  ])
+  const studentName = profile ? `${profile.firstName} ${profile.lastName}` : null
+  const personalizedPayload = studentName
+    ? { ...payload, body: payload.body.replace('Tu representado', studentName).replace('tu representado', studentName) }
+    : payload
+  const recipientIds = new Set([studentId, ...links.map((link) => link.guardianId)])
+  await Promise.allSettled([...recipientIds].map((userId) => sendPushToUser(userId, personalizedPayload)))
+}
+
 /** Envía una notificación a los representantes de los estudiantes de un curso. */
 export async function notifyGuardiansOfCourseAssignment(
   courseAssignmentId: string,
