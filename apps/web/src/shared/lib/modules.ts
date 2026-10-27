@@ -95,7 +95,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   parent_meetings: 'Atención a Padres',
   student_folder: 'Carpeta del Estudiante',
   messages: 'Mensajes',
-  tasks: 'Tareas',
+  tasks: 'Deberes',
   calendar: 'Calendario',
   schedules: 'Horario',
   reports: 'Reportes',

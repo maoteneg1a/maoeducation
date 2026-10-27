@@ -121,9 +121,9 @@ export function TeacherToday() {
           )}
         </Panel>
 
-        <Panel icon={ClipboardList} title="Tareas que vencen esta semana">
+        <Panel icon={ClipboardList} title="Deberes que vencen esta semana">
           {data.tasksDue.length === 0 ? (
-            <Empty>No hay tareas por vencer en los próximos 7 días.</Empty>
+            <Empty>No hay deberes por vencer en los próximos 7 días.</Empty>
           ) : (
             <ul className="divide-y">
               {data.tasksDue.map((t) => (

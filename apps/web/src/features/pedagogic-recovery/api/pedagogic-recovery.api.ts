@@ -177,7 +177,7 @@ export const COMMITMENT_TYPES: Record<string, string> = {
   ACTIVITY_SUPPORT: 'Acompañamiento en actividades',
   ATTENDANCE: 'Asistencia',
   HOME_PRACTICE: 'Práctica/refuerzo en casa',
-  ACTIVITY_REVIEW: 'Revisión de actividades/tareas',
+  ACTIVITY_REVIEW: 'Revisión de actividades/deberes',
   OTHER: 'Otro',
 }
 

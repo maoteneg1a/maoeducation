@@ -12,7 +12,8 @@ import {
   Eye,
   EyeOff,
   BookOpen,
-  CalendarDays,
+  MoreHorizontal,
+  ChevronRight,
   Layers,
   GraduationCap,
 } from 'lucide-react'
@@ -20,7 +21,8 @@ import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { Badge } from '@/shared/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/shared/components/ui/dropdown-menu'
+import { TeacherInsumoDialog } from '../components/TeacherInsumoDialog'
 import {
   Select,
   SelectContent,
@@ -314,7 +316,7 @@ function InsumoManager({ insumos, courseAssignmentId, periodId, canWrite }: Insu
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
               <Label>Nombre</Label>
-              <Input {...form.register('name')} placeholder="Ej: Tareas, Lecciones, Trabajos..." />
+              <Input {...form.register('name')} placeholder="Ej: Deberes, Lecciones, Trabajos..." />
               {form.formState.errors.name && (
                 <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
               )}
@@ -345,9 +347,8 @@ function InsumoManager({ insumos, courseAssignmentId, periodId, canWrite }: Insu
   )
 }
 
-// ---- Activity Card ----
-
-interface ActivityCardProps {
+// ---- Compact activity row ----
+interface ActivityRowProps {
   activity: Activity
   types: ActivityType[]
   onEdit: (activity: Activity) => void
@@ -357,97 +358,25 @@ interface ActivityCardProps {
   isDeleting: boolean
 }
 
-function ActivityCard({
-  activity,
-  types,
-  onEdit,
-  onTogglePublish,
-  onDelete,
-  isPublishing,
-  isDeleting,
-}: ActivityCardProps) {
-  const type = types.find((t) => t.id === activity.activityTypeId)
-
-  return (
-    <Card className="group">
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-sm font-semibold leading-snug">{activity.name}</CardTitle>
-          {/* Siempre visibles en pantallas táctiles (sin hover); en escritorio aparecen al pasar el mouse. */}
-          <div className="flex items-center gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => onEdit(activity)}
-              aria-label="Editar actividad"
-            >
-              <Edit2 className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => onTogglePublish(activity.id, !activity.isPublished)}
-              aria-label={activity.isPublished ? 'Ocultar a estudiantes' : 'Publicar a estudiantes'}
-              title={activity.isPublished ? 'Ocultar a estudiantes' : 'Publicar a estudiantes'}
-              loading={isPublishing}
-            >
-              {activity.isPublished ? (
-                <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
-              ) : (
-                <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-destructive hover:text-destructive"
-              onClick={() => onDelete(activity.id)}
-              loading={isDeleting}
-              aria-label="Eliminar actividad"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {type && (
-            <Badge variant="secondary" className="text-xs">
-              {type.name}
-            </Badge>
-          )}
-          <span className="flex items-center gap-1">
-            <CalendarDays className="h-3 w-3" />
-            {formatDate(activity.activityDate)}
-          </span>
-          <span className="font-medium text-foreground">{activity.maxScore} pts</span>
-          {activity.isPublished ? (
-            <Badge variant="success" className="text-xs">
-              Publicado
-            </Badge>
-          ) : (
-            <Badge variant="secondary" className="text-xs">
-              Borrador
-            </Badge>
-          )}
-        </div>
-        {activity.description && (
-          <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{activity.description}</p>
-        )}
-        <Button asChild size="sm" variant="outline" className="mt-3 w-full">
-          <Link
-            to={`/grades?assignmentId=${activity.courseAssignmentId}&periodId=${activity.academicPeriodId}&activityId=${activity.id}`}
-          >
-            <GraduationCap className="h-4 w-4" />
-            Calificar
-          </Link>
-        </Button>
-      </CardContent>
-    </Card>
-  )
+function ActivityRow({ activity, types, onEdit, onTogglePublish, onDelete, isPublishing, isDeleting }: ActivityRowProps) {
+  const type = types.find((entry) => entry.id === activity.activityTypeId)
+  const busy = isPublishing || isDeleting
+  return <div className="flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-muted/20 sm:flex-nowrap">
+    <div className="min-w-0 flex-1 basis-40">
+      <p className="break-words text-sm font-medium">{activity.name}</p>
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        {type && <span>{type.name}</span>}<span>{formatDate(activity.activityDate)}</span><span>Sobre {activity.maxScore}</span>
+        <span>{activity._count?.grades ?? 0} calificaciones</span>
+      </div>
+    </div>
+    <Badge variant={activity.isPublished ? 'success' : 'secondary'}>{activity.isPublished ? 'Publicado' : 'Borrador'}</Badge>
+    <Button asChild size="sm" variant="outline"><Link to={`/grades?assignmentId=${activity.courseAssignmentId}&periodId=${activity.academicPeriodId}&activityId=${activity.id}`}><GraduationCap className="h-4 w-4" />Calificar</Link></Button>
+    <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" disabled={busy} aria-label={`Opciones de ${activity.name}`}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
+      <DropdownMenuItem onSelect={() => onEdit(activity)}><Edit2 />Editar actividad</DropdownMenuItem>
+      <DropdownMenuItem disabled={busy} onSelect={() => onTogglePublish(activity.id, !activity.isPublished)}>{activity.isPublished ? <EyeOff /> : <Eye />}{activity.isPublished ? 'Ocultar a estudiantes' : 'Publicar a estudiantes'}</DropdownMenuItem>
+      <DropdownMenuSeparator /><DropdownMenuItem disabled={busy} className="text-destructive focus:text-destructive" onSelect={() => onDelete(activity.id)}><Trash2 />Eliminar actividad</DropdownMenuItem>
+    </DropdownMenuContent></DropdownMenu>
+  </div>
 }
 
 // ---- Main Page ----
@@ -461,6 +390,9 @@ export function ActivitiesPage() {
 
   const { assignments, periods, defaultAssignmentId, defaultPeriodId } = useTeacherDefaults()
 
+  const userId = useAuthStore((state) => state.user?.id)
+  const ownAssignments = assignments.filter((assignment) => assignment.teacherId === userId && assignment.isActive)
+  const [bulkInsumos, setBulkInsumos] = React.useState(false)
   const [selectedAssignmentId, setSelectedAssignmentId] = React.useState('')
   const [selectedPeriodId, setSelectedPeriodId] = React.useState('')
 
@@ -508,12 +440,12 @@ export function ActivitiesPage() {
     },
   })
 
-  function openCreate() {
+  function openCreate(insumoId = '') {
     setEditing(null)
     form.reset({
       name: '',
       activityTypeId: '',
-      insumoId: '',
+      insumoId,
       curriculumSkillId: '',
       competencyId: '',
       maxScore: gradingScaleMax,
@@ -569,7 +501,7 @@ export function ActivitiesPage() {
     const map = new Map<string, Activity[]>()
     const noInsumo: Activity[] = []
     for (const act of activities) {
-      if (act.insumoId) {
+      if (act.insumoId && insumos.some((insumo) => insumo.id === act.insumoId)) {
         const arr = map.get(act.insumoId) ?? []
         arr.push(act)
         map.set(act.insumoId, arr)
@@ -578,7 +510,7 @@ export function ActivitiesPage() {
       }
     }
     return { map, noInsumo }
-  }, [activities])
+  }, [activities, insumos])
 
   const canCreate = !!selectedAssignmentId && !!selectedPeriodId
 
@@ -587,12 +519,12 @@ export function ActivitiesPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Actividades</h1>
-          <p className="text-muted-foreground text-sm mt-1">Gestiona las actividades académicas</p>
+          <p className="text-muted-foreground text-sm mt-1">Actividades agrupadas por categoría (insumo).</p>
         </div>
-        <Button onClick={openCreate} disabled={!canCreate}>
+        <div className="flex flex-wrap gap-2">{canWriteInsumos && ownAssignments.length > 0 && <Button variant="outline" onClick={() => setBulkInsumos(true)}>Crear insumos en mis materias</Button>}<Button onClick={() => openCreate()} disabled={!canCreate}>
           <Plus className="h-4 w-4" />
-          Nueva Actividad
-        </Button>
+          Nueva actividad
+        </Button></div>
       </div>
 
       {isPersonalAccount && (
@@ -646,92 +578,23 @@ export function ActivitiesPage() {
           description="Para ver y gestionar actividades, selecciona la asignación y el período académico"
         />
       ) : (
-        <div className="space-y-6">
-          {/* Insumo manager */}
-          <InsumoManager
-            insumos={insumos}
-            courseAssignmentId={selectedAssignmentId}
-            periodId={selectedPeriodId}
-            canWrite={canWriteInsumos}
-          />
-
-          {/* Activities */}
-          {activitiesLoading ? (
-            <PageLoader />
-          ) : activities.length === 0 ? (
-            <EmptyState
-              icon={BookOpen}
-              title="No hay actividades"
-              description="Crea una nueva actividad para este período"
-              action={
-                <Button onClick={openCreate} size="sm">
-                  <Plus className="h-4 w-4" />
-                  Nueva Actividad
-                </Button>
-              }
-            />
-          ) : (
-            <div className="space-y-6">
-              {insumos.map((insumo) => {
-                const acts = grouped.map.get(insumo.id) ?? []
-                return (
-                  <div key={insumo.id}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <h3 className="text-sm font-semibold">{insumo.name}</h3>
-                      {insumo.weight != null && (
-                        <Badge variant="secondary" className="text-xs">
-                          {insumo.weight}%
-                        </Badge>
-                      )}
-                      <span className="text-xs text-muted-foreground">{acts.length} actividades</span>
-                    </div>
-                    {acts.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {acts.map((act) => (
-                          <ActivityCard
-                            key={act.id}
-                            activity={act}
-                            types={types}
-                            onEdit={openEdit}
-                            onTogglePublish={(id, isPublished) => publishActivity.mutate({ id, isPublished })}
-                            onDelete={handleDelete}
-                            isPublishing={publishActivity.isPending}
-                            isDeleting={deleteActivity.isPending}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground italic">
-                        Sin actividades en este insumo
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
-
-              {grouped.noInsumo.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold mb-3">Sin insumo asignado</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {grouped.noInsumo.map((act) => (
-                      <ActivityCard
-                        key={act.id}
-                        activity={act}
-                        types={types}
-                        onEdit={openEdit}
-                        onTogglePublish={(id, isPublished) => publishActivity.mutate({ id, isPublished })}
-                        onDelete={handleDelete}
-                        isPublishing={publishActivity.isPending}
-                        isDeleting={deleteActivity.isPending}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+        <div className="space-y-4">
+          {canWriteInsumos && <details className="rounded-lg border"><summary className="cursor-pointer px-4 py-3 text-sm font-medium">Configurar categorías (insumos)</summary><InsumoManager insumos={insumos} courseAssignmentId={selectedAssignmentId} periodId={selectedPeriodId} canWrite={canWriteInsumos} /></details>}
+          {activitiesLoading ? <PageLoader /> : <div className="space-y-4">
+            {[...insumos.map((insumo) => ({ id: insumo.id, name: insumo.name, activities: grouped.map.get(insumo.id) ?? [] })),
+              ...(grouped.noInsumo.length || !insumos.length ? [{ id: '', name: 'Sin categoría asignada', activities: grouped.noInsumo }] : [])].map((group) => <details key={group.id || 'none'} open={group.activities.length > 0} className="group overflow-hidden rounded-xl border border-blue-100 dark:border-blue-900/50">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 bg-blue-50/70 px-4 py-3 [&::-webkit-details-marker]:hidden dark:bg-blue-950/20">
+                <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-90" /><Layers className="h-4 w-4 text-primary" />
+                <span className="font-semibold">{group.name}</span><span className="text-xs text-muted-foreground">{group.activities.length} actividades</span>
+                <Button size="sm" variant="outline" className="ml-auto" onClick={(event) => { event.preventDefault(); event.stopPropagation(); openCreate(group.id) }}><Plus className="h-3.5 w-3.5" />Nueva actividad</Button>
+              </summary>
+              <div className="divide-y border-t">{group.activities.length ? group.activities.map((activity) => <ActivityRow key={activity.id} activity={activity} types={types} onEdit={openEdit} onTogglePublish={(id, isPublished) => publishActivity.mutate({ id, isPublished })} onDelete={handleDelete} isPublishing={publishActivity.isPending} isDeleting={deleteActivity.isPending} />) : <p className="px-4 py-5 text-sm text-muted-foreground">Sin actividades. Crea la primera desde esta categoría.</p>}</div>
+            </details>)}
+          </div>}
         </div>
       )}
+
+      {bulkInsumos && <TeacherInsumoDialog assignments={ownAssignments} periods={periods} initialPeriodId={selectedPeriodId || defaultPeriodId} initialNames={insumos.map((insumo) => insumo.name)} onClose={() => setBulkInsumos(false)} />}
 
       {/* Activity Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -793,7 +656,7 @@ export function ActivitiesPage() {
                 )}
               </div>
               <div className="space-y-2">
-                <Label>Insumo (opcional)</Label>
+                <Label>Categoría (insumo)</Label>
                 <Select
                   value={form.watch('insumoId') ?? ''}
                   onValueChange={(v) => form.setValue('insumoId', v === 'none' ? '' : v)}

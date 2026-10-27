@@ -1,3 +1,5 @@
+import { createOwnInsumos, type CreateOwnInsumosInput } from '../application/services/create-own-insumos.service'
+import { actorOf } from '../../../shared/infrastructure/services/actor'
 import { FastifyInstance } from 'fastify'
 import type { Prisma } from '@prisma/client'
 import { audit } from '../../../shared/infrastructure/services/audit.service'
@@ -87,6 +89,15 @@ export default async function activityRoutes(app: FastifyInstance) {
       return reply.send(insumos)
     },
   )
+
+  app.post<{ Body: CreateOwnInsumosInput }>('/insumos/my-assignments', {
+    preHandler: [requirePermission('insumos', 'write', 'own')],
+    schema: { body: { type: 'object', additionalProperties: false, required: ['periodId', 'courseAssignmentIds', 'names'], properties: {
+      periodId: { type: 'string', minLength: 1, maxLength: 128 },
+      courseAssignmentIds: { type: 'array', minItems: 1, maxItems: 200, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 128 } },
+      names: { type: 'array', minItems: 1, maxItems: 30, items: { type: 'string', minLength: 1, maxLength: 100 } },
+    } } },
+  }, async (req, reply) => reply.send(await createOwnInsumos(req.user.institutionId, actorOf(req.user), req.body)))
 
   app.post<{ Body: CreateInsumoDto }>(
     '/insumos',

@@ -113,6 +113,7 @@ export const activitiesApi = {
   deleteInsumo: (id: string) => apiDelete(`insumos/${id}`),
   getParallelTemplate: (parallelId: string, academicYearId: string, periodId: string) =>
     apiGet<Array<{ name: string; weight: number | null; sortOrder: number }>>('insumos/parallel-template', { parallelId, academicYearId, periodId }),
+  createOwnInsumos: (data: { periodId: string; courseAssignmentIds: string[]; names: string[] }) => apiPost<{ assignments: number; created: number; skipped: number }>('insumos/my-assignments', data),
   setupParallelInsumos: (data: {
     parallelId: string
     academicYearId: string

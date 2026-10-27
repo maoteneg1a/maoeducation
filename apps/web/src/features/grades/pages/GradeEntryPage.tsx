@@ -1,3 +1,4 @@
+import { StudentName } from '../components/StudentName'
 import * as React from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -101,12 +102,15 @@ interface GradeRowProps {
 }
 
 /** Enter/↓ baja a la siguiente nota, ↑ sube — como en una hoja de cálculo. */
-function focusScoreInput(rowIndex: number) {
-  const el = document.querySelector<HTMLInputElement>(`input[data-grade-row="${rowIndex}"]`)
-  if (el) {
-    el.focus()
-    el.select()
-  }
+function navigateGradeColumn(event: React.KeyboardEvent<HTMLInputElement>, rowIndex: number, column: 'score' | 'improvement') {
+  if (!['Enter', 'ArrowDown', 'ArrowUp'].includes(event.key)) return
+  event.preventDefault()
+  const direction = event.key === 'ArrowUp' || (event.key === 'Enter' && event.shiftKey) ? -1 : 1
+  const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(`input[data-grade-column="${column}"]:not(:disabled)`))
+  const ordered = direction === 1 ? inputs : inputs.reverse()
+  const target = ordered.find((input) => direction * (Number(input.dataset.gradeRow) - rowIndex) > 0)
+  target?.focus()
+  target?.select()
 }
 
 const AGREEMENT_MODE_LABEL: Record<string, string> = {
@@ -151,6 +155,7 @@ function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcement
             pattern="[0-9]*[.,]?[0-9]*"
             disabled={!scoreEditable}
             data-grade-row={rowIndex}
+            data-grade-column="score"
             aria-label={`Nota de ${grade.studentName}`}
             aria-invalid={outOfRange || undefined}
             value={status === 'excusado' ? '' : displayScore ?? ''}
@@ -158,15 +163,7 @@ function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcement
               const val = e.target.value === '' ? null : parseFloat(e.target.value.replace(',', '.'))
               onChange(grade.studentId, val)
             }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === 'ArrowDown') {
-                e.preventDefault()
-                focusScoreInput(rowIndex + 1)
-              } else if (e.key === 'ArrowUp') {
-                e.preventDefault()
-                focusScoreInput(rowIndex - 1)
-              }
-            }}
+            onKeyDown={(event) => navigateGradeColumn(event, rowIndex, 'score')}
             onPaste={(e) => {
               const text = e.clipboardData.getData('text')
               const values = text.split(/\r?\n/).map((v) => v.trim()).filter((v, i, arr) => v !== '' || i < arr.length - 1)
@@ -196,6 +193,11 @@ function GradeRow({ grade, maxScore, localScore, localStatus, localReinforcement
               max={maxScore}
               step={0.01}
               disabled={!!grade.closedPlanId}
+              inputMode="decimal"
+              data-grade-row={rowIndex}
+              data-grade-column="improvement"
+              aria-label={`Mejora individual de ${grade.studentName}`}
+              onKeyDown={(event) => navigateGradeColumn(event, rowIndex, 'improvement')}
               value={reinforcementScore ?? ''}
               onChange={(e) => onReinforcementChange(
                 grade.studentId,
@@ -271,7 +273,7 @@ function GradesGrid({ data }: { data: GradesReportData }) {
         <thead>
           {/* Row 1: Insumo headers */}
           <tr className="bg-muted/60">
-            <th className="sticky left-0 z-20 bg-muted/60 border border-border px-3 py-2 text-left font-semibold min-w-[180px]">
+            <th className="sticky left-0 z-20 bg-muted border border-border px-3 py-2 text-left font-semibold w-28 min-w-28 max-w-28 md:w-auto md:min-w-[180px] md:max-w-none">
               Estudiante
             </th>
             {insumos.map((ins) => (
@@ -292,7 +294,7 @@ function GradesGrid({ data }: { data: GradesReportData }) {
           </tr>
           {/* Row 2: Activity headers */}
           <tr className="bg-muted/40">
-            <th className="sticky left-0 z-20 bg-muted/40 border border-border px-3 py-1.5" />
+            <th className="sticky left-0 z-20 bg-muted border border-border px-3 py-1.5" />
             {insumos.map((ins) =>
               ins.activities.map((act) => (
                 <th
@@ -324,8 +326,8 @@ function GradesGrid({ data }: { data: GradesReportData }) {
 
             return (
               <tr key={student.id} className={cn('hover:bg-muted/20', i % 2 === 0 ? 'bg-white' : 'bg-muted/10')}>
-                <td className="sticky left-0 z-10 bg-inherit border border-border px-3 py-2 font-medium whitespace-nowrap">
-                  {fullName}
+                <td className="sticky left-0 z-10 bg-background border-r-2 border border-border px-3 py-2 font-medium whitespace-nowrap">
+                  <StudentName lastName={student.profile.lastName} firstName={student.profile.firstName} />
                 </td>
                 {insumos.map((ins, idx) =>
                   ins.activities.map((act) => {
@@ -409,7 +411,7 @@ function CompactGrid({ data, examWeight, canEditWeight, onEditWeight }: CompactG
       <table className="text-sm border-collapse w-full">
         <thead>
           <tr className="bg-muted/60">
-            <th className="sticky left-0 z-20 bg-muted/60 border border-border px-3 py-2 text-left font-semibold min-w-[180px]">
+            <th className="sticky left-0 z-20 bg-muted border border-border px-3 py-2 text-left font-semibold w-28 min-w-28 max-w-28 md:w-auto md:min-w-[180px] md:max-w-none">
               Estudiante
             </th>
             {regularInsumos.map((ins) => (
@@ -472,8 +474,8 @@ function CompactGrid({ data, examWeight, canEditWeight, onEditWeight }: CompactG
 
             return (
               <tr key={student.id} className={cn('hover:bg-muted/20', i % 2 === 0 ? 'bg-white' : 'bg-muted/10')}>
-                <td className="sticky left-0 z-10 bg-inherit border border-border px-3 py-2 font-medium whitespace-nowrap">
-                  {fullName}
+                <td className="sticky left-0 z-10 bg-background border-r-2 border border-border px-3 py-2 font-medium whitespace-nowrap">
+                  <StudentName lastName={student.profile.lastName} firstName={student.profile.firstName} />
                 </td>
                 {insumoAvgs.map((avg, idx) => (
                   <td key={regularInsumos[idx].id} className="border border-border px-3 py-2 text-center tabular-nums">
@@ -613,7 +615,7 @@ function ManualInsumoAveragesGrid({ data }: { data: GradesReportData }) {
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full min-w-max text-sm">
           <thead><tr className="bg-muted/50">
-            <th className="sticky left-0 z-10 min-w-52 bg-muted px-3 py-2 text-left">Estudiante</th>
+            <th className="sticky left-0 z-10 w-28 min-w-28 max-w-28 md:w-auto md:min-w-52 md:max-w-none bg-muted px-3 py-2 text-left">Estudiante</th>
             {insumos.map((insumo) => <th key={insumo.id} className="min-w-32 px-3 py-2 text-center text-primary"><div>{insumo.name}</div><div className="text-[10px] font-normal text-muted-foreground">editable</div></th>)}
             <th className="min-w-24 bg-blue-50/60 px-3 py-2 text-center">Formativa</th>
             {showExam && <th className="min-w-24 px-3 py-2 text-center">Examen</th>}
@@ -623,7 +625,7 @@ function ManualInsumoAveragesGrid({ data }: { data: GradesReportData }) {
           <tbody>{data.students.map((row, rowIndex) => {
             const result = preview(row)
             return <tr key={row.student.id} className="border-t">
-            <td className="sticky left-0 z-10 bg-background px-3 py-2 font-medium">{row.student.profile.lastName}, {row.student.profile.firstName}{row.closedPlanId ? <Button variant="link" size="sm" asChild><Link to={`/refuerzo/casos/${row.closedPlanId}?correction=1`}>Corregir notas</Link></Button> : row.summary.formativeReinforcement?.mode === 'activity_set' && <p className="text-xs font-normal text-muted-foreground">Con refuerzo por actividades: edita las notas de las actividades.</p>}</td>
+            <td className="sticky left-0 z-10 bg-background px-3 py-2 font-medium"><StudentName lastName={row.student.profile.lastName} firstName={row.student.profile.firstName} />{row.closedPlanId ? <Button variant="link" size="sm" asChild><Link to={`/refuerzo/casos/${row.closedPlanId}?correction=1`}>Corregir notas</Link></Button> : row.summary.formativeReinforcement?.mode === 'activity_set' && <p className="text-xs font-normal text-muted-foreground">Con refuerzo por actividades: edita las notas de las actividades.</p>}</td>
             {insumos.map((insumo, columnIndex) => {
               const key = `${row.student.id}:${insumo.id}`
               const calculated = row.summary.insumoAvgs.find((average) => average.id === insumo.id)?.avg
@@ -951,7 +953,7 @@ function AnnualByPeriodGrid({
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="bg-muted/60">
-            <th className="sticky left-0 z-20 min-w-[180px] border border-border bg-muted/60 px-3 py-2 text-left font-semibold">
+            <th className="sticky left-0 z-20 w-28 min-w-28 max-w-28 md:w-auto md:min-w-[180px] md:max-w-none border border-border bg-muted px-3 py-2 text-left font-semibold">
               Estudiante
             </th>
             {periodData.map(({ period }) => (
@@ -970,8 +972,8 @@ function AnnualByPeriodGrid({
             const annual = mean(perPeriod)
             return (
               <tr key={s.id} className={cn('hover:bg-muted/20', i % 2 === 0 ? 'bg-white' : 'bg-muted/10')}>
-                <td className="sticky left-0 z-10 whitespace-nowrap border border-border bg-inherit px-3 py-2 font-medium">
-                  {s.lastName}, {s.firstName}
+                <td className="sticky left-0 z-10 whitespace-nowrap border border-r-2 border-border bg-background px-3 py-2 font-medium">
+                  <StudentName lastName={s.lastName} firstName={s.firstName} />
                 </td>
                 {perPeriod.map((v, idx) => (
                   <td key={periodData[idx].period.id} className="border border-border px-3 py-2 text-center tabular-nums">
@@ -1044,7 +1046,7 @@ function AnnualDetailGrid({
           <tr className="bg-muted/60">
             <th
               rowSpan={2}
-              className="sticky left-0 z-20 min-w-[180px] border border-border bg-muted/60 px-3 py-2 text-left align-bottom font-semibold"
+              className="sticky left-0 z-20 w-28 min-w-28 max-w-28 md:w-auto md:min-w-[180px] md:max-w-none border border-border bg-muted px-3 py-2 text-left align-bottom font-semibold"
             >
               Estudiante
             </th>
@@ -1117,8 +1119,8 @@ function AnnualDetailGrid({
         <tbody>
           {students.map((s, i) => (
             <tr key={s.id} className={cn('hover:bg-muted/20', i % 2 === 0 ? 'bg-white' : 'bg-muted/10')}>
-              <td className="sticky left-0 z-10 whitespace-nowrap border border-border bg-inherit px-3 py-2 font-medium">
-                {s.lastName}, {s.firstName}
+              <td className="sticky left-0 z-10 whitespace-nowrap border border-r-2 border-border bg-background px-3 py-2 font-medium">
+                <StudentName lastName={s.lastName} firstName={s.firstName} />
               </td>
               {cols.map((c) => {
                 const summary = c.summaryByStudent.get(s.id)
@@ -1275,7 +1277,7 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
       <table className="text-sm border-collapse w-full">
         <thead>
           <tr className="bg-muted/60">
-            <th className="sticky left-0 z-20 bg-muted/60 border border-border px-3 py-2 text-left font-semibold min-w-[160px]">
+            <th className="sticky left-0 z-20 bg-muted border border-border px-3 py-2 text-left font-semibold min-w-[160px]">
               Materia
             </th>
             {allInsumoNames.map((name) => (
@@ -1315,7 +1317,7 @@ function StudentGradesTable({ subjects }: { subjects: MyGradesSubject[] }) {
             const isExpanded = expanded.has(s.assignmentId)
             return <React.Fragment key={s.assignmentId}>
             <tr className={cn('hover:bg-muted/20', i % 2 === 0 ? 'bg-white' : 'bg-muted/10')}>
-              <td className="sticky left-0 z-10 bg-inherit border border-border px-3 py-2 font-medium whitespace-nowrap">
+              <td className="sticky left-0 z-10 bg-background border-r-2 border border-border px-3 py-2 font-medium whitespace-nowrap">
                 <div>{s.subjectName}</div>
                 <div className="text-xs text-muted-foreground">{s.teacherName}</div>
                 {activities.length > 0 && (
@@ -1553,7 +1555,7 @@ function StudentAnnualByPeriodGrid({
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="bg-muted/60">
-            <th className="sticky left-0 z-20 min-w-[180px] border border-border bg-muted/60 px-3 py-2 text-left font-semibold">
+            <th className="sticky left-0 z-20 w-28 min-w-28 max-w-28 md:w-auto md:min-w-[180px] md:max-w-none border border-border bg-muted px-3 py-2 text-left font-semibold">
               Materia
             </th>
             {periodData.map(({ period }) => (
@@ -1570,7 +1572,7 @@ function StudentAnnualByPeriodGrid({
             const annual = mean(perPeriod)
             return (
               <tr key={s.assignmentId} className={cn('hover:bg-muted/20', i % 2 === 0 ? 'bg-white' : 'bg-muted/10')}>
-                <td className="sticky left-0 z-10 whitespace-nowrap border border-border bg-inherit px-3 py-2 font-medium">
+                <td className="sticky left-0 z-10 whitespace-nowrap border border-r-2 border-border bg-background px-3 py-2 font-medium">
                   <div>{s.subjectName}</div>
                   <div className="text-xs text-muted-foreground">{s.teacherName}</div>
                 </td>

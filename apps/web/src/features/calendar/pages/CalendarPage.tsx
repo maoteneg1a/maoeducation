@@ -196,7 +196,7 @@ function DayPanel({ date, tasks, announcements, events, canManage, onEditEvent, 
                 )}
                 <div className="flex items-center gap-2 pt-0.5">
                   {!task.isPublished && <Badge variant="secondary" className="text-[10px] px-1.5">Borrador</Badge>}
-                  <span className="text-xs font-medium text-primary">Ver tarea</span>
+                  <span className="text-xs font-medium text-primary">Ver deber</span>
                 </div>
               </div>
             </Link>
@@ -325,7 +325,7 @@ export function CalendarPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Calendario</h1>
-        <p className="text-sm text-muted-foreground">Feriados, exámenes, eventos y entregas de tareas</p>
+        <p className="text-sm text-muted-foreground">Feriados, exámenes, eventos y entregas de deberes</p>
       </div>
 
       {/* Month navigation */}

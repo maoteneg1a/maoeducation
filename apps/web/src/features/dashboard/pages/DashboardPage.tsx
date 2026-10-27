@@ -4,7 +4,7 @@ import { useAuthStore } from '@/store/auth.store'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
 import { Badge } from '@/shared/components/ui/badge'
-import { Users, BookOpen, GraduationCap, Calendar, AlertTriangle, MessageSquare, ClipboardList, TrendingUp, Megaphone } from 'lucide-react'
+import { Users, BookOpen, GraduationCap, Calendar, AlertTriangle, MessageSquare, TrendingUp, Megaphone } from 'lucide-react'
 import { apiGet } from '@/shared/lib/api-client'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { PwaOnboardingBanner } from '@/shared/components/pwa/PwaOnboardingBanner'
@@ -12,6 +12,8 @@ import { announcementsApi } from '@/features/announcements/api/announcements.api
 import { FamilyToday } from '../components/FamilyToday'
 import { TeacherToday } from '../components/TeacherToday'
 import { SetupChecklist } from '../components/SetupChecklist'
+import { useVisibleNavSections } from '@/shared/components/layout/Sidebar'
+import { Link } from 'react-router-dom'
 import { roleLabel } from '@/shared/lib/roles'
 
 interface DashboardStats {
@@ -79,11 +81,13 @@ export function DashboardPage() {
         <PageLoader />
       ) : (
         <>
+          <DashboardShortcuts stats={stats} />
+
           {/* Stats row */}
           {isInstitutionAdmin && user?.institution?.accountType !== 'personal' && <SetupChecklist />}
 
           {stats && isInstitutionAdmin && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
               <NumberCard icon={Users} label="Usuarios activos" value={stats.users.total} />
               <NumberCard icon={GraduationCap} label="Estudiantes" value={stats.users.students} />
               <NumberCard icon={BookOpen} label="Actividades" value={stats.academic.totalActivities} />
@@ -131,95 +135,59 @@ export function DashboardPage() {
             </Card>
           )}
 
-          {/* Per-role module links */}
-          {isInstitutionAdmin && <AdminModules />}
           {hasRole('teacher') && !isInstitutionAdmin && <TeacherToday />}
-          {hasRole('teacher') && !isInstitutionAdmin && <TeacherModules unread={stats?.messages.unread} />}
-          {hasRole('inspector') && !isInstitutionAdmin && <InspectorModules pending={stats?.incidents.pending} unread={stats?.messages.unread} />}
-          {hasRole('dece') && !isInstitutionAdmin && <DeceModules openCases={stats?.dece.openCases} followUps={stats?.dece.followUps} unread={stats?.messages.unread} />}
-          {(hasRole('student') || hasRole('guardian')) && !isInstitutionAdmin && !hasRole('teacher') && !hasRole('inspector') && (
-            <>
-              <FamilyToday />
-              <StudentModules unread={stats?.messages.unread} />
-            </>
+          {hasRole('dece') && !isInstitutionAdmin && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <NumberCard icon={AlertTriangle} label="Casos DECE abiertos" value={stats?.dece.openCases ?? 0} />
+              <NumberCard icon={Calendar} label="Seguimientos registrados" value={stats?.dece.followUps ?? 0} />
+              <NumberCard icon={MessageSquare} label="Mensajes pendientes" value={stats?.messages.unread ?? 0} />
+            </div>
           )}
+          {(hasRole('student') || hasRole('guardian')) && !isInstitutionAdmin && !hasRole('teacher') && !hasRole('inspector') && !hasRole('dece') && <FamilyToday />}
         </>
       )}
     </div>
   )
 }
 
-function AdminModules() {
+// Los accesos comparten permisos, módulos y visibilidad con el menú lateral.
+const SHORTCUTS = [
+  { path: '/activities', color: 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200' },
+  { path: '/tasks', color: 'bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200' },
+  { path: '/grades', color: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200' },
+  { path: '/attendance', color: 'bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-200' },
+  { path: '/academic-alerts', color: 'bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200' },
+  { path: '/refuerzo/casos', color: 'bg-orange-50 text-orange-800 dark:bg-orange-950 dark:text-orange-200' },
+  { path: '/informes', color: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200' },
+  { path: '/dece', color: 'bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-200' },
+  { path: '/student-folder', color: 'bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-200' },
+  { path: '/schedules', color: 'bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-950 dark:text-fuchsia-200' },
+  { path: '/messages', color: 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200' },
+  { path: '/incidents', color: 'bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-200' },
+  { path: '/users', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200' },
+  { path: '/academic', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200' },
+  { path: '/announcements', color: 'bg-yellow-50 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200' },
+]
+
+function DashboardShortcuts({ stats }: { stats?: DashboardStats }) {
+  const sections = useVisibleNavSections()
+  const visible = new Map(sections.flatMap((section) => section.items).map((item) => [item.path, item]))
+  const shortcuts = SHORTCUTS.flatMap((shortcut) => {
+    const item = visible.get(shortcut.path)
+    return item ? [{ ...shortcut, ...item }] : []
+  })
+  if (!shortcuts.length) return null
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
-      <ModuleCard icon={Users}         label="Usuarios"        href="/users" />
-      <ModuleCard icon={Calendar}      label="Configuración"   href="/academic" />
-      <ModuleCard icon={BookOpen}      label="Actividades"     href="/activities" />
-      <ModuleCard icon={GraduationCap} label="Calificaciones"  href="/grades" />
-      <ModuleCard icon={ClipboardList} label="Asistencia"      href="/attendance" />
-      <ModuleCard icon={AlertTriangle} label="Incidentes"      href="/incidents" />
-      <ModuleCard icon={Calendar}      label="Horario"         href="/schedules" />
-      <ModuleCard icon={MessageSquare} label="Mensajes"        href="/messages" />
-    </div>
-  )
-}
-
-function TeacherModules({ unread }: { unread?: number }) {
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 md:gap-4">
-      <ModuleCard icon={BookOpen}      label="Actividades"     href="/activities" />
-      <ModuleCard icon={GraduationCap} label="Calificaciones"  href="/grades" />
-      <ModuleCard icon={ClipboardList} label="Asistencia"      href="/attendance" />
-      <ModuleCard icon={Calendar}      label="Horario"         href="/schedules" />
-      <ModuleCard icon={MessageSquare} label="Mensajes"        href="/messages" badge={unread} />
-    </div>
-  )
-}
-
-function InspectorModules({ pending, unread }: { pending?: number; unread?: number }) {
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 md:gap-4">
-      <ModuleCard icon={AlertTriangle} label="Incidentes"      href="/incidents" badge={pending} />
-      <ModuleCard icon={ClipboardList} label="Asistencia"      href="/attendance" />
-      <ModuleCard icon={MessageSquare} label="Mensajes"        href="/messages" badge={unread} />
-    </div>
-  )
-}
-
-function DeceModules({ openCases, followUps, unread }: { openCases?: number; followUps?: number; unread?: number }) {
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <NumberCard icon={AlertTriangle} label="Casos DECE abiertos" value={openCases ?? 0} alert={!!openCases} />
-        <NumberCard icon={Calendar} label="Seguimientos registrados" value={followUps ?? 0} />
-        <NumberCard icon={MessageSquare} label="Mensajes pendientes" value={unread ?? 0} alert={!!unread} />
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
-        <ModuleCard icon={ShieldCheckIcon} label="Casos y protocolos" href="/dece" badge={openCases} />
-        <ModuleCard icon={FolderOpenIcon} label="Estudiantes" href="/student-folder" />
-        <ModuleCard icon={MessageSquare} label="Mensajes" href="/messages" badge={unread} />
-        <ModuleCard icon={Megaphone} label="Avisos" href="/announcements" />
-      </div>
-    </div>
-  )
-}
-
-function ShieldCheckIcon() {
-  return <AlertTriangle className="h-5 w-5" />
-}
-
-function FolderOpenIcon() {
-  return <Users className="h-5 w-5" />
-}
-
-function StudentModules({ unread }: { unread?: number }) {
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 md:gap-4">
-      <ModuleCard icon={GraduationCap} label="Calificaciones"  href="/grades" />
-      <ModuleCard icon={ClipboardList} label="Asistencia"      href="/attendance" />
-      <ModuleCard icon={Calendar}      label="Horario"         href="/schedules" />
-      <ModuleCard icon={MessageSquare} label="Mensajes"        href="/messages" badge={unread} />
-    </div>
+    <nav aria-label="Accesos rápidos" className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-6 xl:grid-cols-8">
+      {shortcuts.map(({ path, label, icon: Icon, color }) => {
+        const count = path === '/messages' ? stats?.messages.unread : path === '/incidents' ? stats?.incidents.pending : path === '/dece' ? stats?.dece.openCases : 0
+        return <Link key={path} to={path} className={`relative flex aspect-square min-w-0 flex-col items-center justify-center gap-2 rounded-xl border border-current/10 p-2 text-center transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${color}`}>
+          <Icon className="h-6 w-6 shrink-0" aria-hidden="true" />
+          <span className="text-xs font-semibold leading-tight sm:text-sm">{label}</span>
+          {!!count && count > 0 && <span className="absolute right-1.5 top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs font-semibold text-destructive-foreground"><span className="sr-only">Pendientes: </span>{count > 99 ? '99+' : count}</span>}
+        </Link>
+      })}
+    </nav>
   )
 }
 
@@ -238,7 +206,7 @@ function NumberCard({
 }) {
   return (
     <Card className={alert ? 'border-destructive/30' : ''}>
-      <CardContent className="p-5 flex items-center gap-4">
+      <CardContent className="flex items-center gap-2 p-3 sm:gap-4 sm:p-5">
         <div className={`rounded-lg p-2.5 ${alert ? 'bg-destructive/10' : 'bg-primary/10'}`}>
           <Icon className={`h-5 w-5 ${alert ? 'text-destructive' : 'text-primary'}`} />
         </div>
@@ -248,38 +216,6 @@ function NumberCard({
         </div>
       </CardContent>
     </Card>
-  )
-}
-
-function ModuleCard({
-  icon: Icon,
-  label,
-  href,
-  badge,
-}: {
-  icon: React.ElementType
-  label: string
-  href: string
-  badge?: number
-}) {
-  return (
-    <a href={href}>
-      <Card className="hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group">
-        <CardContent className="flex items-center gap-4 p-4 sm:p-5">
-          <div className="rounded-lg bg-primary/10 p-2.5 group-hover:bg-primary/20 transition-colors">
-            <Icon className="h-5 w-5 text-primary" />
-          </div>
-          <div className="flex-1">
-            <p className="font-semibold text-sm">{label}</p>
-          </div>
-          {!!badge && badge > 0 && (
-            <span className="text-xs bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center font-medium">
-              {badge > 9 ? '9+' : badge}
-            </span>
-          )}
-        </CardContent>
-      </Card>
-    </a>
   )
 }
 
