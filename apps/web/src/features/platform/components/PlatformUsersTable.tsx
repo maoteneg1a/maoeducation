@@ -22,13 +22,14 @@ function formatRegisteredAt(date: string) {
   }).format(new Date(date))
 }
 
-export function PlatformUsersTable() {
+export function PlatformUsersTable({ institutionId }: { institutionId: string }) {
   const { can } = usePlatformRole()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const { data: usersResult, isLoading } = useQuery({
-    queryKey: ['platform-users', search, page],
+  const { data: usersResult, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['platform-users', institutionId, search, page],
     queryFn: () => platformApi.getPlatformUsers({
+      institutionId,
       search: search || undefined,
       page,
       limit: USERS_PAGE_SIZE,
@@ -50,16 +51,6 @@ export function PlatformUsersTable() {
   const columns: ColumnDef<PlatformUser>[] = [
     { accessorKey: 'fullName', header: 'Usuario' },
     { accessorKey: 'email', header: 'Email' },
-    { accessorKey: 'institutionName', header: 'Institución' },
-    {
-      id: 'accountType',
-      header: 'Tipo',
-      cell: ({ row }) => (
-        <Badge variant={row.original.accountType === 'personal' ? 'outline' : 'secondary'}>
-          {row.original.accountType === 'personal' ? 'Personal' : 'Institución'}
-        </Badge>
-      ),
-    },
     {
       id: 'roles',
       header: 'Roles',
@@ -109,13 +100,22 @@ export function PlatformUsersTable() {
     ? Math.max(1, Math.ceil(usersResult.total / USERS_PAGE_SIZE))
     : 1
 
+  if (isError) {
+    return (
+      <div className="space-y-3" role="alert">
+        <p className="text-sm text-destructive">{getErrorMessage(error)}</p>
+        <Button variant="outline" onClick={() => refetch()}>Reintentar</Button>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <DataTable
         columns={columns}
         data={usersResult?.data ?? []}
         isLoading={isLoading}
-        searchPlaceholder="Buscar por nombre, email o institución..."
+        searchPlaceholder="Buscar por nombre o email..."
         onSearch={(value) => {
           setSearch(value)
           setPage(1)
