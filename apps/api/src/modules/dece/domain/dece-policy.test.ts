@@ -12,16 +12,15 @@ const teacher = { id: 'teacher', institutionId: 'school', roles: ['teacher'], ca
 describe('política independiente de DECE', () => {
   it('mantiene apagada la recepción por defecto', () => {
     expect(resolveSettings(null).enabled).toBe(false)
-    expect(canReport(teacher, DEFAULT_SETTINGS, true, true)).toBe(false)
+    expect(canReport(teacher, DEFAULT_SETTINGS, true)).toBe(false)
   })
-  it('exige módulo, visibilidad, reporte y cifrado para aceptar una alerta', () => {
+  it('exige módulo, visibilidad y permiso de reporte para aceptar una alerta', () => {
     const enabled = { ...DEFAULT_SETTINGS, enabled: true }
-    expect(canReport(teacher, enabled, true, true)).toBe(true)
-    expect(canReport(teacher, enabled, false, true)).toBe(false)
-    expect(canReport(teacher, enabled, true, false)).toBe(false)
-    expect(canReport(teacher, { ...enabled, visibleRoles: [] }, true, true)).toBe(false)
-    expect(canReport(teacher, { ...enabled, reporterRoles: [] }, true, true)).toBe(false)
-    expect(canReport({ ...teacher, roles: ['admin'] }, enabled, true, true)).toBe(false)
+    expect(canReport(teacher, enabled, true)).toBe(true)
+    expect(canReport(teacher, enabled, false)).toBe(false)
+    expect(canReport(teacher, { ...enabled, visibleRoles: [] }, true)).toBe(false)
+    expect(canReport(teacher, { ...enabled, reporterRoles: [] }, true)).toBe(false)
+    expect(canReport({ ...teacher, roles: ['admin'] }, enabled, true)).toBe(false)
   })
   it('respeta los módulos de plataforma sin activar el módulo por guardar el resto', () => {
     expect(platformAllows({ modules: ['incidents'] })).toBe(false)

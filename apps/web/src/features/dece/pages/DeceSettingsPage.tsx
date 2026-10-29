@@ -75,12 +75,7 @@ export function DeceSettingsPage() {
               reportes.
             </p>
           )}
-          {!query.data.encryptionReady && (
-            <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-              El administrador técnico debe configurar el almacenamiento cifrado del servidor antes
-              de activar la recepción.
-            </p>
-          )}
+
           <label className="flex items-center gap-2 font-medium">
             <input
               type="checkbox"

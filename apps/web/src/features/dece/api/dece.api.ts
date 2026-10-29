@@ -41,7 +41,6 @@ export interface DeceConfig {
 }
 export interface SettingsResponse extends DeceConfig {
   platformEnabled: boolean
-  encryptionReady: boolean
   roles: Array<{ name: string; label: string }>
   staff: Staff[]
 }

@@ -8,22 +8,26 @@ maoeducation. Si ya tienes una copia de producción restaurada, ve al paso 5.
 Guardar en un gestor de contraseñas compartido con las personas responsables:
 
 - El archivo auleka-backups.agekey: abre los backups .dump.age.
-- DECE_ENCRYPTION_KEY de producción: abre los registros protegidos de DECE.
 - Las credenciales de acceso a Railway, Cloudflare y al repositorio.
 
-En la computadora donde se creó la llave, el archivo está dentro del proyecto:
+Cuando necesites restaurar, recuperar el archivo del gestor de contraseñas y
+guardarlo fuera del proyecto, en esta ruta de tu usuario:
 
 ```text
-backups/keys/auleka-backups.agekey
+~/.config/auleka/auleka-backups.agekey
 ```
 
-En otra computadora, recuperar ese mismo archivo del gestor de contraseñas y
-guardarlo en esa misma ruta dentro del proyecto. La carpeta backups no se
-descarga al clonar el repositorio. Crear la carpeta si hace falta:
+Crear la carpeta antes de guardar allí el archivo recuperado:
 
 ```bash
-mkdir -p backups/keys
+mkdir -p "$HOME/.config/auleka"
+chmod 700 "$HOME/.config/auleka"
+# Guardar aquí el archivo original recuperado del gestor de contraseñas.
+chmod 600 "$HOME/.config/auleka/auleka-backups.agekey"
 ```
+
+En otra computadora, recuperar el mismo archivo y usar esta ruta. La clave
+privada no forma parte del repositorio.
 
 No generar otra llave para abrir una copia anterior. No subir el archivo a Git
 ni guardarlo en las variables de Railway. Railway solo necesita la clave pública
@@ -87,7 +91,7 @@ Recuperar la llave original como indica el paso 1. Descifrar:
 
 ```bash
 docker run --rm -i --user 0:0 \
-  --mount "type=bind,src=$PWD/backups/keys/auleka-backups.agekey,dst=/identity,readonly" \
+  --mount "type=bind,src=$HOME/.config/auleka/auleka-backups.agekey,dst=/identity,readonly" \
   --entrypoint age auleka-db-backup:local \
   --decrypt --identity /identity \
   < backups/restore/production.dump.age \
@@ -147,8 +151,6 @@ No ejecutar setup:local ni db:seed sobre esa copia.
 
 - JWT_SECRET: acceso a la aplicación. El setup crea una propia en apps/api/.env.
 - JWT_REFRESH_SECRET: renovación de sesiones. El setup también la genera.
-- DECE_ENCRYPTION_KEY: lectura y escritura de registros DECE protegidos. Va en
-  API → Variables en Railway y en apps/api/.env en local.
 - BACKUP_AGE_RECIPIENT: clave pública age1... para crear backups cifrados. Va en
   db-backups → Variables en Railway.
 - auleka-backups.agekey: archivo privado que abre esos backups. Se conserva en
@@ -157,24 +159,17 @@ No ejecutar setup:local ni db:seed sobre esa copia.
 - BACKUP_S3_SECRET_ACCESS_KEY: Secret Access Key de R2. Va en db-backups → Variables.
   No es el valor llamado API Token que muestra Cloudflare.
 
-Para DECE con datos nuevos, generar una clave una sola vez:
+DECE ya no requiere DECE_ENCRYPTION_KEY. Sus reportes y actuaciones se guardan
+sin cifrado específico de la aplicación y mantienen permisos por institución y
+responsable. La identidad age sigue siendo necesaria para abrir los backups.
+Si una copia antigua contiene DECE cifrado, conservar su clave histórica y
+convertir esos registros antes de aplicar la nueva migración.
 
-```bash
-openssl rand -hex 32
-```
-
-Guardar el resultado en apps/api/.env:
-
-```dotenv
-DECE_ENCRYPTION_KEY=PEGAR_EL_RESULTADO
-```
-
-Reiniciar la API. Para leer DECE de una copia de producción, usar la clave
-original de producción, recuperada por un canal privado. Una nueva no abre los
-registros anteriores. No reemplazar la clave de producción por una nueva.
-
-La carpeta backups guarda descargas, pruebas y la llave local. Railway no lee
-esa carpeta. No borrarla sin haber guardado la identidad privada en otro lugar.
+La carpeta backups/ solo sirve para descargas y restauraciones temporales. Railway
+no la utiliza. Se puede eliminar al terminar de restaurar y verificar la copia
+de R2. La clave privada se conserva fuera del proyecto y en el gestor de
+contraseñas. Mantener infra/backups/: contiene el código que Railway ejecuta
+para generar los respaldos automáticos.
 
 ## 7. Iniciar y detener el trabajo diario
 

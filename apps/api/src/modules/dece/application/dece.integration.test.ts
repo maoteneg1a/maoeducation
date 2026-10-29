@@ -12,7 +12,6 @@ vi.mock('../../../config/env', () => ({
   },
 }))
 import { DeceService } from './dece.service'
-import { DeceCrypto } from '../infrastructure/dece-crypto'
 import { DEFAULT_SETTINGS, type DeceActor } from '../domain/dece-policy'
 import { createDeceRoutes } from '../presentation/dece.routes'
 import { tokenService } from '../../../shared/infrastructure/services/token.service'
@@ -35,7 +34,6 @@ suite('DECE: PostgreSQL y API autenticada', () => {
   let app: FastifyInstance
   let school: string
   let actors: Record<string, DeceActor>
-  const crypto = new DeceCrypto('7c'.repeat(32))
   const report = (extra: Record<string, unknown> = {}) => ({
     requestId: randomUUID(),
     concern: 'other',
@@ -64,7 +62,7 @@ suite('DECE: PostgreSQL y API autenticada', () => {
   const open = () => service.createReport(actors.teacher, report())
   beforeAll(() => {
     db = new PrismaClient({ datasources: { db: { url: testUrl! } }, log: [] })
-    service = new DeceService(crypto, db)
+    service = new DeceService(db)
   })
   beforeEach(async () => {
     const institution = await db.institution.create({
@@ -128,15 +126,14 @@ suite('DECE: PostgreSQL y API autenticada', () => {
     await db?.$disconnect()
   })
 
-  it('registra una alerta cifrada, devuelve un acuse mínimo y avisa únicamente al receptor', async () => {
+  it('registra una alerta sin clave adicional, devuelve un acuse mínimo y avisa únicamente al receptor', async () => {
     const response = await request(actors.student, 'POST', '/reports', report())
     expect(response.statusCode).toBe(201)
     expect(Object.keys(response.json()).sort()).toEqual(['createdAt', 'id'])
     expect(response.headers['cache-control']).toBe('no-store')
     const id = response.json().id
     const saved = await db.deceCase.findUniqueOrThrow({ where: { id } })
-    expect(saved.encryptedReport).not.toContain('Relato confidencial')
-    expect(saved.encryptedReport).not.toContain('Contacto de prueba')
+    expect(saved.reportContent).toMatchObject({ narrative: expect.stringContaining('Relato confidencial') })
     const detail = await request(actors.primary, 'GET', `/cases/${id}`)
     expect(detail.statusCode).toBe(200)
     expect(detail.json().report.reporterName).toBe('student Ficticio')
@@ -329,7 +326,7 @@ suite('DECE: PostgreSQL y API autenticada', () => {
     expect(detail.status).toBe('follow_up')
     expect(detail.actions).toHaveLength(3)
     const stored = await db.deceCaseAction.findMany({ where: { caseId: id } })
-    expect(stored.every((a) => !a.encryptedContent.includes('acompañamiento'))).toBe(true)
+    expect(stored.every((a) => typeof a.content === 'object' && a.content !== null)).toBe(true)
   })
   it('conserva otras configuraciones y rechaza una recepción sin responsables distintos', async () => {
     const stored = await db.institution.findUniqueOrThrow({ where: { id: school } })
@@ -397,21 +394,15 @@ suite('DECE: PostgreSQL y API autenticada', () => {
     expect((await request(actors.teacher, 'POST', '/reports', report())).statusCode).toBe(403)
     expect((await request(actors.student, 'POST', '/reports', report())).statusCode).toBe(201)
   })
-  it('no permite activar la recepción sin cifrado y la clave ausente impide registrar información', async () => {
-    const unavailable = new DeceService(new DeceCrypto(), db)
-    await expect(
-      unavailable.saveSettings(actors.admin, {
-        ...DEFAULT_SETTINGS,
-        enabled: true,
-        primaryReceiverId: actors.primary.id,
-        alternateReceiverId: actors.backup.id,
-        alternativeContact: 'Alternativa',
-      }),
-    ).rejects.toMatchObject({ statusCode: 400 })
-    await expect(unavailable.createReport(actors.teacher, report())).rejects.toMatchObject({
-      statusCode: 403,
+  it('permite configurar y reportar sin una clave de cifrado DECE', async () => {
+    const standalone = new DeceService(db)
+    await standalone.saveSettings(actors.admin, {
+      ...DEFAULT_SETTINGS, enabled: true,
+      primaryReceiverId: actors.primary.id, alternateReceiverId: actors.backup.id,
+      alternativeContact: 'Alternativa',
     })
-    expect(await db.deceCase.count({ where: { institutionId: school } })).toBe(0)
+    await standalone.createReport(actors.teacher, report())
+    expect(await db.deceCase.count({ where: { institutionId: school } })).toBe(1)
   })
   it('la referencia de un expediente no puede asociarse a otra institución mediante la BD', async () => {
     const { id } = await open()
@@ -426,10 +417,10 @@ suite('DECE: PostgreSQL y API autenticada', () => {
       }),
     ).rejects.toMatchObject({ code: 'P2003' })
   })
-  it('una clave incorrecta no filtra el contenido ni marca como exitosa la lectura', async () => {
+  it('un contenido inválido no filtra datos ni marca como exitosa la lectura', async () => {
     const { id } = await open()
-    const wrongKeyService = new DeceService(new DeceCrypto('9d'.repeat(32)), db)
-    await expect(wrongKeyService.detail(actors.primary, id)).rejects.toMatchObject({
+    await db.deceCase.update({ where: { id }, data: { reportContent: 'contenido inválido' } })
+    await expect(service.detail(actors.primary, id)).rejects.toMatchObject({
       statusCode: 503,
     })
     expect(await db.deceAuditLog.count({ where: { caseId: id, action: 'case_read' } })).toBe(0)

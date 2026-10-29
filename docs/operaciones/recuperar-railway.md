@@ -15,8 +15,8 @@ manifest.json de la misma carpeta a backups/restore/.
 
 Recuperar del gestor de contraseñas:
 
-- La identidad privada original, y guardarla en backups/keys/auleka-backups.agekey.
-- DECE_ENCRYPTION_KEY de producción si se perdió la configuración de la API.
+- La identidad privada original, y guardarla en ~/.config/auleka/auleka-backups.agekey.
+- La clave histórica DECE solo si la copia elegida contiene registros del formato cifrado anterior.
 
 Descifrar y comprobar los dos checksums como indica el paso 4 de la guía
 práctica o la guía de restauración local. El resultado debe ser:
@@ -120,8 +120,10 @@ Si la API usa PgBouncer, reconfigurar también el pooler hacia PostgresRecovery:
 DATABASE_URL debe seguir apuntando al pooler y DIRECT_URL a la conexión directa
 nueva. No dejar el pooler conectado a la base anterior.
 
-Conservar DECE_ENCRYPTION_KEY con su valor original y el resto de las variables
-de la API. Conservar también las credenciales del bucket de adjuntos.
+DECE ya no necesita una clave adicional. Si la copia antigua contiene registros
+cifrados, convertirlos con su clave histórica antes de la migración; esta se
+detiene si los detecta. Conservar el resto de variables de la API y las
+credenciales del bucket de adjuntos.
 
 Antes de desplegar, configurar en Settings de la API:
 
@@ -154,7 +156,8 @@ proveedor: el dump y la llave permiten restaurar fuera de Railway también.
 ## Qué se necesita conservar
 
 R2 guarda la base cifrada hasta la fecha de cada respaldo. La identidad age abre
-el archivo; DECE_ENCRYPTION_KEY abre los registros DECE dentro de la base. Son
-llaves distintas. Los adjuntos necesitan además su almacenamiento original.
+el archivo y debe conservarse fuera de Railway. DECE ya no requiere una clave
+adicional para los registros nuevos. Los adjuntos necesitan su almacenamiento
+original. Las copias históricas con DECE cifrado requieren su clave anterior.
 
 Referencia: https://docs.railway.com/databases/postgresql

@@ -120,7 +120,7 @@ no ejecutar antes `setup:local`: cargaría un esquema y datos demo.
    expresamente el reemplazo de la anterior. No mezclar datos con seeds.
 6. Anonimizar datos y desactivar correo/push/credenciales externas antes de usar
    la copia con la aplicación. Generar claves JWT locales; no copiar el `.env`
-   de producción. Custodiar la clave DECE aparte si se necesita recuperar sus datos.
+   de producción. Las copias antiguas con DECE cifrado requieren su clave histórica.
 7. Apuntar `DATABASE_URL` y `DIRECT_URL` a la base restaurada. Aplicar solamente
    las migraciones pendientes con `pnpm db:migrate:prod`; no ejecutar el setup
    completo ni volver a sembrar los usuarios demo sobre la copia de producción.
@@ -135,8 +135,8 @@ El ejemplo de API local es `apps/api/.env.example`; el ejemplo para Railway es
 variables en Railway. Cambiar un `.env` local no cambia la base de Railway.
 
 IA, correo, notificaciones push y S3 son opcionales en desarrollo. Los adjuntos
-se guardan en disco local por defecto. Para habilitar DECE, crear una clave con
-`openssl rand -hex 32`, guardarla en `DECE_ENCRYPTION_KEY` y conservarla.
+se guardan en disco local por defecto. DECE se habilita desde la configuración institucional y no requiere
+una clave adicional de cifrado.
 
 ```sh
 pnpm lint
