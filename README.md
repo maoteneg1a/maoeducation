@@ -2,6 +2,9 @@
 
 Monorepo con API Fastify/Prisma, aplicación React y sitio público Astro.
 
+**Empieza aquí:** [Guía práctica paso a paso: instalación, claves y respaldos](docs/operaciones/guia-practica.md).
+Para un incidente de producción: [Recuperar la base en Railway](docs/operaciones/recuperar-railway.md).
+
 ## Instalar desde cero
 
 Requisitos: Git, Node.js 22 (22.13 o superior dentro de la rama 22),
