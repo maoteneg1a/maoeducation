@@ -97,6 +97,11 @@ a la nueva, edita las dos URLs de la API y reinicia el backend.
 
 ## Cargar una copia de producción
 
+Guía completa con comandos de Docker, descifrado y configuración de DBeaver:
+[Restaurar un respaldo en local](docs/operaciones/restaurar-base-local.md).
+También se consulta en la consola de plataforma → Documentación
+(`/platform/documentation`), con una cuenta de propietario de plataforma.
+
 Para restaurar manualmente en DBeaver, iniciar la instancia 18 con `pnpm db:up`
 y conectarse al puerto 5434. Si vas a restaurar sobre `maoeducation` vacía,
 no ejecutar antes `setup:local`: cargaría un esquema y datos demo.
@@ -140,3 +145,12 @@ pnpm db:studio
 
 Ver [respaldo manual](docs/backups-locales.md) y
 [servicio de respaldos automáticos](infra/backups/README.md).
+
+## Mantener la documentación de operaciones
+
+Editar `docs/operaciones/restaurar-base-local.md` y ejecutar `pnpm docs:sync`.
+La guía se incorpora al servidor para que la API pueda exigir una sesión de
+propietario de plataforma; el frontend no incluye su contenido como archivo
+público. `pnpm docs:check` comprueba que el contenido generado esté actualizado.
+La compilación de la API también lo sincroniza antes de empaquetarlo.
+La ruta de consulta es `/platform/documentation`.

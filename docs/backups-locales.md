@@ -4,6 +4,9 @@ Para el servicio automático en Railway con cifrado y almacenamiento externo,
 ver [infra/backups/README.md](../infra/backups/README.md). Este documento describe
 el procedimiento manual local.
 
+Para recuperar una copia descargada de R2, ver
+[restauración local paso a paso](operaciones/restaurar-base-local.md).
+
 Se utiliza Docker Desktop. La conexión de producción se guarda exclusivamente
 en `apps/api/.env.backup.local`, con permisos `600`, mediante la variable
 `PROD_DATABASE_URL`. Debe ser una conexión pública directa a PostgreSQL.

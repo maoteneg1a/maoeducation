@@ -5,7 +5,7 @@
   "scripts": {
     "postinstall": "prisma generate",
     "dev": "tsx watch src/server.ts",
-    "build": "pnpm db:generate && tsup src/server.ts --format cjs --out-dir dist",
+    "build": "pnpm docs:generate && pnpm db:generate && tsup src/server.ts --format cjs --out-dir dist",
     "start": "node dist/server.js",
     "start:prod": "pnpm db:migrate:prod && pnpm db:seed && node dist/server.js",
     "lint": "tsc --noEmit",
@@ -16,7 +16,8 @@
     "db:seed": "tsx prisma/seeds/index.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
-    "db:seed:curriculum": "tsx scripts/seed-global-curriculum-catalog.ts"
+    "db:seed:curriculum": "tsx scripts/seed-global-curriculum-catalog.ts",
+    "docs:generate": "node ../../scripts/generate-platform-docs.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seeds/index.ts"

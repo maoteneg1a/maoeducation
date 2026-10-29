@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import platformDocumentationRoutes from './platform-documentation.routes'
 import { AUTH_RATE_LIMIT } from '../../../shared/infrastructure/plugins/rate-limit'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { tokenService } from '../../../shared/infrastructure/services/token.service'
@@ -62,6 +63,7 @@ const adminUserBody = {
 } as const
 
 export default async function platformRoutes(app: FastifyInstance) {
+  await app.register(platformDocumentationRoutes)
   // ----- Auth de plataforma (público) -----
   app.post<{ Body: PlatformLoginBody }>(
     '/platform/login',

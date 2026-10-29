@@ -720,6 +720,13 @@ export const router = createBrowserRouter([
           })),
       },
       {
+        path: 'documentation',
+        lazy: () =>
+          import('@/features/platform/pages/PlatformDocumentationPage').then((m) => ({
+            Component: m.PlatformDocumentationPage,
+          })),
+      },
+      {
         path: 'team',
         lazy: () =>
           import('@/features/platform/pages/TeamPage').then((m) => ({
