@@ -6,6 +6,7 @@ build/
 .env.local
 .env.backup.local
 /backups/
+/.local-setup/
 *.dump
 *.log
 .DS_Store
