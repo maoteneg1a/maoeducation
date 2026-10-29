@@ -1,29 +1,16 @@
-import { useMemo, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { type ColumnDef } from '@tanstack/react-table'
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { AlarmClock, Building2, CreditCard, Eye, LogIn, MessageSquare, PowerOff, Users } from 'lucide-react'
+import { AlarmClock, Building2, CreditCard, Eye, MessageSquare, PowerOff, Users } from 'lucide-react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { toast } from 'sonner'
-import { Badge } from '@/shared/components/ui/badge'
-import { Button } from '@/shared/components/ui/button'
-import { DataTable } from '@/shared/components/ui/data-table'
-import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
 import { Skeleton } from '@/shared/components/ui/skeleton'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
-import { useAuthStore } from '@/store/auth.store'
-import { cn, formatDate, getErrorMessage } from '@/shared/lib/utils'
-import { platformApi, type PlatformUser } from '../api/platform.api'
-import { usePlatformAlerts, usePlatformRole } from '../hooks/usePlatform'
-
-const USERS_PAGE_SIZE = 20
+import { cn, formatDate } from '@/shared/lib/utils'
+import { platformApi } from '../api/platform.api'
+import { usePlatformAlerts } from '../hooks/usePlatform'
 
 function fmtDay(d: string) {
   return new Intl.DateTimeFormat('es-EC', { day: '2-digit', month: 'short' }).format(new Date(d))
-}
-
-function fmtDateTime(d: string) {
-  return new Intl.DateTimeFormat('es-EC', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(d))
 }
 
 function mergeSeries(
@@ -161,30 +148,10 @@ function AlertsRow() {
 }
 
 export function StatsPage() {
-  const { can } = usePlatformRole()
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['platform-stats-overview'],
     queryFn: platformApi.getStatsOverview,
     refetchInterval: 60_000,
-  })
-
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-
-  const { data: usersResult, isLoading: usersLoading } = useQuery({
-    queryKey: ['platform-users', search, page],
-    queryFn: () => platformApi.getPlatformUsers({ search: search || undefined, page, limit: USERS_PAGE_SIZE }),
-  })
-
-  const setAuth = useAuthStore((s) => s.setAuth)
-  const { mutate: impersonate, isPending: isImpersonating } = useMutation({
-    mutationFn: (userId: string) => platformApi.impersonateUser(userId),
-    onSuccess: (data) => {
-      // El token de suplantación dura 30 min (sin refresh); el banner muestra el tiempo restante.
-      setAuth(data.user, data.accessToken, { expiresAt: new Date(Date.now() + 30 * 60_000).toISOString() })
-      window.location.href = '/dashboard'
-    },
-    onError: (err) => toast.error(getErrorMessage(err)),
   })
 
   const signupsSeries = useMemo(
@@ -192,67 +159,8 @@ export function StatsPage() {
     [stats],
   )
 
-  const columns: ColumnDef<PlatformUser>[] = [
-    { accessorKey: 'fullName', header: 'Usuario' },
-    { accessorKey: 'email', header: 'Email' },
-    { accessorKey: 'institutionName', header: 'Institución' },
-    {
-      id: 'accountType',
-      header: 'Tipo',
-      cell: ({ row }) => (
-        <Badge variant={row.original.accountType === 'personal' ? 'outline' : 'secondary'}>
-          {row.original.accountType === 'personal' ? 'Personal' : 'Institución'}
-        </Badge>
-      ),
-    },
-    {
-      id: 'roles',
-      header: 'Roles',
-      cell: ({ row }) => <span className="text-sm text-slate-500">{row.original.roles.join(', ')}</span>,
-    },
-    {
-      accessorKey: 'isActive',
-      header: 'Estado',
-      cell: ({ row }) => (
-        <Badge variant={row.original.isActive ? 'success' : 'destructive'}>
-          {row.original.isActive ? 'Activo' : 'Inactivo'}
-        </Badge>
-      ),
-    },
-    {
-      accessorKey: 'createdAt',
-      header: 'Registrado',
-      cell: ({ row }) => <span className="text-sm text-slate-500">{fmtDateTime(row.original.createdAt)}</span>,
-    },
-    {
-      id: 'actions',
-      header: '',
-      cell: ({ row }) =>
-        can('impersonate') ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={isImpersonating}
-            onClick={async () => {
-              const ok = await confirmDialog({
-                title: `¿Ingresar como ${row.original.fullName}?`,
-                description:
-                  'Verás la app exactamente como este usuario. La sesión dura 30 minutos y todo lo que hagas queda registrado en la auditoría.',
-                confirmText: 'Ingresar',
-              })
-              if (ok) impersonate(row.original.id)
-            }}
-          >
-            <LogIn className="w-4 h-4 mr-1.5" />
-            Ingresar como
-          </Button>
-        ) : null,
-    },
-  ]
-
   if (statsLoading || !stats) return <PageLoader />
 
-  const totalUserPages = usersResult ? Math.max(1, Math.ceil(usersResult.total / USERS_PAGE_SIZE)) : 1
   const maxPageViewCount = Math.max(1, ...stats.pageViews.topPages.map((p) => p.count))
 
   return (
@@ -326,35 +234,6 @@ export function StatsPage() {
         )}
       </div>
 
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-700">Usuarios registrados</h2>
-        <DataTable
-          columns={columns}
-          data={usersResult?.data ?? []}
-          isLoading={usersLoading}
-          searchPlaceholder="Buscar por nombre, email o institución..."
-          onSearch={(value) => {
-            setSearch(value)
-            setPage(1)
-          }}
-          emptyMessage="Sin usuarios"
-        />
-        {usersResult && usersResult.total > USERS_PAGE_SIZE && (
-          <div className="flex items-center justify-between text-sm text-slate-500">
-            <span>
-              Página {page} de {totalUserPages} · {usersResult.total} usuarios
-            </span>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                Anterior
-              </Button>
-              <Button variant="outline" size="sm" disabled={page >= totalUserPages} onClick={() => setPage((p) => p + 1)}>
-                Siguiente
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   )
 }

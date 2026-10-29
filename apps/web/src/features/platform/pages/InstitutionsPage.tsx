@@ -4,12 +4,13 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Users, LayoutGrid, Sparkles, Settings } from 'lucide-react'
+import { Building2, Plus, Users, LayoutGrid, Sparkles, Settings } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { Badge } from '@/shared/components/ui/badge'
 import { DataTable } from '@/shared/components/ui/data-table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -37,6 +38,7 @@ import {
 import type { Institution } from '../api/platform.api'
 import { ALL_MODULES, MODULE_GROUPS, MODULE_LABELS, PERSONAL_DEFAULT_MODULES, type ModuleKey } from '@/shared/lib/modules'
 import { InstitutionConfigDialog } from '../components/InstitutionConfigDialog'
+import { PlatformUsersTable } from '../components/PlatformUsersTable'
 
 const schema = z.object({
   name: z.string().min(2, 'Mínimo 2 caracteres'),
@@ -330,27 +332,46 @@ export function InstitutionsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Instituciones</h1>
-          <p className="text-sm text-slate-500">Crea y administra las instituciones de la plataforma</p>
+          <p className="text-sm text-slate-500">Administra las instituciones y sus usuarios</p>
         </div>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={filteredInstitutions}
-        isLoading={isLoading}
-        searchPlaceholder="Buscar por nombre o código..."
-        onSearch={setSearch}
-        emptyMessage={search ? 'Sin coincidencias' : 'Sin instituciones'}
-        emptyDescription={search ? 'Prueba con otro nombre o código' : 'Crea la primera institución para empezar'}
-        action={
-          isOwner ? (
-            <Button onClick={openCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nueva institución
-            </Button>
-          ) : undefined
-        }
-      />
+      <Tabs defaultValue="institutions" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="institutions">
+            <Building2 className="h-4 w-4" />
+            Instituciones
+          </TabsTrigger>
+          <TabsTrigger value="users">
+            <Users className="h-4 w-4" />
+            Usuarios
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="institutions" className="mt-0">
+          <DataTable
+            columns={columns}
+            data={filteredInstitutions}
+            isLoading={isLoading}
+            searchPlaceholder="Buscar por nombre o código..."
+            onSearch={setSearch}
+            emptyMessage={search ? 'Sin coincidencias' : 'Sin instituciones'}
+            emptyDescription={search ? 'Prueba con otro nombre o código' : 'Crea la primera institución para empezar'}
+            action={
+              isOwner ? (
+                <Button onClick={openCreate}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nueva institución
+                </Button>
+              ) : undefined
+            }
+          />
+        </TabsContent>
+
+        <TabsContent value="users" className="mt-0">
+          <PlatformUsersTable />
+        </TabsContent>
+      </Tabs>
 
       {/* Dialog — Crear institución */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
