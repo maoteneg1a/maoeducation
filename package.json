@@ -19,7 +19,9 @@
     "dev:local": "bash scripts/dev.sh",
     "db:up": "docker compose up -d --wait postgres18",
     "db:stop": "docker compose stop postgres18",
-    "test:setup": "node --test scripts/setup-local.test.mjs"
+    "test:setup": "node --test scripts/setup-local.test.mjs",
+    "docs:sync": "node scripts/generate-platform-docs.mjs",
+    "docs:check": "node scripts/generate-platform-docs.mjs --check"
   },
   "devDependencies": {
     "turbo": "^2.3.3"
