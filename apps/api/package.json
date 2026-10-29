@@ -15,7 +15,8 @@
     "db:migrate:prod": "prisma migrate deploy",
     "db:seed": "tsx prisma/seeds/index.ts",
     "db:studio": "prisma studio",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "db:seed:curriculum": "tsx scripts/seed-global-curriculum-catalog.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seeds/index.ts"

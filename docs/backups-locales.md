@@ -42,6 +42,8 @@ El dump no incluye archivos adjuntos externos, roles globales de PostgreSQL ni
 claves de cifrado. Conservar la clave de DECE por un canal seguro independiente
 y respaldar el almacenamiento de adjuntos para poder recuperar la aplicación.
 
-Producción usa PostgreSQL 18. El `docker-compose.yml` existente usa PostgreSQL 16:
-no se debe apuntar la imagen 18 al volumen 16 existente. Para desarrollo con esta
-copia, crear una base y un volumen nuevos de la versión 18 y restaurar allí.
+Producción usa PostgreSQL 18. `pnpm db:up` inicia una instancia local de la misma
+versión en `localhost:5434`, con un volumen independiente. El PostgreSQL 16
+anterior se conserva en `localhost:5433` mediante el servicio opcional `postgres`.
+No apuntar la imagen 18 al volumen 16 existente. Para elegir la base que usa la
+API, configurar `DATABASE_URL` y `DIRECT_URL` en `apps/api/.env`; ver el README.

@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-Node.js is managed via nvm. Always prefix commands with:
+Use Node.js 22 and pnpm 10.32.1. With nvm:
 ```bash
-export PATH="$HOME/.nvm/versions/node/v20.19.5/bin:$PATH"
+nvm use
 ```
 
 ### Development
@@ -17,10 +17,16 @@ bash scripts/dev.sh
 # Or individually:
 cd apps/api  && pnpm dev   # API on :3000
 cd apps/web  && pnpm dev   # Frontend on :5173
-docker compose up -d        # PostgreSQL on :5433
+docker compose up -d postgres18  # PostgreSQL 18 on :5434
+# Existing PostgreSQL 16 remains available with: docker compose up -d postgres
 ```
 
 ### Database
+
+Fresh installation: see README.md and run `pnpm setup:local:env`,
+`pnpm install --frozen-lockfile`, then `pnpm setup:local`.
+The active database is selected by DATABASE_URL/DIRECT_URL in apps/api/.env.
+Never replace an existing .env or reuse the PostgreSQL 16 volume with version 18.
 ```bash
 cd apps/api
 pnpm db:migrate      # Run pending migrations (dev)

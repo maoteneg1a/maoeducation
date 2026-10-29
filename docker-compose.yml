@@ -1,5 +1,25 @@
 services:
+  postgres18:
+    image: postgres:18-alpine
+    container_name: maoeducation_db18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: maoedu
+      POSTGRES_PASSWORD: maoedu_dev
+      POSTGRES_DB: maoeducation
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - postgres18_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maoedu -d maoeducation"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # Base anterior: se conserva su volumen y solo se inicia explícitamente.
   postgres:
+    profiles: [legacy]
     image: postgres:16-alpine
     container_name: maoeducation_db
     restart: unless-stopped
@@ -13,4 +33,5 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
 volumes:
+  postgres18_data:
   postgres_data:
