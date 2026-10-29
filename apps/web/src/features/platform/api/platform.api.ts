@@ -225,7 +225,7 @@ export const platformApi = {
   },
 
   getStatsOverview: () => platformGet<StatsOverview>('platform/stats/overview'),
-  getPlatformUsers: (params: { page?: number; limit?: number; search?: string }) =>
+  getPlatformUsers: (params: { institutionId: string; page?: number; limit?: number; search?: string }) =>
     platformGet<{ data: PlatformUser[]; total: number }>('platform/users', params),
   impersonateUser: (userId: string) =>
     platformPost<{ accessToken: string; user: AuthUser; impersonation: { expiresIn: string } }>(

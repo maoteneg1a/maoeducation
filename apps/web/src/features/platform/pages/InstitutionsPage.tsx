@@ -4,13 +4,12 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Building2, Plus, Users, LayoutGrid, Sparkles, Settings } from 'lucide-react'
+import { Plus, Users, LayoutGrid, Sparkles, Settings } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { Badge } from '@/shared/components/ui/badge'
 import { DataTable } from '@/shared/components/ui/data-table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -82,6 +81,7 @@ export function InstitutionsPage() {
   const [modulesInstitution, setModulesInstitution] = useState<Institution | null>(null)
   const [selectedModules, setSelectedModules] = useState<string[]>([])
   const [configInstitution, setConfigInstitution] = useState<Institution | null>(null)
+  const [usersInstitution, setUsersInstitution] = useState<Institution | null>(null)
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -219,7 +219,17 @@ export function InstitutionsPage() {
     {
       accessorKey: 'userCount',
       header: 'Usuarios',
-      cell: ({ row }) => <span className="tabular-nums">{row.original.userCount}</span>,
+      cell: ({ row }) => (
+        <Button
+          variant="link"
+          size="sm"
+          className="h-auto px-0 font-semibold tabular-nums underline underline-offset-4"
+          aria-label={`Ver ${row.original.userCount} usuarios de ${row.original.name}`}
+          onClick={() => setUsersInstitution(row.original)}
+        >
+          {row.original.userCount}
+        </Button>
+      ),
     },
     {
       id: 'type',
@@ -336,42 +346,34 @@ export function InstitutionsPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="institutions" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="institutions">
-            <Building2 className="h-4 w-4" />
-            Instituciones
-          </TabsTrigger>
-          <TabsTrigger value="users">
-            <Users className="h-4 w-4" />
-            Usuarios
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="institutions" className="mt-0">
-          <DataTable
-            columns={columns}
-            data={filteredInstitutions}
-            isLoading={isLoading}
-            searchPlaceholder="Buscar por nombre o código..."
-            onSearch={setSearch}
-            emptyMessage={search ? 'Sin coincidencias' : 'Sin instituciones'}
-            emptyDescription={search ? 'Prueba con otro nombre o código' : 'Crea la primera institución para empezar'}
-            action={
-              isOwner ? (
-                <Button onClick={openCreate}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nueva institución
-                </Button>
-              ) : undefined
-            }
-          />
-        </TabsContent>
-
-        <TabsContent value="users" className="mt-0">
-          <PlatformUsersTable />
-        </TabsContent>
-      </Tabs>
+      <DataTable
+        columns={columns}
+        data={filteredInstitutions}
+        isLoading={isLoading}
+        searchPlaceholder="Buscar por nombre o código..."
+        onSearch={setSearch}
+        emptyMessage={search ? 'Sin coincidencias' : 'Sin instituciones'}
+        emptyDescription={search ? 'Prueba con otro nombre o código' : 'Crea la primera institución para empezar'}
+        action={
+          isOwner ? (
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nueva institución
+            </Button>
+          ) : undefined
+        }
+      />
+      <Dialog open={!!usersInstitution} onOpenChange={(open) => { if (!open) setUsersInstitution(null) }}>
+        <DialogContent className="sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Usuarios de {usersInstitution?.name}</DialogTitle>
+            <DialogDescription>Consulta los usuarios y sus roles dentro de esta institución.</DialogDescription>
+          </DialogHeader>
+          {usersInstitution && (
+            <PlatformUsersTable key={usersInstitution.id} institutionId={usersInstitution.id} />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog — Crear institución */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

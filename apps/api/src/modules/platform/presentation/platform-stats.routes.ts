@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { platformAuthMiddleware, requirePlatformRole } from '../../../shared/infrastructure/middleware/platform-auth.middleware'
 import { tokenService } from '../../../shared/infrastructure/services/token.service'
@@ -88,7 +89,7 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
     })
   })
 
-  app.get<{ Querystring: { page?: number; limit?: number; search?: string } }>(
+  app.get<{ Querystring: { institutionId?: string; page?: number; limit?: number; search?: string } }>(
     '/platform/users',
     {
       ...protectedOpts,
@@ -99,6 +100,7 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
             page: { type: 'integer', minimum: 1 },
             limit: { type: 'integer', minimum: 1, maximum: 200 },
             search: { type: 'string' },
+            institutionId: { type: 'string', minLength: 1 },
           },
         },
       },
@@ -109,16 +111,17 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
       const skip = (page - 1) * limit
       const search = req.query.search
 
-      const where = search
-        ? {
-            OR: [
-              { email: { contains: search, mode: 'insensitive' as const } },
-              { profile: { firstName: { contains: search, mode: 'insensitive' as const } } },
-              { profile: { lastName: { contains: search, mode: 'insensitive' as const } } },
-              { institution: { name: { contains: search, mode: 'insensitive' as const } } },
-            ],
-          }
-        : {}
+      const where: Prisma.UserWhereInput = {
+        institutionId: req.query.institutionId,
+        ...(search ? {
+          OR: [
+            { email: { contains: search, mode: 'insensitive' as const } },
+            { profile: { firstName: { contains: search, mode: 'insensitive' as const } } },
+            { profile: { lastName: { contains: search, mode: 'insensitive' as const } } },
+            { institution: { name: { contains: search, mode: 'insensitive' as const } } },
+          ],
+        } : {}),
+      }
 
       const [users, total] = await Promise.all([
         prisma.user.findMany({
