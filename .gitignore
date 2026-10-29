@@ -4,6 +4,9 @@ build/
 .turbo/
 .env
 .env.local
+.env.backup.local
+/backups/
+*.dump
 *.log
 .DS_Store
 coverage/
