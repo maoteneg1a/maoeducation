@@ -42,8 +42,9 @@ y no actualiza semanalmente desarrollo. Esas tareas se deben configurar aparte
 con destino, cifrado, retención y alertas definidos.
 
 El dump no incluye archivos adjuntos externos, roles globales de PostgreSQL ni
-claves de cifrado. Conservar la clave de DECE por un canal seguro independiente
-y respaldar el almacenamiento de adjuntos para poder recuperar la aplicación.
+claves privadas age. Conservar la identidad age en un gestor de contraseñas
+y respaldar el almacenamiento de adjuntos. DECE no requiere clave para los
+registros nuevos; las copias antiguas cifradas requieren su clave histórica.
 
 Producción usa PostgreSQL 18. `pnpm db:up` inicia una instancia local de la misma
 versión en `localhost:5434`, con un volumen independiente. El PostgreSQL 16

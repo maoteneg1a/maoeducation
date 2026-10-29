@@ -44,10 +44,14 @@ describe('documentación privada de operaciones', () => {
     const response = await app.inject({ method: 'GET', url: '/platform/documentation', headers: { authorization: `Bearer ${token}` } })
     expect(response.statusCode).toBe(200)
     expect(response.headers['cache-control']).toBe('private, no-store')
-    const guide = response.json().guides[0]
+    const guides = response.json().guides
+    expect(guides.map((guide: { id: string }) => guide.id)).toEqual(['getting-started', 'restore-local-database', 'recover-railway'])
+    const guide = guides.find((guide: { id: string }) => guide.id === 'restore-local-database')
     expect(guide.id).toBe('restore-local-database')
     expect(guide.content).toContain('--single-transaction')
     expect(guide.content).toContain('localhost:5434')
     expect(guide.content).not.toContain('AGE-SECRET-KEY-')
+    expect(guides[0].content).toContain('gestor de contraseñas')
+    expect(guides[2].content).toContain('PostgresRecovery')
   })
 })

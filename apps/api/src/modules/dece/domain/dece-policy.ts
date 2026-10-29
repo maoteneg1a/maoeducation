@@ -42,11 +42,9 @@ export const canReport = (
   actor: DeceActor,
   settings: DeceSettings,
   platformEnabled: boolean,
-  encryptionReady: boolean,
 ) =>
   settings.enabled &&
   platformEnabled &&
-  encryptionReady &&
   roleMatches(actor.roles, settings.visibleRoles) &&
   roleMatches(actor.roles, settings.reporterRoles)
 export function safeReceivers(

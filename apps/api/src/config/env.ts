@@ -26,8 +26,6 @@ const schema = z.object({
   // absolutos a /uploads/* embebidos en texto (ej. recursos generados por la IA
   // de planificación), que deben funcionar fuera de la app (compartidos, impresos).
   API_PUBLIC_URL:       z.string().default('http://localhost:3000'),
-  // DECE: clave AES de 32 bytes en hexadecimal, independiente de autenticación.
-  DECE_ENCRYPTION_KEY: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
   // Asistente IA de planificaciones (Claude) — opcional: sin esta key el asistente
   // se deshabilita automáticamente, el resto del módulo de planificación sigue intacto.
   ANTHROPIC_API_KEY:    z.string().optional(),

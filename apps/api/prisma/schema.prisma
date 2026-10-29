@@ -2382,13 +2382,13 @@ model SubscriptionPayment {
   @@map("subscription_payments")
 }
 
-// Expedientes DECE independientes: contenido sensible cifrado por la aplicación.
+// Expedientes DECE independientes: acceso restringido por institución y responsables.
 model DeceCase {
   id String @id @default(uuid())
   institutionId String @map("institution_id")
   reporterId String @map("reporter_id")
   requestId String @map("request_id")
-  encryptedReport String @map("encrypted_report")
+  reportContent Json @map("report_content")
   urgency String @default("unknown") @db.VarChar(10)
   fallbackReceiverId String? @map("fallback_receiver_id")
   status String @default("received") @db.VarChar(30)
@@ -2441,7 +2441,7 @@ model DeceCaseAction {
   caseId String @map("case_id")
   actorId String @map("actor_id")
   type String @db.VarChar(40)
-  encryptedContent String @map("encrypted_content")
+  content Json
   createdAt DateTime @default(now()) @map("created_at")
   case DeceCase @relation(fields: [caseId, institutionId], references: [id, institutionId], onDelete: Restrict)
   actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)

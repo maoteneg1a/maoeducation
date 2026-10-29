@@ -43,7 +43,7 @@ shasum -a 256 backups/restore/production.dump.age
 ```
 
 Necesitas la identidad privada age que se utilizó para esta copia. En el equipo
-original se guardó en backups/keys/auleka-backups.agekey; en otro equipo debes
+actual debes guardarla fuera del proyecto, en ~/.config/auleka/auleka-backups.agekey; en otro equipo debes
 recuperarla del gestor de contraseñas. No generar una nueva: no descifraría las
 copias anteriores. No subir la identidad al repositorio ni pegarla en chats.
 
@@ -53,7 +53,7 @@ se monta en modo de solo lectura y no se imprime:
 ```bash
 docker build -t auleka-db-backup:local infra/backups
 docker run --rm -i --user 0:0 \
-  --mount "type=bind,src=$PWD/backups/keys/auleka-backups.agekey,dst=/identity,readonly" \
+  --mount "type=bind,src=$HOME/.config/auleka/auleka-backups.agekey,dst=/identity,readonly" \
   --entrypoint age auleka-db-backup:local \
   --decrypt --identity /identity \
   < backups/restore/production.dump.age \
@@ -121,7 +121,8 @@ La copia contiene datos reales. Antes de utilizarla con la aplicación,
 anonimizar los datos, eliminar sesiones y suscripciones push copiadas y mantener
 sin configurar RESEND_API_KEY, VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY. Usar claves
 JWT propias y almacenamiento local; no copiar el .env ni las credenciales S3
-de producción. Los datos cifrados DECE requieren custodiar su clave aparte.
+de producción. DECE ya no requiere una clave adicional; conservar la clave
+histórica si la copia contiene registros cifrados anteriores.
 
 Editar apps/api/.env:
 
@@ -143,4 +144,4 @@ pnpm dev:local
 
 No ejecutar setup:local ni db:seed sobre la copia restaurada: añadirían usuarios
 demo. El respaldo de PostgreSQL no incluye los adjuntos del bucket ni las claves
-DECE. Sin esos elementos, ciertas funciones o archivos pueden no estar disponibles.
+históricas. Sin los adjuntos, ciertos archivos pueden no estar disponibles.

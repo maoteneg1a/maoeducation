@@ -75,6 +75,7 @@ export async function initializeDatabase(env) {
     if (baseline) {
       console.log('Base local vacía: crear esquema actual y registrar el historial sin reproducir migraciones antiguas inconsistentes.')
       run('pnpm', ['--filter', 'api', 'exec', 'prisma', 'db', 'push', '--skip-generate'], options)
+      run('pnpm', ['--filter', 'api', 'exec', 'prisma', 'db', 'execute', '--file', '../../scripts/sql/dece-history-guards.sql'], options)
       const [history] = await prisma.$queryRaw`SELECT to_regclass('public._prisma_migrations')::text AS name`
       const applied = new Set(history.name
         ? (await prisma.$queryRaw`SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`).map(row => row.migration_name)

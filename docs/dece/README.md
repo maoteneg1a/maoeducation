@@ -5,7 +5,7 @@ Módulo independiente de Incidentes para recepción de alertas y seguimiento de 
 ## Activación
 
 1. Desplegar la migración `20261025000000_dece_protection_routes` antes de iniciar la nueva API. El arranque de producción existente ejecuta `prisma migrate deploy`.
-2. Configurar en el servidor `DECE_ENCRYPTION_KEY`, una clave independiente de 32 bytes expresada como 64 caracteres hexadecimales. Generarla una vez con `openssl rand -hex 32` y guardarla en el gestor de secretos, con respaldo independiente de la base. No reutilizar JWT_SECRET ni regenerarla en cada despliegue. Cambiarla sin una migración de recifrado impide abrir registros anteriores; esta entrega no implementa rotación de claves.
+2. Aplicar también `20261104000000_dece_plain_content`. DECE no requiere una clave adicional: guarda reportes y actuaciones como JSON con acceso restringido. La migración se detiene si detecta registros cifrados anteriores; no los elimina ni los convierte sin su clave histórica.
 3. En Plataforma → Instituciones → Módulos, habilitar **Rutas y protocolos DECE** (`dece_routes`) si la institución tiene una lista explícita de módulos.
 4. En Administración → **Configurar DECE**, seleccionar dos responsables distintos, activos y con función DECE, rector o inspector. Definir un canal alternativo real y validado por la institución.
 5. Elegir los roles que verán el módulo y los que pueden reportar; luego habilitar nuevos reportes. Los roles personalizados aparecen en esta matriz. La recepción está desactivada por defecto.
@@ -63,4 +63,4 @@ Capturas de ejemplo:
 
 Quedan para la segunda entrega el catálogo y motor de protocolos oficiales versionados, pasos condicionales, plazos validados, tareas, documentos específicos y derivación controlada desde Incidentes. Esta entrega no incorpora protocolos normativos activos, archivos de evidencia, reportes anónimos, integraciones distritales, MFA ni un mecanismo excepcional de recuperación de expedientes.
 
-Antes de usar casos reales sensibles, la institución debe validar sus canales, responsables, privacidad, conservación, controles de autenticación y rutas oficiales aplicables con los profesionales competentes. El cifrado y los permisos implementados no equivalen por sí solos a una certificación jurídica o de seguridad. No se activó el módulo ni se modificaron secretos, configuración o datos de Railway durante esta implementación.
+Antes de usar casos reales sensibles, la institución debe validar sus canales, responsables, privacidad, conservación, controles de autenticación y rutas oficiales aplicables con los profesionales competentes. Los permisos implementados no equivalen por sí solos a una certificación jurídica o de seguridad. No se activó el módulo ni se modificaron secretos, configuración o datos de Railway durante esta implementación.

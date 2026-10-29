@@ -1,9 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
-import { env } from '../../../config/env'
 import { AppError } from '../../../shared/domain/errors/app.errors'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { DeceService } from '../application/dece.service'
-import { DeceCrypto } from '../infrastructure/dece-crypto'
 
 export function createDeceRoutes(service: DeceService) {
   return async function deceRoutes(app: FastifyInstance) {
@@ -74,5 +72,5 @@ export function createDeceRoutes(service: DeceService) {
 }
 
 export default async function deceRoutes(app: FastifyInstance) {
-  return createDeceRoutes(new DeceService(new DeceCrypto(env.DECE_ENCRYPTION_KEY)))(app)
+  return createDeceRoutes(new DeceService())(app)
 }

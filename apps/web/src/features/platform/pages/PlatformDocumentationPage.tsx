@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { BookOpen, Copy } from 'lucide-react'
 import { toast } from 'sonner'
@@ -43,7 +44,7 @@ function GuideContent({ content }: { content: string }) {
         const key = `${index}-${blockIndex}`
         if (block.startsWith('# ')) return <h2 key={key} className="text-xl font-semibold text-slate-900">{block.slice(2)}</h2>
         if (block.startsWith('## ')) return <h3 key={key} className="border-b pb-2 pt-3 text-lg font-semibold text-slate-900">{block.slice(3)}</h3>
-        if (block.startsWith('- ')) return <ul key={key} className="list-disc space-y-1 pl-5 text-sm text-slate-600">{block.split('\n').map((line, lineIndex) => <li key={lineIndex}>{line.replace(/^- /, '')}</li>)}</ul>
+        if (block.startsWith('- ')) return <ul key={key} className="list-disc space-y-1 pl-5 text-sm text-slate-600">{block.split(/\n(?=- )/).map((line, lineIndex) => <li key={lineIndex}>{line.replace(/^- /, '').replace(/\n/g, ' ')}</li>)}</ul>
         return <p key={key} className="text-sm leading-relaxed text-slate-600">{block.replace(/\n/g, ' ')}</p>
       }))}
     </div>
@@ -52,6 +53,7 @@ function GuideContent({ content }: { content: string }) {
 
 export function PlatformDocumentationPage() {
   const { isOwner } = usePlatformRole()
+  const [selectedId, setSelectedId] = useState('getting-started')
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['platform-documentation'],
     queryFn: () => platformGet<{ guides: Guide[] }>('platform/documentation'),
@@ -59,6 +61,7 @@ export function PlatformDocumentationPage() {
     gcTime: 0,
     meta: { persist: false },
   })
+  const selectedGuide = data?.guides.find(guide => guide.id === selectedId) ?? data?.guides[0]
   if (!isOwner) return <Navigate to="/platform" replace />
 
   return (
@@ -69,12 +72,17 @@ export function PlatformDocumentationPage() {
       </div>
       {isLoading && <p role="status" className="text-sm text-slate-500">Cargando documentación…</p>}
       {error && <div role="alert" className="space-y-3"><p className="text-sm text-destructive">{getErrorMessage(error)}</p><Button variant="outline" onClick={() => refetch()}>Reintentar</Button></div>}
-      {data?.guides.map(guide => (
-        <Card key={guide.id}>
-          <CardHeader><CardTitle>{guide.title}</CardTitle><p className="text-sm text-slate-500">{guide.description}</p></CardHeader>
-          <CardContent><GuideContent content={guide.content} /></CardContent>
+      {data && <nav aria-label="Guías de documentación" className="flex flex-wrap gap-2">
+        {data.guides.map(guide => (
+          <Button key={guide.id} variant={selectedGuide?.id === guide.id ? 'default' : 'outline'} aria-pressed={selectedGuide?.id === guide.id} onClick={() => setSelectedId(guide.id)}>{guide.title}</Button>
+        ))}
+      </nav>}
+      {selectedGuide && (
+        <Card key={selectedGuide.id}>
+          <CardHeader><CardTitle>{selectedGuide.title}</CardTitle><p className="text-sm text-slate-500">{selectedGuide.description}</p></CardHeader>
+          <CardContent><GuideContent content={selectedGuide.content} /></CardContent>
         </Card>
-      ))}
+      )}
     </div>
   )
 }

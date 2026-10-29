@@ -102,7 +102,7 @@ push y credenciales externas antes de exponer la base a la aplicación de prueba
 
 ## Alcance
 
-Esto respalda PostgreSQL, sin incluir archivos adjuntos externos, claves de DECE
+Esto respalda PostgreSQL, sin incluir archivos adjuntos externos, claves históricas de DECE
 ni roles globales del servidor. Esos elementos requieren custodia/respaldo aparte.
 El dump conserva todos los esquemas y datos de la base seleccionada, mientras que
 la verificación de conteos se realiza sobre instituciones y usuarios.

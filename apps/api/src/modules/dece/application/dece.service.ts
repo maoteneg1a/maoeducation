@@ -2,13 +2,13 @@ import { randomUUID } from 'node:crypto'
 import { Prisma, type PrismaClient } from '@prisma/client'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import {
+  AppError,
   BadRequestError,
   ConflictError,
   ForbiddenError,
   NotFoundError,
   UnauthorizedError,
 } from '../../../shared/domain/errors/app.errors'
-import { DeceCrypto } from '../infrastructure/dece-crypto'
 import {
   accessSchema,
   actionSchema,
@@ -25,7 +25,7 @@ import {
   statusSchema,
   type DeceActor,
 } from '../domain/dece-policy'
-import type { z } from 'zod'
+import { z } from 'zod'
 
 type Tx = Prisma.TransactionClient
 const person = { id: true, profile: { select: { firstName: true, lastName: true } } }
@@ -40,11 +40,14 @@ function parse<T extends z.ZodTypeAny>(schema: T, input: unknown): z.output<T> {
   return result.data
 }
 
+function storedContent<T extends z.ZodTypeAny>(schema: T, input: unknown): z.output<T> {
+  const result = schema.safeParse(input)
+  if (!result.success) throw new AppError('No se pudo abrir el registro DECE. Contacta al administrador técnico.', 503, 'DECE_CONTENT_INVALID')
+  return result.data
+}
+
 export class DeceService {
-  constructor(
-    private crypto: DeceCrypto,
-    private db: PrismaClient = prisma,
-  ) {}
+  constructor(private db: PrismaClient = prisma) {}
   private async transaction<T>(operation: (tx: Tx) => Promise<T>): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       try {
@@ -183,7 +186,7 @@ export class DeceService {
         platformEnabled,
         visible,
         hasAssignments,
-        canReport: canReport(actor, settings, platformEnabled, this.crypto.ready),
+        canReport: canReport(actor, settings, platformEnabled),
         canConfigure: actor.canConfigure,
         alternativeContact: visible ? settings.alternativeContact : '',
       }
@@ -208,7 +211,6 @@ export class DeceService {
           roles.some((r) => r.name === role),
         ),
         platformEnabled: institution.platformEnabled,
-        encryptionReady: this.crypto.ready,
         roles,
         staff: await this.staff(tx, actor.institutionId),
       }
@@ -231,10 +233,6 @@ export class DeceService {
           'Los roles deben pertenecer a la institución y los reportantes deben tener el módulo visible',
         )
       if (settings.enabled) {
-        if (!this.crypto.ready)
-          throw new BadRequestError(
-            'Configura DECE_ENCRYPTION_KEY en el servidor antes de activar el módulo',
-          )
         if (!institution.platformEnabled)
           throw new BadRequestError(
             'Habilita Rutas y protocolos DECE en los módulos de la institución desde plataforma',
@@ -267,7 +265,7 @@ export class DeceService {
   async reportingContacts(actor: DeceActor) {
     return this.transaction(async (tx) => {
       const { settings, platformEnabled } = await this.institution(tx, actor)
-      if (!canReport(actor, settings, platformEnabled, this.crypto.ready))
+      if (!canReport(actor, settings, platformEnabled))
         throw new ForbiddenError()
       return this.staff(tx, actor.institutionId)
     })
@@ -277,7 +275,7 @@ export class DeceService {
     try {
       return await this.transaction(async (tx) => {
         const { settings, platformEnabled } = await this.institution(tx, actor)
-        if (!canReport(actor, settings, platformEnabled, this.crypto.ready))
+        if (!canReport(actor, settings, platformEnabled))
           throw new ForbiddenError('No está habilitada la recepción de nuevos reportes para tu rol')
         const existing = await tx.deceCase.findUnique({
           where: {
@@ -323,10 +321,7 @@ export class DeceService {
             requestId,
             fallbackReceiverId,
             urgency: report.immediateDanger,
-            encryptedReport: this.crypto.encrypt(
-              { ...content, reporterName: name(reporter) },
-              `${actor.institutionId}:${id}:report`,
-            ),
+            reportContent: { ...content, reporterName: name(reporter) },
             access: { create: receivers.map((userId) => ({ userId, access: 'manager' })) },
             exclusions: { create: [...new Set(excludedUserIds)].map((userId) => ({ userId })) },
           },
@@ -396,11 +391,10 @@ export class DeceService {
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       })
       await this.audit(tx, actor, 'case_read', id)
-      const report = this.crypto.decrypt<
-        Omit<z.infer<typeof reportSchema>, 'requestId' | 'excludedUserIds'> & {
-          reporterName: string
-        }
-      >(record.encryptedReport, `${actor.institutionId}:${id}:report`)
+      const report = storedContent(
+        reportSchema.omit({ requestId: true, excludedUserIds: true }).extend({ reporterName: z.string() }),
+        record.reportContent,
+      )
       return {
         id: record.id,
         status: record.status,
@@ -413,10 +407,7 @@ export class DeceService {
           type: action.type,
           createdAt: action.createdAt,
           actorName: name(action.actor),
-          ...this.crypto.decrypt<{ description: string }>(
-            action.encryptedContent,
-            `${actor.institutionId}:${id}:${action.id}`,
-          ),
+          ...storedContent(z.object({ description: z.string().min(1) }), action.content),
         })),
       }
     })
@@ -436,10 +427,7 @@ export class DeceService {
         caseId,
         actorId: actor.id,
         type,
-        encryptedContent: this.crypto.encrypt(
-          { description },
-          `${actor.institutionId}:${caseId}:${id}`,
-        ),
+        content: { description },
       },
     })
     await tx.deceCase.update({ where: { id: caseId }, data: { updatedAt: new Date() } })
@@ -550,7 +538,7 @@ export class DeceService {
   }
   /** Suplencia conservada por expediente; no concede acceso mientras exista un gestor apto. */
   private async recoverFallback(tx: Tx, actor: DeceActor, caseId?: string) {
-    if (!isEligibleReceiver(actor.roles) || !this.crypto.ready) return
+    if (!isEligibleReceiver(actor.roles)) return
     const records = await tx.deceCase.findMany({
       where: {
         ...(caseId ? { id: caseId } : {}),
