@@ -25,17 +25,13 @@ const userRepo = new PrismaAuthUserRepository()
 /**
  * Módulos que recibe una cuenta personal de docente al registrarse.
  *
- * Los tres primeros son el grupo de planificación — la razón por la que un
- * docente abre una cuenta personal. Antes faltaban aquí, así que el producto
- * quedaba oculto justo para ese público.
+ * Planificaciones, proyectos interdisciplinarios y refuerzo no nacen activos:
+ * el superadministrador los habilita expresamente desde la consola.
  *
  * Mantener en sync con PERSONAL_DEFAULT_MODULES en
  * apps/web/src/shared/lib/modules.ts (no hay paquete compartido todavía).
  */
 const PERSONAL_DEFAULT_MODULES = [
-  'planning',
-  'interdisciplinary_projects',
-  'reinforcement_plans',
   'academic',
   'enrollment',
   'activities',
@@ -183,6 +179,17 @@ export default async function personalRoutes(app: FastifyInstance) {
                 planningModel: 'competencias',
                 modules: PERSONAL_DEFAULT_MODULES,
               } as unknown as Parameters<typeof tx.institution.update>[0]['data']['settings'],
+            },
+          })
+          // Las cuentas personales tienen 15 días completos de prueba y no
+          // usan tolerancia: al vencer pasan directamente al bloqueo de pago.
+          const trialStart = new Date()
+          await tx.subscription.update({
+            where: { institutionId: result.institutionId },
+            data: {
+              startsAt: trialStart,
+              expiresAt: new Date(trialStart.getTime() + 15 * 24 * 60 * 60 * 1000),
+              graceDays: 0,
             },
           })
           // Asignar también rol teacher al usuario admin personal

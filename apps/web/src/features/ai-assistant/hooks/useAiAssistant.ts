@@ -3,13 +3,18 @@ import { toast } from 'sonner'
 import { getErrorMessage } from '@/shared/lib/utils'
 import { aiAssistantApi } from '../api/ai-assistant.api'
 
-/** true si el admin activó el asistente para esta institución — controla si se muestra el botón. */
-export function useAiEnabled() {
-  const { data } = useQuery({
+/** Configuración de IA de la institución. Solo el superadmin puede modificarla. */
+export function useAiConfig() {
+  return useQuery({
     queryKey: ['ai-config'],
     queryFn: aiAssistantApi.getAiConfig,
     staleTime: 30 * 1000,
   })
+}
+
+/** true si el superadmin activó el asistente para esta institución. */
+export function useAiEnabled() {
+  const { data } = useAiConfig()
   return data?.enabled ?? false
 }
 

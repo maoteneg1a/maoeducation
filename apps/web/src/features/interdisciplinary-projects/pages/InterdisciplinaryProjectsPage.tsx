@@ -18,6 +18,7 @@ import {
   useProjects, useCreateProject, useDeleteProject, useEligibleSituations, useDraftProjectFromSituation,
 } from '../hooks/useInterdisciplinaryProjects'
 import type { InterdisciplinaryProjectStatus } from '../api/interdisciplinary-project.api'
+import { useAiEnabled } from '@/features/ai-assistant/hooks/useAiAssistant'
 
 const STATUS_LABEL: Record<InterdisciplinaryProjectStatus, { label: string; variant: 'success' | 'warning' | 'secondary' }> = {
   borrador: { label: 'Borrador', variant: 'secondary' },
@@ -30,6 +31,7 @@ export function InterdisciplinaryProjectsPage() {
   const user = useAuthStore((s) => s.user)
   const { hasAnyRole } = usePermissions()
   const isAdminLike = hasAnyRole('admin', 'inspector')
+  const aiEnabled = useAiEnabled()
 
   const { data: years = [] } = useAcademicYears()
   const [yearId, setYearId] = React.useState('')
@@ -141,7 +143,7 @@ export function InterdisciplinaryProjectsPage() {
         <EmptyState icon={Puzzle} title="Selecciona paralelo y periodo" description="Verás los proyectos interdisciplinarios de ese paralelo y podrás crear uno nuevo." />
       ) : (
         <>
-          {eligibleSituations.length > 0 && (
+          {aiEnabled && eligibleSituations.length > 0 && (
             <Card className="flex flex-col gap-3 border-primary/30 bg-primary/5 p-4 sm:flex-row sm:items-end">
               <div className="flex-1 space-y-1.5">
                 <Label className="flex items-center gap-1.5">

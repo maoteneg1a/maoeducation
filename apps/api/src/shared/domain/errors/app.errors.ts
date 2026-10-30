@@ -54,7 +54,7 @@ export class BadRequestError extends AppError {
  * es la cuenta la que está en solo-lectura.
  */
 export class SubscriptionInactiveError extends AppError {
-  constructor(message = 'La suscripción venció. Puedes consultar y exportar, pero no registrar cambios.') {
+  constructor(message = 'Tu período gratuito terminó. Activa tu suscripción para continuar usando la plataforma.') {
     super(message, 402, 'SUBSCRIPTION_INACTIVE')
   }
 }

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, Navigate } from 'react-router-dom'
 import { ArrowLeft, Sparkles, Download, Users, Pencil } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
@@ -12,7 +12,7 @@ import {
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { usePeriods } from '@/features/academic/hooks/useAcademic'
-import { useAiEnabled } from '@/features/ai-assistant/hooks/useAiAssistant'
+import { useAiConfig, useAiEnabled } from '@/features/ai-assistant/hooks/useAiAssistant'
 import { planningApi, type MultigradeSubjectBlock } from '../api/planning.api'
 import { useMultigradeGroup, useSuggestMultigradeWeek, useDraftMultigradeWeek } from '../hooks/useMultigrade'
 import { CheckBox } from '../components/SkillAndSaberSelector'
@@ -26,9 +26,11 @@ const SABER_TYPE_LABEL: Record<'declarativo' | 'procedimental' | 'actitudinal', 
 
 export function MultigradeGroupPage() {
   const { groupId } = useParams<{ groupId: string }>()
+  const { data: aiConfig, isLoading: isAiConfigLoading } = useAiConfig()
   const { data: group, isLoading } = useMultigradeGroup(groupId)
 
-  if (isLoading) return <PageLoader />
+  if (isAiConfigLoading || isLoading) return <PageLoader />
+  if (!aiConfig?.enabled) return <Navigate to="/planning" replace />
   if (!group) return <EmptyState icon={Users} title="Aula multigrado no encontrada" />
 
   return (

@@ -408,7 +408,7 @@ function PlanningModelConfigCard() {
 function AiAssistantConfigCard() {
   const { data: ai } = useAiConfig()
 
-  if (!ai) return null
+  if (!ai?.enabled) return null
 
   return (
     <Card className="border-violet-300 bg-violet-50/40">

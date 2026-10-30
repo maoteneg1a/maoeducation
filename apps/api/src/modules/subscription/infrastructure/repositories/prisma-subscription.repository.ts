@@ -184,8 +184,7 @@ export class PrismaSubscriptionRepository {
         accountType: settings.accountType === 'personal' ? 'personal' : 'institution',
         userCount: inst._count.users,
         status: inst.subscription ? computeSubscriptionStatus(inst.subscription) : null,
-        // La suscripción real (ver approve/suspend en platform-subscription.routes.ts) —
-        // status arriba es solo la vigencia registrada, ya sin efecto de bloqueo.
+        // IA se muestra aparte porque su activación es independiente de la vigencia.
         aiEnabled: aiConfig.enabled === true,
         notes: inst.subscription?.notes ?? null,
         pendingPayments: payments.filter((p) => p.status === 'pending').length,
@@ -311,6 +310,7 @@ export class PrismaSubscriptionRepository {
         expiresAt: new Date(dto.expiresAt),
         graceDays: dto.graceDays ?? undefined,
         notes: dto.notes ?? undefined,
+        suspendedAt: null,
       },
       select: { plan: true, startsAt: true, expiresAt: true, graceDays: true, suspendedAt: true },
     })

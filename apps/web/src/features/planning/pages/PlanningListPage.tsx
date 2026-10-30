@@ -12,6 +12,7 @@ import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
 import { usePlanningModel } from '@/features/settings/hooks/useSettings'
 import { usePersonalClasses } from '@/features/personal/hooks/usePersonalClasses'
+import { useAiEnabled } from '@/features/ai-assistant/hooks/useAiAssistant'
 import { usePlans, useCreatePlan } from '../hooks/usePlanning'
 import type { CurriculumPlan } from '../api/planning.api'
 
@@ -42,6 +43,7 @@ function getPlanProgress(plan: CurriculumPlan): { progress: PlanProgress; ready:
 
 export function PlanningListPage() {
   const navigate = useNavigate()
+  const aiEnabled = useAiEnabled()
   const { assignments, defaultAssignmentId } = useTeacherDefaults()
   const assignmentIds = React.useMemo(() => assignments.map((a) => a.id), [assignments])
   const { data: planningModel } = usePlanningModel()
@@ -131,7 +133,7 @@ export function PlanningListPage() {
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {multigradeGroupId && (
+          {aiEnabled && multigradeGroupId && (
             <Card
               className="cursor-pointer p-4 transition hover:border-primary/50 hover:shadow-sm"
               onClick={() => navigate(`/planning/multigrade/${multigradeGroupId}`)}

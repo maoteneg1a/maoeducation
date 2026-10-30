@@ -18,7 +18,7 @@ const STATE_LABELS: Record<SubscriptionStatus['state'], string> = {
   trial: 'Prueba gratuita',
   active: 'Activa',
   grace: 'Vencida · en tolerancia',
-  readonly: 'Solo lectura',
+  readonly: 'Vencida',
   suspended: 'Suspendida',
 }
 
@@ -123,8 +123,8 @@ export function SubscriptionPage() {
 
           {status.state === 'readonly' && (
             <p className="mt-4 rounded-md bg-white/60 px-3 py-2 text-sm">
-              Puedes consultar y exportar toda tu información. Para volver a registrar
-              calificaciones, asistencia o planificaciones, envía el comprobante de tu pago.
+              Las funcionalidades de la plataforma están bloqueadas. Envía el
+              comprobante de pago para que el superadministrador reactive tu cuenta.
             </p>
           )}
         </Card>

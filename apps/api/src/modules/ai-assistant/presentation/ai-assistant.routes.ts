@@ -12,9 +12,18 @@ import {
   type SuggestMultigradeWeekDto,
 } from '../application/services/multigrade-week-generator.service'
 import type { DraftCompetencyWeekDto, DraftProjectDto, DraftWeekDto } from '../application/dtos/ai-assistant.dto'
+import { PrismaInstitutionRepository } from '../../institution/infrastructure/repositories/prisma-institution.repository'
+import { ForbiddenError } from '../../../shared/domain/errors/app.errors'
 
 export default async function aiAssistantRoutes(app: FastifyInstance) {
+  const institutionRepo = new PrismaInstitutionRepository()
   app.addHook('preHandler', authMiddleware)
+  app.addHook('preHandler', async (req) => {
+    const config = await institutionRepo.getAiConfig(req.user.institutionId)
+    if (!config.enabled) {
+      throw new ForbiddenError('Esta funcionalidad no está habilitada para tu institución')
+    }
+  })
 
   // Genera un borrador de semana (competencias/indicadores/saberes/momentos DUA) — no guarda nada.
   app.post<{ Body: DraftWeekDto }>(

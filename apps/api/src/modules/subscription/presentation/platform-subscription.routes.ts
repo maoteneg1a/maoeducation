@@ -91,15 +91,6 @@ export default async function platformSubscriptionRoutes(app: FastifyInstance) {
         req.platformAdmin.sub,
         req.body,
       )
-      // La suscripción real = acceso al asistente IA (ver decisión de
-      // producto: "si tienen IA activada, tienen suscripción activa"). Al
-      // aprobar el pago, se activa la IA automáticamente — antes esto
-      // requería un paso manual aparte del superadmin en otra pantalla.
-      const aiConfig = await institutionRepo.getAiConfig(institutionId)
-      if (!aiConfig.enabled) {
-        await institutionRepo.updateAiConfig(institutionId, { enabled: true })
-      }
-
       return reply.send(await repo.getDetail(institutionId))
     },
   )
