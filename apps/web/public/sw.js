@@ -1,4 +1,4 @@
-const CACHE = 'auleka-v2'
+const CACHE = 'auleka-v3'
 const PRECACHE = ['/isotipo.svg', '/favicon.svg']
 
 // ── Install: pre-cachear iconos (NO el HTML — tiene hashes de Vite que cambian por build) ──

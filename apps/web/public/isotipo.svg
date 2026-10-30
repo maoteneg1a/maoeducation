@@ -1,13 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Auleka">
-  <defs>
-    <linearGradient id="aulekaIso" x1="4" y1="4" x2="60" y2="60" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2563EB"/>
-      <stop offset="1" stop-color="#16A34A"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="16" fill="url(#aulekaIso)"/>
-  <circle cx="47" cy="17" r="4.5" fill="#ffffff" opacity="0.95"/>
-  <text x="31" y="35" text-anchor="middle" dominant-baseline="central"
-        font-family="Poppins, 'Segoe UI', system-ui, -apple-system, sans-serif"
-        font-weight="700" font-size="42" fill="#ffffff">a</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" role="img" aria-label="Auleka">
+  <defs><linearGradient id="g" x1="180" y1="820" x2="900" y2="300" gradientUnits="userSpaceOnUse"><stop stop-color="#2257F6"/><stop offset=".52" stop-color="#1D9BE7"/><stop offset="1" stop-color="#05BEB2"/></linearGradient></defs>
+  <path fill="url(#g)" d="M183 803 458 251c7-14 18-20 34-20h75c15 0 27 7 34 21l126 249-99 83-84-178c-10-21-22-21-32 0L315 807c-7 14-17 21-33 21h-82c-20 0-26-9-17-25Z"/><path fill="url(#g)" d="m745 545 138 263c7 13 1 20-16 20h-92c-15 0-25-7-32-21l-93-179 95-83Z"/><path fill="none" stroke="url(#g)" stroke-width="28" stroke-linecap="round" d="m551 688 258-227"/><circle cx="512" cy="718" r="77" fill="url(#g)"/><circle cx="850" cy="427" r="64" fill="url(#g)"/>
 </svg>
