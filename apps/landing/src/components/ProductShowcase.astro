@@ -1,16 +1,10 @@
 ---
-import attendance from '../../../../docs/brand/screenshots/seleccionadas/02-asistencia.png'
-import alerts from '../../../../docs/brand/screenshots/seleccionadas/03-alertas-academicas.png'
-import student from '../../../../docs/brand/screenshots/seleccionadas/04-carpeta-estudiante.png'
-import incidents from '../../../../docs/brand/screenshots/seleccionadas/05-incidentes.png'
-import reports from '../../../../docs/brand/screenshots/seleccionadas/06-reportes.png'
-
 const views = [
-  { image: attendance, eyebrow: 'Asistencia', title: 'Registra y comunica en el momento', copy: 'El equipo registra faltas y atrasos desde una vista simple, mientras las familias reciben información oportuna.' },
-  { image: alerts, eyebrow: 'Alertas académicas', title: 'Detecta antes de que sea tarde', copy: 'Convierte calificaciones y seguimiento en señales claras para activar apoyo pedagógico.' },
-  { image: student, eyebrow: 'Expediente integral', title: 'Toda la historia, sin buscar en carpetas', copy: 'Información académica, familiar y de seguimiento reunida alrededor de cada estudiante.' },
-  { image: incidents, eyebrow: 'Convivencia y DECE', title: 'Procesos sensibles con trazabilidad', copy: 'Registros, responsables, compromisos y seguimiento con acceso controlado.' },
-  { image: reports, eyebrow: 'Reportes', title: 'Documentos listos cuando los necesitas', copy: 'Genera reportes institucionales con información consistente y presentación profesional.' },
+  { image: '/screenshots/02-asistencia.png', eyebrow: 'Asistencia', title: 'Registra y comunica en el momento', copy: 'El equipo registra faltas y atrasos desde una vista simple, mientras las familias reciben información oportuna.' },
+  { image: '/screenshots/03-alertas-academicas.png', eyebrow: 'Alertas académicas', title: 'Detecta antes de que sea tarde', copy: 'Convierte calificaciones y seguimiento en señales claras para activar apoyo pedagógico.' },
+  { image: '/screenshots/04-carpeta-estudiante.png', eyebrow: 'Expediente integral', title: 'Toda la historia, sin buscar en carpetas', copy: 'Información académica, familiar y de seguimiento reunida alrededor de cada estudiante.' },
+  { image: '/screenshots/05-incidentes.png', eyebrow: 'Convivencia y DECE', title: 'Procesos sensibles con trazabilidad', copy: 'Registros, responsables, compromisos y seguimiento con acceso controlado.' },
+  { image: '/screenshots/06-reportes.png', eyebrow: 'Reportes', title: 'Documentos listos cuando los necesitas', copy: 'Genera reportes institucionales con información consistente y presentación profesional.' },
 ]
 ---
 
@@ -26,7 +20,7 @@ const views = [
         <article class:list={['grid min-w-0 grid-cols-1 items-center gap-9 lg:grid-cols-2 lg:gap-16', index % 2 === 1 && 'lg:[&>*:first-child]:order-2']}>
           <div class="group relative">
             <div class="absolute -inset-4 rounded-3xl bg-gradient-to-br from-blue-100 to-emerald-50 opacity-70 blur-xl transition group-hover:opacity-100"></div>
-            <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-2 shadow-xl shadow-slate-200/60"><img src={view.image.src} alt={`${view.eyebrow} en Auleka`} class="w-full rounded-xl" loading="lazy" /></div>
+            <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-2 shadow-xl shadow-slate-200/60"><img src={view.image} alt={`${view.eyebrow} en Auleka`} class="w-full rounded-xl" loading="lazy" /></div>
           </div>
           <div class="max-w-lg">
             <p class="text-sm font-bold uppercase tracking-[.16em] text-brand-green-dark">{view.eyebrow}</p>
