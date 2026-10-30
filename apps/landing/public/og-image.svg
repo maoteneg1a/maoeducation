@@ -4,21 +4,21 @@
       <stop offset="0" stop-color="#F8FAFC"/>
       <stop offset="1" stop-color="#EFF6FF"/>
     </linearGradient>
-    <linearGradient id="ogMark" x1="80" y1="70" x2="200" y2="190" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2563EB"/>
-      <stop offset="1" stop-color="#16A34A"/>
+    <linearGradient id="ogMark" x1="180" y1="820" x2="900" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2257F6"/>
+      <stop offset="0.52" stop-color="#1D9BE7"/>
+      <stop offset="1" stop-color="#05BEB2"/>
     </linearGradient>
   </defs>
   <rect width="1200" height="630" fill="url(#ogBg)"/>
   <!-- barra de marca superior -->
   <rect x="0" y="0" width="1200" height="12" fill="url(#ogMark)"/>
 
-  <!-- isotipo -->
-  <rect x="90" y="90" width="120" height="120" rx="28" fill="url(#ogMark)"/>
-  <circle cx="178" cy="112" r="9" fill="#ffffff" opacity="0.95"/>
-  <text x="148" y="151" text-anchor="middle" dominant-baseline="central"
-        font-family="Poppins, 'Segoe UI', system-ui, sans-serif" font-weight="700" font-size="82" fill="#ffffff">a</text>
-  <text x="238" y="151" dominant-baseline="central"
+  <!-- isotipo nuevo -->
+  <g transform="translate(65 40) scale(.16)">
+    <path fill="url(#ogMark)" d="M183 803 458 251c7-14 18-20 34-20h75c15 0 27 7 34 21l126 249-99 83-84-178c-10-21-22-21-32 0L315 807c-7 14-17 21-33 21h-82c-20 0-26-9-17-25Z"/><path fill="url(#ogMark)" d="m745 545 138 263c7 13 1 20-16 20h-92c-15 0-25-7-32-21l-93-179 95-83Z"/><path fill="none" stroke="url(#ogMark)" stroke-width="28" stroke-linecap="round" d="m551 688 258-227"/><circle cx="512" cy="718" r="77" fill="url(#ogMark)"/><circle cx="850" cy="427" r="64" fill="url(#ogMark)"/>
+  </g>
+  <text x="225" y="151" dominant-baseline="central"
         font-family="Poppins, 'Segoe UI', system-ui, sans-serif" font-weight="700" font-size="74" letter-spacing="-1" fill="#1E293B">auleka</text>
 
   <!-- titular -->
