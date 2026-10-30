@@ -13,6 +13,7 @@ import { registerRoutes } from './shared/infrastructure/routes'
 import { storage, CONTENT_TYPES } from './shared/infrastructure/services/storage.service'
 import type { Prisma } from '@prisma/client'
 import { audit, redactSecrets } from './shared/infrastructure/services/audit.service'
+import { personalSubscriptionMiddleware } from './shared/infrastructure/middleware/personal-subscription.middleware'
 
 export function buildApp() {
   const app = Fastify({
@@ -121,6 +122,10 @@ export function buildApp() {
 
   // Error handler global
   app.register(fp(errorPlugin))
+
+  // Las cuentas personales vencidas solo conservan acceso a autenticación y
+  // suscripción. Instituciones normales no pasan por esta restricción.
+  app.addHook('preHandler', personalSubscriptionMiddleware)
 
   // Rutas
   app.register(registerRoutes)

@@ -13,6 +13,8 @@ import { PlatformPrivateRoute } from './PlatformPrivateRoute'
 import { PlatformLayout } from '@/shared/components/layout/PlatformLayout'
 import { PlatformLoginPage } from '@/features/platform/pages/PlatformLoginPage'
 import { RouteErrorBoundary } from '@/shared/components/feedback/RouteErrorBoundary'
+import { PersonalSubscriptionGuard } from './PersonalSubscriptionGuard'
+import { ModuleGuard } from './ModuleGuard'
 
 export const router = createBrowserRouter([
   {
@@ -44,7 +46,9 @@ export const router = createBrowserRouter([
     path: '/',
     element: (
       <PrivateRoute>
-        <AppLayout />
+        <PersonalSubscriptionGuard>
+          <AppLayout />
+        </PersonalSubscriptionGuard>
       </PrivateRoute>
     ),
     errorElement: <RouteErrorBoundary />,
@@ -223,7 +227,7 @@ export const router = createBrowserRouter([
       // ---- Consulta de casos de refuerzo (sesiones, asistencia, archivos) ----
       {
         path: 'refuerzo/casos',
-        element: <PermissionGuard permission="early_alerts:read" />,
+        element: <ModuleGuard module="reinforcement_plans"><PermissionGuard permission="early_alerts:read" /></ModuleGuard>,
         children: [
           {
             index: true,
@@ -286,7 +290,7 @@ export const router = createBrowserRouter([
       // ---- Reinforcement Plans (refuerzo y adaptaciones NEE) ----
       {
         path: 'refuerzo/planes-anteriores',
-        element: <PermissionGuard permission="grades:write" />,
+        element: <ModuleGuard module="reinforcement_plans"><PermissionGuard permission="grades:write" /></ModuleGuard>,
         children: [
           {
             index: true,
@@ -300,7 +304,7 @@ export const router = createBrowserRouter([
       // ---- Interdisciplinary Projects ----
       {
         path: 'interdisciplinary-projects',
-        element: <PermissionGuard permission="planning:read" />,
+        element: <ModuleGuard module="interdisciplinary_projects"><PermissionGuard permission="planning:read" /></ModuleGuard>,
         children: [
           {
             index: true,
@@ -335,7 +339,7 @@ export const router = createBrowserRouter([
       // ---- Planning (PCA / Planificación Microcurricular) ----
       {
         path: 'planning',
-        element: <PermissionGuard permission="planning:read" />,
+        element: <ModuleGuard module="planning"><PermissionGuard permission="planning:read" /></ModuleGuard>,
         children: [
           {
             index: true,
@@ -630,7 +634,7 @@ export const router = createBrowserRouter([
       // ---- Settings / Microcurricular document template ----
       {
         path: 'settings/formato-planificacion',
-        element: <PermissionGuard permission="academic_config:manage" />,
+        element: <ModuleGuard module="planning"><PermissionGuard permission="academic_config:manage" /></ModuleGuard>,
         children: [
           {
             index: true,

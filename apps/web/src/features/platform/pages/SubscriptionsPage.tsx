@@ -39,9 +39,8 @@ function toDateInput(iso: string): string {
   return new Date(iso).toISOString().slice(0, 10)
 }
 
-// Estas fechas ya NO bloquean escritura en el producto — la suscripción real
-// es aiConfig.enabled (ver columna aparte en esta tabla). Este estado queda
-// como referencia de vigencia informativa/histórica únicamente.
+// Para cuentas personales, estas fechas controlan el acceso a la plataforma.
+// La IA es una capacidad independiente administrada por el superadmin.
 const STATE_LABELS: Record<SubscriptionState, string> = {
   trial: 'Prueba',
   active: 'Activa',
@@ -398,7 +397,7 @@ export function SubscriptionsPage() {
                       personal
                     </Badge>
                   )}
-                  {/* La suscripción real — status de abajo es solo vigencia informativa, ya sin efecto de bloqueo. */}
+                  {/* IA y vigencia son controles independientes. */}
                   <Badge className={s.aiEnabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}>
                     {s.aiEnabled ? 'IA activa' : 'IA inactiva'}
                   </Badge>

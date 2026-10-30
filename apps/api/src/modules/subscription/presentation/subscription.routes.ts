@@ -34,9 +34,8 @@ export default async function subscriptionRoutes(app: FastifyInstance) {
    * que la cuenta está por vencer, aunque no pueda pagar.
    */
   app.get('/subscription/status', { preHandler: [authMiddleware] }, async (req, reply) => {
-    // aiEnabled es la suscripción real (decisión de producto: si tienen IA
-    // activada, tienen suscripción activa) — status (fechas trial/pago) ya
-    // no bloquea nada, se mantiene solo como referencia informativa/histórica.
+    // La vigencia controla el acceso de cuentas personales. IA es una
+    // capacidad independiente que solo habilita el superadministrador.
     const [status, aiConfig] = await Promise.all([
       repo.getStatus(req.user.institutionId),
       institutionRepo.getAiConfig(req.user.institutionId),
