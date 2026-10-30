@@ -1,0 +1,41 @@
+---
+import attendance from '../../../../docs/brand/screenshots/seleccionadas/02-asistencia.png'
+import alerts from '../../../../docs/brand/screenshots/seleccionadas/03-alertas-academicas.png'
+import student from '../../../../docs/brand/screenshots/seleccionadas/04-carpeta-estudiante.png'
+import incidents from '../../../../docs/brand/screenshots/seleccionadas/05-incidentes.png'
+import reports from '../../../../docs/brand/screenshots/seleccionadas/06-reportes.png'
+
+const views = [
+  { image: attendance, eyebrow: 'Asistencia', title: 'Registra y comunica en el momento', copy: 'El equipo registra faltas y atrasos desde una vista simple, mientras las familias reciben información oportuna.' },
+  { image: alerts, eyebrow: 'Alertas académicas', title: 'Detecta antes de que sea tarde', copy: 'Convierte calificaciones y seguimiento en señales claras para activar apoyo pedagógico.' },
+  { image: student, eyebrow: 'Expediente integral', title: 'Toda la historia, sin buscar en carpetas', copy: 'Información académica, familiar y de seguimiento reunida alrededor de cada estudiante.' },
+  { image: incidents, eyebrow: 'Convivencia y DECE', title: 'Procesos sensibles con trazabilidad', copy: 'Registros, responsables, compromisos y seguimiento con acceso controlado.' },
+  { image: reports, eyebrow: 'Reportes', title: 'Documentos listos cuando los necesitas', copy: 'Genera reportes institucionales con información consistente y presentación profesional.' },
+]
+---
+
+<section id="plataforma" class="overflow-hidden bg-white py-24">
+  <div class="mx-auto max-w-7xl px-5">
+    <div class="max-w-3xl">
+      <p class="text-sm font-bold uppercase tracking-[.18em] text-brand-blue">La plataforma, en acción</p>
+      <h2 class="mt-4 font-display text-3xl font-bold tracking-tight text-slate-950 md:text-5xl">No te contamos una promesa.<br />Te mostramos cómo se trabaja.</h2>
+      <p class="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Cada módulo comparte la misma información institucional. Menos duplicación, menos saltos entre archivos y más continuidad en el acompañamiento.</p>
+    </div>
+    <div class="mt-14 space-y-20">
+      {views.map((view, index) => (
+        <article class:list={['grid min-w-0 grid-cols-1 items-center gap-9 lg:grid-cols-2 lg:gap-16', index % 2 === 1 && 'lg:[&>*:first-child]:order-2']}>
+          <div class="group relative">
+            <div class="absolute -inset-4 rounded-3xl bg-gradient-to-br from-blue-100 to-emerald-50 opacity-70 blur-xl transition group-hover:opacity-100"></div>
+            <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-2 shadow-xl shadow-slate-200/60"><img src={view.image.src} alt={`${view.eyebrow} en Auleka`} class="w-full rounded-xl" loading="lazy" /></div>
+          </div>
+          <div class="max-w-lg">
+            <p class="text-sm font-bold uppercase tracking-[.16em] text-brand-green-dark">{view.eyebrow}</p>
+            <h3 class="mt-3 font-display text-2xl font-bold text-slate-950 md:text-3xl">{view.title}</h3>
+            <p class="mt-4 text-base leading-7 text-slate-600">{view.copy}</p>
+            <a href="#demo" class="mt-6 inline-flex items-center font-semibold text-brand-blue hover:text-brand-blue-dark">Verlo con mi institución <span class="ml-2">→</span></a>
+          </div>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>

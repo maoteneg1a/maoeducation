@@ -2,16 +2,16 @@
 const appUrl = import.meta.env.PUBLIC_APP_URL || 'https://app.auleka.com'
 ---
 
-<header class="sticky top-0 z-40 border-b border-slate-100 bg-white/80 backdrop-blur">
-  <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
-    <a href="/" class="flex items-center gap-2" aria-label="Auleka — inicio">
-      <img src="/isotipo.svg" alt="Auleka" width="34" height="34" />
-      <span class="font-display text-xl font-bold tracking-tight text-slate-900">auleka</span>
+<header class="sticky top-0 z-40 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
+  <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
+    <a href="/" class="flex items-center" aria-label="Auleka — inicio">
+      <img src="/logo.svg" alt="Auleka" width="142" height="34" class="h-8 w-auto sm:h-9" />
     </a>
 
     <nav class="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
+      <a href="#clientes" class="hover:text-brand-blue">Clientes</a>
+      <a href="#plataforma" class="hover:text-brand-blue">Plataforma</a>
       <a href="#features" class="hover:text-brand-blue">Funciones</a>
-      <a href="#padres" class="hover:text-brand-blue">Para padres</a>
       <a href="#precio" class="hover:text-brand-blue">Precio</a>
       <a href="/personal" class="hover:text-brand-blue">Soy profe individual</a>
     </nav>
@@ -22,9 +22,9 @@ const appUrl = import.meta.env.PUBLIC_APP_URL || 'https://app.auleka.com'
       </a>
       <a
         href="#demo"
-        class="rounded-lg bg-brand-blue px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-blue-dark"
+        class="rounded-xl bg-slate-950 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800 sm:px-4"
       >
-        Solicita una demo
+        <span class="sm:hidden">Demo</span><span class="hidden sm:inline">Solicita una demo</span>
       </a>
     </div>
   </div>
