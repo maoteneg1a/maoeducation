@@ -1,13 +1,13 @@
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { ArrowLeft, Eye, EyeOff, LockKeyhole } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Eye, EyeOff } from 'lucide-react'
-import { useState } from 'react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
-import { usePersonalRegister } from '../hooks/usePersonalAuth'
+import { usePersonalRegister, usePersonalRegistrationStatus } from '../hooks/usePersonalAuth'
 
 const schema = z.object({
   firstName: z.string().min(1, 'Requerido'),
@@ -15,114 +15,57 @@ const schema = z.object({
   email: z.string().email('Email inválido'),
   password: z.string().min(6, 'Mínimo 6 caracteres'),
 })
+
 type Form = z.infer<typeof schema>
 
 export function PersonalRegisterPage() {
+  const { data: status, isLoading } = usePersonalRegistrationStatus()
   const { mutate, isPending, error } = usePersonalRegister()
   const [showPassword, setShowPassword] = useState(false)
+  const { register, handleSubmit, formState: { errors } } = useForm<Form>({ resolver: zodResolver(schema) })
 
-  const { register, handleSubmit, formState: { errors } } = useForm<Form>({
-    resolver: zodResolver(schema),
-  })
+  if (isLoading) {
+    return <main className="flex min-h-screen items-center justify-center bg-slate-50"><div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-primary" /></main>
+  }
+
+  if (!status?.personalRegistrationEnabled) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-12">
+        <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <img src="/isotipo.svg" alt="Auleka" className="mx-auto h-14 w-14" />
+          <div className="mx-auto mt-6 flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-700"><LockKeyhole className="h-5 w-5" /></div>
+          <h1 className="mt-4 text-2xl font-bold text-slate-900">Registro temporalmente cerrado</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Por el momento no estamos creando nuevas cuentas personales. Si ya tienes una cuenta, puedes seguir ingresando normalmente.</p>
+          <Button asChild className="mt-6 w-full"><Link to="/personal/login">Ingresar a mi cuenta personal</Link></Button>
+          <Link to="/login" className="mt-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900"><ArrowLeft className="h-4 w-4" /> Volver al acceso institucional</Link>
+        </section>
+      </main>
+    )
+  }
 
   return (
-    <div className="min-h-screen flex">
-      {/* Brand panel */}
-      <div
-        className="hidden md:flex md:w-5/12 lg:w-1/2 relative flex-col items-start justify-center px-12 py-16 overflow-hidden"
-        style={{ background: 'linear-gradient(140deg, #2563EB 0%, #16A34A 100%)' }}
-      >
-        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-white/10 pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full bg-white/8 pointer-events-none" />
-        <div className="relative z-10 flex flex-col gap-10 max-w-md">
-          <img src="/logo-white.svg" alt="Auleka" className="w-40" />
-          <div>
-            <p className="text-white text-2xl font-bold leading-snug">
-              Tu aula digital,<br />a tu medida.
-            </p>
-            <p className="text-white/80 mt-3 text-base leading-relaxed">
-              Calificaciones, asistencia y reportes. Sin depender de un sistema institucional.
-            </p>
-          </div>
-          <ul className="space-y-2">
-            {['Calificaciones y asistencia', 'Importa estudiantes desde Excel', 'Reportes con tu logo', 'Gratis para empezar'].map((f) => (
-              <li key={f} className="flex items-center gap-2 text-white/90 text-sm">
-                <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs">✓</span>
-                {f}
-              </li>
-            ))}
-          </ul>
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-12">
+      <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="text-center">
+          <img src="/isotipo.svg" alt="Auleka" className="mx-auto h-14 w-14" />
+          <h1 className="mt-4 text-2xl font-bold text-slate-900">Crea tu aula personal</h1>
+          <p className="mt-1 text-sm text-slate-500">¿Ya tienes cuenta? <Link to="/personal/login" className="text-primary hover:underline">Inicia sesión</Link></p>
         </div>
-      </div>
-
-      {/* Form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white">
-        <div className="w-full max-w-sm space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Crea tu aula</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              ¿Ya tienes cuenta? <Link to="/personal/login" className="text-blue-600 hover:underline">Inicia sesión</Link>
-            </p>
+        {error && <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{(error as Error).message ?? 'Error al crear la cuenta'}</div>}
+        <form onSubmit={handleSubmit((data) => mutate(data))} className="mt-6 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label htmlFor="firstName">Nombre</Label><Input id="firstName" {...register('firstName')} />{errors.firstName && <p className="text-xs text-red-500">{errors.firstName.message}</p>}</div>
+            <div className="space-y-1.5"><Label htmlFor="lastName">Apellido</Label><Input id="lastName" {...register('lastName')} />{errors.lastName && <p className="text-xs text-red-500">{errors.lastName.message}</p>}</div>
           </div>
-
-          {error && (
-            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              {(error as Error).message ?? 'Error al crear la cuenta'}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit((d) => mutate(d))} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="firstName">Nombre</Label>
-                <Input id="firstName" placeholder="Ana" {...register('firstName')} />
-                {errors.firstName && <p className="text-xs text-red-500">{errors.firstName.message}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="lastName">Apellido</Label>
-                <Input id="lastName" placeholder="García" {...register('lastName')} />
-                {errors.lastName && <p className="text-xs text-red-500">{errors.lastName.message}</p>}
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="email">Correo electrónico</Label>
-              <Input id="email" type="email" placeholder="profe@ejemplo.com" {...register('email')} />
-              {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="password">Contraseña</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Mínimo 6 caracteres"
-                  className="pr-10"
-                  {...register('password')}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
-            </div>
-
-            <Button type="submit" className="w-full" disabled={isPending}>
-              {isPending ? 'Creando cuenta...' : 'Comenzar gratis'}
-            </Button>
-          </form>
-
-          <p className="text-xs text-center text-gray-400">
-            ¿Tu institución ya usa Auleka?{' '}
-            <Link to="/login" className="text-gray-500 hover:underline">Ingresa aquí</Link>
-          </p>
-        </div>
-      </div>
-    </div>
+          <div className="space-y-1.5"><Label htmlFor="email">Correo electrónico</Label><Input id="email" type="email" {...register('email')} />{errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}</div>
+          <div className="space-y-1.5">
+            <Label htmlFor="password">Contraseña</Label>
+            <div className="relative"><Input id="password" type={showPassword ? 'text' : 'password'} className="pr-10" {...register('password')} /><button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
+            {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
+          </div>
+          <Button type="submit" className="w-full" loading={isPending}>Crear cuenta personal</Button>
+        </form>
+      </section>
+    </main>
   )
 }

@@ -1,6 +1,13 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { personalApi, PersonalRegisterDto } from '../api/personal.api'
+
+export function usePersonalRegistrationStatus() {
+  return useQuery({
+    queryKey: ['personal-registration-status'],
+    queryFn: personalApi.registrationStatus,
+  })
+}
 import { useAuthStore } from '@/store/auth.store'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/shared/lib/utils'

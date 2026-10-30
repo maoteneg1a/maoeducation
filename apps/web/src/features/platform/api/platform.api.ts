@@ -27,6 +27,10 @@ export interface Institution {
   isTestInstitution: boolean
 }
 
+export interface PlatformSettings {
+  personalRegistrationEnabled: boolean
+}
+
 export interface SeedTestDataResult {
   parallelName: string
   teacherEmails: string[]
@@ -135,6 +139,9 @@ export const platformApi = {
   login: (payload: PlatformLoginPayload) => platformPost<PlatformLoginResponse>('platform/login', payload),
 
   getInstitutions: () => platformGet<Institution[]>('platform/institutions'),
+  getSettings: () => platformGet<PlatformSettings>('platform/settings'),
+  setPersonalRegistrationEnabled: (personalRegistrationEnabled: boolean) =>
+    platformPatch<PlatformSettings>('platform/settings/personal-registration', { personalRegistrationEnabled }),
   createInstitution: (data: CreateInstitutionPayload) =>
     platformPost<Institution>('platform/institutions', data),
   toggleInstitution: (id: string) => platformPatch<Institution>(`platform/institutions/${id}/toggle`),

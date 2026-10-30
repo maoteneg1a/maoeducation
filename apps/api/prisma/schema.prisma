@@ -2253,6 +2253,14 @@ model PlatformAdmin {
   @@map("platform_admins")
 }
 
+model PlatformSetting {
+  key       String   @id @db.VarChar(100)
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}
+
 // Lead de marketing: prospecto que solicita una demo desde la landing (auleka.com).
 // NO pertenece a ninguna institución (es pre-tenant).
 model Lead {

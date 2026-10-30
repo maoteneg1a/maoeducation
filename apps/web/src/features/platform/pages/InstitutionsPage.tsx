@@ -3,13 +3,18 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Users, LayoutGrid, Sparkles, Settings } from 'lucide-react'
+import { MoreHorizontal, Plus, Search, School, UserPlus, Users, LayoutGrid, Sparkles, Settings } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { Badge } from '@/shared/components/ui/badge'
-import { DataTable } from '@/shared/components/ui/data-table'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/shared/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -33,6 +38,8 @@ import {
   usePlatformLeads,
   usePlatformRole,
   useUpdateLead,
+  usePlatformSettings,
+  useSetPersonalRegistrationEnabled,
 } from '../hooks/usePlatform'
 import type { Institution } from '../api/platform.api'
 import { ALL_MODULES, MODULE_GROUPS, MODULE_LABELS, PERSONAL_DEFAULT_MODULES, type ModuleKey } from '@/shared/lib/modules'
@@ -62,6 +69,8 @@ export function InstitutionsPage() {
   const seedTestData = useSeedTestData()
   const updateLead = useUpdateLead()
   const { isOwner } = usePlatformRole()
+  const { data: platformSettings, isLoading: isLoadingSettings } = usePlatformSettings()
+  const setPersonalRegistration = useSetPersonalRegistrationEnabled()
 
   const [search, setSearch] = useState('')
   const filteredInstitutions = useMemo(() => {
@@ -198,145 +207,6 @@ export function InstitutionsPage() {
     )
   }
 
-  const columns: ColumnDef<Institution>[] = [
-    {
-      accessorKey: 'name',
-      header: 'Institución',
-      cell: ({ row }) => (
-        <Link
-          to={`/platform/institutions/${row.original.id}`}
-          className="font-medium text-slate-900 hover:text-primary hover:underline"
-        >
-          {row.original.name}
-        </Link>
-      ),
-    },
-    {
-      accessorKey: 'code',
-      header: 'Código',
-      cell: ({ row }) => <span className="font-mono text-sm">{row.original.code}</span>,
-    },
-    {
-      accessorKey: 'userCount',
-      header: 'Usuarios',
-      cell: ({ row }) => (
-        <Button
-          variant="link"
-          size="sm"
-          className="h-auto px-0 font-semibold tabular-nums underline underline-offset-4"
-          aria-label={`Ver ${row.original.userCount} usuarios de ${row.original.name}`}
-          onClick={() => setUsersInstitution(row.original)}
-        >
-          {row.original.userCount}
-        </Button>
-      ),
-    },
-    {
-      id: 'type',
-      header: 'Tipo',
-      cell: ({ row }) => {
-        const isPersonal = (row.original.settings as Record<string, unknown> | undefined)?.accountType === 'personal'
-        return (
-          <Badge variant={isPersonal ? 'outline' : 'secondary'}>
-            {isPersonal ? 'Personal' : 'Institución'}
-          </Badge>
-        )
-      },
-    },
-    {
-      accessorKey: 'isActive',
-      header: 'Estado',
-      cell: ({ row }) => (
-        <Badge variant={row.original.isActive ? 'success' : 'destructive'}>
-          {row.original.isActive ? 'Activa' : 'Inactiva'}
-        </Badge>
-      ),
-    },
-    {
-      id: 'isTest',
-      header: 'Prueba',
-      cell: ({ row }) => (
-        <button
-          type="button"
-          className="text-left"
-          title={row.original.isTestInstitution ? 'Marcar como escuela real (oculta el botón de sembrar datos de prueba)' : 'Marcar como institución de prueba'}
-          disabled={!isOwner}
-          onClick={() => setTestFlag.mutate({ id: row.original.id, isTestInstitution: !row.original.isTestInstitution })}
-        >
-          <Badge variant={row.original.isTestInstitution ? 'outline' : 'secondary'}>
-            {row.original.isTestInstitution ? 'De prueba' : 'Real'}
-          </Badge>
-        </button>
-      ),
-    },
-    {
-      id: 'actions',
-      header: '',
-      cell: ({ row }) => (
-        <div className="flex justify-end gap-2">
-          {isOwner && row.original.isTestInstitution && (
-            <Button
-              variant="outline"
-              size="sm"
-              loading={seedTestData.isPending && seedTestData.variables === row.original.id}
-              onClick={() =>
-                seedTestData.mutate(row.original.id, {
-                  onSuccess: (result) => {
-                    toast.success(
-                      `Datos de prueba listos: ${result.parallelName}, ${result.teacherEmails.length} docentes, ${result.studentEmails.length} alumnos (contraseña: ${result.password})`,
-                      { duration: 15000 },
-                    )
-                  },
-                })
-              }
-            >
-              <Sparkles className="mr-1.5 h-4 w-4" />
-              Sembrar prueba
-            </Button>
-          )}
-          {isOwner && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => openModules(row.original)}
-              >
-                <LayoutGrid className="mr-1.5 h-4 w-4" />
-                Módulos
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setConfigInstitution(row.original)}
-              >
-                <Settings className="mr-1.5 h-4 w-4" />
-                Config
-              </Button>
-            </>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/platform/institutions/${row.original.id}/admins`)}
-          >
-            <Users className="mr-1.5 h-4 w-4" />
-            Admins
-          </Button>
-          {isOwner && (
-            <Button
-              variant="ghost"
-              size="sm"
-              loading={toggleInstitution.isPending && toggleInstitution.variables === row.original.id}
-              onClick={() => handleToggle(row.original)}
-            >
-              {row.original.isActive ? 'Desactivar' : 'Activar'}
-            </Button>
-          )}
-        </div>
-      ),
-    },
-  ]
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -346,23 +216,173 @@ export function InstitutionsPage() {
         </div>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={filteredInstitutions}
-        isLoading={isLoading}
-        searchPlaceholder="Buscar por nombre o código..."
-        onSearch={setSearch}
-        emptyMessage={search ? 'Sin coincidencias' : 'Sin instituciones'}
-        emptyDescription={search ? 'Prueba con otro nombre o código' : 'Crea la primera institución para empezar'}
-        action={
-          isOwner ? (
-            <Button onClick={openCreate}>
+      {isOwner && (
+        <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${platformSettings?.personalRegistrationEnabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+              <UserPlus className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-slate-900">Registro de cuentas personales</h2>
+              <p className="mt-0.5 text-sm text-slate-500">
+                {platformSettings?.personalRegistrationEnabled
+                  ? 'Los docentes pueden crear nuevas cuentas personales.'
+                  : 'La creación de nuevas cuentas personales está cerrada.'}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant={platformSettings?.personalRegistrationEnabled ? 'outline' : 'default'}
+            className="shrink-0"
+            disabled={isLoadingSettings || !platformSettings}
+            loading={setPersonalRegistration.isPending}
+            onClick={() => setPersonalRegistration.mutate(!platformSettings?.personalRegistrationEnabled)}
+          >
+            {platformSettings?.personalRegistrationEnabled ? 'Deshabilitar registros' : 'Habilitar registros'}
+          </Button>
+        </section>
+      )}
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-md">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar por nombre o código..."
+              className="h-10 bg-slate-50 pl-9"
+            />
+          </div>
+          {isOwner && (
+            <Button onClick={openCreate} className="shrink-0">
               <Plus className="mr-2 h-4 w-4" />
               Nueva institución
             </Button>
-          ) : undefined
-        }
-      />
+          )}
+        </div>
+
+        {isLoading ? (
+          <div className="space-y-3 p-4">
+            {[0, 1, 2].map((item) => <div key={item} className="h-28 animate-pulse rounded-xl bg-slate-100" />)}
+          </div>
+        ) : filteredInstitutions.length === 0 ? (
+          <div className="flex flex-col items-center px-6 py-16 text-center">
+            <div className="mb-3 rounded-full bg-slate-100 p-3"><School className="h-6 w-6 text-slate-500" /></div>
+            <p className="font-semibold text-slate-900">{search ? 'Sin coincidencias' : 'Sin instituciones'}</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {search ? 'Prueba con otro nombre o código.' : 'Crea la primera institución para empezar.'}
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {filteredInstitutions.map((institution) => {
+              const isPersonal = institution.settings?.accountType === 'personal'
+              return (
+                <article key={institution.id} className="p-4 transition-colors hover:bg-slate-50/70 sm:p-5">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
+                    <div className="flex min-w-0 flex-1 gap-3">
+                      <div className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 sm:flex">
+                        <School className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <Link
+                          to={`/platform/institutions/${institution.id}`}
+                          className="block truncate font-semibold text-slate-900 hover:text-primary hover:underline"
+                        >
+                          {institution.name}
+                        </Link>
+                        <p className="mt-1 truncate font-mono text-xs text-slate-500">{institution.code}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Badge variant={institution.isActive ? 'success' : 'destructive'}>
+                            {institution.isActive ? 'Activa' : 'Inactiva'}
+                          </Badge>
+                          <Badge variant={isPersonal ? 'outline' : 'secondary'}>
+                            {isPersonal ? 'Personal' : 'Institución'}
+                          </Badge>
+                          <button
+                            type="button"
+                            disabled={!isOwner}
+                            title={institution.isTestInstitution ? 'Marcar como institución real' : 'Marcar como institución de prueba'}
+                            onClick={() => setTestFlag.mutate({ id: institution.id, isTestInstitution: !institution.isTestInstitution })}
+                          >
+                            <Badge variant={institution.isTestInstitution ? 'outline' : 'secondary'}>
+                              {institution.isTestInstitution ? 'De prueba' : 'Real'}
+                            </Badge>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setUsersInstitution(institution)}
+                      className="flex w-fit items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
+                    >
+                      <Users className="h-4 w-4" />
+                      <span className="font-semibold tabular-nums">{institution.userCount}</span>
+                      {institution.userCount === 1 ? 'usuario' : 'usuarios'}
+                    </button>
+
+                    <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                      {isOwner && (
+                        <Button variant="outline" size="sm" onClick={() => openModules(institution)}>
+                          <LayoutGrid className="mr-1.5 h-4 w-4" />
+                          Módulos
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/platform/institutions/${institution.id}/admins`)}
+                      >
+                        <Users className="mr-1.5 h-4 w-4" />
+                        Admins
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" aria-label={`Más acciones para ${institution.name}`}>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                          {isOwner && (
+                            <DropdownMenuItem onSelect={() => setConfigInstitution(institution)}>
+                              <Settings /> Configuración
+                            </DropdownMenuItem>
+                          )}
+                          {isOwner && institution.isTestInstitution && (
+                            <DropdownMenuItem
+                              disabled={seedTestData.isPending}
+                              onSelect={() => seedTestData.mutate(institution.id, {
+                                onSuccess: (result) => toast.success(
+                                  `Datos listos: ${result.parallelName}, ${result.teacherEmails.length} docentes y ${result.studentEmails.length} alumnos`,
+                                  { duration: 10000 },
+                                ),
+                              })}
+                            >
+                              <Sparkles /> Sembrar datos de prueba
+                            </DropdownMenuItem>
+                          )}
+                          {isOwner && <DropdownMenuSeparator />}
+                          {isOwner && (
+                            <DropdownMenuItem
+                              className={institution.isActive ? 'text-red-600 focus:text-red-700' : 'text-emerald-700 focus:text-emerald-800'}
+                              onSelect={() => handleToggle(institution)}
+                            >
+                              {institution.isActive ? 'Desactivar institución' : 'Activar institución'}
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </section>
       <Dialog open={!!usersInstitution} onOpenChange={(open) => { if (!open) setUsersInstitution(null) }}>
         <DialogContent className="sm:max-w-5xl">
           <DialogHeader>

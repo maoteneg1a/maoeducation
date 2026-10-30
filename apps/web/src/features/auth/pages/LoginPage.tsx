@@ -8,7 +8,7 @@ import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { useLogin } from '../hooks/useLogin'
-import { usePersonalLogin } from '@/features/personal/hooks/usePersonalAuth'
+import { usePersonalLogin, usePersonalRegistrationStatus } from '@/features/personal/hooks/usePersonalAuth'
 import { useAuthStore } from '@/store/auth.store'
 import { getLoginTypePreference, getRememberedInstitutionCode, type LoginType } from '@/shared/lib/login-preference'
 
@@ -41,6 +41,7 @@ export function LoginPage() {
 
   const { mutate: loginInstitution, isPending: isInstitutionPending } = useLogin()
   const { mutate: loginPersonal, isPending: isPersonalPending } = usePersonalLogin()
+  const { data: personalRegistration } = usePersonalRegistrationStatus()
 
   const institutionForm = useForm<InstitutionForm>({
     resolver: zodResolver(institutionSchema),
@@ -166,8 +167,9 @@ export function LoginPage() {
               </Button>
 
               <p className="text-center text-sm text-muted-foreground">
-                ¿No tienes cuenta?{' '}
-                <Link to="/personal/register" className="text-primary hover:underline">Regístrate gratis</Link>
+                {personalRegistration?.personalRegistrationEnabled ? (
+                  <>¿No tienes cuenta? <Link to="/personal/register" className="text-primary hover:underline">Regístrate gratis</Link></>
+                ) : 'El registro de nuevas cuentas personales está temporalmente cerrado.'}
               </p>
             </form>
           ) : (

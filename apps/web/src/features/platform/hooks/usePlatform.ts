@@ -24,6 +24,7 @@ import {
 
 export const platformKeys = {
   institutions: ['platform-institutions'] as const,
+  settings: ['platform-settings'] as const,
   admins: (institutionId: string) => ['platform-institution-admins', institutionId] as const,
   aiConfig: (institutionId: string) => ['platform-institution-ai-config', institutionId] as const,
   subjects: (institutionId: string) => ['platform-institution-subjects', institutionId] as const,
@@ -69,6 +70,25 @@ export function useInstitutions() {
   return useQuery({
     queryKey: platformKeys.institutions,
     queryFn: platformApi.getInstitutions,
+  })
+}
+
+export function usePlatformSettings() {
+  return useQuery({
+    queryKey: platformKeys.settings,
+    queryFn: platformApi.getSettings,
+  })
+}
+
+export function useSetPersonalRegistrationEnabled() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (enabled: boolean) => platformApi.setPersonalRegistrationEnabled(enabled),
+    onSuccess: (settings) => {
+      qc.setQueryData(platformKeys.settings, settings)
+      toast.success(settings.personalRegistrationEnabled ? 'Registro personal habilitado' : 'Registro personal deshabilitado')
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
   })
 }
 

@@ -25,6 +25,7 @@ import {
   UpdateInstitutionAdminBody,
 } from './validators/platform.schema'
 import { seedTestData } from '../application/services/seed-test-data.service'
+import { getPlatformSettings, setPersonalRegistrationEnabled } from '../application/services/platform-settings.service'
 import type { UpdateAiConfigDto } from '../../institution/application/dtos/institution.dto'
 import type { CreateSubjectDto, UpdateSubjectDto } from '../../academic/application/dtos/academic.dto'
 
@@ -103,6 +104,28 @@ export default async function platformRoutes(app: FastifyInstance) {
   const protectedOpts = { preHandler: [platformAuthMiddleware] }
   // Escrituras sobre instituciones: solo owner.
   const ownerOpts = { preHandler: [platformAuthMiddleware, requirePlatformRole()] }
+
+  app.get('/platform/settings', protectedOpts, async (_req, reply) => {
+    return reply.send(await getPlatformSettings())
+  })
+
+  app.patch<{ Body: { personalRegistrationEnabled: boolean } }>(
+    '/platform/settings/personal-registration',
+    {
+      ...ownerOpts,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['personalRegistrationEnabled'],
+          additionalProperties: false,
+          properties: { personalRegistrationEnabled: { type: 'boolean' } },
+        },
+      },
+    },
+    async (req, reply) => {
+      return reply.send(await setPersonalRegistrationEnabled(req.body.personalRegistrationEnabled))
+    },
+  )
 
   app.get('/platform/institutions', protectedOpts, async (_req, reply) => {
     return reply.send(await listInstitutions.execute())

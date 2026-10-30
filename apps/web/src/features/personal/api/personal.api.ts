@@ -57,6 +57,8 @@ export interface SavePersonalClassesResult {
 }
 
 export const personalApi = {
+  registrationStatus: () =>
+    apiClient.get('personal/registration-status').json<{ personalRegistrationEnabled: boolean }>(),
   // 90s: bootstrapInstitution siembra centenares de filas (catálogo curricular
   // completo, DUA, evaluación, año lectivo...) en una sola transacción — el
   // backend ya le da 60s de margen a esa transacción, pero el timeout default

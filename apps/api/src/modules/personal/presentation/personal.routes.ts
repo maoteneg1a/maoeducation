@@ -7,7 +7,7 @@ import { tokenService } from '../../../shared/infrastructure/services/token.serv
 import { deletePersonalParallel } from '../application/services/personal-parallels.service'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
-import { ConflictError, UnauthorizedError } from '../../../shared/domain/errors/app.errors'
+import { AppError, ConflictError, UnauthorizedError } from '../../../shared/domain/errors/app.errors'
 import { bootstrapInstitution } from '../../platform/application/services/institution-bootstrap'
 import { MultigradeDomainError } from '../../../shared/domain/multigrade'
 import { buildAuthInstitution } from '../../auth/application/services/auth-institution.mapper'
@@ -18,6 +18,7 @@ import {
   reconcilePersonalClasses,
   type PersonalClassSelection,
 } from '../application/services/personal-structure.service'
+import { getPlatformSettings } from '../../platform/application/services/platform-settings.service'
 
 const userRepo = new PrismaAuthUserRepository()
 
@@ -105,6 +106,10 @@ async function buildLoginResponse(userId: string) {
 }
 
 export default async function personalRoutes(app: FastifyInstance) {
+  app.get('/personal/registration-status', async (_req, reply) => {
+    return reply.send(await getPlatformSettings())
+  })
+
   // ─── Register ─────────────────────────────────────────────────────────────
   app.post<{
     Body: {
@@ -133,6 +138,14 @@ export default async function personalRoutes(app: FastifyInstance) {
       },
     },
     async (req, reply) => {
+      const { personalRegistrationEnabled } = await getPlatformSettings()
+      if (!personalRegistrationEnabled) {
+        throw new AppError(
+          'El registro de nuevas cuentas personales está temporalmente cerrado.',
+          503,
+          'PERSONAL_REGISTRATION_DISABLED',
+        )
+      }
       const { firstName, lastName, email, password, workspaceName } = req.body
 
       // Email globally unique for personal accounts
