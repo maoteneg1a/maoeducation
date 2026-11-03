@@ -74,9 +74,9 @@ export function ReinforcementGradeRegister({ planId, detail, options, activities
       }} title="Marca como presentes solamente las asistencias sin registrar">Completar asistencia</Button><Button loading={save.isPending} disabled={pending || !detail.sessions.length} onClick={() => { if (busy.current) return; busy.current = true; save.mutate() }}><Save className="mr-2 h-4 w-4" />Guardar notas{Object.keys(drafts).length ? ` (${Object.keys(drafts).length})` : ''}</Button></div>}
     </div>
     <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm"><thead className="bg-muted/50"><tr>
-        <th className="min-w-48 p-3 text-left">Estudiante</th>
-        {detail.sessions.map((session) => <th key={session.id} className="min-w-40 max-w-56 p-3 text-left align-top">
+      <table className="w-full text-sm"><caption className="sr-only">Actividades de refuerzo y resultados del período</caption><thead><tr>
+        <th scope="col" className="sticky left-0 z-10 min-w-48 border-r bg-muted p-3 text-left">Estudiante</th>
+        {detail.sessions.map((session) => <th key={session.id} scope="col" className="min-w-40 max-w-56 border-r border-blue-100 bg-blue-50/80 p-3 text-left align-top dark:border-blue-900/50 dark:bg-blue-950/25">
           <div className="flex items-center justify-between gap-2"><span>{session.title}</span>{editable && <span className="flex">
             <Button variant="ghost" size="sm" title="Editar actividad" aria-label={`Editar ${session.title}`} disabled={pending || Object.keys(drafts).length > 0} onClick={() => onEdit(session)}><Pencil className="h-3 w-3" /></Button>
             <Button variant="ghost" size="sm" title="Eliminar actividad" aria-label={`Eliminar ${session.title}`} disabled={pending || Object.keys(drafts).length > 0} onClick={async () => {
@@ -87,17 +87,17 @@ export function ReinforcementGradeRegister({ planId, detail, options, activities
           {session.targetActivityId && <div className="mt-1 text-xs font-normal">Original: {activities.find((activity) => activity.id === session.targetActivityId)?.name ?? 'Actividad anterior'}</div>}
           {options.policy.mode === 'activity_set' && !session.targetActivityId && <div className="text-xs font-normal text-amber-700">Edita esta columna para elegir su actividad original.</div>}
         </th>)}
-        <th className="p-3">Promedio del refuerzo</th><th className="p-3">Formativa antes</th><th className="p-3">Formativa actual</th><th className="p-3">Total del período</th>
+        <th scope="col" className="min-w-36 border-l-2 border-violet-200 bg-violet-100/60 p-3 text-center dark:border-violet-800 dark:bg-violet-950/30">Promedio del refuerzo</th><th scope="col" className="min-w-32 border-l bg-muted/50 p-3 text-center">Formativa antes</th><th scope="col" className="min-w-32 border-l-2 border-teal-200 bg-teal-100/60 p-3 text-center dark:border-teal-800 dark:bg-teal-950/30">Formativa actual</th><th scope="col" className="min-w-32 border-l border-teal-200 bg-teal-100 p-3 text-center dark:border-teal-800 dark:bg-teal-950/40">Total del período</th>
       </tr></thead><tbody>{detail.students.map((student, rowIndex) => {
         const graded = detail.sessions.filter((session) => !locked(student.id, session)).map((session) => read(student.id, session)).filter((cell) => cell.status === 'present' && cell.text.trim() !== '').map((cell) => Number(cell.text.replace(',', '.'))).filter((value) => Number.isFinite(value) && value >= 0 && value <= options.scale)
         const summary = detail.scores.find((score) => score.studentId === student.id)
-        return <tr key={student.id} className="border-t"><td className="p-3 font-medium">{student.name}</td>
+        return <tr key={student.id} className="border-t"><th scope="row" className="sticky left-0 z-10 border-r bg-background p-3 text-left font-medium">{student.name}</th>
           {detail.sessions.map((session, columnIndex) => {
             const cell = read(student.id, session)
             const individual = locked(student.id, session)
             const disabled = !editable || pending || individual || (options.policy.mode === 'activity_set' && !session.targetActivityId)
-            return <td key={session.id} className="p-2 align-top">
-              <input aria-label={`${student.name}, ${session.title}`} data-register-row={rowIndex} data-register-column={columnIndex} className="h-10 w-24 rounded border bg-background px-3 disabled:opacity-50" inputMode="decimal" value={cell.text} disabled={disabled || cell.status !== 'present'}
+            return <td key={session.id} className="border-r border-blue-100 bg-blue-50/20 p-2 align-top dark:border-blue-900/50 dark:bg-blue-950/10">
+              <input aria-label={`${student.name}, ${session.title}`} data-register-row={rowIndex} data-register-column={columnIndex} className="h-10 w-24 rounded border bg-background px-3 tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50" inputMode="decimal" value={cell.text} disabled={disabled || cell.status !== 'present'}
                 onChange={(event) => change(student.id, session, { text: event.target.value, status: 'present' })}
                 onKeyDown={(event) => {
                   if (!['Enter', 'ArrowDown', 'ArrowUp'].includes(event.key)) return
@@ -125,7 +125,7 @@ export function ReinforcementGradeRegister({ planId, detail, options, activities
               {individual ? <p className="text-xs text-muted-foreground">Mejora individual · ver Notas</p> : <select aria-label={`Asistencia de ${student.name}, ${session.title}`} className="mt-1 block w-full bg-transparent text-xs text-muted-foreground" value={!drafts[keyOf(student.id, session.id)] && cell.expected.status === null ? 'unrecorded' : cell.status} disabled={disabled} onChange={(event) => { const status = event.target.value as AttendanceStatus; change(student.id, session, { status, ...(status !== 'present' ? { text: '' } : {}) }) }}><option value="unrecorded" disabled>Sin registrar</option><option value="present">Asistió</option><option value="absent">No asistió</option><option value="justified">Justificado</option></select>}
             </td>
           })}
-          <td className="p-3 text-center">{display(graded.length ? graded.reduce((sum, value) => sum + value, 0) / graded.length : null)}</td><td className="p-3 text-center">{display(summary?.beforeReinforcement)}</td><td className="p-3 text-center font-medium">{display(summary?.formative)}</td><td className="p-3 text-center font-medium">{display(summary?.total)}</td>
+          <td className="border-l-2 border-violet-200 bg-violet-50/50 p-3 text-center font-medium tabular-nums dark:border-violet-800 dark:bg-violet-950/15">{display(graded.length ? graded.reduce((sum, value) => sum + value, 0) / graded.length : null)}</td><td className="border-l bg-muted/20 p-3 text-center tabular-nums">{display(summary?.beforeReinforcement)}</td><td className="border-l-2 border-teal-200 bg-teal-50/60 p-3 text-center text-base font-semibold tabular-nums dark:border-teal-800 dark:bg-teal-950/20">{display(summary?.formative)}</td><td className="border-l border-teal-200 bg-teal-100/50 p-3 text-center text-base font-bold tabular-nums dark:border-teal-800 dark:bg-teal-950/30">{display(summary?.total)}</td>
         </tr>
       })}</tbody></table>
     </div>
