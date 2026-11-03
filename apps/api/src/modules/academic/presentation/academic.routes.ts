@@ -1,5 +1,6 @@
 import { validPeriodWeights } from '../../../shared/domain/grade-math'
-import { FastifyInstance } from 'fastify'
+import { FastifyInstance, FastifyRequest } from 'fastify'
+import { ForbiddenError } from '../../../shared/domain/errors/app.errors'
 import type { Prisma } from '@prisma/client'
 import { audit } from '../../../shared/infrastructure/services/audit.service'
 import {
@@ -13,6 +14,7 @@ import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.m
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { resolveGuardianStudentId } from '../../../shared/infrastructure/services/guardian-scope.service'
+import { isPrivilegedStaff, assertCourseAssignmentAccess } from '../../../shared/infrastructure/services/teacher-scope.service'
 import type {
   CreateLevelDto,
   UpdateLevelDto,
@@ -29,6 +31,13 @@ import type {
 
 const repo = new PrismaAcademicRepository()
 
+/** Scope is derived from the authenticated actor, never from a teacherId supplied by the client. */
+function academicReadTeacherId(req: FastifyRequest): string | undefined {
+  if (isPrivilegedStaff(req.user.roles)) return undefined
+  if (req.user.roles.includes('teacher')) return req.user.sub
+  throw new ForbiddenError()
+}
+
 export default async function academicRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware)
 
@@ -38,7 +47,7 @@ export default async function academicRoutes(app: FastifyInstance) {
     '/academic/levels',
     { preHandler: [requirePermission('academic_config', 'read')] },
     async (req, reply) => {
-      const levels = await repo.listLevels(req.user.institutionId)
+      const levels = await repo.listLevels(req.user.institutionId, academicReadTeacherId(req))
       return reply.send(levels)
     },
   )
@@ -76,7 +85,7 @@ export default async function academicRoutes(app: FastifyInstance) {
     '/academic/subjects',
     { preHandler: [requirePermission('academic_config', 'read')] },
     async (req, reply) => {
-      const subjects = await repo.listSubjects(req.user.institutionId)
+      const subjects = await repo.listSubjects(req.user.institutionId, academicReadTeacherId(req))
       return reply.send(subjects)
     },
   )
@@ -266,7 +275,7 @@ export default async function academicRoutes(app: FastifyInstance) {
     '/academic/parallels',
     { preHandler: [requirePermission('academic_config', 'read')] },
     async (req, reply) => {
-      const parallels = await repo.listParallels(req.user.institutionId, req.query.yearId)
+      const parallels = await repo.listParallels(req.user.institutionId, req.query.yearId, academicReadTeacherId(req))
       return reply.send(parallels)
     },
   )
@@ -295,7 +304,12 @@ export default async function academicRoutes(app: FastifyInstance) {
     '/academic/course-assignments',
     { preHandler: [requirePermission('academic_config', 'read')] },
     async (req, reply) => {
-      const assignments = await repo.listAssignments(req.user.institutionId, req.query)
+      const teacherId = academicReadTeacherId(req)
+      if (teacherId && req.query.teacherId && req.query.teacherId !== teacherId) return reply.send([])
+      const assignments = await repo.listAssignments(req.user.institutionId, {
+        ...req.query,
+        ...(teacherId && { teacherId, activeOnly: true }),
+      })
       return reply.send(assignments)
     },
   )
@@ -411,7 +425,10 @@ export default async function academicRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>(
     '/academic/course-assignments/:id/workload',
     { preHandler: [requirePermission('planning', 'read', 'own')] },
-    async (req, reply) => reply.send(await repo.getAssignmentWorkload(req.params.id, req.user.institutionId)),
+    async (req, reply) => {
+      await assertCourseAssignmentAccess(req, req.params.id, 'read')
+      return reply.send(await repo.getAssignmentWorkload(req.params.id, req.user.institutionId))
+    },
   )
 
   app.patch<{ Params: { id: string }; Body: { weeklyPeriodsOverride: number | null } }>(

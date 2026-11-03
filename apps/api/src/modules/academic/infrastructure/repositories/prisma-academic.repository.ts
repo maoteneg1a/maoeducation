@@ -18,9 +18,12 @@ import type {
 export class PrismaAcademicRepository {
   // ─── Levels ───────────────────────────────────────────────────────────────
 
-  async listLevels(institutionId: string) {
+  async listLevels(institutionId: string, teacherId?: string) {
     return prisma.level.findMany({
-      where: { institutionId },
+      where: { institutionId, ...(teacherId && { isActive: true, parallels: { some: {
+        institutionId, isActive: true,
+        OR: [{ tutorId: teacherId }, { courseAssignments: { some: { institutionId, teacherId, isActive: true } } }],
+      } } }) },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     })
   }
@@ -77,9 +80,11 @@ export class PrismaAcademicRepository {
 
   // ─── Subjects ─────────────────────────────────────────────────────────────
 
-  async listSubjects(institutionId: string) {
+  async listSubjects(institutionId: string, teacherId?: string) {
     return prisma.subject.findMany({
-      where: { institutionId },
+      where: { institutionId, ...(teacherId && { isActive: true, courseAssignments: { some: {
+        institutionId, teacherId, isActive: true, parallel: { isActive: true },
+      } } }) },
       orderBy: { name: 'asc' },
     })
   }
@@ -347,11 +352,15 @@ export class PrismaAcademicRepository {
     _count: { select: { enrollments: true, courseAssignments: true } },
   } as const
 
-  async listParallels(institutionId: string, yearId?: string) {
+  async listParallels(institutionId: string, yearId?: string, teacherId?: string) {
     return prisma.parallel.findMany({
       where: {
         institutionId,
         ...(yearId && { academicYearId: yearId }),
+        ...(teacherId && { isActive: true, OR: [
+          { tutorId: teacherId },
+          { courseAssignments: { some: { institutionId, teacherId, isActive: true } } },
+        ] }),
       },
       orderBy: [{ level: { sortOrder: 'asc' } }, { name: 'asc' }],
       include: this.parallelInclude,
@@ -412,7 +421,7 @@ export class PrismaAcademicRepository {
 
   async listAssignments(
     institutionId: string,
-    filters: { parallelId?: string; yearId?: string; teacherId?: string } = {},
+    filters: { parallelId?: string; yearId?: string; teacherId?: string; activeOnly?: boolean } = {},
   ) {
     return prisma.courseAssignment.findMany({
       where: {
@@ -420,6 +429,7 @@ export class PrismaAcademicRepository {
         ...(filters.parallelId && { parallelId: filters.parallelId }),
         ...(filters.yearId && { academicYearId: filters.yearId }),
         ...(filters.teacherId && { teacherId: filters.teacherId }),
+        ...(filters.activeOnly && { isActive: true, parallel: { isActive: true } }),
       },
       include: {
         parallel: { include: { level: true } },
@@ -432,7 +442,7 @@ export class PrismaAcademicRepository {
         },
         academicYear: { select: { id: true, name: true, isActive: true } },
       },
-      orderBy: [{ parallel: { name: 'asc' } }, { subject: { name: 'asc' } }],
+      orderBy: [{ parallel: { level: { sortOrder: 'asc' } } }, { parallel: { name: 'asc' } }, { subject: { name: 'asc' } }, { id: 'asc' }],
     })
   }
 
