@@ -67,11 +67,11 @@ export class PrismaStudentFolderRepository {
         : {}),
       ...(search
         ? {
-            OR: [
-              { profile: { firstName: { contains: search, mode: 'insensitive' } } },
-              { profile: { lastName: { contains: search, mode: 'insensitive' } } },
-              { profile: { dni: { contains: search, mode: 'insensitive' } } },
-            ],
+            AND: search.split(/\s+/).filter(Boolean).map((term) => ({ OR: [
+              { profile: { firstName: { contains: term, mode: 'insensitive' as const } } },
+              { profile: { lastName: { contains: term, mode: 'insensitive' as const } } },
+              { profile: { dni: { contains: term, mode: 'insensitive' as const } } },
+            ] })),
           }
         : {}),
     }
@@ -84,6 +84,7 @@ export class PrismaStudentFolderRepository {
           id: true,
           profile: { select: { firstName: true, lastName: true, dni: true } },
           studentEnrollments: {
+            where: { institutionId, ...(effectiveParallelIds ? { parallelId: { in: effectiveParallelIds } } : {}) },
             select: {
               parallel: { select: { name: true, level: { select: { name: true } } } },
               academicYear: { select: { startDate: true } },
@@ -95,6 +96,7 @@ export class PrismaStudentFolderRepository {
         orderBy: [
           { profile: { lastName: 'asc' } },
           { profile: { firstName: 'asc' } },
+          { id: 'asc' },
         ],
         skip: (page - 1) * pageSize,
         take: pageSize,

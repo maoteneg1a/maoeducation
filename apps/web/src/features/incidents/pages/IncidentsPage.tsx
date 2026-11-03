@@ -1,3 +1,4 @@
+import { StudentPicker, preventStudentPickerDialogClose } from '@/shared/components/StudentPicker'
 import * as React from 'react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -136,7 +137,7 @@ export function IncidentsPage() {
     queryFn: () => listIncidents(params),
   })
 
-  const { data: students = [] } = useQuery({
+  const { data: students = [], isLoading: studentsLoading, isError: studentsError } = useQuery({
     queryKey: ['incidents', 'reportable-students'],
     queryFn: () => getReportableStudents(),
   })
@@ -338,7 +339,7 @@ export function IncidentsPage() {
 
       {/* Create Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent onEscapeKeyDown={preventStudentPickerDialogClose} className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Nuevo Incidente Disciplinario</DialogTitle>
           </DialogHeader>
@@ -348,21 +349,9 @@ export function IncidentsPage() {
           >
             <div className="space-y-1.5">
               <Label htmlFor="studentId">Estudiante</Label>
-              <Select
-                value={createForm.watch('studentId') ?? ''}
-                onValueChange={(v) => createForm.setValue('studentId', v)}
-              >
-                <SelectTrigger id="studentId">
-                  <SelectValue placeholder="Seleccionar estudiante" />
-                </SelectTrigger>
-                <SelectContent>
-                  {students.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <StudentPicker id="studentId" students={students} value={createForm.watch('studentId') ?? ''}
+                onChange={(v) => createForm.setValue('studentId', v, { shouldValidate: true, shouldDirty: true })}
+                isLoading={studentsLoading} isError={studentsError} invalid={!!createForm.formState.errors.studentId} />
               {createForm.formState.errors.studentId && (
                 <p className="text-xs text-destructive">
                   {createForm.formState.errors.studentId.message}

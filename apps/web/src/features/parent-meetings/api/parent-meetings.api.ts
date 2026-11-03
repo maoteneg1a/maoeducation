@@ -1,3 +1,4 @@
+import type { StudentChoice } from '@/shared/lib/student-options'
 import { apiGet, apiPost, apiPatch, apiDelete, apiClient } from '@/shared/lib/api-client'
 
 export interface MeetingPerson {
@@ -55,7 +56,7 @@ export const saveParentMeetingSignature = (id: string, signature: string) =>
 
 /** Estudiantes que el actor puede asociar (docente → sus paralelos; admin/DECE/etc → todos). */
 export const getMeetingStudents = () =>
-  apiGet<Array<{ id: string; fullName: string; dni: string | null }>>('parent-meetings/students')
+  apiGet<StudentChoice[]>('parent-meetings/students')
 
 /** Descarga el acta de atención en PDF. */
 export async function downloadActaPdf(id: string) {

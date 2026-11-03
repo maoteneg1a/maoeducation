@@ -1,3 +1,4 @@
+import type { StudentChoice } from '@/shared/lib/student-options'
 import { apiGet, apiPost, apiPatch, apiPut } from '@/shared/lib/api-client'
 import { apiClient } from '@/shared/lib/api-client'
 
@@ -174,7 +175,7 @@ export const getUsers = (params?: Record<string, string>) =>
 
 /** Estudiantes que el actor puede reportar (docente → sus paralelos; admin/DECE → todos). */
 export const getReportableStudents = () =>
-  apiGet<Array<{ id: string; fullName: string; dni: string | null }>>('incidents/students')
+  apiGet<StudentChoice[]>('incidents/students')
 
 
 /** Ruta autenticada del adjunto (se descarga con openProtectedFile). */
