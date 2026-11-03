@@ -49,6 +49,15 @@ export const ALL_MODULES = [...DOCENCIA_MODULES, ...INSTITUCIONAL_MODULES] as co
 
 export type ModuleKey = (typeof ALL_MODULES)[number]
 
+/** Casos institucionales y cuentas docentes comparten el escritorio de refuerzo. */
+export const REINFORCEMENT_CASE_MODULES = ['pedagogic_recovery', 'reinforcement_plans'] as const
+
+/** Una sección compartida puede habilitarse desde cualquiera de sus módulos. */
+export function isModuleEnabled(enabled: readonly string[] | null, required: string | readonly string[]): boolean {
+  if (enabled === null) return true
+  return (typeof required === 'string' ? [required] : required).some((module) => enabled.includes(module))
+}
+
 export type ModuleGroupId = 'docencia' | 'institucional'
 
 export interface ModuleGroup {
