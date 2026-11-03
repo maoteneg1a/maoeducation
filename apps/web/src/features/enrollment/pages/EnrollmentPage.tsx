@@ -28,6 +28,7 @@ import { getErrorMessage } from '@/shared/lib/utils'
 import { formatDate } from '@/shared/lib/utils'
 import { apiPost } from '@/shared/lib/api-client'
 import { BulkImportDialog, normalizeDni, pick } from '@/shared/components/import/BulkImportDialog'
+import { normalizeStudentDocument, isValidStudentDocument, STUDENT_DOCUMENT_ERROR } from '@/shared/lib/student-document'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth.store'
@@ -540,9 +541,7 @@ export function EnrollmentPage() {
           ? dateValue.toISOString().slice(0, 10)
           : String(dateValue ?? '').trim()
         const rawDni = entries.cedula ?? entries.cédula ?? entries.dni ?? ''
-        const digits = String(rawDni).replace(/\D/g, '')
-        // Excel suele eliminar el cero inicial cuando la cédula fue guardada como número.
-        const dni = typeof rawDni === 'number' && digits.length === 9 ? digits.padStart(10, '0') : digits
+        const dni = normalizeStudentDocument(rawDni)
         return {
           dni,
           firstName: String(entries.nombres ?? entries.nombre ?? entries.firstname ?? '').trim(),
@@ -622,15 +621,15 @@ export function EnrollmentPage() {
       toast.error('Nombres y apellidos son obligatorios')
       return
     }
-    if (!/^\d{10}$/.test(nsDni.trim())) {
-      toast.error('La cédula debe tener 10 dígitos')
+    if (!isValidStudentDocument(normalizeStudentDocument(nsDni))) {
+      toast.error(STUDENT_DOCUMENT_ERROR)
       return
     }
     createStudentMutation.mutate(
       {
         firstName: nsFirstName.trim(),
         lastName: nsLastName.trim(),
-        dni: nsDni.trim(),
+        dni: normalizeStudentDocument(nsDni),
         parallelId,
         academicYearId: yearId,
       },
@@ -937,7 +936,7 @@ export function EnrollmentPage() {
         templateFileName="plantilla_importacion_representantes.xlsx"
         maxRows={1000}
         mapRow={(e) => ({
-          studentDni: normalizeDni(pick(e, 'cedula_estudiante', 'estudiante')),
+          studentDni: normalizeStudentDocument(pick(e, 'cedula_estudiante', 'estudiante')),
           dni: normalizeDni(pick(e, 'cedula_representante', 'cedula', 'dni')),
           firstName: String(pick(e, 'nombres', 'nombre')),
           lastName: String(pick(e, 'apellidos', 'apellido')),
@@ -971,7 +970,7 @@ export function EnrollmentPage() {
           <div className="space-y-4">
             <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
               Columnas requeridas: <strong>cedula, nombres, apellidos</strong>. La fecha de nacimiento es opcional.
-              La cédula será el usuario y la contraseña inicial. Los estudiantes existentes se reutilizan, no se duplican.
+              Se admiten cédulas de 10 dígitos y códigos de extranjero alfanuméricos de 6 a 20 caracteres. El documento será el usuario y la contraseña inicial. Los estudiantes existentes se reutilizan, no se duplican.
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <input
@@ -1032,7 +1031,7 @@ export function EnrollmentPage() {
                     <thead className="sticky top-0 bg-muted"><tr><th className="p-2 text-left">Cédula</th><th className="p-2 text-left">Nombres</th><th className="p-2 text-left">Apellidos</th><th className="p-2 text-left">Validación</th></tr></thead>
                     <tbody>
                       {importRows.map((row, index) => {
-                        const valid = /^\d{10}$/.test(row.dni) && !!row.firstName && !!row.lastName
+                        const valid = isValidStudentDocument(row.dni) && !!row.firstName && !!row.lastName
                         return <tr key={`${row.dni}-${index}`} className="border-t"><td className="p-2">{row.dni || '—'}</td><td className="p-2">{row.firstName || '—'}</td><td className="p-2">{row.lastName || '—'}</td><td className={`p-2 ${valid ? 'text-emerald-700' : 'text-destructive'}`}>{valid ? 'Lista' : 'Revisar datos'}</td></tr>
                       })}
                     </tbody>
@@ -1165,12 +1164,12 @@ export function EnrollmentPage() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Cédula *</Label>
+              <Label>Cédula o código de extranjero *</Label>
               <Input
                 value={nsDni}
-                onChange={(e) => setNsDni(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                inputMode="numeric"
-                placeholder="10 dígitos"
+                onChange={(e) => setNsDni(e.target.value)}
+                maxLength={20}
+                placeholder="Cédula o código alfanumérico"
               />
             </div>
           </div>
@@ -1180,7 +1179,7 @@ export function EnrollmentPage() {
             </Button>
             <Button
               onClick={handleCreateStudent}
-              disabled={!yearId || !parallelId || !nsFirstName.trim() || !nsLastName.trim() || nsDni.length !== 10}
+              disabled={!yearId || !parallelId || !nsFirstName.trim() || !nsLastName.trim() || !isValidStudentDocument(normalizeStudentDocument(nsDni))}
               loading={createStudentMutation.isPending}
             >
               Crear y matricular

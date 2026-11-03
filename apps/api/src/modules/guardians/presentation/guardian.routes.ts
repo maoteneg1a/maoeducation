@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify'
+import { normalizeStudentDocument } from '../../../shared/domain/student-document'
 import { audit } from '../../../shared/infrastructure/services/audit.service'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { PrismaGuardianRepository } from '../infrastructure/repositories/prisma-guardian.repository'
@@ -90,7 +91,7 @@ export default async function guardianRoutes(app: FastifyInstance) {
       const { institutionId } = req.user
       const results: Array<{ studentDni: string; dni: string; fullName: string; status: 'linked' | 'created' | 'existing' | 'skipped'; reason?: string }> = []
       for (const row of req.body.rows) {
-        const studentDni = String(row.studentDni ?? '').replace(/\D/g, '')
+        const studentDni = normalizeStudentDocument(String(row.studentDni ?? ''))
         const dni = String(row.dni ?? '').replace(/\D/g, '')
         const fullName = `${row.firstName?.trim() ?? ''} ${row.lastName?.trim() ?? ''}`.trim()
         try {
