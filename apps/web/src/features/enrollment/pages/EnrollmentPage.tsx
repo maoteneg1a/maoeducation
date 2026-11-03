@@ -33,7 +33,6 @@ import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth.store'
 import { PersonalParallelsDialog } from '@/features/personal/components/PersonalParallelsDialog'
-import { academicApi } from '@/features/academic/api/academic.api'
 import {
   listEnrollments,
   createEnrollment,
@@ -432,34 +431,16 @@ export function EnrollmentPage() {
   const { data: enrollments = [], isLoading: enrollmentsLoading } = useEnrollments(yearId, parallelId)
   const { data: students = [] } = useStudents('')
 
-  // Alcance del docente: solo gestiona quien tiene academic_config:manage (admin).
-  // El docente ve únicamente sus paralelos (donde dicta o es tutor).
   const { hasPermission } = usePermissions()
-  const tutorParallelIds = useAuthStore((s) => s.user?.tutorParallelIds ?? [])
-  // "Ve todos los paralelos" (admin). El docente solo ve/gestiona los suyos.
-  const seesAllParallels = hasPermission('academic_config:manage')
-  // Puede crear/editar matrículas (admin o profesor con enrollment:manage).
+  const canManageParallels = hasPermission('academic_config:manage')
   const canCreateEnrollment = hasPermission('enrollment:manage')
-  const { data: myAssign } = useQuery({
-    queryKey: ['my-course-assignments'],
-    queryFn: () => academicApi.getMyAssignments(),
-    enabled: !seesAllParallels,
-  })
-  const allowedParallelIds = React.useMemo(() => {
-    if (seesAllParallels) return null
-    const set = new Set<string>(tutorParallelIds)
-    for (const a of myAssign?.assignments ?? []) {
-      const pid = a.parallel?.id ?? a.parallelId
-      if (pid) set.add(pid)
-    }
-    return set
-  }, [seesAllParallels, myAssign, tutorParallelIds])
-  const filterParallels = (list: Parallel[]) =>
-    allowedParallelIds ? list.filter((p) => allowedParallelIds.has(p.id)) : list
-  const visibleParallels = filterParallels(parallels)
-  const visibleSingleParallels = filterParallels(singleParallels)
-  const visibleBulkParallels = filterParallels(bulkParallels)
-  const visibleImportParallels = filterParallels(importParallels)
+  // /academic/parallels aplica en servidor el alcance del actor: materias propias
+  // y tutorías para docentes, institución completa para personal autorizado.
+  // No usar my-course-assignments: ese endpoint resuelve matrículas del alumno.
+  const visibleParallels = parallels
+  const visibleSingleParallels = singleParallels
+  const visibleBulkParallels = bulkParallels
+  const visibleImportParallels = importParallels
 
   // Mutations
   const createMutation = useCreateEnrollment(yearId, parallelId)
@@ -815,7 +796,7 @@ export function EnrollmentPage() {
             </SelectContent>
           </Select>
         </div>
-        {isPersonalAccount && seesAllParallels && (
+        {isPersonalAccount && canManageParallels && (
           <PersonalParallelsDialog
             parallels={visibleParallels}
             yearName={years.find((year) => year.id === yearId)?.name}
