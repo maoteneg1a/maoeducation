@@ -5,6 +5,7 @@ import { PrismaEnrollmentRepository } from '../infrastructure/repositories/prism
 import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.middleware'
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import { BadRequestError } from '../../../shared/domain/errors/app.errors'
+import { normalizeStudentDocument, isValidStudentDocument, STUDENT_DOCUMENT_ERROR } from '../../../shared/domain/student-document'
 import {
   getTeacherParallelIds,
   isPrivilegedStaff,
@@ -90,12 +91,13 @@ export default async function enrollmentRoutes(app: FastifyInstance) {
       if (!firstName?.trim() || !lastName?.trim()) {
         throw new BadRequestError('Nombres y apellidos son obligatorios')
       }
-      if (!/^\d{10}$/.test(dni ?? '')) {
-        throw new BadRequestError('La cédula debe tener 10 dígitos')
+      const document = normalizeStudentDocument(dni ?? '')
+      if (!isValidStudentDocument(document)) {
+        throw new BadRequestError(STUDENT_DOCUMENT_ERROR)
       }
       await assertParallelInScope(req, parallelId)
       await assertPlanCapacity(req.user.institutionId, 'students', 1)
-      const enrollment = await repo.createStudentAndEnroll(req.user.institutionId, req.body)
+      const enrollment = await repo.createStudentAndEnroll(req.user.institutionId, { ...req.body, dni: document })
       return reply.status(201).send(enrollment)
     },
   )

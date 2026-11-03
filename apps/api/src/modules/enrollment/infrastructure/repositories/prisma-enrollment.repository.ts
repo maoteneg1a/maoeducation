@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs'
+import { normalizeStudentDocument, isValidStudentDocument, STUDENT_DOCUMENT_ERROR } from '../../../../shared/domain/student-document'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
 import { NotFoundError, ConflictError } from '../../../../shared/domain/errors/app.errors'
 import type {
@@ -285,14 +286,14 @@ export class PrismaEnrollmentRepository {
     const seenDnis = new Set<string>()
 
     for (const s of dto.students) {
-      const dni = s.dni?.trim()
+      const dni = normalizeStudentDocument(s.dni ?? '')
       const firstName = s.firstName?.trim()
       const lastName = s.lastName?.trim()
 
-      if (!firstName || !lastName || !/^\d{10}$/.test(dni ?? '')) {
+      if (!firstName || !lastName || !isValidStudentDocument(dni)) {
         const reason = !firstName || !lastName
           ? 'Nombres y apellidos incompletos'
-          : 'La cédula debe tener 10 dígitos'
+          : STUDENT_DOCUMENT_ERROR
         results.push({ firstName: firstName ?? '', lastName: lastName ?? '', dni: dni ?? '', status: 'skipped', reason })
         continue
       }
