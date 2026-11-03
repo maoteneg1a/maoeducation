@@ -1,4 +1,5 @@
 import { useDeceContext } from '@/features/dece/api/dece.api'
+import { isModuleEnabled, REINFORCEMENT_CASE_MODULES } from '@/shared/lib/modules'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   Home, Users, Settings, BookOpen, GraduationCap,
@@ -24,7 +25,7 @@ export interface NavItem {
   path: string
   permission?: string
   anyPermissions?: string[]
-  module?: string
+  module?: string | readonly string[]
   /** Visible solo para estos roles (además del permiso). */
   roles?: string[]
   children?: Array<{ label: string; path: string; module?: string; hideForPersonal?: boolean; showOnlyForPersonal?: boolean }>
@@ -196,6 +197,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: LifeBuoy,
         path: '/refuerzo/casos',
         permission: 'early_alerts:read',
+        module: REINFORCEMENT_CASE_MODULES,
       },
       {
         label: 'Comportamiento',
@@ -356,7 +358,7 @@ export function useVisibleNavSections(): NavSection[] {
     (!item.permission || hasPermission(item.permission)) &&
     (!item.anyPermissions || item.anyPermissions.some(hasPermission)) &&
     (!item.roles || hasAnyRole(...item.roles)) &&
-    (!item.module || !enabledModules || enabledModules.includes(item.module))
+    (!item.module || isModuleEnabled(enabledModules, item.module))
 
   // Una sección sin ítems visibles desaparece con su encabezado — así una cuenta
   // personal sin módulos institucionales no muestra un título vacío. Los hijos
@@ -373,7 +375,7 @@ export function useVisibleNavSections(): NavSection[] {
             (c) =>
               (!isPersonalAccount || !c.hideForPersonal)
               && (isPersonalAccount || !c.showOnlyForPersonal)
-              && (!c.module || !enabledModules || enabledModules.includes(c.module)),
+              && (!c.module || isModuleEnabled(enabledModules, c.module)),
           ).sort((a, b) => labelCollator.compare(a.label, b.label)),
         }))
         .sort((a, b) => labelCollator.compare(a.label, b.label)),
@@ -406,7 +408,6 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       return new Set(['academico'])
     }
   })
-  const institution = useAuthStore((s) => s.user?.institution ?? null)
   const visibleSections = useVisibleNavSections()
 
   const matchesRoute = (path: string) =>
@@ -523,14 +524,10 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         <img src="/isotipo.svg" alt="Auleka" className="h-8 w-8 shrink-0" />
         {!collapsed && (
           <div className="flex flex-col min-w-0">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-primary leading-none">
+            <span className="text-2xl font-semibold tracking-tight text-sidebar-foreground leading-none">
               auleka
             </span>
-            {institution?.name && (
-              <span className="text-sm font-semibold text-sidebar-foreground truncate leading-tight mt-0.5">
-                {institution.name}
-              </span>
-            )}
+            <span className="mt-1 text-[10px] text-sidebar-foreground/60">Plataforma educativa</span>
           </div>
         )}
       </div>

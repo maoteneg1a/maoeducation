@@ -25,6 +25,7 @@ import {
 } from '@/shared/components/ui/dropdown-menu'
 import { openCommandPalette } from './CommandPalette'
 import { detachPushSubscription } from '@/shared/lib/push-subscription'
+import { InstitutionIdentity } from './InstitutionIdentity'
 
 interface TopbarProps {
   onMobileMenuClick: () => void
@@ -65,11 +66,11 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
   const currentTheme = THEME_OPTIONS.find((o) => o.value === theme) ?? THEME_OPTIONS[0]
 
   return (
-    <header className="h-14 border-b bg-background flex items-center px-4 gap-3 shrink-0">
+    <header className="min-h-14 border-b bg-background flex flex-wrap items-center px-3 py-2 gap-2 sm:px-4 sm:gap-3 shrink-0">
       {/* Toggle sidebar (desktop) / open drawer (mobile) */}
       <button
         onClick={toggleSidebar}
-        className="hidden p-1.5 rounded-md hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:block"
+        className="hidden shrink-0 p-1.5 rounded-md hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:block"
         aria-label="Contraer o expandir menú lateral"
       >
         <Menu className="h-5 w-5" aria-hidden="true" />
@@ -78,31 +79,34 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
       {/* Mobile: also show button */}
       <button
         onClick={onMobileMenuClick}
-        className="p-1.5 rounded-md hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+        className="shrink-0 p-1.5 rounded-md hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
         aria-label="Abrir menú"
       >
         <Menu className="h-5 w-5" aria-hidden="true" />
       </button>
+
+      {user?.institution
+        ? <InstitutionIdentity name={user.institution.name} logoUrl={user.institution.branding?.logoUrl} />
+        : <div className="flex-1" />}
 
       {/* Búsqueda global (⌘K) */}
       <button
         type="button"
         onClick={openCommandPalette}
         aria-label="Buscar (atajo: Ctrl o Cmd + K)"
-        className="flex h-8 items-center gap-2 rounded-md border border-input bg-muted/40 px-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-56"
+        className="flex h-8 w-8 shrink-0 items-center justify-center gap-2 rounded-md border border-input bg-muted/40 px-2 text-sm text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring 2xl:w-44"
       >
         <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span className="hidden flex-1 text-left sm:inline">Buscar…</span>
-        <kbd className="hidden rounded border bg-background px-1.5 py-0.5 font-sans text-[10px] font-medium sm:inline">
+        <span className="hidden flex-1 text-left 2xl:inline">Buscar…</span>
+        <kbd className="hidden rounded border bg-background px-1.5 py-0.5 font-sans text-[10px] font-medium 2xl:inline">
           {isMac ? '⌘K' : 'Ctrl K'}
         </kbd>
       </button>
 
-      <div className="flex-1" />
-      <ChildSwitcher />
+      <div className="order-last mt-2 flex w-full border-t pt-2 lg:order-none lg:mt-0 lg:w-auto lg:border-0 lg:pt-0 [&:empty]:hidden"><ChildSwitcher /></div>
 
       {/* User menu */}
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-1 sm:gap-3">
         <AiUsageBadge />
         <NotificationCenter />
 
@@ -113,8 +117,8 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
               aria-label="Menú de usuario"
               className="flex items-center gap-2 rounded-md p-1 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <div className="hidden sm:flex flex-col items-end">
-                <span className="text-sm font-medium leading-none">{user?.fullName}</span>
+              <div className="hidden max-w-44 xl:flex flex-col items-end 2xl:max-w-60">
+                <span className="max-w-full truncate text-sm font-medium leading-none" title={user?.fullName}>{user?.fullName}</span>
                 <span className="text-xs text-muted-foreground">
                   {primaryRole ? roleLabel(primaryRole) : ''}
                 </span>

@@ -15,6 +15,7 @@ import { PlatformLoginPage } from '@/features/platform/pages/PlatformLoginPage'
 import { RouteErrorBoundary } from '@/shared/components/feedback/RouteErrorBoundary'
 import { PersonalSubscriptionGuard } from './PersonalSubscriptionGuard'
 import { ModuleGuard } from './ModuleGuard'
+import { REINFORCEMENT_CASE_MODULES } from '@/shared/lib/modules'
 
 export const router = createBrowserRouter([
   {
@@ -227,7 +228,7 @@ export const router = createBrowserRouter([
       // ---- Consulta de casos de refuerzo (sesiones, asistencia, archivos) ----
       {
         path: 'refuerzo/casos',
-        element: <ModuleGuard module="reinforcement_plans"><PermissionGuard permission="early_alerts:read" /></ModuleGuard>,
+        element: <ModuleGuard module={REINFORCEMENT_CASE_MODULES}><PermissionGuard permission="early_alerts:read" /></ModuleGuard>,
         children: [
           {
             index: true,
