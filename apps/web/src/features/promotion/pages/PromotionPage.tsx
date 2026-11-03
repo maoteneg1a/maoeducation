@@ -65,7 +65,7 @@ export function PromotionPage() {
   const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const { hasAnyRole } = usePermissions()
-  const isAdminLike = hasAnyRole('admin', 'inspector')
+  const isAdminLike = hasAnyRole('admin', 'rector', 'inspector', 'dece')
 
   const { data: years = [] } = useAcademicYears()
   const [yearId, setYearId] = React.useState('')
@@ -75,11 +75,10 @@ export function PromotionPage() {
     if (!yearId && activeYear) setYearId(activeYear.id)
   }, [activeYear])
 
-  const { data: allParallels = [] } = useParallels(yearId || undefined)
+  const { data: allParallels = [], isLoading: parallelsLoading, isError: parallelsError } = useParallels(yearId || undefined)
   const parallels = React.useMemo(() => {
     if (isAdminLike) return allParallels
-    const tutored = user?.tutorParallelIds ?? []
-    return allParallels.filter((p) => tutored.includes(p.id))
+    return allParallels.filter((p) => p.tutorId === user?.id)
   }, [allParallels, isAdminLike, user])
 
   const [parallelId, setParallelId] = React.useState('')
@@ -162,7 +161,13 @@ export function PromotionPage() {
         </div>
       </div>
 
-      {!canLoad ? (
+      {parallelsLoading ? (
+        <PageLoader />
+      ) : parallelsError ? (
+        <EmptyState icon={GraduationCap} title="No se pudieron cargar los paralelos" description="Vuelve a intentarlo para consultar tus cursos." />
+      ) : !isAdminLike && yearId && parallels.length === 0 ? (
+        <EmptyState icon={GraduationCap} title="Sin tutorías para este año" description="Esta pantalla muestra los paralelos de los que eres tutor. Las materias que impartes en otros cursos no son tutorías." />
+      ) : !canLoad ? (
         <EmptyState
           icon={GraduationCap}
           title="Selecciona los filtros"

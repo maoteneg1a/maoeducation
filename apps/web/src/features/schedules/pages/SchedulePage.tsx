@@ -81,7 +81,7 @@ export function SchedulePage() {
   const isReadOnlyStudent = isGuardian || isStudent
 
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [filterYearId, setFilterYearId] = useState('')
+  const [filterYearId, setFilterYearId] = useState('__active__')
   const [filterParallelId, setFilterParallelId] = useState('')
   const [filterTeacherId, setFilterTeacherId] = useState('')
 
@@ -94,7 +94,7 @@ export function SchedulePage() {
   })
 
   const scheduleParams: Record<string, string> = {}
-  if (filterYearId) scheduleParams.yearId = filterYearId
+  if (filterYearId && filterYearId !== '__active__') scheduleParams.yearId = filterYearId
   if (filterParallelId) scheduleParams.parallelId = filterParallelId
   if (filterTeacherId) scheduleParams.teacherId = filterTeacherId
   if (isGuardian && guardianStudentId) scheduleParams.studentId = guardianStudentId
@@ -118,11 +118,15 @@ export function SchedulePage() {
     enabled: !isReadOnlyStudent,
   })
 
-  const { data: parallels = [] } = useQuery({
+  React.useEffect(() => {
+    if (filterYearId === '__active__' && years.length) setFilterYearId(years.find((y) => y.isActive)?.id ?? '')
+  }, [years, filterYearId])
+
+  const { data: parallels = [], isLoading: parallelsLoading, isError: parallelsError } = useQuery({
     queryKey: ['academic/parallels', filterYearId],
     queryFn: () =>
-      apiGet<Parallel[]>('academic/parallels', filterYearId ? { yearId: filterYearId } : undefined),
-    enabled: !isReadOnlyStudent,
+      apiGet<Parallel[]>('academic/parallels', filterYearId && filterYearId !== '__active__' ? { yearId: filterYearId } : undefined),
+    enabled: !isReadOnlyStudent && filterYearId !== '__active__',
   })
 
   const createMutation = useMutation({
@@ -193,7 +197,7 @@ export function SchedulePage() {
 
       {/* Filters */}
       {!isReadOnlyStudent && <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <Select value={filterYearId} onValueChange={(v) => { setFilterYearId(v === '__all__' ? '' : v); setFilterParallelId('') }}>
+        <Select value={filterYearId || '__all__'} onValueChange={(v) => { setFilterYearId(v === '__all__' ? '' : v); setFilterParallelId('') }}>
           <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Año lectivo" />
           </SelectTrigger>
@@ -205,12 +209,12 @@ export function SchedulePage() {
           </SelectContent>
         </Select>
 
-        <Select value={filterParallelId} onValueChange={(v) => setFilterParallelId(v === '__all__' ? '' : v)}>
+        <Select value={filterParallelId || '__all__'} onValueChange={(v) => setFilterParallelId(v === '__all__' ? '' : v)}>
           <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Paralelo" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">Todos los paralelos</SelectItem>
+            <SelectItem value="__all__">{roles.includes('teacher') && !roles.some((r) => ['admin', 'rector', 'dece', 'inspector'].includes(r)) ? 'Todos mis paralelos' : 'Todos los paralelos'}</SelectItem>
             {parallels.map((p) => (
               <SelectItem key={p.id} value={p.id}>{p.level.name} - {p.name}</SelectItem>
             ))}
@@ -218,6 +222,10 @@ export function SchedulePage() {
         </Select>
       </div>}
 
+      {!isReadOnlyStudent && <p role={parallelsError ? 'alert' : undefined} className="text-sm text-muted-foreground">
+        {parallelsLoading ? 'Cargando paralelos...' : parallelsError ? 'No se pudieron cargar los paralelos. Vuelve a intentarlo.' : parallels.length ? `${parallels.length} paralelos disponibles para este año. Usa el selector para consultar uno en particular.` : 'No tienes paralelos asignados para este año lectivo.'}
+      </p>}
+      {!isLoading && entries.length === 0 && <p className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">No hay bloques de horario registrados para esta selección. Las materias asignadas y los bloques del horario se configuran por separado.</p>}
       {/* Weekly grid */}
       {isLoading ? (
         <div className="text-center py-10 text-muted-foreground">Cargando horario...</div>
