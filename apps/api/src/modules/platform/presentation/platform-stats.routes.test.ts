@@ -51,4 +51,46 @@ describe('usuarios de una institución en plataforma', () => {
     expect(response.statusCode).toBe(400)
     expect(db.user.findMany).not.toHaveBeenCalled()
   })
+
+  it('filtra por rol y documento antes de paginar y conserva el mismo filtro en el total', async () => {
+    const response = await app.inject({ method: 'GET', url: '/platform/users?institutionId=school-a&role=teacher&search=E123456789&page=2&limit=20&sort=name_asc' })
+    expect(response.statusCode).toBe(200)
+    const query = db.user.findMany.mock.calls[0][0]
+    expect(query).toMatchObject({ skip: 20, take: 20, where: {
+      institutionId: 'school-a', userRoles: { some: { role: { name: 'teacher' } } },
+      OR: expect.arrayContaining([{ profile: { dni: { contains: 'E123456789', mode: 'insensitive' } } }]),
+    } })
+    expect(query.orderBy).toEqual([{ profile: { lastName: 'asc' } }, { profile: { firstName: 'asc' } }, { email: 'asc' }, { id: 'asc' }])
+    expect(db.user.count).toHaveBeenCalledWith({ where: query.where })
+  })
+
+  it('incluye autoridades con rol docente una sola vez al consultar personal', async () => {
+    db.user.findMany.mockResolvedValue([{
+      id: 'authority', email: 'authority@example.test', isActive: true,
+      profile: { firstName: 'Ana', lastName: 'Pérez' },
+      institution: { id: 'school-a', name: 'Escuela A', settings: {} },
+      userRoles: [{ role: { name: 'rector' } }, { role: { name: 'teacher' } }],
+      createdAt: new Date('2026-01-01'),
+    }])
+    db.user.count.mockResolvedValue(1)
+    const response = await app.inject({ method: 'GET', url: '/platform/users?institutionId=school-a&role=staff&sort=name_desc' })
+    expect(response.statusCode).toBe(200)
+    expect(response.json().data).toHaveLength(1)
+    expect(response.json().data[0].roles).toEqual(['rector', 'teacher'])
+    expect(db.user.findMany.mock.calls[0][0].where).toMatchObject({
+      institutionId: 'school-a', userRoles: { some: { role: { name: { in: ['admin', 'rector', 'inspector', 'dece', 'teacher'] } } } },
+    })
+    expect(db.user.findMany.mock.calls[0][0].orderBy[0]).toEqual({ profile: { lastName: 'desc' } })
+  })
+
+  it('mantiene un desempate estable en el orden de registros recientes', async () => {
+    await app.inject({ method: 'GET', url: '/platform/users?institutionId=school-a' })
+    expect(db.user.findMany.mock.calls[0][0].orderBy).toEqual([{ createdAt: 'desc' }, { id: 'asc' }])
+  })
+
+  it.each(['role=unknown', 'sort=unknown'])('rechaza el filtro inválido %s sin consultar usuarios', async (filter) => {
+    const response = await app.inject({ method: 'GET', url: '/platform/users?institutionId=school-a&'+filter })
+    expect(response.statusCode).toBe(400)
+    expect(db.user.findMany).not.toHaveBeenCalled()
+  })
 })

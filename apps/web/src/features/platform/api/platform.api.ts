@@ -104,6 +104,8 @@ export interface PlatformUser {
   createdAt: string
 }
 
+export type PlatformUsersSort = 'newest' | 'name_asc' | 'name_desc'
+
 export interface Lead {
   id: string
   name: string
@@ -232,7 +234,7 @@ export const platformApi = {
   },
 
   getStatsOverview: () => platformGet<StatsOverview>('platform/stats/overview'),
-  getPlatformUsers: (params: { institutionId: string; page?: number; limit?: number; search?: string }) =>
+  getPlatformUsers: (params: { institutionId: string; page?: number; limit?: number; search?: string; role?: string; sort?: PlatformUsersSort }) =>
     platformGet<{ data: PlatformUser[]; total: number }>('platform/users', params),
   impersonateUser: (userId: string) =>
     platformPost<{ accessToken: string; user: AuthUser; impersonation: { expiresIn: string } }>(

@@ -89,7 +89,7 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
     })
   })
 
-  app.get<{ Querystring: { institutionId?: string; page?: number; limit?: number; search?: string } }>(
+  app.get<{ Querystring: { institutionId?: string; page?: number; limit?: number; search?: string; role?: string; sort?: 'newest' | 'name_asc' | 'name_desc' } }>(
     '/platform/users',
     {
       ...protectedOpts,
@@ -101,6 +101,8 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
             limit: { type: 'integer', minimum: 1, maximum: 200 },
             search: { type: 'string' },
             institutionId: { type: 'string', minLength: 1 },
+            role: { type: 'string', enum: ['staff', 'admin', 'rector', 'inspector', 'dece', 'teacher', 'student', 'guardian'] },
+            sort: { type: 'string', enum: ['newest', 'name_asc', 'name_desc'] },
           },
         },
       },
@@ -109,15 +111,24 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
       const page = req.query.page ?? 1
       const limit = req.query.limit ?? 20
       const skip = (page - 1) * limit
-      const search = req.query.search
+      const search = req.query.search?.trim()
+      const role = req.query.role
+      const direction = req.query.sort === 'name_desc' ? 'desc' : 'asc'
+      const orderBy: Prisma.UserOrderByWithRelationInput[] = req.query.sort?.startsWith('name_')
+        ? [{ profile: { lastName: direction } }, { profile: { firstName: direction } }, { email: direction }, { id: 'asc' }]
+        : [{ createdAt: 'desc' }, { id: 'asc' }]
 
       const where: Prisma.UserWhereInput = {
         institutionId: req.query.institutionId,
+        ...(role ? { userRoles: { some: { role: { name: role === 'staff'
+          ? { in: ['admin', 'rector', 'inspector', 'dece', 'teacher'] }
+          : role } } } } : {}),
         ...(search ? {
           OR: [
             { email: { contains: search, mode: 'insensitive' as const } },
             { profile: { firstName: { contains: search, mode: 'insensitive' as const } } },
             { profile: { lastName: { contains: search, mode: 'insensitive' as const } } },
+            { profile: { dni: { contains: search, mode: 'insensitive' as const } } },
             { institution: { name: { contains: search, mode: 'insensitive' as const } } },
           ],
         } : {}),
@@ -128,7 +139,7 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
           where,
           skip,
           take: limit,
-          orderBy: { createdAt: 'desc' },
+          orderBy,
           include: {
             profile: true,
             institution: { select: { id: true, name: true, settings: true } },
