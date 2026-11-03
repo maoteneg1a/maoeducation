@@ -17,6 +17,7 @@ datasource db {
 // ============================================================
 
 model Institution {
+  classAttendanceRecords ClassAttendanceRecord[]
   formativeReinforcementResults FormativeReinforcementResult[]
   id        String   @id @default(uuid())
   name      String   @db.VarChar(200)
@@ -90,6 +91,8 @@ model Institution {
 }
 
 model User {
+  classAttendanceAsStudent ClassAttendanceRecord[] @relation("ClassAttendanceStudent")
+  classAttendanceRecorded ClassAttendanceRecord[] @relation("ClassAttendanceRecorder")
   formativeReinforcementResults FormativeReinforcementResult[] @relation("FormativeStudent")
   recordedFormativeResults FormativeReinforcementResult[] @relation("FormativeRecorder")
   id              String    @id @default(uuid())
@@ -783,6 +786,7 @@ model CurricularInsertionCandidate {
 }
 
 model CourseAssignment {
+  classAttendanceRecords ClassAttendanceRecord[]
   formativeReinforcementResults FormativeReinforcementResult[]
   id                    String   @id @default(uuid())
   institutionId         String   @map("institution_id")
@@ -1845,6 +1849,28 @@ model Grade {
 // ============================================================
 // ASISTENCIA
 // ============================================================
+
+// Complemento por hora para niveles con asistencia diaria. No integra las faltas de jornada.
+model ClassAttendanceRecord {
+  id String @id @default(uuid())
+  institutionId String @map("institution_id")
+  courseAssignmentId String @map("course_assignment_id")
+  studentId String @map("student_id")
+  date DateTime @db.Date
+  period Int
+  status String @db.VarChar(20)
+  notes String?
+  recordedBy String @map("recorded_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  institution Institution @relation(fields: [institutionId], references: [id])
+  courseAssignment CourseAssignment @relation(fields: [courseAssignmentId], references: [id])
+  student User @relation("ClassAttendanceStudent", fields: [studentId], references: [id])
+  recorder User @relation("ClassAttendanceRecorder", fields: [recordedBy], references: [id])
+  @@unique([courseAssignmentId, studentId, date, period])
+  @@index([institutionId, courseAssignmentId, date, period])
+  @@map("class_attendance_records")
+}
 
 model AttendanceRecord {
   id                 String   @id @default(uuid())
