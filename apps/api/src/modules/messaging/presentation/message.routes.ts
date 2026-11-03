@@ -7,6 +7,9 @@ import { randomUUID } from 'crypto'
 import path from 'path'
 import { storage } from '../../../shared/infrastructure/services/storage.service'
 import { sendPushToUser } from '../../../shared/infrastructure/services/push.service'
+import { classRecipientIds, recipientGroups } from '../application/services/recipient-groups.service'
+import { isPrivilegedStaff } from '../../../shared/infrastructure/services/teacher-scope.service'
+import { ForbiddenError } from '../../../shared/domain/errors/app.errors'
 import { resolveGuardianStudentId } from '../../../shared/infrastructure/services/guardian-scope.service'
 
 const repo = new PrismaMessageRepository()
@@ -43,8 +46,22 @@ export default async function messageRoutes(app: FastifyInstance) {
   })
 
   // POST /messages/threads
-  app.post<{ Body: CreateThreadDto }>('/messages/threads', async (req, reply) => {
-    const result = await repo.createThread(req.user.institutionId, req.body, req.user.sub)
+  app.post<{ Body: CreateThreadDto }>('/messages/threads', {
+    schema: { body: { type: 'object', required: ['subject', 'body', 'recipientIds'], properties: {
+      subject: { type: 'string', minLength: 1, maxLength: 200 }, body: { type: 'string', minLength: 1 },
+      recipientIds: { type: 'array', minItems: 1, maxItems: 5000, items: { type: 'string', minLength: 1 } },
+    } } },
+  }, async (req, reply) => {
+    const recipientIds = [...new Set(req.body.recipientIds)]
+    const allowedIds = req.user.roles.includes('teacher') && !isPrivilegedStaff(req.user.roles)
+      ? await classRecipientIds(req.user)
+      : undefined
+    const targets = await prisma.user.count({ where: {
+      institutionId: req.user.institutionId, isActive: true, id: { in: recipientIds, not: req.user.sub },
+      ...(allowedIds && { AND: { id: { in: allowedIds } } }),
+    } })
+    if (!recipientIds.length || targets !== recipientIds.length) throw new ForbiddenError('Algunos destinatarios no están disponibles para este usuario')
+    const result = await repo.createThread(req.user.institutionId, { ...req.body, recipientIds }, req.user.sub)
     void Promise.allSettled(
       req.body.recipientIds.map((id) =>
         sendPushToUser(id, { title: 'Nuevo mensaje — Auleka', body: req.body.subject, url: '/messages' }),
@@ -77,12 +94,18 @@ export default async function messageRoutes(app: FastifyInstance) {
     return reply.status(200).send({ count })
   })
 
-  // GET /messages/recipients?q=
-  app.get<{ Querystring: { q?: string } }>('/messages/recipients', async (req, reply) => {
+  app.get('/messages/recipient-groups', async (req) => recipientGroups(req.user))
+
+  // GET /messages/recipients?q=&parallelId=&audience=
+  app.get<{ Querystring: { q?: string; parallelId?: string; audience?: 'all' | 'students' | 'guardians' } }>('/messages/recipients', {
+    schema: { querystring: { type: 'object', properties: {
+      q: { type: 'string', maxLength: 200 }, parallelId: { type: 'string', minLength: 1 }, audience: { type: 'string', enum: ['all', 'students', 'guardians'] },
+    } } },
+  }, async (req, reply) => {
     const q = req.query.q?.trim() ?? ''
     const { sub: userId, institutionId, roles: callerRoles } = req.user
 
-    const isAdminRole = callerRoles.includes('admin') || callerRoles.includes('rector')
+    const isAdminRole = callerRoles.some((r) => ['admin', 'rector', 'inspector'].includes(r))
     const isTeacher = callerRoles.includes('teacher')
     const isDece = callerRoles.includes('dece')
     const isGuardian = callerRoles.includes('guardian')
@@ -98,43 +121,24 @@ export default async function messageRoutes(app: FastifyInstance) {
         }
       : {}
 
+    const audienceFilter = req.query.audience === 'students' || req.query.audience === 'guardians'
+      ? { userRoles: { some: { role: { name: req.query.audience === 'students' ? 'student' : 'guardian' } } } }
+      : {}
     let users: ReturnType<typeof mapUser>[] = []
 
-    if (isAdminRole) {
-      // Admin: all institution users except self
+    if (req.query.parallelId || (isTeacher && !isAdminRole && !isDece)) {
+      const ids = await classRecipientIds(req.user, req.query.parallelId, req.query.audience)
       const found = await prisma.user.findMany({
-        where: { institutionId, id: { not: userId }, ...nameFilter },
+        where: { institutionId, isActive: true, id: { in: ids, not: userId }, ...nameFilter },
         select: profileSelect,
-        take: 20,
+        orderBy: [{ profile: { lastName: 'asc' } }, { profile: { firstName: 'asc' } }, { id: 'asc' }],
       })
       users = found.map(mapUser)
-    } else if (isTeacher) {
-      // Teacher: students + guardians in their parallels
-      const assignments = await prisma.courseAssignment.findMany({
-        where: { institutionId, teacherId: userId },
-        select: { parallelId: true, academicYearId: true },
-      })
-      const parallelIds = [...new Set(assignments.map((a) => a.parallelId))]
-      const yearIds = [...new Set(assignments.map((a) => a.academicYearId))]
-
-      const enrollments = await prisma.studentEnrollment.findMany({
-        where: { institutionId, parallelId: { in: parallelIds }, academicYearId: { in: yearIds } },
-        select: {
-          studentId: true,
-          student: { select: { studentGuardians: { select: { guardianId: true } } } },
-        },
-      })
-
-      const studentIds = [...new Set(enrollments.map((e) => e.studentId))]
-      const guardianIds = [
-        ...new Set(enrollments.flatMap((e) => e.student.studentGuardians.map((g) => g.guardianId))),
-      ]
-      const recipientIds = [...new Set([...studentIds, ...guardianIds])]
-
+    } else if (isAdminRole) {
       const found = await prisma.user.findMany({
-        where: { id: { in: recipientIds }, ...nameFilter },
+        where: { institutionId, isActive: true, id: { not: userId }, ...nameFilter, ...audienceFilter },
         select: profileSelect,
-        take: 30,
+        orderBy: [{ profile: { lastName: 'asc' } }, { profile: { firstName: 'asc' } }, { id: 'asc' }],
       })
       users = found.map(mapUser)
     } else if (isDece) {
@@ -142,13 +146,14 @@ export default async function messageRoutes(app: FastifyInstance) {
       // que participa en su acompañamiento, sin abrirle el directorio completo.
       const found = await prisma.user.findMany({
         where: {
-          institutionId,
+          institutionId, isActive: true,
           id: { not: userId },
           ...nameFilter,
           userRoles: { some: { role: { name: { in: ['student', 'guardian', 'teacher', 'rector', 'inspector'] } } } },
+          ...(Object.keys(audienceFilter).length ? { AND: audienceFilter } : {}),
         },
         select: profileSelect,
-        take: 50,
+        orderBy: [{ profile: { lastName: 'asc' } }, { profile: { firstName: 'asc' } }, { id: 'asc' }],
       })
       users = found.map(mapUser)
     } else if (isStudentOrGuardian) {

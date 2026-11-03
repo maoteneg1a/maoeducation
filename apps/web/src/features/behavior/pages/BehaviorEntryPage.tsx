@@ -43,18 +43,17 @@ export function BehaviorEntryPage() {
   const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const { hasAnyRole } = usePermissions()
-  const isAdminLike = hasAnyRole('admin', 'inspector')
+  const isAdminLike = hasAnyRole('admin', 'rector', 'inspector', 'dece')
 
   const { activeYear, periods, defaultPeriodId } = useTeacherDefaults()
-  const { data: allParallels = [] } = useParallels(activeYear?.id)
+  const { data: allParallels = [], isLoading: parallelsLoading, isError: parallelsError } = useParallels(activeYear?.id)
   const { data: gradingConfig } = useGradingConfig()
   const behaviorScale = gradingConfig?.behaviorScale ?? []
 
   // Tutores solo ven los paralelos que tutoran; admin/inspector ven todos
   const parallels = React.useMemo(() => {
     if (isAdminLike) return allParallels
-    const tutored = user?.tutorParallelIds ?? []
-    return allParallels.filter((p) => tutored.includes(p.id))
+    return allParallels.filter((p) => p.tutorId === user?.id)
   }, [allParallels, isAdminLike, user])
 
   const [selectedParallelId, setSelectedParallelId] = React.useState('')
@@ -189,7 +188,13 @@ export function BehaviorEntryPage() {
         </div>
       </div>
 
-      {behaviorScale.length === 0 ? (
+      {parallelsLoading ? (
+        <PageLoader />
+      ) : parallelsError ? (
+        <EmptyState icon={Smile} title="No se pudieron cargar los paralelos" description="Vuelve a intentarlo para consultar tus cursos." />
+      ) : !isAdminLike && activeYear && parallels.length === 0 ? (
+        <EmptyState icon={Smile} title="Sin tutorías para este año" description="El registro de comportamiento corresponde al tutor del paralelo. Tus materias asignadas no te convierten en tutor." />
+      ) : behaviorScale.length === 0 ? (
         <EmptyState
           icon={Smile}
           title="Sin escala de comportamiento"

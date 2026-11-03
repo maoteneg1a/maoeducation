@@ -65,8 +65,17 @@ export function getUnreadCount() {
   return apiGet<{ count: number }>('messages/unread-count')
 }
 
-export function getRecipients(q?: string) {
-  return apiGet<UserOption[]>('messages/recipients', q ? { q } : undefined)
+export interface RecipientGroup {
+  id: string
+  name: string
+  level: { name: string }
+  academicYear: { name: string }
+}
+export function getRecipientGroups() {
+  return apiGet<RecipientGroup[]>('messages/recipient-groups')
+}
+export function getRecipients(q?: string, parallelId?: string, audience?: string) {
+  return apiGet<UserOption[]>('messages/recipients', { q, parallelId, audience })
 }
 
 export function uploadMessageAttachment(messageId: string, file: File): Promise<MessageAttachment> {

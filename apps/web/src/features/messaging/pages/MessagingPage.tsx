@@ -15,6 +15,7 @@ import {
   createThread,
   replyToThread,
   getRecipients,
+  getRecipientGroups,
   uploadMessageAttachment,
   getMessageAttachmentUrl,
   type MessageThread,
@@ -114,6 +115,8 @@ export function MessagingPage() {
   const [newBody, setNewBody] = useState('')
   const [newFiles, setNewFiles] = useState<File[]>([])
   const [recipientSearch, setRecipientSearch] = useState('')
+  const [recipientParallelId, setRecipientParallelId] = useState('')
+  const [recipientAudience, setRecipientAudience] = useState('all')
   const [sending, setSending] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -129,9 +132,12 @@ export function MessagingPage() {
     enabled: !!selectedThreadId,
   })
 
-  const { data: recipients } = useQuery({
-    queryKey: ['message-recipients', recipientSearch],
-    queryFn: () => getRecipients(recipientSearch || undefined),
+  const { data: recipientGroups = [], isError: groupsError } = useQuery({
+    queryKey: ['message-recipient-groups'], queryFn: getRecipientGroups, enabled: composeOpen && canCompose,
+  })
+  const { data: recipients, isFetching: recipientsLoading, isError: recipientsError } = useQuery({
+    queryKey: ['message-recipients', recipientSearch, recipientParallelId, recipientAudience],
+    queryFn: () => getRecipients(recipientSearch || undefined, recipientParallelId || undefined, recipientAudience),
     enabled: composeOpen,
   })
 
@@ -174,6 +180,8 @@ export function MessagingPage() {
       setNewFiles([])
       setSelectedRecipients([])
       setRecipientSearch('')
+      setRecipientParallelId('')
+      setRecipientAudience('all')
       setSelectedThreadId(thread.id)
       toast.success('Mensaje enviado')
     } catch {
@@ -315,6 +323,23 @@ export function MessagingPage() {
 
             <div className="space-y-1">
               <label className="text-sm font-medium">Destinatarios</label>
+              <div className="grid gap-3 rounded-lg border bg-muted/30 p-3 sm:grid-cols-2">
+                <label className="space-y-1 text-xs font-medium">Grado y paralelo
+                  <select aria-label="Grado y paralelo" value={recipientParallelId} onChange={(e) => { setRecipientParallelId(e.target.value); setRecipientSearch('') }} className="block h-10 w-full rounded-md border bg-background px-3 text-sm">
+                    <option value="">{user?.roles.includes('teacher') && !user.roles.some((r) => ['admin', 'rector', 'dece', 'inspector'].includes(r)) ? 'Todos mis cursos' : 'Todos los cursos'}</option>
+                    {recipientGroups.map((g) => <option key={g.id} value={g.id}>{g.level.name} · {g.name} · {g.academicYear.name}</option>)}
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs font-medium">Dirigido a
+                  <select aria-label="Tipo de destinatario" value={recipientAudience} onChange={(e) => setRecipientAudience(e.target.value)} className="block h-10 w-full rounded-md border bg-background px-3 text-sm">
+                    <option value="all">Todos los destinatarios</option>
+                    <option value="students">Estudiantes</option>
+                    <option value="guardians">Representantes</option>
+                  </select>
+                </label>
+                <p className="text-xs text-muted-foreground sm:col-span-2">Selecciona un curso completo o personas individuales. Puedes combinar varios cursos; cada persona se añade una sola vez.</p>
+              </div>
+              {groupsError && <p role="alert" className="text-xs text-destructive">No se pudieron cargar los cursos. Vuelve a abrir el formulario para reintentar.</p>}
               <Input
                 value={recipientSearch}
                 onChange={(e) => setRecipientSearch(e.target.value)}
@@ -322,7 +347,11 @@ export function MessagingPage() {
                 className="mb-2"
               />
               <div className="border rounded-md bg-background">
-                {filteredUsers.length === 0 ? (
+                {recipientsLoading ? (
+                  <p className="p-3 text-sm text-muted-foreground">Cargando destinatarios...</p>
+                ) : recipientsError ? (
+                  <p role="alert" className="p-3 text-sm text-destructive">No se pudieron cargar los destinatarios. Cambia el filtro o vuelve a intentarlo.</p>
+                ) : filteredUsers.length === 0 ? (
                   <p className="text-sm text-muted-foreground p-3">No se encontraron usuarios</p>
                 ) : (
                   <>
@@ -346,9 +375,9 @@ export function MessagingPage() {
                         }}
                         className="rounded"
                       />
-                      <span className="text-sm font-medium">Seleccionar todos ({filteredUsers.length})</span>
+                      <span className="text-sm font-medium">{recipientSearch ? 'Seleccionar resultados' : recipientParallelId ? 'Seleccionar todo el curso' : 'Seleccionar todos'} ({filteredUsers.length})</span>
                     </label>
-                    <div className="max-h-40 overflow-y-auto">
+                    <div className="max-h-64 overflow-y-auto">
                       {filteredUsers.map((u) => (
                         <label
                           key={u.id}
@@ -361,7 +390,7 @@ export function MessagingPage() {
                             className="rounded"
                           />
                           <span className="text-sm">{u.fullName}</span>
-                          <span className="text-xs text-muted-foreground ml-auto">{u.email}</span>
+                          <span className="text-xs text-muted-foreground ml-auto">{u.roles.includes('guardian') ? 'Representante' : u.roles.includes('student') ? 'Estudiante' : u.roles.join(', ')}</span>
                         </label>
                       ))}
                     </div>
@@ -369,9 +398,10 @@ export function MessagingPage() {
                 )}
               </div>
               {selectedRecipients.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {selectedRecipients.length} destinatario(s) seleccionado(s)
-                </p>
+                <div className="flex items-center justify-between gap-2 rounded-md bg-primary/5 px-3 py-2 text-sm">
+                  <span><strong>{selectedRecipients.length}</strong> destinatarios seleccionados en total. Se conservan al cambiar de curso.</span>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedRecipients([])}>Limpiar selección</Button>
+                </div>
               )}
             </div>
 

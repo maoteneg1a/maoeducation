@@ -12,8 +12,6 @@ import {
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { useAcademicYears, useParallels, usePeriods } from '@/features/academic/hooks/useAcademic'
-import { useAuthStore } from '@/store/auth.store'
-import { usePermissions } from '@/shared/hooks/usePermissions'
 import {
   useProjects, useCreateProject, useDeleteProject, useEligibleSituations, useDraftProjectFromSituation,
 } from '../hooks/useInterdisciplinaryProjects'
@@ -28,9 +26,6 @@ const STATUS_LABEL: Record<InterdisciplinaryProjectStatus, { label: string; vari
 
 export function InterdisciplinaryProjectsPage() {
   const navigate = useNavigate()
-  const user = useAuthStore((s) => s.user)
-  const { hasAnyRole } = usePermissions()
-  const isAdminLike = hasAnyRole('admin', 'inspector')
   const aiEnabled = useAiEnabled()
 
   const { data: years = [] } = useAcademicYears()
@@ -40,13 +35,8 @@ export function InterdisciplinaryProjectsPage() {
     if (!yearId && activeYear) setYearId(activeYear.id)
   }, [activeYear])
 
-  const { data: allParallels = [] } = useParallels(yearId || undefined)
-  const parallels = React.useMemo(() => {
-    if (isAdminLike) return allParallels
-    const tutored = user?.tutorParallelIds ?? []
-    // el docente ve los paralelos que tutela, más los suyos vía asignación (simplificado: si no tutela ninguno, ve todos del año)
-    return tutored.length > 0 ? allParallels.filter((p) => tutored.includes(p.id)) : allParallels
-  }, [allParallels, isAdminLike, user])
+  // El servidor incluye materias propias y tutorías del docente.
+  const { data: parallels = [] } = useParallels(yearId || undefined)
 
   const [parallelId, setParallelId] = React.useState('')
   React.useEffect(() => {
