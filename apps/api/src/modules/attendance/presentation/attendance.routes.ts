@@ -43,6 +43,37 @@ async function staffOrAttendanceWriter(req: FastifyRequest, reply: FastifyReply)
 export default async function attendanceRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware)
 
+  app.get<{ Querystring: { courseAssignmentId: string; date: string; period: number } }>('/attendance/class-hour', {
+    preHandler: [requirePermission('attendance', 'read')],
+    schema: { querystring: { type: 'object', required: ['courseAssignmentId', 'date', 'period'], properties: {
+      courseAssignmentId: { type: 'string', minLength: 1 }, date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' }, period: { type: 'integer', minimum: 1, maximum: 20 },
+    } } },
+  }, async (req) => {
+    await assertCourseAssignmentAccess(req, req.query.courseAssignmentId, 'read')
+    return repo.getClassHour(req.user.institutionId, req.query.courseAssignmentId, req.query.date, req.query.period)
+  })
+
+  app.get<{ Querystring: { courseAssignmentId: string } }>('/attendance/class-history', {
+    preHandler: [requirePermission('attendance', 'read')],
+    schema: { querystring: { type: 'object', required: ['courseAssignmentId'], properties: { courseAssignmentId: { type: 'string', minLength: 1 } } } },
+  }, async (req) => {
+    await assertCourseAssignmentAccess(req, req.query.courseAssignmentId, 'read')
+    return repo.classHistory(req.user.institutionId, req.query.courseAssignmentId)
+  })
+
+  app.post<{ Body: BulkAttendanceDto & { period: number } }>('/attendance/class-hour', {
+    preHandler: [staffOrAttendanceWriter],
+    schema: { body: { type: 'object', additionalProperties: false, required: ['courseAssignmentId', 'date', 'period', 'records'], properties: {
+      courseAssignmentId: { type: 'string', minLength: 1 }, date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' }, period: { type: 'integer', minimum: 1, maximum: 20 },
+      records: { type: 'array', minItems: 1, maxItems: 300, items: { type: 'object', required: ['studentId', 'status'], properties: {
+        studentId: { type: 'string', minLength: 1 }, status: { type: 'string', enum: ['present', 'absent', 'late', 'excused'] }, notes: { type: 'string', maxLength: 2000 },
+      } } },
+    } } },
+  }, async (req) => {
+    await assertCourseAssignmentAccess(req, req.body.courseAssignmentId!, 'write')
+    return repo.saveClassHour(req.user.institutionId, req.body, req.user.sub)
+  })
+
   // GET /attendance?courseAssignmentId=&date=  (materia)  ó  ?parallelId=&date=  (diaria)
   app.get<{ Querystring: { courseAssignmentId?: string; parallelId?: string; date: string } }>(
     '/attendance',

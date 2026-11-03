@@ -235,15 +235,16 @@ async function getActiveYear(institutionId: string) {
  * anterior: nunca borrar en cascada sin verificar qué cuelga de la fila).
  */
 async function hasDependentData(courseAssignmentId: string): Promise<boolean> {
-  const [insumos, activities, plans, attendance, tasks, schedule] = await Promise.all([
+  const [insumos, activities, plans, attendance, classAttendance, tasks, schedule] = await Promise.all([
     prisma.insumo.count({ where: { courseAssignmentId } }),
     prisma.activity.count({ where: { courseAssignmentId } }),
     prisma.curriculumPlan.count({ where: { courseAssignmentId } }),
     prisma.attendanceRecord.count({ where: { courseAssignmentId } }),
+    prisma.classAttendanceRecord.count({ where: { courseAssignmentId } }),
     prisma.task.count({ where: { courseAssignmentId } }),
     prisma.scheduleEntry.count({ where: { courseAssignmentId } }),
   ])
-  return insumos + activities + plans + attendance + tasks + schedule > 0
+  return insumos + activities + plans + attendance + classAttendance + tasks + schedule > 0
 }
 
 /** Elimina únicamente aulas sin clases ni ningún registro académico asociado. */

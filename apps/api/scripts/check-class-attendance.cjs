@@ -1,0 +1,48 @@
+const path = require('node:path'); const fs = require('node:fs'); const assert = require('node:assert/strict');
+const api = path.resolve(__dirname, '..');
+require(path.join(api, 'node_modules/dotenv')).config({ path: path.join(api, '.env'), quiet: true });
+if (!['localhost','127.0.0.1'].includes(new URL(process.env.DATABASE_URL).hostname)) throw new Error('Only local test database permitted');
+process.env.NODE_ENV = 'test';
+require('node:module').createRequire(path.join(api, 'package.json'))('tsx/cjs');
+const { PrismaClient } = require(path.join(api, 'node_modules/@prisma/client')); const db = new PrismaClient();
+(async () => {
+  let checked = false;
+  const existing = await db.$queryRaw`SELECT to_regclass('public.class_attendance_records')::text AS name`;
+  if (existing[0].name) throw new Error('Use a local database before this migration; this check creates and rolls back the new table.');
+  try { await db.$transaction(async (tx) => {
+    const sql = fs.readFileSync(path.join(api, 'prisma/migrations/20261107000000_class_attendance_hours/migration.sql'), 'utf8');
+    for (const statement of sql.split(';').map((s) => s.trim()).filter(Boolean)) await tx.$executeRawUnsafe(statement);
+    globalThis.prisma = new Proxy(tx, { get(t, key) { return key === '$transaction' ? async (fn) => fn(tx) : t[key]; } });
+    const { PrismaAttendanceRepository } = require(path.join(api, 'src/modules/attendance/infrastructure/repositories/prisma-attendance.repository.ts'));
+    const repo = new PrismaAttendanceRepository();
+    const school = await tx.institution.create({ data: { name: 'Class attendance integration', code: 'class-hour-test-' + Date.now() } });
+    const institutionId = school.id;
+    const teacher = await tx.user.create({ data: { institutionId, email: 'teacher@test.invalid', passwordHash: 'test-only' } });
+    const student = await tx.user.create({ data: { institutionId, email: 'student@test.invalid', passwordHash: 'test-only', profile: { create: { firstName: 'Ana', lastName: 'Test' } } } });
+    const year = await tx.academicYear.create({ data: { institutionId, name: '2026-2027', startDate: new Date('2026-09-01'), endDate: new Date('2027-07-01') } });
+    const level = await tx.level.create({ data: { institutionId, name: 'Segundo', code: '2B', sortOrder: 2, attendanceMode: 'daily' } });
+    const parallel = await tx.parallel.create({ data: { institutionId, levelId: level.id, academicYearId: year.id, tutorId: teacher.id, name: 'A-M' } });
+    const subject = await tx.subject.create({ data: { institutionId, name: 'Educación Física' } });
+    const ca = await tx.courseAssignment.create({ data: { institutionId, parallelId: parallel.id, academicYearId: year.id, subjectId: subject.id, teacherId: teacher.id } });
+    await tx.studentEnrollment.create({ data: { institutionId, studentId: student.id, parallelId: parallel.id, academicYearId: year.id } });
+    const date = '2026-11-03'; const records = [{ studentId: student.id, status: 'present' }];
+    await repo.bulkUpsertDaily(institutionId, { parallelId: parallel.id, date, records }, teacher.id);
+    const before = await repo.getClassHour(institutionId, ca.id, date, 2);
+    assert.equal(before[0].record, null); assert.equal(before[0].dailyRecord.status, 'present');
+    const payload = { courseAssignmentId: ca.id, date, period: 2, records: [{ studentId: student.id, status: 'absent' }] };
+    await repo.saveClassHour(institutionId, payload, teacher.id);
+    await repo.saveClassHour(institutionId, { ...payload, period: 3 }, teacher.id);
+    await repo.saveClassHour(institutionId, { ...payload, records: [{ studentId: student.id, status: 'late' }] }, teacher.id);
+    assert.equal(await tx.classAttendanceRecord.count({ where: { institutionId } }), 2);
+    assert.equal(await tx.attendanceRecord.count({ where: { institutionId } }), 1);
+    assert.equal((await repo.getByParallelDate(institutionId, parallel.id, date))[0].record.status, 'present');
+    assert.equal((await repo.getClassHour(institutionId, ca.id, date, 2))[0].record.status, 'late');
+    assert.equal((await repo.classHistory(institutionId, ca.id)).length, 2);
+    assert.equal((await repo.getStudentAbsences(institutionId, student.id)).records.length, 0);
+    assert.equal(await tx.auditLog.count({ where: { institutionId } }), 4);
+    checked = true;
+    throw new Error('ROLLBACK_TEST');
+  }, { timeout: 30000 }); } catch (err) { if (err.message !== 'ROLLBACK_TEST') throw err; }
+  assert.equal(checked, true);
+  console.log('PASS: migration, real upserts, two hours, daily unchanged, absence totals unchanged, audit; test transaction rolled back.');
+})().catch((e) => { console.error(e.message); process.exitCode = 1; }).finally(() => db.$disconnect());

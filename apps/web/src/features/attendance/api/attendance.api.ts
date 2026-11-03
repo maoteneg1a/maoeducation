@@ -14,6 +14,7 @@ export interface AttendanceRecord {
 export interface AttendanceEntry {
   student: AttendanceStudent
   record: AttendanceRecord | null
+  dailyRecord?: AttendanceRecord | null
 }
 
 export interface CourseAssignment {
@@ -22,6 +23,7 @@ export interface CourseAssignment {
   parallel: {
     id: string
     name: string
+    tutorId?: string | null
     level: { id?: string; name: string; attendanceMode?: 'per_subject' | 'daily' }
   }
   academicYear: { id: string; name: string; isActive: boolean }
@@ -110,4 +112,15 @@ export function listJustificationRequests(status: 'pending' | 'approved' | 'reje
 
 export function reviewJustificationRequest(id: string, payload: { approve: boolean; notes?: string }) {
   return apiPatch<{ ok: true }>(`attendance/justification-requests/${id}`, payload)
+}
+
+/** Complemento por hora para paralelos con jornada diaria. */
+export function getClassHour(courseAssignmentId: string, date: string, period: number) {
+  return apiGet<AttendanceEntry[]>('attendance/class-hour', { courseAssignmentId, date, period: String(period) })
+}
+export function saveClassHour(payload: { courseAssignmentId: string; date: string; period: number; records: Array<{ studentId: string; status: string; notes?: string }> }) {
+  return apiPost('attendance/class-hour', payload)
+}
+export function getClassHistory(courseAssignmentId: string) {
+  return apiGet<Array<{ date: string; period: number; _count: { _all: number } }>>('attendance/class-history', { courseAssignmentId })
 }

@@ -27,6 +27,9 @@ import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { cn, getErrorMessage, todayLocalISO } from '@/shared/lib/utils'
 import {
+  getClassHour,
+  saveClassHour,
+  getClassHistory,
   getAttendance,
   bulkSaveAttendance,
   getDailyAttendance,
@@ -46,7 +49,7 @@ import { RequestJustificationDialog } from '@/features/attendance/components/Req
 type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused'
 
 interface LocalRecord {
-  status: AttendanceStatus
+  status: AttendanceStatus | null
   notes: string
 }
 
@@ -74,6 +77,8 @@ const STATUS_CONFIG: Record<
   },
 }
 
+const EMPTY_ATTENDANCE: AttendanceEntry[] = []
+
 const ALL_STATUSES: AttendanceStatus[] = ['present', 'absent', 'late', 'excused']
 
 // ---- Main Page ----
@@ -86,8 +91,12 @@ export function AttendancePage() {
 
 function StaffAttendancePage() {
   const qc = useQueryClient()
+  const user = useAuthStore((s) => s.user)
+  const privileged = user?.roles.some((r) => ['admin', 'rector', 'inspector', 'dece'].includes(r)) ?? false
+  const [period, setPeriod] = useState(1)
   // Enlaces directos desde el panel "Hoy": ?ca=<asignación> o ?parallel=<paralelo>, y &date=
   const [searchParams] = useSearchParams()
+  const [view, setView] = useState<'day' | 'class'>(() => searchParams.get('ca') ? 'class' : 'day')
   const linkedParallel = searchParams.get('parallel')
   const linkedDate = searchParams.get('date')
 
@@ -124,7 +133,7 @@ function StaffAttendancePage() {
     }> = []
     for (const a of assignments) {
       const base = `${a.parallel.level.name} - ${a.parallel.name}`
-      if (a.parallel.level.attendanceMode === 'daily') {
+      if (a.parallel.level.attendanceMode === 'daily' && view === 'day') {
         if (!daily.has(a.parallel.id)) {
           daily.set(a.parallel.id, {
             value: `parallel:${a.parallel.id}`,
@@ -143,59 +152,67 @@ function StaffAttendancePage() {
       }
     }
     return [...daily.values(), ...perSubject]
-  }, [assignments])
+  }, [assignments, view])
 
   const selected = options.find((o) => o.value === selectedValue)
   const isDaily = selected?.isDaily ?? false
   const parallelId = selected && selected.isDaily ? selected.parallelId : ''
   const courseAssignmentId = selected && !selected.isDaily ? selected.courseAssignmentId : ''
+  const assignment = assignments.find((a) => a.id === courseAssignmentId)
+  const isClassHour = !isDaily && assignment?.parallel.level.attendanceMode === 'daily'
+  const canWrite = !isDaily || privileged || assignments.some((a) => a.parallel.id === parallelId && a.parallel.tutorId === user?.id)
+  const { data: history = [] } = useQuery({
+    queryKey: ['class-attendance-history', courseAssignmentId],
+    queryFn: () => getClassHistory(courseAssignmentId), enabled: !!isClassHour,
+  })
 
   const {
-    data: attendanceData = [],
+    data: attendanceData = EMPTY_ATTENDANCE,
     isLoading: attendanceLoading,
+    isError: attendanceError,
   } = useQuery({
-    queryKey: ['attendance', selectedValue, selectedDate],
+    queryKey: ['attendance', selectedValue, selectedDate, isClassHour ? period : 0],
     queryFn: () =>
       isDaily
         ? getDailyAttendance(parallelId, selectedDate)
-        : getAttendance(courseAssignmentId, selectedDate),
-    enabled: !!selectedValue && !!selectedDate,
+        : isClassHour ? getClassHour(courseAssignmentId, selectedDate, period) : getAttendance(courseAssignmentId, selectedDate),
+    enabled: !!selected && !!selectedDate,
   })
 
-  // Ya hay registros guardados para esta fecha/curso (si no, todos aparecen
-  // "presentes" por defecto y se puede guardar sin tocar nada).
+  // Sin un registro guardado, el estado permanece pendiente de marcar.
   const alreadyTaken = attendanceData.some((entry: AttendanceEntry) => !!entry.record)
   const { confirmDiscard } = useUnsavedChanges(isDirty)
 
   // ---- Initialize local records when attendance data loads ----
 
   useEffect(() => {
-    if (!attendanceData || attendanceData.length === 0) return
+    if (isDirty) return
     const map = new Map<string, LocalRecord>()
     attendanceData.forEach((entry: AttendanceEntry) => {
       map.set(entry.student.id, {
-        status: (entry.record?.status ?? 'present') as AttendanceStatus,
+        status: entry.record?.status ?? null,
         notes: entry.record?.notes ?? '',
       })
     })
     setLocalRecords(map)
     setIsDirty(false)
-  }, [attendanceData])
+  }, [attendanceData, isDirty])
 
   // ---- Save mutation ----
 
   const saveMutation = useMutation({
     mutationFn: () => {
+      if (!canWrite || Array.from(localRecords.values()).some((r) => !r.status)) throw new Error('Marca la asistencia de todos los estudiantes antes de guardar')
       const records = Array.from(localRecords.entries()).map(
         ([studentId, rec]) => ({
           studentId,
-          status: rec.status,
+          status: rec.status!,
           notes: rec.notes || undefined,
         }),
       )
       return isDaily
         ? bulkSaveDailyAttendance({ parallelId, date: selectedDate, records })
-        : bulkSaveAttendance({
+        : isClassHour ? saveClassHour({ courseAssignmentId, date: selectedDate, period, records }) : bulkSaveAttendance({
             courseAssignmentId,
             date: selectedDate,
             records,
@@ -203,8 +220,9 @@ function StaffAttendancePage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({
-        queryKey: ['attendance', selectedValue, selectedDate],
+        queryKey: ['attendance'],
       })
+      qc.invalidateQueries({ queryKey: ['class-attendance-history', courseAssignmentId] })
       toast.success('Asistencia guardada correctamente')
       setIsDirty(false)
     },
@@ -218,7 +236,7 @@ function StaffAttendancePage() {
   function handleStatusChange(studentId: string, status: AttendanceStatus) {
     setLocalRecords((prev) => {
       const next = new Map(prev)
-      const existing = next.get(studentId) ?? { status: 'present', notes: '' }
+      const existing = next.get(studentId) ?? { status: null, notes: '' }
       next.set(studentId, { ...existing, status })
       return next
     })
@@ -228,7 +246,7 @@ function StaffAttendancePage() {
   function handleNotesChange(studentId: string, notes: string) {
     setLocalRecords((prev) => {
       const next = new Map(prev)
-      const existing = next.get(studentId) ?? { status: 'present' as AttendanceStatus, notes: '' }
+      const existing = next.get(studentId) ?? { status: null, notes: '' }
       next.set(studentId, { ...existing, notes })
       return next
     })
@@ -264,7 +282,7 @@ function StaffAttendancePage() {
   const counts = React.useMemo(() => {
     const result = { present: 0, absent: 0, late: 0, excused: 0 }
     localRecords.forEach((rec) => {
-      result[rec.status] = (result[rec.status] ?? 0) + 1
+      if (rec.status) result[rec.status] += 1
     })
     return result
   }, [localRecords])
@@ -281,10 +299,16 @@ function StaffAttendancePage() {
         </p>
       </div>
 
+      <div className="flex gap-2" aria-label="Tipo de asistencia">
+        {(['day', 'class'] as const).map((v) => <Button key={v} disabled={saveMutation.isPending} variant={view === v ? 'default' : 'outline'} onClick={async () => {
+          if (v === view || !(await confirmDiscard())) return
+          setView(v); setSelectedValue(''); setLocalRecords(new Map()); setIsDirty(false)
+        }}>{v === 'day' ? 'Asistencia del día' : 'Mis clases'}</Button>)}
+      </div>
       {/* Filter bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
         <div className="w-full sm:w-72">
-          <Select value={selectedValue} onValueChange={handleAssignmentChange}>
+          <Select disabled={saveMutation.isPending} value={selectedValue} onValueChange={handleAssignmentChange}>
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar grado / materia" />
             </SelectTrigger>
@@ -301,6 +325,7 @@ function StaffAttendancePage() {
         <div className="w-full sm:w-auto">
           <input
             type="date"
+            disabled={saveMutation.isPending}
             value={selectedDate}
             onChange={handleDateChange}
             className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:h-9 sm:w-44 sm:text-sm"
@@ -308,6 +333,21 @@ function StaffAttendancePage() {
         </div>
       </div>
 
+      {isClassHour && <div className="space-y-2">
+        <label className="flex items-center gap-2 text-sm">Hora de clase
+          <select disabled={saveMutation.isPending} className="rounded border p-2" value={period} onChange={async (e) => {
+            const next = Number(e.target.value)
+            if (!(await confirmDiscard())) return
+            setPeriod(next); setLocalRecords(new Map()); setIsDirty(false)
+          }}>{Array.from({ length: 20 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}ª hora</option>)}</select>
+        </label>
+        <p className="text-sm text-muted-foreground">Registra cada hora impartida. La jornada del tutor es una referencia; este registro no cambia ni duplica las faltas del día.</p>
+        {history.length > 0 && <details><summary className="cursor-pointer text-sm">Historial de horas registradas (últimas 100)</summary><div className="flex flex-wrap gap-2 py-2">{history.map((h) => <Button key={`${h.date}:${h.period}`} disabled={saveMutation.isPending} size="sm" variant="outline" onClick={async () => {
+          if (!(await confirmDiscard())) return
+          setSelectedDate(h.date.slice(0, 10)); setPeriod(h.period); setLocalRecords(new Map()); setIsDirty(false)
+        }}>{h.date.slice(0, 10)} · {h.period}ª hora · {h._count._all} estudiantes</Button>)}</div></details>}
+      </div>}
+      {isDaily && !canWrite && <p className="text-sm text-muted-foreground">Consulta de la jornada. El tutor registra la asistencia diaria; registra tu materia en «Mis clases».</p>}
       {/* Daily mode banner */}
       {selectedValue && isDaily && (
         <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
@@ -325,6 +365,8 @@ function StaffAttendancePage() {
         />
       ) : attendanceLoading ? (
         <PageLoader />
+      ) : attendanceError ? (
+        <EmptyState icon={Users} title="No se pudo consultar la asistencia" description="Vuelve a intentarlo. Tus cambios pendientes se conservan mientras permaneces aquí." />
       ) : attendanceData.length === 0 ? (
         <EmptyState
           icon={Users}
@@ -360,14 +402,13 @@ function StaffAttendancePage() {
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row">
-              <Button variant="outline" onClick={markAllPresent} className="w-full sm:w-auto">
+              <Button variant="outline" onClick={markAllPresent} disabled={!canWrite || saveMutation.isPending} className="w-full sm:w-auto">
                 <CheckCheck className="h-4 w-4 mr-1" />
                 Todos presentes
               </Button>
               <Button
                 onClick={() => saveMutation.mutate()}
-                // Sin registros previos se puede guardar directamente (todos presentes).
-                disabled={(alreadyTaken && !isDirty) || saveMutation.isPending}
+                disabled={!canWrite || !isDirty || saveMutation.isPending || localRecords.size === 0 || Array.from(localRecords.values()).some((r) => !r.status)}
                 className="w-full sm:w-auto"
               >
                 <Save className="h-4 w-4 mr-1" />
@@ -380,7 +421,7 @@ function StaffAttendancePage() {
             {attendanceData.map((entry, index) => {
               const studentId = entry.student.id
               const local = localRecords.get(studentId) ?? {
-                status: 'present' as AttendanceStatus,
+                status: null,
                 notes: '',
               }
               const fullName = `${entry.student.profile.firstName} ${entry.student.profile.lastName}`
@@ -392,6 +433,8 @@ function StaffAttendancePage() {
                       <div>
                         <p className="text-xs text-muted-foreground">#{index + 1}</p>
                         <p className="break-words text-sm font-semibold leading-tight">{fullName}</p>
+                        {isClassHour && <p className="text-xs text-muted-foreground">Jornada del tutor: {entry.dailyRecord ? STATUS_CONFIG[entry.dailyRecord.status].label : 'Sin registrar'}</p>}
+                        {!local.status && <p className="text-xs text-muted-foreground">Sin registrar</p>}
                         {entry.student.profile.dni && (
                           <p className="mt-0.5 text-[11px] text-muted-foreground">
                             CI: {entry.student.profile.dni}
@@ -401,10 +444,10 @@ function StaffAttendancePage() {
                       <span
                         className={cn(
                           'inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-medium',
-                          STATUS_CONFIG[local.status].className,
+                          local.status ? STATUS_CONFIG[local.status].className : 'text-muted-foreground',
                         )}
                       >
-                        {STATUS_CONFIG[local.status].label}
+                        {local.status ? STATUS_CONFIG[local.status].label : 'Sin registrar'}
                       </span>
                     </div>
 
@@ -413,6 +456,7 @@ function StaffAttendancePage() {
                         <button
                           key={status}
                           type="button"
+                          disabled={!canWrite || saveMutation.isPending}
                           onClick={() => handleStatusChange(studentId, status)}
                           className={cn(
                             'rounded-md border px-3 py-2 text-sm font-medium transition-colors',
@@ -427,6 +471,7 @@ function StaffAttendancePage() {
                     </div>
 
                     <Input
+                      disabled={!canWrite || saveMutation.isPending}
                       value={local.notes}
                       onChange={(e) => handleNotesChange(studentId, e.target.value)}
                       placeholder="Observación..."
@@ -452,7 +497,7 @@ function StaffAttendancePage() {
                 {attendanceData.map((entry, index) => {
                   const studentId = entry.student.id
                   const local = localRecords.get(studentId) ?? {
-                    status: 'present' as AttendanceStatus,
+                    status: null,
                     notes: '',
                   }
                   const fullName = `${entry.student.profile.firstName} ${entry.student.profile.lastName}`
@@ -465,6 +510,8 @@ function StaffAttendancePage() {
                       <TableCell>
                         <div>
                           <p className="max-w-xs whitespace-normal break-words text-xs font-semibold leading-tight">{fullName}</p>
+                          {isClassHour && <p className="text-xs text-muted-foreground">Jornada del tutor: {entry.dailyRecord ? STATUS_CONFIG[entry.dailyRecord.status].label : 'Sin registrar'}</p>}
+                          {!local.status && <p className="text-xs text-muted-foreground">Sin registrar</p>}
                           {entry.student.profile.dni && (
                             <p className="mt-0.5 text-[11px] text-muted-foreground">
                               CI: {entry.student.profile.dni}
@@ -478,6 +525,7 @@ function StaffAttendancePage() {
                             <button
                               key={status}
                               type="button"
+                              disabled={!canWrite || saveMutation.isPending}
                               onClick={() => handleStatusChange(studentId, status)}
                               className={cn(
                                 'px-2.5 py-1 text-xs rounded border font-medium transition-colors',
@@ -493,6 +541,7 @@ function StaffAttendancePage() {
                       </TableCell>
                       <TableCell>
                         <Input
+                          disabled={!canWrite || saveMutation.isPending}
                           value={local.notes}
                           onChange={(e) =>
                             handleNotesChange(studentId, e.target.value)

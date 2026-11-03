@@ -499,11 +499,11 @@ export class PrismaAcademicRepository {
   async deleteAssignment(id: string, institutionId: string) {
     const assignment = await prisma.courseAssignment.findFirst({
       where: { id, institutionId },
-      include: { _count: { select: { activities: true, attendance: true, tasks: true, insumos: true, schedule: true } } },
+      include: { _count: { select: { activities: true, attendance: true, classAttendanceRecords: true, tasks: true, insumos: true, schedule: true } } },
     })
     if (!assignment) throw new NotFoundError('Asignación no encontrada')
     const c = assignment._count
-    if (c.activities > 0 || c.attendance > 0 || c.tasks > 0) {
+    if (c.activities > 0 || c.attendance > 0 || c.classAttendanceRecords > 0 || c.tasks > 0) {
       throw new ConflictError(
         'Esta asignación ya tiene actividades, asistencia o tareas registradas. Para reemplazar al docente usa "Cambiar docente" en lugar de eliminarla.',
       )

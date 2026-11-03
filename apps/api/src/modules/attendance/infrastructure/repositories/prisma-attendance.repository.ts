@@ -9,6 +9,67 @@ const VALID_STATUSES = new Set(['present', 'absent', 'late', 'excused'])
 export type AttendanceSaveResult = { saved: number; newlyFlagged: Array<{ studentId: string; status: string }> }
 
 export class PrismaAttendanceRepository {
+  /** Registro complementario por hora: nunca escribe attendance_records ni notifica faltas diarias. */
+  async getClassHour(institutionId: string, courseAssignmentId: string, date: string, period: number) {
+    validateClassPeriod(period)
+    const parsedDate = parseAttendanceDate(date)
+    const ca = await this.dailyAssignment(institutionId, courseAssignmentId)
+    const [daily, records] = await Promise.all([
+      this.getByParallelDate(institutionId, ca.parallelId, date),
+      prisma.classAttendanceRecord.findMany({ where: { institutionId, courseAssignmentId, date: parsedDate, period } }),
+    ])
+    return daily.map((entry) => ({
+      student: entry.student,
+      record: records.find((r) => r.studentId === entry.student.id) ?? null,
+      dailyRecord: entry.record,
+    }))
+  }
+
+  private async dailyAssignment(institutionId: string, id: string) {
+    const ca = await prisma.courseAssignment.findFirst({
+      where: { id, institutionId, isActive: true, parallel: { isActive: true } },
+      include: { parallel: { include: { level: true } } },
+    })
+    if (!ca) throw new NotFoundError('Asignación no encontrada o inactiva')
+    if (ca.parallel.level.attendanceMode !== 'daily') throw new BadRequestError('El complemento por hora requiere asistencia diaria')
+    return ca
+  }
+
+  async classHistory(institutionId: string, courseAssignmentId: string) {
+    await this.dailyAssignment(institutionId, courseAssignmentId)
+    return prisma.classAttendanceRecord.groupBy({
+      by: ['date', 'period'], where: { institutionId, courseAssignmentId },
+      _count: { _all: true }, orderBy: [{ date: 'desc' }, { period: 'asc' }], take: 100,
+    })
+  }
+
+  async saveClassHour(institutionId: string, dto: BulkAttendanceDto & { period: number }, userId: string) {
+    validateClassPeriod(dto.period)
+    if (!dto.courseAssignmentId || dto.parallelId) throw new BadRequestError('Se requiere una asignación de materia')
+    const ca = await this.dailyAssignment(institutionId, dto.courseAssignmentId)
+    const date = parseAttendanceDate(dto.date)
+    await assertStudentsEnrolled(institutionId, ca.parallelId, ca.academicYearId, dto.records)
+    if (new Set(dto.records.map((r) => r.studentId)).size !== dto.records.length) throw new BadRequestError('Estudiantes repetidos')
+    await prisma.$transaction(async (tx) => {
+      // Serializa correcciones de la misma hora para conservar el antes/después real.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${ca.id}:${dto.date}:${dto.period}`}))`
+      const previous = await tx.classAttendanceRecord.findMany({ where: { institutionId, courseAssignmentId: ca.id, date, period: dto.period } })
+      for (const r of dto.records) {
+        await tx.classAttendanceRecord.upsert({
+          where: { courseAssignmentId_studentId_date_period: { courseAssignmentId: ca.id, studentId: r.studentId, date, period: dto.period } },
+          create: { institutionId, courseAssignmentId: ca.id, studentId: r.studentId, date, period: dto.period, status: r.status, notes: r.notes?.trim() || null, recordedBy: userId },
+          update: { status: r.status, notes: r.notes?.trim() || null, recordedBy: userId },
+        })
+      }
+      await tx.auditLog.create({ data: {
+        institutionId, userId, action: 'attendance.class_hour.save', resourceType: 'class_attendance', resourceId: ca.id,
+        oldValue: previous.map((r) => ({ studentId: r.studentId, status: r.status, notes: r.notes })),
+        newValue: { date: dto.date, period: dto.period, records: dto.records.map((r) => ({ studentId: r.studentId, status: r.status, notes: r.notes ?? null })) },
+      } })
+    }, { timeout: 30_000 })
+    return { saved: dto.records.length }
+  }
+
   async getByDate(institutionId: string, courseAssignmentId: string, date: string) {
     const courseAssignment = await prisma.courseAssignment.findFirst({
       where: { id: courseAssignmentId, institutionId },
@@ -152,30 +213,26 @@ export class PrismaAttendanceRepository {
     if (!parallel) throw new NotFoundError('Paralelo no encontrado')
     await assertStudentsEnrolled(institutionId, parallelId, parallel.academicYearId, dto.records)
 
-    const previous = await prisma.attendanceRecord.findMany({
-      where: { institutionId, parallelId, date: parsedDate, studentId: { in: dto.records.map((r) => r.studentId) } },
-      select: { studentId: true, status: true },
-    })
-
-    await prisma.$transaction(
-      dto.records.map((r) =>
-        prisma.attendanceRecord.upsert({
-          where: {
-            parallelId_studentId_date: { parallelId, studentId: r.studentId, date: parsedDate },
-          },
-          create: {
-            institutionId,
-            parallelId,
-            studentId: r.studentId,
-            date: parsedDate,
-            status: r.status,
-            notes: r.notes,
-            recordedBy: recordedById,
-          },
-          update: { status: r.status, notes: r.notes, recordedBy: recordedById },
-        }),
-      ),
-    )
+    const previous = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${parallelId}:${dto.date}`}))`
+      const before = await tx.attendanceRecord.findMany({
+        where: { institutionId, parallelId, date: parsedDate, studentId: { in: dto.records.map((r) => r.studentId) } },
+        select: { studentId: true, status: true, notes: true },
+      })
+      for (const r of dto.records) {
+        await tx.attendanceRecord.upsert({
+          where: { parallelId_studentId_date: { parallelId, studentId: r.studentId, date: parsedDate } },
+          create: { institutionId, parallelId, studentId: r.studentId, date: parsedDate, status: r.status, notes: r.notes?.trim() || null, recordedBy: recordedById },
+          update: { status: r.status, notes: r.notes?.trim() || null, recordedBy: recordedById },
+        })
+      }
+      await tx.auditLog.create({ data: {
+        institutionId, userId: recordedById, action: 'attendance.daily.save', resourceType: 'daily_attendance', resourceId: parallelId,
+        oldValue: before,
+        newValue: { date: dto.date, records: dto.records.map((r) => ({ studentId: r.studentId, status: r.status, notes: r.notes ?? null })) },
+      } })
+      return before
+    }, { timeout: 30_000 })
 
     return { saved: dto.records.length, newlyFlagged: newlyFlagged(previous, dto.records) }
   }
@@ -338,7 +395,13 @@ export class PrismaAttendanceRepository {
 
 function parseAttendanceDate(date: string): Date {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new BadRequestError('Fecha inválida (formato YYYY-MM-DD)')
-  return new Date(date)
+  const parsed = new Date(date)
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) throw new BadRequestError('Fecha inválida')
+  return parsed
+}
+
+function validateClassPeriod(period: number) {
+  if (!Number.isInteger(period) || period < 1 || period > 20) throw new BadRequestError('Hora de clase inválida (1–20)')
 }
 
 /** Rechaza estados inválidos y estudiantes que no están matriculados (activos) en el paralelo. */
