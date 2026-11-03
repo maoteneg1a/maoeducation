@@ -52,6 +52,8 @@ export function StudentFolderPage() {
   const { id = '' } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
+  const requestedReturn = params.get('returnTo') ?? ''
+  const returnTo = requestedReturn === '/student-folder' || requestedReturn.startsWith('/student-folder?') ? requestedReturn : '/student-folder'
   const tab = (TABS.find((item) => item.id === params.get('tab'))?.id ?? 'resumen')
   const setTab = (value: Tab) => setParams((previous) => { const next = new URLSearchParams(previous); next.set('tab', value); return next })
 
@@ -61,7 +63,7 @@ export function StudentFolderPage() {
   if (isError || !folder) {
     return (
       <div className="space-y-4 p-6">
-        <Button variant="ghost" size="sm" className="-ml-2" onClick={() => navigate('/student-folder')}>
+        <Button variant="ghost" size="sm" className="-ml-2" onClick={() => navigate(returnTo)}>
           <ArrowLeft className="mr-1.5 h-4 w-4" /> Volver
         </Button>
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
@@ -83,7 +85,7 @@ export function StudentFolderPage() {
           variant="ghost"
           size="sm"
           className="-ml-2 mb-2"
-          onClick={() => navigate('/student-folder')}
+          onClick={() => navigate(returnTo)}
         >
           <ArrowLeft className="mr-1.5 h-4 w-4" /> Volver
         </Button>

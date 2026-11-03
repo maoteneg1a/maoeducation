@@ -1,3 +1,4 @@
+import { StudentPicker, preventStudentPickerDialogClose } from '@/shared/components/StudentPicker'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -10,13 +11,7 @@ import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import { Badge } from '@/shared/components/ui/badge'
 import { DataTable } from '@/shared/components/ui/data-table'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/components/ui/select'
+
 import {
   Dialog,
   DialogContent,
@@ -33,8 +28,6 @@ import {
 } from '../hooks/useParentMeetings'
 import type { ParentMeeting } from '../api/parent-meetings.api'
 import { todayLocalISO } from '@/shared/lib/utils'
-
-const NO_STUDENT = '__none__'
 
 const createSchema = z.object({
   meetingDate: z.string().min(1, 'La fecha es requerida'),
@@ -69,7 +62,7 @@ export function ParentMeetingsPage() {
   const [createOpen, setCreateOpen] = useState(false)
 
   const { data: meetings = [], isLoading } = useParentMeetings()
-  const { data: students = [] } = useMeetingStudents()
+  const { data: students = [], isLoading: studentsLoading, isError: studentsError } = useMeetingStudents()
   const createMutation = useCreateParentMeeting()
 
   const form = useForm<CreateFormValues>({
@@ -84,7 +77,7 @@ export function ParentMeetingsPage() {
         meetingTime: values.meetingTime || undefined,
         visitorName: values.visitorName,
         visitorRelation: values.visitorRelation || undefined,
-        studentId: values.studentId && values.studentId !== NO_STUDENT ? values.studentId : null,
+        studentId: values.studentId || null,
         subject: values.subject,
         details: values.details,
         agreements: values.agreements || undefined,
@@ -193,7 +186,7 @@ export function ParentMeetingsPage() {
       />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent onEscapeKeyDown={preventStudentPickerDialogClose} className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Nueva atención a padres</DialogTitle>
           </DialogHeader>
@@ -238,22 +231,8 @@ export function ParentMeetingsPage() {
 
             <div className="space-y-1.5">
               <Label htmlFor="studentId">Estudiante (opcional)</Label>
-              <Select
-                value={form.watch('studentId') ?? ''}
-                onValueChange={(v) => form.setValue('studentId', v)}
-              >
-                <SelectTrigger id="studentId">
-                  <SelectValue placeholder="Sin estudiante / general" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_STUDENT}>Sin estudiante / general</SelectItem>
-                  {students.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <StudentPicker id="studentId" optional students={students} value={form.watch('studentId') ?? ''}
+                onChange={(v) => form.setValue('studentId', v, { shouldDirty: true })} isLoading={studentsLoading} isError={studentsError} />
             </div>
 
             <div className="space-y-1.5">
