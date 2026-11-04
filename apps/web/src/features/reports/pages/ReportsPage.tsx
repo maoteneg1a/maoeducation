@@ -2,11 +2,12 @@ import { evaluationLabel, gradeSummaryColumns } from '../lib/grade-columns'
 import { useSearchParams } from 'react-router-dom'
 import * as React from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { BarChart2, ClipboardList, Download, FileSpreadsheet, FileText, Printer, ScrollText, Upload } from 'lucide-react'
+import { BarChart2, ClipboardList, Download, FileSpreadsheet, FileText, Printer, ScrollText, Settings2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/shared/components/ui/sheet'
 import {
   Select,
   SelectContent,
@@ -257,174 +258,187 @@ function BulletinReportTab() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
-        <div className="space-y-4 rounded-xl border p-4">
-          <div>
-            <h2 className="font-semibold">Configuración del boletín</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Puedes dejar un formato global para toda la institución y permitir que el docente lo sobrescriba.
-            </p>
-          </div>
-
-          {canEditGlobal && (
-            <BrandingForm
-              title="Global"
-              description="Encabezado oficial por defecto."
-              value={globalForm}
-              onChange={setGlobalForm}
-              onSave={() => globalSave.mutate(globalForm)}
-              onUploadLogo={(file) => handleLogoUpload('global', file)}
-              saving={globalSave.isPending}
-            />
-          )}
-
-          {canEditOwn && (
-            <BrandingForm
-              title="Mi versión"
-              description="El docente puede activar su propia portada sin perder la base institucional."
-              value={ownForm}
-              onChange={setOwnForm}
-              onSave={() => ownSave.mutate({ ...ownForm, enabled: ownForm.enabled ?? true })}
-              onUploadLogo={(file) => handleLogoUpload('own', file)}
-              saving={ownSave.isPending}
-              showEnableToggle
-            />
-          )}
-        </div>
-
-        <div className="space-y-4 rounded-xl border p-4">
+      <div className="space-y-4 rounded-xl border p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-semibold">Generar boletín</h2>
             <p className="mt-1 text-xs text-muted-foreground">
               Selecciona año, paralelo y estudiante para generar el formato imprimible.
             </p>
           </div>
+          {(canEditGlobal || canEditOwn) && (
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" className="print:hidden">
+                  <Settings2 className="h-4 w-4" />
+                  Configurar boletín
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="max-w-full sm:max-w-xl">
+                <SheetHeader className="pr-6">
+                  <SheetTitle>Configuración del boletín</SheetTitle>
+                  <SheetDescription>
+                    Personaliza el logo, el encabezado y las etiquetas del formato. Guarda los cambios de cada sección antes de cerrar.
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="mt-6 space-y-4">
+                  {canEditGlobal && (
+                    <BrandingForm
+                      title="Global"
+                      description="Encabezado oficial por defecto."
+                      value={globalForm}
+                      onChange={setGlobalForm}
+                      onSave={() => globalSave.mutate(globalForm)}
+                      onUploadLogo={(file) => handleLogoUpload('global', file)}
+                      saving={globalSave.isPending}
+                    />
+                  )}
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label>Año lectivo</Label>
-              <Select value={selectedYearId} onValueChange={(v) => {
-                setSelectedYearId(v)
-                setSelectedParallelId('')
-                setSelectedStudentId('')
-                setEnabled(false)
-              }}>
-                <SelectTrigger><SelectValue placeholder="Selecciona año" /></SelectTrigger>
-                <SelectContent>
-                  {years.map((year) => (
-                    <SelectItem key={year.id} value={year.id}>
-                      {year.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Paralelo</Label>
-              <Select value={selectedParallelId} onValueChange={(v) => {
-                setSelectedParallelId(v)
-                setSelectedStudentId('')
-                setEnabled(false)
-              }} disabled={!selectedYearId}>
-                <SelectTrigger><SelectValue placeholder="Selecciona paralelo" /></SelectTrigger>
-                <SelectContent>
-                  {parallels.map((parallel) => (
-                    <SelectItem key={parallel.id} value={parallel.id}>
-                      {parallel.level.name} {parallel.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Estudiante</Label>
-              <Select value={selectedStudentId} onValueChange={(v) => {
-                setSelectedStudentId(v)
-                setEnabled(false)
-              }} disabled={!selectedParallelId}>
-                <SelectTrigger><SelectValue placeholder="Selecciona estudiante" /></SelectTrigger>
-                <SelectContent>
-                  {students.map((student) => (
-                    <SelectItem key={student.id} value={student.id}>
-                      {student.profile.lastName} {student.profile.firstName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button
-              onClick={() => setEnabled(true)}
-              disabled={!selectedYearId || !selectedParallelId || !selectedStudentId}
-              loading={isGenerating}
-              className="w-full sm:w-auto"
-            >
-              {isGenerating ? 'Generando boletín…' : 'Generar boletín'}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleParallelPdfDownload}
-              disabled={!selectedYearId || !selectedParallelId}
-              loading={isDownloadingParallel}
-              className="w-full sm:w-auto print:hidden"
-            >
-              {!isDownloadingParallel && <Download className="h-4 w-4" />}
-              {isDownloadingParallel ? 'Generando libretas…' : 'Libretas de todo el paralelo (PDF)'}
-            </Button>
-            {report && (
-              <Button variant="outline" onClick={() => window.print()} className="w-full sm:w-auto print:hidden">
-                <Printer className="h-4 w-4" />
-                Imprimir
-              </Button>
-            )}
-            {report && (
-              <Button
-                variant="outline"
-                onClick={handlePdfDownload}
-                loading={isDownloadingPdf}
-                className="w-full sm:w-auto print:hidden"
-              >
-                {!isDownloadingPdf && <Download className="h-4 w-4" />}
-                {isDownloadingPdf ? 'Generando PDF…' : 'Descargar PDF'}
-              </Button>
-            )}
-          </div>
-
-          {isLoading && <PageLoader />}
-          {optionsIsError && (
-            <EmptyState
-              icon={ScrollText}
-              title="No se pudieron cargar las opciones"
-              description={getErrorMessage(optionsError)}
-            />
-          )}
-          {reportIsError && !isLoading && (
-            <EmptyState
-              icon={ScrollText}
-              title="No se pudo generar el boletín"
-              description={getErrorMessage(reportError)}
-            />
-          )}
-          {reportHasContent && !isLoading && !reportIsError && <BulletinReportView data={report} />}
-          {enabled && report && !reportHasContent && !isLoading && !reportIsError && (
-            <EmptyState
-              icon={ScrollText}
-              title="Sin datos para este boletín"
-              description="El estudiante no tiene suficientes notas o registros para generar el formato todavía."
-            />
-          )}
-          {!enabled && (
-            <EmptyState
-              icon={ScrollText}
-              title="Configura y selecciona un estudiante"
-              description="Luego haz clic en Generar boletín"
-            />
+                  {canEditOwn && (
+                    <BrandingForm
+                      title="Mi versión"
+                      description="El docente puede activar su propia portada sin perder la base institucional."
+                      value={ownForm}
+                      onChange={setOwnForm}
+                      onSave={() => ownSave.mutate({ ...ownForm, enabled: ownForm.enabled ?? true })}
+                      onUploadLogo={(file) => handleLogoUpload('own', file)}
+                      saving={ownSave.isPending}
+                      showEnableToggle
+                    />
+                  )}
+                </div>
+                <SheetClose asChild>
+                  <Button variant="outline" className="mt-4 w-full">Cerrar configuración</Button>
+                </SheetClose>
+              </SheetContent>
+            </Sheet>
           )}
         </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label>Año lectivo</Label>
+            <Select value={selectedYearId} onValueChange={(v) => {
+              setSelectedYearId(v)
+              setSelectedParallelId('')
+              setSelectedStudentId('')
+              setEnabled(false)
+            }}>
+              <SelectTrigger><SelectValue placeholder="Selecciona año" /></SelectTrigger>
+              <SelectContent>
+                {years.map((year) => (
+                  <SelectItem key={year.id} value={year.id}>
+                    {year.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Paralelo</Label>
+            <Select value={selectedParallelId} onValueChange={(v) => {
+              setSelectedParallelId(v)
+              setSelectedStudentId('')
+              setEnabled(false)
+            }} disabled={!selectedYearId}>
+              <SelectTrigger><SelectValue placeholder="Selecciona paralelo" /></SelectTrigger>
+              <SelectContent>
+                {parallels.map((parallel) => (
+                  <SelectItem key={parallel.id} value={parallel.id}>
+                    {parallel.level.name} {parallel.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Estudiante</Label>
+            <Select value={selectedStudentId} onValueChange={(v) => {
+              setSelectedStudentId(v)
+              setEnabled(false)
+            }} disabled={!selectedParallelId}>
+              <SelectTrigger><SelectValue placeholder="Selecciona estudiante" /></SelectTrigger>
+              <SelectContent>
+                {students.map((student) => (
+                  <SelectItem key={student.id} value={student.id}>
+                    {student.profile.lastName} {student.profile.firstName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <Button
+            onClick={() => setEnabled(true)}
+            disabled={!selectedYearId || !selectedParallelId || !selectedStudentId}
+            loading={isGenerating}
+            className="w-full sm:w-auto"
+          >
+            {isGenerating ? 'Generando boletín…' : 'Generar boletín'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleParallelPdfDownload}
+            disabled={!selectedYearId || !selectedParallelId}
+            loading={isDownloadingParallel}
+            className="w-full sm:w-auto print:hidden"
+          >
+            {!isDownloadingParallel && <Download className="h-4 w-4" />}
+            {isDownloadingParallel ? 'Generando libretas…' : 'Libretas de todo el paralelo (PDF)'}
+          </Button>
+          {report && (
+            <Button variant="outline" onClick={() => window.print()} className="w-full sm:w-auto print:hidden">
+              <Printer className="h-4 w-4" />
+              Imprimir
+            </Button>
+          )}
+          {report && (
+            <Button
+              variant="outline"
+              onClick={handlePdfDownload}
+              loading={isDownloadingPdf}
+              className="w-full sm:w-auto print:hidden"
+            >
+              {!isDownloadingPdf && <Download className="h-4 w-4" />}
+              {isDownloadingPdf ? 'Generando PDF…' : 'Descargar PDF'}
+            </Button>
+          )}
+        </div>
+
+        {isLoading && <PageLoader />}
+        {optionsIsError && (
+          <EmptyState
+            icon={ScrollText}
+            title="No se pudieron cargar las opciones"
+            description={getErrorMessage(optionsError)}
+          />
+        )}
+        {reportIsError && !isLoading && (
+          <EmptyState
+            icon={ScrollText}
+            title="No se pudo generar el boletín"
+            description={getErrorMessage(reportError)}
+          />
+        )}
+        {reportHasContent && !isLoading && !reportIsError && <BulletinReportView data={report} />}
+        {enabled && report && !reportHasContent && !isLoading && !reportIsError && (
+          <EmptyState
+            icon={ScrollText}
+            title="Sin datos para este boletín"
+            description="El estudiante no tiene suficientes notas o registros para generar el formato todavía."
+          />
+        )}
+        {!enabled && (
+          <EmptyState
+            icon={ScrollText}
+            title="Selecciona un estudiante"
+            description="Luego haz clic en Generar boletín"
+          />
+        )}
       </div>
     </div>
   )
