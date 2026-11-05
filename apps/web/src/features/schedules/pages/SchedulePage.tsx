@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, X, Calendar } from 'lucide-react'
+import { Plus, Calendar } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
@@ -31,15 +31,8 @@ import {
   type ScheduleEntry,
 } from '../api/schedules.api'
 import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
-import { getScheduleTimeSlots } from '../lib/schedule-time-slots'
-
-const DAYS = [
-  { value: 1, label: 'Lunes' },
-  { value: 2, label: 'Martes' },
-  { value: 3, label: 'Miércoles' },
-  { value: 4, label: 'Jueves' },
-  { value: 5, label: 'Viernes' },
-]
+import { ScheduleOverview } from '../components/ScheduleOverview'
+import { SCHEDULE_DAYS as DAYS } from '../lib/schedule-presentation'
 
 interface AcademicYear {
   id: string
@@ -164,32 +157,24 @@ export function SchedulePage() {
     deleteMutation.mutate(entry.id)
   }
 
-  const timeSlots = getScheduleTimeSlots(entries)
-
-  function getCellEntries(day: number, time: string): ScheduleEntry[] {
-    return entries.filter(
-      (e) => e.weekday === day && e.startTime === time,
-    )
-  }
-
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-5 w-5 text-primary" />
-          <h1 className="text-xl font-semibold">Horario</h1>
+        <div className="flex items-start gap-3">
+          <span className="rounded-xl bg-primary/10 p-2.5"><Calendar className="h-5 w-5 text-primary" aria-hidden="true" /></span>
+          <div><h1 className="text-2xl font-semibold tracking-tight">Horario</h1><p className="mt-1 text-sm text-muted-foreground">Tu semana de clases, organizada por materias y paralelos.</p></div>
         </div>
         {canManage && (
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Agregar Bloque
+            Agregar bloque
           </Button>
         )}
       </div>
 
       {/* Filters */}
-      {!isReadOnlyStudent && <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+      {!isReadOnlyStudent && <div className="flex flex-col gap-3 rounded-xl border bg-muted/20 p-4 sm:flex-row sm:flex-wrap">
         <Select value={filterYearId || '__all__'} onValueChange={(v) => { setFilterYearId(v === '__all__' ? '' : v); setFilterParallelId('') }}>
           <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Año lectivo" />
@@ -223,60 +208,7 @@ export function SchedulePage() {
       {isLoading ? (
         <div className="text-center py-10 text-muted-foreground">Cargando horario...</div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/50">
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground w-20">Hora</th>
-                {DAYS.map((d) => (
-                  <th key={d.value} className="px-3 py-2 text-left font-medium">{d.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {timeSlots.map((time) => (
-                <tr key={time} className="border-t">
-                  <td className="px-3 py-2 text-muted-foreground font-mono text-xs align-top">{time}</td>
-                  {DAYS.map((d) => {
-                    const cellEntries = getCellEntries(d.value, time)
-                    return (
-                      <td key={d.value} className="px-2 py-1.5 align-top min-w-[140px]">
-                        {cellEntries.map((entry) => (
-                          <div
-                            key={entry.id}
-                            className="bg-primary/10 border border-primary/20 rounded p-1 text-xs mb-1 group relative"
-                          >
-                            <div className="font-medium truncate pr-4">
-                              {entry.courseAssignment.subject.name}
-                            </div>
-                            <div className="text-muted-foreground truncate">
-                              {entry.courseAssignment.parallel.level.name} {entry.courseAssignment.parallel.name}
-                            </div>
-                            {entry.room && (
-                              <div className="text-muted-foreground truncate">{entry.room}</div>
-                            )}
-                            <div className="text-muted-foreground text-[10px]">
-                              {entry.startTime} – {entry.endTime}
-                            </div>
-                            {canManage && (
-                              <button
-                                onClick={() => handleDelete(entry)}
-                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 transition-opacity"
-                                title="Eliminar bloque"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ScheduleOverview entries={entries} onDelete={canManage ? handleDelete : undefined} />
       )}
 
       {/* Create dialog */}
