@@ -31,6 +31,7 @@ import {
   type ScheduleEntry,
 } from '../api/schedules.api'
 import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
+import { getScheduleTimeSlots } from '../lib/schedule-time-slots'
 
 const DAYS = [
   { value: 1, label: 'Lunes' },
@@ -39,16 +40,6 @@ const DAYS = [
   { value: 4, label: 'Jueves' },
   { value: 5, label: 'Viernes' },
 ]
-
-function generateTimeSlots(): string[] {
-  const slots: string[] = []
-  for (let h = 7; h <= 17; h++) {
-    slots.push(`${String(h).padStart(2, '0')}:00`)
-  }
-  return slots
-}
-
-const TIME_SLOTS = generateTimeSlots()
 
 interface AcademicYear {
   id: string
@@ -173,6 +164,8 @@ export function SchedulePage() {
     deleteMutation.mutate(entry.id)
   }
 
+  const timeSlots = getScheduleTimeSlots(entries)
+
   function getCellEntries(day: number, time: string): ScheduleEntry[] {
     return entries.filter(
       (e) => e.weekday === day && e.startTime === time,
@@ -241,7 +234,7 @@ export function SchedulePage() {
               </tr>
             </thead>
             <tbody>
-              {TIME_SLOTS.map((time) => (
+              {timeSlots.map((time) => (
                 <tr key={time} className="border-t">
                   <td className="px-3 py-2 text-muted-foreground font-mono text-xs align-top">{time}</td>
                   {DAYS.map((d) => {
