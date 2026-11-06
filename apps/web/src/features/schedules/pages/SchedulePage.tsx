@@ -63,6 +63,7 @@ export function SchedulePage() {
   const isGuardian = roles.includes('guardian') && !canManage
   const isStudent = roles.includes('student') && !canManage
   const isReadOnlyStudent = isGuardian || isStudent
+  const isTeacherOnly = roles.includes('teacher') && !roles.some((role) => ['admin', 'rector'].includes(role))
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [filterYearId, setFilterYearId] = useState('__active__')
@@ -81,6 +82,7 @@ export function SchedulePage() {
   if (filterYearId && filterYearId !== '__active__') scheduleParams.yearId = filterYearId
   if (filterParallelId) scheduleParams.parallelId = filterParallelId
   if (filterTeacherId) scheduleParams.teacherId = filterTeacherId
+  if (isTeacherOnly && user?.id) scheduleParams.teacherId = user.id
   if (isGuardian && guardianStudentId) scheduleParams.studentId = guardianStudentId
 
   const { data: entries = [], isLoading } = useQuery({
@@ -199,6 +201,8 @@ export function SchedulePage() {
           </SelectContent>
         </Select>
       </div>}
+
+      {isTeacherOnly && <p className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">Este horario muestra únicamente tus materias y paralelos asignados.</p>}
 
       {!isReadOnlyStudent && <p role={parallelsError ? 'alert' : undefined} className="text-sm text-muted-foreground">
         {parallelsLoading ? 'Cargando paralelos...' : parallelsError ? 'No se pudieron cargar los paralelos. Vuelve a intentarlo.' : parallels.length ? `${parallels.length} paralelos disponibles para este año. Usa el selector para consultar uno en particular.` : 'No tienes paralelos asignados para este año lectivo.'}

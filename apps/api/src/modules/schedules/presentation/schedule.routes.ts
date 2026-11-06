@@ -37,7 +37,11 @@ export default async function scheduleRoutes(app: FastifyInstance) {
         : !canManage && roles.includes('student')
           ? userId
           : undefined
-      const result = await repo.getSchedule(institutionId, req.query, studentId)
+      const scopedTeacherId = teacherScope(userId, roles)
+      const result = await repo.getSchedule(institutionId, {
+        ...req.query,
+        ...(scopedTeacherId && { teacherId: scopedTeacherId }),
+      }, studentId)
       return reply.status(200).send(result)
     },
   )
