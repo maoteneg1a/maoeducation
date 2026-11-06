@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { CheckCheck, CheckCircle2, Clock, Save, Users } from 'lucide-react'
@@ -121,6 +121,10 @@ function StaffAttendancePage() {
   const dailyTutorAssignments = React.useMemo(() => assignments.filter((assignment) =>
     assignment.parallel.level.attendanceMode === 'daily'
     && (privileged || assignment.parallel.tutorId === user?.id)), [assignments, privileged, user?.id])
+  const upperTutorParallels = React.useMemo(() => [...new Map(assignments
+    .filter((assignment) => assignment.parallel.level.attendanceMode === 'per_subject' && assignment.parallel.tutorId === user?.id)
+    .map((assignment) => [assignment.parallel.id, assignment.parallel])).values()], [assignments, user?.id])
+  const hasDailyTutorGrade = dailyTutorAssignments.length > 0
 
   // Opciones del selector: en niveles "diaria" se muestra el PARALELO (sin
   // materia, deduplicado); en "por materia", cada asignación subject×paralelo.
@@ -137,23 +141,25 @@ function StaffAttendancePage() {
     }> = []
     for (const a of assignments) {
       const base = `${a.parallel.level.name} - ${a.parallel.name}`
-      if (a.parallel.level.attendanceMode === 'daily' && view === 'day' && (privileged || a.parallel.tutorId === user?.id)) {
-        if (!daily.has(a.parallel.id)) {
-          daily.set(a.parallel.id, {
-            value: `parallel:${a.parallel.id}`,
-            label: `${base} (diaria)`,
-            isDaily: true,
-            parallelId: a.parallel.id,
-          })
+      if (view === 'day') {
+        if (a.parallel.level.attendanceMode === 'daily' && (privileged || a.parallel.tutorId === user?.id)) {
+          if (!daily.has(a.parallel.id)) {
+            daily.set(a.parallel.id, {
+              value: `parallel:${a.parallel.id}`,
+              label: `${base} (lista diaria)`,
+              isDaily: true,
+              parallelId: a.parallel.id,
+            })
+          }
         }
-      } else {
-        perSubject.push({
-          value: a.id,
-          label: `${base} / ${a.subject.name}`,
-          isDaily: false,
-          courseAssignmentId: a.id,
-        })
+        continue
       }
+      perSubject.push({
+        value: a.id,
+        label: `${base} / ${a.subject.name}`,
+        isDaily: false,
+        courseAssignmentId: a.id,
+      })
     }
     return [...daily.values(), ...perSubject]
   }, [assignments, view])
@@ -312,20 +318,26 @@ function StaffAttendancePage() {
         </p>
       </div>
 
-      <div className="flex gap-2" aria-label="Tipo de asistencia">
-        {(['day', 'class'] as const).map((v) => <Button key={v} disabled={saveMutation.isPending} variant={view === v ? 'default' : 'outline'} onClick={async () => {
+      {(hasDailyTutorGrade || privileged) && <div className="flex flex-wrap gap-2" aria-label="Tipo de asistencia">
+        {([...(hasDailyTutorGrade || privileged ? ['day' as const] : []), 'class' as const]).map((v) => <Button key={v} disabled={saveMutation.isPending} variant={view === v ? 'default' : 'outline'} onClick={async () => {
           if (v === view || !(await confirmDiscard())) return
           setView(v); setSelectedValue(''); setLocalRecords(new Map()); setIsDirty(false)
-        }}>{v === 'day' ? 'Lista diaria de mi grado' : 'Asistencia por hora'}</Button>)}
-      </div>
+        }}>{v === 'day' ? 'Lista diaria de mi grado' : 'Mis clases'}</Button>)}
+      </div>}
+      {upperTutorParallels.length > 0 && <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+        <p className="font-semibold">Tu tutoría: {upperTutorParallels.map((parallel) => `${parallel.level.name} ${parallel.name}`).join(', ')}</p>
+        <p className="mt-1">Desde 8.º cada docente registra la asistencia de su propia materia. Como tutor no vuelves a tomar una lista general: aquí registras solamente las clases que impartes.</p>
+        <Button asChild variant="outline" size="sm" className="mt-3 bg-white"><Link to="/reports?tab=attendance">Consultar el consolidado de mi tutoría</Link></Button>
+      </div>}
       <p className="text-sm text-muted-foreground">
         {view === 'day'
           ? 'Para tutores de 2.º a 7.º: registra una sola asistencia para toda la jornada. Las materias especiales no duplican este registro.'
-          : 'Registra la asistencia de la materia y hora que impartiste. En 2.º a 7.º queda como constancia de esa clase y no reemplaza la lista diaria del tutor.'}
+          : 'Selecciona únicamente la clase que impartiste. En 2.º a 7.º este registro no reemplaza la lista diaria del tutor.'}
       </p>
       {/* Filter bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
         <div className="w-full sm:w-72">
+          <label className="mb-1 block text-sm font-medium">{view === 'day' ? 'Grado de mi tutoría' : 'Clase que impartí'}</label>
           <Select disabled={saveMutation.isPending} value={selectedValue} onValueChange={handleAssignmentChange}>
             <SelectTrigger>
               <SelectValue placeholder={view === 'day' ? 'Seleccionar mi grado' : 'Seleccionar mi materia y grado'} />
