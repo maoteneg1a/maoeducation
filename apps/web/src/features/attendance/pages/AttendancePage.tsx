@@ -195,7 +195,7 @@ function StaffAttendancePage() {
   const isClassHour = !isDaily && !!assignment
   const selectedWeekday = selectedDate ? new Date(`${selectedDate}T12:00:00`).getDay() : 0
   const tutorSchedule = React.useMemo(() => tutorAssignments.flatMap((item) =>
-    (item.scheduleEntries ?? []).map((entry) => ({ ...entry, courseAssignmentId: item.id }))), [tutorAssignments])
+    (item.schedule ?? []).map((entry) => ({ ...entry, courseAssignmentId: item.id }))), [tutorAssignments])
   const activeSchedule = view === 'tutor'
     ? tutorSchedule
     : schedule.map((entry) => ({ ...entry, courseAssignmentId: entry.courseAssignment.id }))

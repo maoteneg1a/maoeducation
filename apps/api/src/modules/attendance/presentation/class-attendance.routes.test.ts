@@ -55,6 +55,9 @@ describe('daily attendance and individual class hours', () => {
         institutionId: 'school', isActive: true,
         parallel: { tutorId: 'teacher', isActive: true },
       },
+      include: expect.objectContaining({
+        schedule: { select: { weekday: true, startTime: true, endTime: true } },
+      }),
     }))
   })
 

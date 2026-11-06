@@ -28,7 +28,7 @@ export interface CourseAssignment {
   }
   academicYear: { id: string; name: string; isActive: boolean }
   teacher: { id: string; profile: { firstName: string; lastName: string } }
-  scheduleEntries?: Array<{ weekday: number; startTime: string; endTime: string }>
+  schedule?: Array<{ weekday: number; startTime: string; endTime: string }>
 }
 
 export function getAttendance(courseAssignmentId: string, date: string) {
