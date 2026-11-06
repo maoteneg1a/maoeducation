@@ -102,9 +102,11 @@ describe('daily attendance and individual class hours', () => {
     expect((await app.inject({ method: 'POST', url: '/attendance/bulk', payload: { parallelId: 'parallel', date: payload.date, records: payload.records } })).statusCode).toBe(403)
     expect(db.attendanceRecord.upsert).not.toHaveBeenCalled()
   })
-  it('keeps per-subject levels on their existing attendance flow', async () => {
+  it('records per-subject levels by hour and notifies an official absence', async () => {
     db.courseAssignment.findFirst.mockResolvedValue({ ...ca, parallel: { ...ca.parallel, level: { attendanceMode: 'per_subject' } } })
-    expect((await app.inject({ method: 'POST', url: '/attendance/class-hour', payload })).statusCode).toBe(400)
+    expect((await app.inject({ method: 'POST', url: '/attendance/class-hour', payload })).statusCode).toBe(200)
+    expect(stored.size).toBe(1)
+    await vi.waitFor(() => expect(notifyStudentAndGuardians).toHaveBeenCalledWith('student', expect.objectContaining({ title: 'Asistencia — Auleka' })))
   })
   it('allows a tutor to correct the daily attendance and audits the change', async () => {
     actor.sub = 'tutor'

@@ -9,34 +9,35 @@ const VALID_STATUSES = new Set(['present', 'absent', 'late', 'excused'])
 export type AttendanceSaveResult = { saved: number; newlyFlagged: Array<{ studentId: string; status: string }> }
 
 export class PrismaAttendanceRepository {
-  /** Registro complementario por hora: nunca escribe attendance_records ni notifica faltas diarias. */
+  /** Registro por hora de una asignación. En modo diario conserva la jornada solo como referencia. */
   async getClassHour(institutionId: string, courseAssignmentId: string, date: string, period: number) {
     validateClassPeriod(period)
     const parsedDate = parseAttendanceDate(date)
-    const ca = await this.dailyAssignment(institutionId, courseAssignmentId)
-    const [daily, records] = await Promise.all([
-      this.getByParallelDate(institutionId, ca.parallelId, date),
+    const ca = await this.classAssignment(institutionId, courseAssignmentId)
+    const [roster, records] = await Promise.all([
+      ca.parallel.level.attendanceMode === 'daily'
+        ? this.getByParallelDate(institutionId, ca.parallelId, date)
+        : this.getByDate(institutionId, ca.id, date),
       prisma.classAttendanceRecord.findMany({ where: { institutionId, courseAssignmentId, date: parsedDate, period } }),
     ])
-    return daily.map((entry) => ({
+    return roster.map((entry) => ({
       student: entry.student,
       record: records.find((r) => r.studentId === entry.student.id) ?? null,
-      dailyRecord: entry.record,
+      ...(ca.parallel.level.attendanceMode === 'daily' ? { dailyRecord: entry.record } : {}),
     }))
   }
 
-  private async dailyAssignment(institutionId: string, id: string) {
+  private async classAssignment(institutionId: string, id: string) {
     const ca = await prisma.courseAssignment.findFirst({
       where: { id, institutionId, isActive: true, parallel: { isActive: true } },
       include: { parallel: { include: { level: true } } },
     })
     if (!ca) throw new NotFoundError('Asignación no encontrada o inactiva')
-    if (ca.parallel.level.attendanceMode !== 'daily') throw new BadRequestError('El complemento por hora requiere asistencia diaria')
     return ca
   }
 
   async classHistory(institutionId: string, courseAssignmentId: string) {
-    await this.dailyAssignment(institutionId, courseAssignmentId)
+    await this.classAssignment(institutionId, courseAssignmentId)
     return prisma.classAttendanceRecord.groupBy({
       by: ['date', 'period'], where: { institutionId, courseAssignmentId },
       _count: { _all: true }, orderBy: [{ date: 'desc' }, { period: 'asc' }], take: 100,
@@ -46,14 +47,15 @@ export class PrismaAttendanceRepository {
   async saveClassHour(institutionId: string, dto: BulkAttendanceDto & { period: number }, userId: string) {
     validateClassPeriod(dto.period)
     if (!dto.courseAssignmentId || dto.parallelId) throw new BadRequestError('Se requiere una asignación de materia')
-    const ca = await this.dailyAssignment(institutionId, dto.courseAssignmentId)
+    const ca = await this.classAssignment(institutionId, dto.courseAssignmentId)
     const date = parseAttendanceDate(dto.date)
     await assertStudentsEnrolled(institutionId, ca.parallelId, ca.academicYearId, dto.records)
     if (new Set(dto.records.map((r) => r.studentId)).size !== dto.records.length) throw new BadRequestError('Estudiantes repetidos')
+    let previous: Array<{ studentId: string; status: string; notes: string | null }> = []
     await prisma.$transaction(async (tx) => {
       // Serializa correcciones de la misma hora para conservar el antes/después real.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${ca.id}:${dto.date}:${dto.period}`}))`
-      const previous = await tx.classAttendanceRecord.findMany({ where: { institutionId, courseAssignmentId: ca.id, date, period: dto.period } })
+      previous = await tx.classAttendanceRecord.findMany({ where: { institutionId, courseAssignmentId: ca.id, date, period: dto.period }, select: { studentId: true, status: true, notes: true } })
       for (const r of dto.records) {
         await tx.classAttendanceRecord.upsert({
           where: { courseAssignmentId_studentId_date_period: { courseAssignmentId: ca.id, studentId: r.studentId, date, period: dto.period } },
@@ -67,7 +69,11 @@ export class PrismaAttendanceRepository {
         newValue: { date: dto.date, period: dto.period, records: dto.records.map((r) => ({ studentId: r.studentId, status: r.status, notes: r.notes ?? null })) },
       } })
     }, { timeout: 30_000 })
-    return { saved: dto.records.length }
+    return {
+      saved: dto.records.length,
+      attendanceMode: ca.parallel.level.attendanceMode as 'daily' | 'per_subject',
+      newlyFlagged: newlyFlagged(previous, dto.records),
+    }
   }
 
   async getByDate(institutionId: string, courseAssignmentId: string, date: string) {
