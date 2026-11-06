@@ -48,7 +48,7 @@ export function ReinforcementCaseDetailPage() {
     enabled: !!id,
   })
 
-  const requestedTab = params.get('tab') ?? (data && caseGuidance(data).planReady ? 'sessions' : 'plan')
+  const requestedTab = params.get('tab') ?? 'sessions'
   const tab = ['results', 'formative'].includes(requestedTab) ? 'results' : ['documents', 'files', 'reports'].includes(requestedTab) ? 'documents' : requestedTab === 'sessions' ? 'sessions' : 'plan'
   if (isLoading) return <PageLoader />
   if (isError || !data) {
@@ -85,7 +85,7 @@ export function ReinforcementCaseDetailPage() {
 
       <Card className="border-primary/30 bg-primary/5"><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
         <div><p className="font-semibold">{data.canEdit && k.caseStatus !== 'CLOSED' ? 'Siguiente paso' : 'Seguimiento'}: {guidance.next.label}</p><p className="mt-1 text-sm text-muted-foreground">{guidance.next.description}</p>
-          <p className="mt-2 text-xs">Plan {guidance.planReady ? 'completo' : 'por completar'} · Asistencia {guidance.attendanceReady ? 'registrada' : 'pendiente'} · Aprendizaje {guidance.learningReviewed ? 'valorado' : 'por valorar'} · Informes enviados: {data.reports.filter((report) => report.status !== 'DRAFT').length}</p>
+          <p className="mt-2 text-xs">Actividades: {data.sessions.length} · Asistencia {guidance.attendanceReady ? 'registrada' : 'pendiente'} · Informes enviados: {data.reports.filter((report) => report.status !== 'DRAFT').length}</p>
         </div>
         <Button onClick={() => {
           if (guidance.next.tab === 'sessions' && (!data.sessions.length || k.caseStatus === 'CONTINUES_REINFORCEMENT')) setParams({ tab: 'sessions', newSession: '1' })
@@ -119,15 +119,14 @@ export function ReinforcementCaseDetailPage() {
 
       <Tabs value={tab} onValueChange={openTab}>
         <TabsList className="flex-wrap">
-          <TabsTrigger value="plan">1. Plan</TabsTrigger>
-          <TabsTrigger value="sessions">2. Actividades y asistencia</TabsTrigger>
-          <TabsTrigger value="results">3. Resultados</TabsTrigger>
-          <TabsTrigger value="documents">4. Documentos</TabsTrigger>
+          <TabsTrigger value="sessions">Actividades y notas</TabsTrigger>
+          <TabsTrigger value="results">Resultados</TabsTrigger>
+          <TabsTrigger value="documents">Informes y documentos</TabsTrigger>
         </TabsList>
         <TabsContent value="plan"><PlanTab planId={id} detail={data} /><details className="mt-5 rounded border p-3"><summary className="cursor-pointer text-sm">Ver antecedentes del caso</summary><div className="mt-3"><CaseSummaryTab kase={k} /></div></details></TabsContent>
         <TabsContent value="sessions"><SessionsTab planId={id} detail={data} /></TabsContent>
         <TabsContent value="results" className="space-y-6"><FormativeResultTab planId={id} detail={data} /><PlanTab planId={id} detail={data} section="decision" onOpenPlan={() => openTab('plan')} /></TabsContent>
-        <TabsContent value="documents" className="space-y-6"><ReportsTab planId={id} detail={data} /><details className="rounded border p-4"><summary className="cursor-pointer font-medium">Archivos y respaldos ({data.attachments.length})</summary><div className="mt-4"><AttachmentsTab planId={id} detail={data} /></div></details></TabsContent>
+        <TabsContent value="documents" className="space-y-6"><ReportsTab planId={id} detail={data} /><details className="rounded border p-4"><summary className="cursor-pointer font-medium">Información adicional para informes</summary><div className="mt-4"><PlanTab planId={id} detail={data} /></div></details><details className="rounded border p-4"><summary className="cursor-pointer font-medium">Archivos y respaldos ({data.attachments.length})</summary><div className="mt-4"><AttachmentsTab planId={id} detail={data} /></div></details></TabsContent>
       </Tabs>
     </div>
   )

@@ -3,7 +3,7 @@ import * as React from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Save, GraduationCap, BarChart3, Settings2, ExternalLink, CheckCheck, Keyboard } from 'lucide-react'
+import { Save, GraduationCap, BarChart3, Settings2, ExternalLink, CheckCheck, Keyboard, AlertTriangle } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Badge } from '@/shared/components/ui/badge'
@@ -1522,7 +1522,7 @@ function StudentAnnualByPeriodGrid({
   )
 }
 
-export function GradeEntryPage() {
+function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
   const { hasAnyRole, hasPermission } = usePermissions()
   const isStudentOrGuardian = hasAnyRole('student', 'guardian')
   const canEnterManualGrades = !isStudentOrGuardian && hasPermission('grades:write')
@@ -1543,7 +1543,10 @@ export function GradeEntryPage() {
   const studentAssignments = myData?.assignments ?? []
   const studentPeriods = myData?.periods ?? []
 
-  const assignments = isStudentOrGuardian ? studentAssignments : teacherDefaults.assignments
+  const consultationMode = isStudentOrGuardian || mode === 'summary'
+  const assignments = isStudentOrGuardian
+    ? studentAssignments
+    : consultationMode ? teacherDefaults.consultableAssignments : teacherDefaults.assignments
   const periods = isStudentOrGuardian ? studentPeriods : teacherDefaults.periods
   const defaultAssignmentId = isStudentOrGuardian
     ? (myDataLoaded && studentAssignments.length === 1 ? studentAssignments[0].id : '')
@@ -1553,7 +1556,7 @@ export function GradeEntryPage() {
     : teacherDefaults.defaultPeriodId
 
   // Students only see summary tab
-  const [activeTab, setActiveTab] = React.useState<Tab>(isStudentOrGuardian ? 'summary' : 'entry')
+  const [activeTab, setActiveTab] = React.useState<Tab>(consultationMode ? 'summary' : 'entry')
   const [selectedAssignmentId, setSelectedAssignmentId] = React.useState(requestedAssignmentId)
   const [selectedPeriodId, setSelectedPeriodId] = React.useState(requestedPeriodId)
   const [selectedActivityId, setSelectedActivityId] = React.useState(requestedActivityId)
@@ -1569,10 +1572,10 @@ export function GradeEntryPage() {
     if (selectedPeriodId) return
     if (isStudentOrGuardian && studentPeriods.length > 0) {
       setSelectedPeriodId(ALL_PERIODS)
-    } else if (defaultPeriodId && selectedAssignmentId) {
+    } else if (defaultPeriodId && (selectedAssignmentId || consultationMode)) {
       setSelectedPeriodId(defaultPeriodId)
     }
-  }, [defaultPeriodId, isStudentOrGuardian, selectedAssignmentId, selectedPeriodId, studentPeriods.length])
+  }, [consultationMode, defaultPeriodId, isStudentOrGuardian, selectedAssignmentId, selectedPeriodId, studentPeriods.length])
 
   const { data: activitiesList = [] } = useQuery({
     queryKey: ['activities', selectedAssignmentId, selectedPeriodId],
@@ -1585,6 +1588,17 @@ export function GradeEntryPage() {
   })
 
   const selectedActivity = activitiesList.find((a) => a.id === selectedActivityId)
+  const completionPeriodId = consultationMode && selectedPeriodId !== ALL_PERIODS ? selectedPeriodId : ''
+  const { data: gradeCompletion = [] } = useQuery({
+    queryKey: ['grade-completion', completionPeriodId],
+    queryFn: () => activitiesApi.getGradeCompletion(completionPeriodId),
+    enabled: !!completionPeriodId && !isStudentOrGuardian,
+  })
+  const completionByAssignment = React.useMemo(
+    () => new Map(gradeCompletion.map((item) => [item.courseAssignmentId, item])),
+    [gradeCompletion],
+  )
+  const subjectsRequiringReview = gradeCompletion.filter((item) => item.status !== 'complete')
   const reinforcementEnabled = !!selectedActivity && (
     gradingConfig?.activityGradeReinforcement?.eligibleActivityTypeIds?.includes(selectedActivity.activityTypeId) ?? false
   )
@@ -1744,18 +1758,20 @@ export function GradeEntryPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            {isStudentOrGuardian ? 'Mis calificaciones' : 'Notas'}
+            {isStudentOrGuardian ? 'Mis calificaciones' : consultationMode ? 'Consultar notas' : 'Calificar'}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             {isStudentOrGuardian
               ? 'Consulta tus resultados por trimestre'
-              : 'Ingresa y consulta las notas de los estudiantes'}
+              : consultationMode
+                ? 'Consulta los resultados de tus materias y de los paralelos donde eres tutor'
+                : 'Registra las calificaciones de las materias que impartes'}
           </p>
         </div>
       </div>
 
       {/* Tabs */}
-      {!isStudentOrGuardian && (
+      {!isStudentOrGuardian && !consultationMode && (
         <div className="flex gap-1 border-b">
           <button
             type="button"
@@ -1786,18 +1802,6 @@ export function GradeEntryPage() {
             Ingreso manual de calificaciones
           </button>
           )}
-          <button
-            type="button"
-            onClick={() => setActiveTab('summary')}
-            className={cn(
-              'px-4 py-2 text-sm font-medium border-b-2 transition-colors',
-              activeTab === 'summary'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
-            )}
-          >
-            Ver Resumen
-          </button>
         </div>
       )}
 
@@ -1810,11 +1814,21 @@ export function GradeEntryPage() {
                 <SelectValue placeholder="Seleccionar asignación" />
               </SelectTrigger>
               <SelectContent>
-                {assignments.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.subject?.name ?? a.subjectName ?? a.subjectId} — {a.parallel?.level?.name ? `${a.parallel.level.name} ${a.parallel.name}` : (a.parallelName ?? a.parallelId)}
-                  </SelectItem>
-                ))}
+                {assignments.map((a) => {
+                  const teacherName = a.teacher?.profile
+                    ? `${a.teacher.profile.firstName} ${a.teacher.profile.lastName}`
+                    : a.teacherName
+                  return (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.subject?.name ?? a.subjectName ?? a.subjectId} — {a.parallel?.level?.name ? `${a.parallel.level.name} ${a.parallel.name}` : (a.parallelName ?? a.parallelId)}
+                      {consultationMode && teacherName ? ` · ${teacherName}` : ''}
+                      {!isStudentOrGuardian && consultationMode ? ' · Solo lectura' : ''}
+                      {consultationMode && completionByAssignment.get(a.id)?.status === 'no_activities' ? ' · Sin actividades' : ''}
+                      {consultationMode && completionByAssignment.get(a.id)?.status === 'no_grades' ? ' · Sin notas' : ''}
+                      {consultationMode && completionByAssignment.get(a.id)?.status === 'incomplete' ? ` · ${completionByAssignment.get(a.id)?.missing} pendientes` : ''}
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -1882,6 +1896,24 @@ export function GradeEntryPage() {
           </div>
         )}
       </div>
+
+      {consultationMode && !isStudentOrGuardian && completionPeriodId && subjectsRequiringReview.length > 0 && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <div>
+              <p className="font-medium">{subjectsRequiringReview.length} {subjectsRequiringReview.length === 1 ? 'materia requiere' : 'materias requieren'} revisión</p>
+              <p className="mt-1 text-xs">
+                {subjectsRequiringReview.map((item) => item.status === 'no_activities'
+                  ? `${item.subject}: sin actividades registradas`
+                  : item.status === 'no_grades'
+                    ? `${item.subject}: sin notas cargadas`
+                    : `${item.subject}: ${item.missing} calificaciones pendientes`).join(' · ')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab content */}
       {activeTab === 'manual' ? (
@@ -2039,4 +2071,12 @@ export function GradeEntryPage() {
       )}
     </div>
   )
+}
+
+export function GradeEntryPage() {
+  return <GradesPage mode="entry" />
+}
+
+export function GradeConsultationPage() {
+  return <GradesPage mode="summary" />
 }

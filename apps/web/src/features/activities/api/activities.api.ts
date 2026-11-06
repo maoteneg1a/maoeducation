@@ -88,6 +88,17 @@ export interface GradeInput {
   reinforcementScore?: number | null
 }
 
+export interface GradeCompletion {
+  courseAssignmentId: string
+  subject: string
+  teacher: string
+  activities: number
+  graded: number
+  expected: number
+  missing: number
+  status: 'no_activities' | 'no_grades' | 'incomplete' | 'complete'
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type StudentGradesSummary = any
 
@@ -165,4 +176,6 @@ export const activitiesApi = {
     apiGet<StudentGradesSummary>(`grades/student/${studentId}`, params as Record<string, string>),
   getGradesSummary: (courseAssignmentId: string, periodId: string) =>
     apiGet<GradesSummary>('grades/summary', { courseAssignmentId, periodId }),
+  getGradeCompletion: (periodId: string) =>
+    apiGet<GradeCompletion[]>('grades/completion', { periodId }),
 }

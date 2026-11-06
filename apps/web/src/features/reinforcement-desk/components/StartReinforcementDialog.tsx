@@ -8,22 +8,22 @@ import { getErrorMessage } from '@/shared/lib/utils'
 import type { EarlyAlertItem } from '@/features/early-alerts/api/early-alerts.api'
 import { reinforcementDeskApi } from '../api/reinforcement-desk.api'
 import { activitiesApi } from '@/features/activities/api/activities.api'
-import { PlanTextChoice, PLAN_STRATEGIES, PLAN_FREQUENCIES, suggestedObjective } from './PlanTextChoice'
+import { PlanTextChoice } from './PlanTextChoice'
 
 export function StartReinforcementDialog({ alerts, periodId, onClose }: { alerts: EarlyAlertItem[]; periodId: string; onClose: () => void }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [target, setTarget] = React.useState('')
-  const [objective, setObjective] = React.useState('')
-  const [strategies, setStrategies] = React.useState('')
-  const [schedule, setSchedule] = React.useState('')
   const lock = React.useRef(false)
   const assignmentId = alerts[0]?.assignment.id
   const activities = useQuery({ queryKey: ['reinforcement-start-activities', assignmentId, periodId], queryFn: () => activitiesApi.getActivities({ courseAssignmentId: assignmentId!, periodId }), enabled: !!assignmentId && !!periodId && alerts.length > 0 })
   const targets = [...new Set((activities.data ?? []).map((activity) => activity.curriculumSkill?.description || activity.competency?.text || `Aprendizajes evaluados en ${activity.name}`).filter((value) => value.length <= 3000))]
-  React.useEffect(() => { setTarget(''); setObjective(''); setStrategies(''); setSchedule('') }, [alerts])
+  React.useEffect(() => { setTarget('') }, [alerts])
+  React.useEffect(() => {
+    if (!target && targets.length) setTarget(targets[0])
+  }, [target, targets])
   const m = useMutation({
-    mutationFn: () => reinforcementDeskApi.startFromAlerts({ alertIds: alerts.map((a) => a.id), learningTarget: target.trim(), objective: objective.trim() || suggestedObjective(target.trim()), strategies, schedule }),
+    mutationFn: () => reinforcementDeskApi.startFromAlerts({ alertIds: alerts.map((a) => a.id), learningTarget: target.trim() }),
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['early-alerts-v2'] })
       qc.invalidateQueries({ queryKey: ['reinforcement-desk'] })
@@ -39,18 +39,12 @@ export function StartReinforcementDialog({ alerts, periodId, onClose }: { alerts
         {alerts.map((a) => a.student.name).join(', ')} · {alerts[0]?.assignment.subjectName}. El plan quedará vinculado a estas alertas.
       </DialogDescription></DialogHeader>
       <fieldset disabled={m.isPending} className="space-y-4">
-        <PlanTextChoice label="Aprendizaje o actividad a reforzar" value={target} onChange={setTarget} options={targets} />
+        {targets.length > 0 ? <div className="rounded-lg border bg-muted/30 p-3 text-sm"><p className="font-medium">Aprendizaje a reforzar</p><p className="mt-1 text-muted-foreground">{target}</p><details className="mt-2"><summary className="cursor-pointer text-primary">Cambiar aprendizaje</summary><div className="mt-2"><PlanTextChoice label="Aprendizaje o actividad a reforzar" value={target} onChange={setTarget} options={targets} /></div></details></div> : !activities.isFetching ? <PlanTextChoice label="¿Qué aprendizaje necesita reforzar?" value={target} onChange={setTarget} options={[]} /> : null}
         {activities.isFetching && <p className="text-xs text-muted-foreground">Cargando aprendizajes de las actividades…</p>}
         {activities.isError && <p role="alert" className="text-xs text-destructive">No se pudieron cargar las actividades. Puedes escribir el aprendizaje.</p>}
-        <PlanTextChoice label="Estrategia prevista" value={strategies} onChange={setStrategies} options={PLAN_STRATEGIES} />
-        {target.trim() && <p className="rounded border bg-muted/30 p-3 text-sm">Objetivo propuesto: {objective.trim() || suggestedObjective(target.trim())}</p>}
-        <details><summary className="cursor-pointer text-sm text-primary">Personalizar objetivo y frecuencia · opcional</summary><div className="mt-3 space-y-3">
-          <PlanTextChoice label="Objetivo personalizado" value={objective} onChange={setObjective} options={target.trim() ? [suggestedObjective(target.trim())] : []} optional />
-          <PlanTextChoice label="Frecuencia prevista" value={schedule} onChange={setSchedule} options={PLAN_FREQUENCIES} optional />
-        </div></details>
       </fieldset>
-      <p className="text-xs text-muted-foreground">Al confirmar se guardará este plan y podrás registrar la primera actividad. No se modifican calificaciones.</p>
-      <DialogFooter><Button variant="outline" disabled={m.isPending} onClick={onClose}>Cancelar</Button><Button loading={m.isPending} disabled={target.trim().length < 3 || strategies.trim().length < 3} onClick={async () => { if (lock.current) return; lock.current = true; try { await m.mutateAsync() } catch { /* La mutación muestra el error. */ } finally { lock.current = false } }}>Iniciar y registrar actividad</Button></DialogFooter>
+      <p className="text-xs text-muted-foreground">El sistema tomará la materia, periodo, paralelo y estudiantes de la alerta. Luego podrás ingresar directamente las notas del refuerzo.</p>
+      <DialogFooter><Button variant="outline" disabled={m.isPending} onClick={onClose}>Cancelar</Button><Button loading={m.isPending} disabled={target.trim().length < 3} onClick={async () => { if (lock.current) return; lock.current = true; try { await m.mutateAsync() } catch { /* La mutación muestra el error. */ } finally { lock.current = false } }}>Iniciar refuerzo</Button></DialogFooter>
     </DialogContent>
   </Dialog>
 }

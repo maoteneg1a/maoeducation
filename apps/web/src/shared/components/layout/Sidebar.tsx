@@ -5,7 +5,7 @@ import {
   Home, Users, Settings, BookOpen, GraduationCap,
   ClipboardList, AlertTriangle, MessageSquare, Calendar,
   FileText, ChevronRight, X, UserPlus, ShieldCheck,
-  ClipboardCheck, CalendarDays, Palette, Smile, Award, HeartHandshake, FolderOpen, NotebookPen, Puzzle,
+  ClipboardCheck, CalendarDays, Palette, Smile, Award, HeartHandshake, FolderOpen, NotebookPen, Puzzle, Eye,
   School, CreditCard,
   Megaphone,
   ScrollText,
@@ -106,9 +106,16 @@ export const NAV_SECTIONS: NavSection[] = [
       },
 
       {
-        label: 'Calificaciones',
+        label: 'Calificar',
         icon: GraduationCap,
         path: '/grades',
+        permission: 'grades:write',
+        module: 'grades',
+      },
+      {
+        label: 'Consultar notas',
+        icon: Eye,
+        path: '/grades/consulta',
         permission: 'grades:read',
         module: 'grades',
       },

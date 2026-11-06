@@ -42,21 +42,37 @@ interface Props {
 }
 
 export function SessionsTab({ planId, detail }: Props) {
+  const qc = useQueryClient()
   const [registerBusy, setRegisterBusy] = React.useState(false)
   const [editing, setEditing] = React.useState<CaseSession | 'new' | null>(null)
   const [params, setParams] = useSearchParams()
-  React.useEffect(() => {
-    if (params.get('newSession') === '1' && detail.canEdit && detail.case.caseStatus !== 'CLOSED') {
-      setEditing('new')
-      setParams((previous) => { const next = new URLSearchParams(previous); next.delete('newSession'); return next }, { replace: true })
-    }
-  }, [params, setParams, detail.canEdit, detail.case.caseStatus])
   const { data: activities = [] } = useQuery({
     queryKey: ['reinforcement-desk-activities', planId],
     queryFn: () => reinforcementDeskApi.activities(planId),
   })
   const { data: formative, isLoading: loadingRule, isError: ruleError } = useQuery({ queryKey: ['reinforcement-formative', planId], queryFn: () => reinforcementDeskApi.formativeOptions(planId) })
   const activityById = new Map(activities.map((a) => [a.id, a]))
+  const quickCreate = useMutation({
+    mutationFn: () => reinforcementDeskApi.createSession(planId, {
+      date: todayInEcuador(),
+      title: `Actividad de refuerzo ${detail.sessions.length + 1}`,
+      description: null,
+      targetActivityId: null,
+    }),
+    onSuccess: async () => {
+      toast.success('Actividad creada. Ya puedes ingresar las notas.')
+      await qc.invalidateQueries({ predicate: (query) => /reinforcement|grade|report|alert|dossier|boletin/i.test(String(query.queryKey[0])) })
+    },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
+  const handledNewSession = React.useRef(false)
+  React.useEffect(() => {
+    if (handledNewSession.current || params.get('newSession') !== '1' || !formative || !detail.canEdit || detail.case.caseStatus === 'CLOSED') return
+    handledNewSession.current = true
+    setParams((previous) => { const next = new URLSearchParams(previous); next.delete('newSession'); return next }, { replace: true })
+    if (formative.policy.mode === 'activity_set') setEditing('new')
+    else quickCreate.mutate()
+  }, [params, setParams, formative, detail.canEdit, detail.case.caseStatus, quickCreate])
 
   return (
     <div className="space-y-4">
@@ -65,7 +81,7 @@ export function SessionsTab({ planId, detail }: Props) {
           {detail.case.caseStatus === 'CLOSED' ? 'Consulta las actividades y el resultado del refuerzo finalizado.' : formative?.policy.mode ? 'Crea las actividades, escribe las notas y guarda. El promedio se calcula automáticamente. Puedes dejar prácticas sin nota.' : 'Cada sesión registra la asistencia al refuerzo. Si apunta a una actividad original, la nota se aplica con las reglas de la institución.'}
         </p>
         {detail.canEdit && detail.case.caseStatus !== 'CLOSED' && (
-          <Button size="sm" disabled={registerBusy || loadingRule || ruleError} onClick={() => setEditing('new')}><Plus className="mr-1.5 h-4 w-4" /> Nueva actividad</Button>
+          <Button size="sm" loading={quickCreate.isPending} disabled={registerBusy || loadingRule || ruleError} onClick={() => formative?.policy.mode === 'activity_set' ? setEditing('new') : quickCreate.mutate()}><Plus className="mr-1.5 h-4 w-4" /> Nueva actividad</Button>
         )}
       </div>
 
@@ -93,6 +109,7 @@ export function SessionsTab({ planId, detail }: Props) {
           students={detail.students}
           formativeEnabled={!!formative?.policy.mode}
           originalRequired={formative?.policy.mode === 'activity_set'}
+          suggestedTitle={`Actividad de refuerzo ${detail.sessions.length + 1}`}
           onClose={() => setEditing(null)}
         />
       )}
@@ -278,6 +295,7 @@ function SessionDialog({
   students,
   formativeEnabled,
   originalRequired,
+  suggestedTitle,
   onClose,
 }: {
   planId: string
@@ -286,11 +304,12 @@ function SessionDialog({
   students: Array<{ id: string; name: string }>
   formativeEnabled: boolean
   originalRequired: boolean
+  suggestedTitle: string
   onClose: () => void
 }) {
   const qc = useQueryClient()
   const [date, setDate] = React.useState(session?.date ?? todayInEcuador())
-  const [title, setTitle] = React.useState(session?.title ?? '')
+  const [title, setTitle] = React.useState(session?.title ?? suggestedTitle)
   const [description, setDescription] = React.useState(session?.description ?? '')
   const [target, setTarget] = React.useState(session?.targetActivityId ?? NONE)
   const lock = React.useRef(false)
@@ -330,7 +349,7 @@ function SessionDialog({
             <Label>Descripción</Label>
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
           </div></details>
-          <div className="space-y-1">
+          {(!formativeEnabled || originalRequired) && <div className="space-y-1">
             <Label>Actividad original {originalRequired ? '(requerida para calificar)' : '(opcional)'}</Label>
             <Select value={target} onValueChange={setTarget}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -343,7 +362,7 @@ function SessionDialog({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </div>}
           {originalRequired && activities.length === 0 && <p className="text-sm text-amber-700">Primero registra y publica una actividad formativa en Notas; esta regla necesita una actividad original.</p>}
           {selected && (
             <div className="rounded-md border bg-muted/40 p-3 text-xs">
