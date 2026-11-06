@@ -10,7 +10,10 @@ import { Badge } from '@/shared/components/ui/badge'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/shared/components/ui/select'
@@ -36,6 +39,7 @@ import { normativeApi } from '@/features/normative/api/normative.api'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useGradingConfig } from '@/features/settings/hooks/useSettings'
 import { useUnsavedChanges } from '@/shared/hooks/useUnsavedChanges'
+import { useAuthStore } from '@/store/auth.store'
 
 // ---- Query keys ----
 const gradeKeys = {
@@ -1523,6 +1527,7 @@ function StudentAnnualByPeriodGrid({
 }
 
 function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
+  const user = useAuthStore((state) => state.user)
   const { hasAnyRole, hasPermission } = usePermissions()
   const isStudentOrGuardian = hasAnyRole('student', 'guardian')
   const canEnterManualGrades = !isStudentOrGuardian && hasPermission('grades:write')
@@ -1550,7 +1555,7 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
   const periods = isStudentOrGuardian ? studentPeriods : teacherDefaults.periods
   const defaultAssignmentId = isStudentOrGuardian
     ? (myDataLoaded && studentAssignments.length === 1 ? studentAssignments[0].id : '')
-    : teacherDefaults.defaultAssignmentId
+    : consultationMode ? teacherDefaults.defaultConsultationAssignmentId : teacherDefaults.defaultAssignmentId
   const defaultPeriodId = isStudentOrGuardian
     ? (studentPeriods.find((p) => p.isActive)?.id ?? studentPeriods[0]?.id ?? '')
     : teacherDefaults.defaultPeriodId
@@ -1599,6 +1604,16 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
     [gradeCompletion],
   )
   const subjectsRequiringReview = gradeCompletion.filter((item) => item.status !== 'complete')
+  const tutorParallelIds = new Set(user?.tutorParallelIds ?? [])
+  const tutoredAssignments = consultationMode
+    ? assignments.filter((assignment) => tutorParallelIds.has(assignment.parallelId))
+    : []
+  const ownAssignments = consultationMode
+    ? assignments.filter((assignment) => !tutorParallelIds.has(assignment.parallelId))
+    : assignments
+  const tutoredParallelName = tutoredAssignments[0]
+    ? `${tutoredAssignments[0].parallel?.level?.name ?? ''} ${tutoredAssignments[0].parallel?.name ?? tutoredAssignments[0].parallelName ?? ''}`.trim()
+    : ''
   const reinforcementEnabled = !!selectedActivity && (
     gradingConfig?.activityGradeReinforcement?.eligibleActivityTypeIds?.includes(selectedActivity.activityTypeId) ?? false
   )
@@ -1753,6 +1768,30 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
     setFillValue('')
   }
 
+  const renderAssignmentOption = (assignment: (typeof assignments)[number]) => {
+    const teacherName = assignment.teacher?.profile
+      ? `${assignment.teacher.profile.firstName} ${assignment.teacher.profile.lastName}`
+      : assignment.teacherName
+    const completion = completionByAssignment.get(assignment.id)
+    const status = completion?.status === 'no_activities'
+      ? ' · Sin actividades'
+      : completion?.status === 'no_grades'
+        ? ' · Sin notas'
+        : completion?.status === 'incomplete'
+          ? ` · ${completion.missing} pendientes`
+          : ''
+    return (
+      <SelectItem key={assignment.id} value={assignment.id}>
+        {assignment.subject?.name ?? assignment.subjectName ?? assignment.subjectId}
+        {!tutorParallelIds.has(assignment.parallelId) && (assignment.parallel?.level?.name || assignment.parallelName)
+          ? ` — ${assignment.parallel?.level?.name ? `${assignment.parallel.level.name} ${assignment.parallel.name}` : assignment.parallelName}`
+          : ''}
+        {consultationMode && teacherName ? ` · ${teacherName}` : ''}
+        {status}
+      </SelectItem>
+    )
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
@@ -1814,23 +1853,24 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
                 <SelectValue placeholder="Seleccionar asignación" />
               </SelectTrigger>
               <SelectContent>
-                {assignments.map((a) => {
-                  const teacherName = a.teacher?.profile
-                    ? `${a.teacher.profile.firstName} ${a.teacher.profile.lastName}`
-                    : a.teacherName
-                  return (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.subject?.name ?? a.subjectName ?? a.subjectId} — {a.parallel?.level?.name ? `${a.parallel.level.name} ${a.parallel.name}` : (a.parallelName ?? a.parallelId)}
-                      {consultationMode && teacherName ? ` · ${teacherName}` : ''}
-                      {!isStudentOrGuardian && consultationMode ? ' · Solo lectura' : ''}
-                      {consultationMode && completionByAssignment.get(a.id)?.status === 'no_activities' ? ' · Sin actividades' : ''}
-                      {consultationMode && completionByAssignment.get(a.id)?.status === 'no_grades' ? ' · Sin notas' : ''}
-                      {consultationMode && completionByAssignment.get(a.id)?.status === 'incomplete' ? ` · ${completionByAssignment.get(a.id)?.missing} pendientes` : ''}
-                    </SelectItem>
-                  )
-                })}
+                {consultationMode && tutoredAssignments.length > 0 ? (
+                  <SelectGroup>
+                    <SelectLabel>Mi tutoría{tutoredParallelName ? ` · ${tutoredParallelName}` : ''} · todas las materias</SelectLabel>
+                    {tutoredAssignments.map(renderAssignmentOption)}
+                  </SelectGroup>
+                ) : null}
+                {consultationMode && tutoredAssignments.length > 0 && ownAssignments.length > 0 ? <SelectSeparator /> : null}
+                {ownAssignments.length > 0 ? (
+                  <SelectGroup>
+                    {consultationMode ? <SelectLabel>Mis otras materias</SelectLabel> : null}
+                    {ownAssignments.map(renderAssignmentOption)}
+                  </SelectGroup>
+                ) : null}
               </SelectContent>
             </Select>
+            {consultationMode && tutoredAssignments.length > 0 ? (
+              <p className="mt-1 text-xs text-muted-foreground">La tutoría muestra todas sus materias en modo consulta.</p>
+            ) : null}
           </div>
         )}
 

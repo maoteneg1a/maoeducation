@@ -421,7 +421,7 @@ export class PrismaAcademicRepository {
 
   async listAssignments(
     institutionId: string,
-    filters: { parallelId?: string; yearId?: string; teacherId?: string; activeOnly?: boolean } = {},
+    filters: { parallelId?: string; yearId?: string; teacherId?: string; consultableTeacherId?: string; activeOnly?: boolean } = {},
   ) {
     return prisma.courseAssignment.findMany({
       where: {
@@ -429,6 +429,12 @@ export class PrismaAcademicRepository {
         ...(filters.parallelId && { parallelId: filters.parallelId }),
         ...(filters.yearId && { academicYearId: filters.yearId }),
         ...(filters.teacherId && { teacherId: filters.teacherId }),
+        ...(filters.consultableTeacherId && {
+          OR: [
+            { teacherId: filters.consultableTeacherId },
+            { parallel: { tutorId: filters.consultableTeacherId } },
+          ],
+        }),
         ...(filters.activeOnly && { isActive: true, parallel: { isActive: true } }),
       },
       include: {

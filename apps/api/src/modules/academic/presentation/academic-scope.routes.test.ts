@@ -39,6 +39,17 @@ describe('academic selectors respect the authenticated teacher', () => {
     }))
   })
 
+  it('lets a tutor consult every subject in their parallel while retaining their own subjects', async () => {
+    const response = await app.inject({ method: 'GET', url: '/academic/course-assignments?scope=consultable&academicYearId=year' })
+    expect(response.statusCode).toBe(200)
+    expect(db.courseAssignment.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        institutionId: 'school-a', academicYearId: 'year', isActive: true, parallel: { isActive: true },
+        OR: [{ teacherId: 'teacher-a' }, { parallel: { tutorId: 'teacher-a' } }],
+      },
+    }))
+  })
+
   it('cannot select another teacher by changing the query string', async () => {
     const response = await app.inject({ method: 'GET', url: '/academic/course-assignments?teacherId=teacher-b' })
     expect(response.statusCode).toBe(200)

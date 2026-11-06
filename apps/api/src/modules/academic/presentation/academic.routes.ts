@@ -300,15 +300,19 @@ export default async function academicRoutes(app: FastifyInstance) {
 
   // ─── Course Assignments ────────────────────────────────────────────────────
 
-  app.get<{ Querystring: { parallelId?: string; yearId?: string; teacherId?: string } }>(
+  app.get<{ Querystring: { parallelId?: string; yearId?: string; academicYearId?: string; teacherId?: string; scope?: 'own' | 'consultable' } }>(
     '/academic/course-assignments',
     { preHandler: [requirePermission('academic_config', 'read')] },
     async (req, reply) => {
       const teacherId = academicReadTeacherId(req)
       if (teacherId && req.query.teacherId && req.query.teacherId !== teacherId) return reply.send([])
+      const { academicYearId, scope, ...query } = req.query
       const assignments = await repo.listAssignments(req.user.institutionId, {
-        ...req.query,
-        ...(teacherId && { teacherId, activeOnly: true }),
+        ...query,
+        yearId: query.yearId ?? academicYearId,
+        ...(teacherId && scope === 'consultable'
+          ? { consultableTeacherId: teacherId, activeOnly: true }
+          : teacherId ? { teacherId, activeOnly: true } : {}),
       })
       return reply.send(assignments)
     },
