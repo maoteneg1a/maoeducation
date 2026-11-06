@@ -71,8 +71,15 @@ function useUsers(search?: string, role?: string) {
   if (role && role !== 'all') params.role = role
   return useQuery({
     queryKey: [...USERS_KEY, params],
-    queryFn: () =>
-      apiGet<{ data: User[]; total: number }>('users', params).then((r) => r.data),
+    queryFn: async () => {
+      const limit = 200
+      const first = await apiGet<{ data: User[]; total: number }>('users', { ...params, page: 1, limit })
+      const pages = Math.ceil(first.total / limit)
+      if (pages <= 1) return first.data
+      const remaining = await Promise.all(Array.from({ length: pages - 1 }, (_, index) =>
+        apiGet<{ data: User[]; total: number }>('users', { ...params, page: index + 2, limit })))
+      return [first, ...remaining].flatMap((response) => response.data)
+    },
   })
 }
 
