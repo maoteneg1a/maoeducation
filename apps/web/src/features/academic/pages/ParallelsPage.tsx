@@ -44,10 +44,15 @@ interface TeacherUser {
 function useTeachers() {
   return useQuery({
     queryKey: ['users', { role: 'teacher' }],
-    queryFn: () =>
-      apiGet<{ data: TeacherUser[]; total: number }>('users', { role: 'teacher' }).then(
-        (r) => r.data,
-      ),
+    queryFn: async () => {
+      const limit = 200
+      const first = await apiGet<{ data: TeacherUser[]; total: number }>('users', { role: 'teacher', page: 1, limit })
+      if (first.data.length >= first.total) return first.data
+      const pages = Math.ceil(first.total / limit)
+      const remaining = await Promise.all(Array.from({ length: pages - 1 }, (_, index) =>
+        apiGet<{ data: TeacherUser[]; total: number }>('users', { role: 'teacher', page: index + 2, limit })))
+      return [first, ...remaining].flatMap((response) => response.data)
+    },
   })
 }
 
