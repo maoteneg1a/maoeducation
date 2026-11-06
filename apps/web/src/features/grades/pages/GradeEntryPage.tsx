@@ -10,10 +10,7 @@ import { Badge } from '@/shared/components/ui/badge'
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/shared/components/ui/select'
@@ -1565,6 +1562,7 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
   const [selectedAssignmentId, setSelectedAssignmentId] = React.useState(requestedAssignmentId)
   const [selectedPeriodId, setSelectedPeriodId] = React.useState(requestedPeriodId)
   const [selectedActivityId, setSelectedActivityId] = React.useState(requestedActivityId)
+  const [consultationScope, setConsultationScope] = React.useState<'tutor' | 'own'>('tutor')
   const previousAssignmentId = React.useRef(selectedAssignmentId)
   const previousPeriodId = React.useRef(selectedPeriodId)
 
@@ -1609,11 +1607,14 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
     ? assignments.filter((assignment) => tutorParallelIds.has(assignment.parallelId))
     : []
   const ownAssignments = consultationMode
-    ? assignments.filter((assignment) => !tutorParallelIds.has(assignment.parallelId))
+    ? teacherDefaults.assignments
     : assignments
   const tutoredParallelName = tutoredAssignments[0]
     ? `${tutoredAssignments[0].parallel?.level?.name ?? ''} ${tutoredAssignments[0].parallel?.name ?? tutoredAssignments[0].parallelName ?? ''}`.trim()
     : ''
+  const visibleAssignments = consultationMode && tutoredAssignments.length > 0
+    ? consultationScope === 'tutor' ? tutoredAssignments : ownAssignments
+    : ownAssignments
   const reinforcementEnabled = !!selectedActivity && (
     gradingConfig?.activityGradeReinforcement?.eligibleActivityTypeIds?.includes(selectedActivity.activityTypeId) ?? false
   )
@@ -1783,7 +1784,7 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
     return (
       <SelectItem key={assignment.id} value={assignment.id}>
         {assignment.subject?.name ?? assignment.subjectName ?? assignment.subjectId}
-        {!tutorParallelIds.has(assignment.parallelId) && (assignment.parallel?.level?.name || assignment.parallelName)
+        {(assignment.parallel?.level?.name || assignment.parallelName)
           ? ` — ${assignment.parallel?.level?.name ? `${assignment.parallel.level.name} ${assignment.parallel.name}` : assignment.parallelName}`
           : ''}
         {consultationMode && teacherName ? ` · ${teacherName}` : ''}
@@ -1844,33 +1845,46 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
         </div>
       )}
 
+      {!isStudentOrGuardian && consultationMode && tutoredAssignments.length > 0 && (
+        <div className="flex flex-wrap gap-2" aria-label="Tipo de consulta">
+          <Button
+            type="button"
+            variant={consultationScope === 'tutor' ? 'default' : 'outline'}
+            onClick={() => {
+              setConsultationScope('tutor')
+              setSelectedAssignmentId(tutoredAssignments[0]?.id ?? '')
+              setSelectedActivityId('')
+            }}
+          >
+            Mi tutoría{tutoredParallelName ? ` · ${tutoredParallelName}` : ''}
+          </Button>
+          <Button
+            type="button"
+            variant={consultationScope === 'own' ? 'default' : 'outline'}
+            onClick={() => {
+              setConsultationScope('own')
+              setSelectedAssignmentId(ownAssignments[0]?.id ?? '')
+              setSelectedActivityId('')
+            }}
+          >
+            Mis materias
+          </Button>
+        </div>
+      )}
+
       {/* Filter bar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4">
         {!isStudentOrGuardian && (
           <div className="w-full sm:w-64">
+            <label className="mb-1 block text-sm font-medium">Materia</label>
             <Select value={selectedAssignmentId} onValueChange={guarded(setSelectedAssignmentId, selectedAssignmentId)}>
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar asignación" />
               </SelectTrigger>
               <SelectContent>
-                {consultationMode && tutoredAssignments.length > 0 ? (
-                  <SelectGroup>
-                    <SelectLabel>Mi tutoría{tutoredParallelName ? ` · ${tutoredParallelName}` : ''} · todas las materias</SelectLabel>
-                    {tutoredAssignments.map(renderAssignmentOption)}
-                  </SelectGroup>
-                ) : null}
-                {consultationMode && tutoredAssignments.length > 0 && ownAssignments.length > 0 ? <SelectSeparator /> : null}
-                {ownAssignments.length > 0 ? (
-                  <SelectGroup>
-                    {consultationMode ? <SelectLabel>Mis otras materias</SelectLabel> : null}
-                    {ownAssignments.map(renderAssignmentOption)}
-                  </SelectGroup>
-                ) : null}
+                {visibleAssignments.map(renderAssignmentOption)}
               </SelectContent>
             </Select>
-            {consultationMode && tutoredAssignments.length > 0 ? (
-              <p className="mt-1 text-xs text-muted-foreground">La tutoría muestra todas sus materias en modo consulta.</p>
-            ) : null}
           </div>
         )}
 
@@ -1896,6 +1910,7 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
           </div>
         ) : (
           <div className="w-full sm:w-44">
+            <label className="mb-1 block text-sm font-medium">Período</label>
             <Select
               value={selectedPeriodId}
               onValueChange={guarded(setSelectedPeriodId, selectedPeriodId)}
