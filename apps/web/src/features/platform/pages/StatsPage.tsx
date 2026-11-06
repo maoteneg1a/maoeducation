@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { AlarmClock, Building2, CreditCard, Eye, MessageSquare, PowerOff, Users } from 'lucide-react'
+import { AlarmClock, AlertTriangle, Building2, ClipboardCheck, CreditCard, Eye, FileCheck2, GraduationCap, MessageSquare, PowerOff, Users } from 'lucide-react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Skeleton } from '@/shared/components/ui/skeleton'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
@@ -162,21 +162,43 @@ export function StatsPage() {
   if (statsLoading || !stats) return <PageLoader />
 
   const maxPageViewCount = Math.max(1, ...stats.pageViews.topPages.map((p) => p.count))
+  const maxErrorRouteCount = Math.max(1, ...stats.errors.topRoutes.map((item) => item.count))
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Estadísticas</h1>
-        <p className="text-sm text-slate-500">Uso de la plataforma y tráfico de auleka.com</p>
+        <p className="text-sm text-slate-500">Actividad académica real y tráfico de auleka.com en los últimos 30 días</p>
       </div>
 
       <AlertsRow />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard icon={<Building2 className="h-4 w-4" />} label="Instituciones" value={stats.institutions.total} hint={`${stats.institutions.personal} personales · ${stats.institutions.schools} colegios`} />
-        <StatCard icon={<Users className="h-4 w-4" />} label="Usuarios" value={stats.users.total} />
-        <StatCard icon={<MessageSquare className="h-4 w-4" />} label="Leads" value={stats.leads.total} />
-        <StatCard icon={<Eye className="h-4 w-4" />} label="Visitas (30d)" value={stats.pageViews.total30d} />
+      <section aria-labelledby="academic-summary-title" className="space-y-2">
+        <h2 id="academic-summary-title" className="text-sm font-semibold text-slate-700">Uso académico (30 días)</h2>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <StatCard icon={<ClipboardCheck className="h-4 w-4" />} label="Asistencias" value={stats.academicActivity.attendance} hint="Registros guardados" />
+          <StatCard icon={<GraduationCap className="h-4 w-4" />} label="Calificaciones" value={stats.academicActivity.grades} hint="Notas registradas" />
+          <StatCard icon={<FileCheck2 className="h-4 w-4" />} label="Actividades" value={stats.academicActivity.activities} hint="Actividades creadas" />
+          <StatCard icon={<Building2 className="h-4 w-4" />} label="Instituciones activas" value={stats.academicActivity.activeInstitutions} hint={`de ${stats.institutions.total} instituciones`} />
+          <StatCard icon={<Eye className="h-4 w-4" />} label="Visitantes landing" value={stats.pageViews.uniqueVisitors30d} hint={`${stats.pageViews.total30d} páginas vistas`} />
+        </div>
+      </section>
+
+      <div className="rounded-xl border bg-white p-5 shadow-sm">
+        <h2 className="text-sm font-semibold text-slate-700">Acciones académicas por día (30d)</h2>
+        <div className="mt-3 h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={stats.academicActivity.series}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="date" tickFormatter={fmtDay} fontSize={11} />
+              <YAxis allowDecimals={false} fontSize={11} width={38} />
+              <Tooltip labelFormatter={(v) => fmtDay(String(v))} />
+              <Line type="monotone" dataKey="attendance" name="Asistencias" stroke="#2563eb" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="grades" name="Calificaciones" stroke="#16a34a" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="activities" name="Actividades" stroke="#ea580c" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -211,6 +233,138 @@ export function StatsPage() {
           </div>
         </div>
       </div>
+
+      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+          <div className="border-b px-5 py-4">
+            <h2 className="text-sm font-semibold text-slate-700">Instituciones con más actividad (30d)</h2>
+          </div>
+          {stats.academicActivity.topInstitutions.length === 0 ? (
+            <p className="p-5 text-sm text-slate-400">Todavía no hay actividad académica registrada.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs text-slate-500">
+                  <tr>
+                    <th className="px-5 py-3 text-left font-medium">Institución</th>
+                    <th className="px-3 py-3 text-right font-medium">Asistencia</th>
+                    <th className="px-3 py-3 text-right font-medium">Notas</th>
+                    <th className="px-3 py-3 text-right font-medium">Actividades</th>
+                    <th className="px-5 py-3 text-right font-medium">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {stats.academicActivity.topInstitutions.map((institution) => (
+                    <tr key={institution.institutionId}>
+                      <td className="px-5 py-3 font-medium text-slate-700">
+                        <Link to={`/platform/institutions/${institution.institutionId}`} className="hover:underline">{institution.name}</Link>
+                      </td>
+                      <td className="px-3 py-3 text-right tabular-nums text-slate-500">{institution.attendance}</td>
+                      <td className="px-3 py-3 text-right tabular-nums text-slate-500">{institution.grades}</td>
+                      <td className="px-3 py-3 text-right tabular-nums text-slate-500">{institution.activities}</td>
+                      <td className="px-5 py-3 text-right font-semibold tabular-nums text-slate-700">{institution.total}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 content-start">
+          <StatCard icon={<Building2 className="h-4 w-4" />} label="Instituciones" value={stats.institutions.total} hint={`${stats.institutions.personal} personales · ${stats.institutions.schools} colegios`} />
+          <StatCard icon={<Users className="h-4 w-4" />} label="Usuarios" value={stats.users.total} />
+          <StatCard icon={<MessageSquare className="h-4 w-4" />} label="Leads" value={stats.leads.total} />
+          <StatCard icon={<Eye className="h-4 w-4" />} label="Páginas vistas" value={stats.pageViews.total30d} hint="Landing · 30 días" />
+        </div>
+      </div>
+
+      <section aria-labelledby="errors-title" className="space-y-3 rounded-xl border border-red-200 bg-red-50/40 p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 id="errors-title" className="flex items-center gap-2 font-semibold text-slate-800">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              Errores de la plataforma
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">Fallos inesperados del servidor. No incluye validaciones ni errores de datos ingresados.</p>
+          </div>
+          <div className="flex gap-3">
+            <div className="rounded-lg border border-red-200 bg-white px-4 py-2 text-center">
+              <p className="text-xl font-bold tabular-nums text-red-700">{stats.errors.total7d}</p>
+              <p className="text-xs text-slate-500">últimos 7 días</p>
+            </div>
+            <div className="rounded-lg border border-red-200 bg-white px-4 py-2 text-center">
+              <p className="text-xl font-bold tabular-nums text-red-700">{stats.errors.total30d}</p>
+              <p className="text-xs text-slate-500">últimos 30 días</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border bg-white p-4">
+            <h3 className="text-sm font-medium text-slate-700">Errores por día</h3>
+            {stats.errors.series.length === 0 ? (
+              <div className="flex h-52 items-center justify-center text-sm text-emerald-700">Sin errores registrados en los últimos 30 días</div>
+            ) : (
+              <div className="mt-2 h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={stats.errors.series}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="date" tickFormatter={fmtDay} fontSize={11} />
+                    <YAxis allowDecimals={false} fontSize={11} width={30} />
+                    <Tooltip labelFormatter={(v) => fmtDay(String(v))} />
+                    <Line type="monotone" dataKey="count" name="Errores" stroke="#dc2626" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border bg-white p-4">
+            <h3 className="text-sm font-medium text-slate-700">Rutas con más errores (30d)</h3>
+            {stats.errors.topRoutes.length === 0 ? (
+              <div className="flex h-52 items-center justify-center text-sm text-slate-400">Sin rutas afectadas</div>
+            ) : (
+              <div className="mt-3 space-y-3">
+                {stats.errors.topRoutes.map((item) => (
+                  <div key={item.route}>
+                    <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+                      <span className="truncate font-mono text-slate-600">{item.route}</span>
+                      <span className="font-semibold tabular-nums text-red-700">{item.count}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-red-100">
+                      <div className="h-2 rounded-full bg-red-500" style={{ width: `${(item.count / maxErrorRouteCount) * 100}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {stats.errors.recent.length > 0 && (
+          <div className="overflow-hidden rounded-lg border bg-white">
+            <div className="border-b px-4 py-3"><h3 className="text-sm font-medium text-slate-700">Errores recientes</h3></div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs text-slate-500">
+                  <tr><th className="px-4 py-2 text-left font-medium">Fecha</th><th className="px-3 py-2 text-left font-medium">Ruta</th><th className="px-3 py-2 text-left font-medium">Tipo</th><th className="px-4 py-2 text-left font-medium">Institución</th></tr>
+                </thead>
+                <tbody className="divide-y">
+                  {stats.errors.recent.map((error) => (
+                    <tr key={error.id}>
+                      <td className="whitespace-nowrap px-4 py-2 text-xs text-slate-500">{formatDate(error.createdAt)}</td>
+                      <td className="max-w-xs truncate px-3 py-2 font-mono text-xs text-slate-700">{error.method} {error.route}</td>
+                      <td className="px-3 py-2 text-xs text-red-700">{error.code}</td>
+                      <td className="px-4 py-2 text-xs text-slate-500">{error.institutionName ?? 'Sin identificar'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
 
       <div className="rounded-xl border bg-white p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-700">Páginas más visitadas (30d)</h2>

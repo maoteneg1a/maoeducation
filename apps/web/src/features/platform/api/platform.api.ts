@@ -85,10 +85,43 @@ export interface StatsOverview {
     institutions: { date: string; count: number }[]
     users: { date: string; count: number }[]
   }
+  academicActivity: {
+    periodDays: number
+    attendance: number
+    grades: number
+    activities: number
+    total: number
+    activeInstitutions: number
+    series: { date: string; attendance: number; grades: number; activities: number }[]
+    topInstitutions: {
+      institutionId: string
+      name: string
+      attendance: number
+      grades: number
+      activities: number
+      total: number
+    }[]
+  }
   pageViews: {
     total30d: number
+    uniqueVisitors30d: number
     series: { date: string; count: number }[]
     topPages: { path: string; count: number }[]
+  }
+  errors: {
+    total7d: number
+    total30d: number
+    series: { date: string; count: number }[]
+    topRoutes: { route: string; count: number }[]
+    recent: {
+      id: string
+      code: string
+      message: string
+      method: string
+      route: string
+      institutionName: string | null
+      createdAt: string
+    }[]
   }
 }
 
