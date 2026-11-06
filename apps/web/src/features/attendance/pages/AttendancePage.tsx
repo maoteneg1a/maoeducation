@@ -118,6 +118,10 @@ function StaffAttendancePage() {
     queryFn: () => getAssignments(),
   })
 
+  const dailyTutorAssignments = React.useMemo(() => assignments.filter((assignment) =>
+    assignment.parallel.level.attendanceMode === 'daily'
+    && (privileged || assignment.parallel.tutorId === user?.id)), [assignments, privileged, user?.id])
+
   // Opciones del selector: en niveles "diaria" se muestra el PARALELO (sin
   // materia, deduplicado); en "por materia", cada asignación subject×paralelo.
   const options = React.useMemo(() => {
@@ -133,7 +137,7 @@ function StaffAttendancePage() {
     }> = []
     for (const a of assignments) {
       const base = `${a.parallel.level.name} - ${a.parallel.name}`
-      if (a.parallel.level.attendanceMode === 'daily' && view === 'day') {
+      if (a.parallel.level.attendanceMode === 'daily' && view === 'day' && (privileged || a.parallel.tutorId === user?.id)) {
         if (!daily.has(a.parallel.id)) {
           daily.set(a.parallel.id, {
             value: `parallel:${a.parallel.id}`,
@@ -153,6 +157,15 @@ function StaffAttendancePage() {
     }
     return [...daily.values(), ...perSubject]
   }, [assignments, view])
+
+  useEffect(() => {
+    if (!assignments.length || selectedValue || isDirty) return
+    if (view === 'day') {
+      const parallels = [...new Set(dailyTutorAssignments.map((assignment) => assignment.parallel.id))]
+      if (parallels.length === 1) setSelectedValue(`parallel:${parallels[0]}`)
+      else if (parallels.length === 0 && !privileged) setView('class')
+    } else if (options.length === 1) setSelectedValue(options[0].value)
+  }, [assignments, dailyTutorAssignments, isDirty, options, privileged, selectedValue, view])
 
   const selected = options.find((o) => o.value === selectedValue)
   const isDaily = selected?.isDaily ?? false
@@ -303,14 +316,19 @@ function StaffAttendancePage() {
         {(['day', 'class'] as const).map((v) => <Button key={v} disabled={saveMutation.isPending} variant={view === v ? 'default' : 'outline'} onClick={async () => {
           if (v === view || !(await confirmDiscard())) return
           setView(v); setSelectedValue(''); setLocalRecords(new Map()); setIsDirty(false)
-        }}>{v === 'day' ? 'Asistencia del día' : 'Mis clases'}</Button>)}
+        }}>{v === 'day' ? 'Lista diaria de mi grado' : 'Asistencia por hora'}</Button>)}
       </div>
+      <p className="text-sm text-muted-foreground">
+        {view === 'day'
+          ? 'Para tutores de 2.º a 7.º: registra una sola asistencia para toda la jornada. Las materias especiales no duplican este registro.'
+          : 'Registra la asistencia de la materia y hora que impartiste. En 2.º a 7.º queda como constancia de esa clase y no reemplaza la lista diaria del tutor.'}
+      </p>
       {/* Filter bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
         <div className="w-full sm:w-72">
           <Select disabled={saveMutation.isPending} value={selectedValue} onValueChange={handleAssignmentChange}>
             <SelectTrigger>
-              <SelectValue placeholder="Seleccionar grado / materia" />
+              <SelectValue placeholder={view === 'day' ? 'Seleccionar mi grado' : 'Seleccionar mi materia y grado'} />
             </SelectTrigger>
             <SelectContent>
               {options.map((o) => (
@@ -347,7 +365,7 @@ function StaffAttendancePage() {
           setSelectedDate(h.date.slice(0, 10)); setPeriod(h.period); setLocalRecords(new Map()); setIsDirty(false)
         }}>{h.date.slice(0, 10)} · {h.period}ª hora · {h._count._all} estudiantes</Button>)}</div></details>}
       </div>}
-      {isDaily && !canWrite && <p className="text-sm text-muted-foreground">Consulta de la jornada. El tutor registra la asistencia diaria; registra tu materia en «Mis clases».</p>}
+      {isDaily && !canWrite && <p className="text-sm text-muted-foreground">Consulta de la jornada. El tutor registra la lista diaria; registra tu materia en «Asistencia por hora».</p>}
       {/* Daily mode banner */}
       {selectedValue && isDaily && (
         <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
@@ -360,8 +378,8 @@ function StaffAttendancePage() {
       {!selectedValue ? (
         <EmptyState
           icon={Users}
-          title="Selecciona un grado y fecha"
-          description="Elige el grado/materia y la fecha para ver y registrar la asistencia"
+          title={view === 'day' ? 'Selecciona tu grado y fecha' : 'Selecciona tu materia, grado y fecha'}
+          description={view === 'day' ? 'El tutor registra una sola lista para toda la jornada.' : 'Cada docente registra únicamente la hora de la materia que impartió.'}
         />
       ) : attendanceLoading ? (
         <PageLoader />
