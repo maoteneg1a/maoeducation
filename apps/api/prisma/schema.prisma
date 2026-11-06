@@ -59,6 +59,7 @@ model Institution {
   scheduleEntries             ScheduleEntry[]
   reportTemplates             ReportTemplate[]
   auditLogs                   AuditLog[]
+  platformErrors              PlatformError[]
   calendarEvents              CalendarEvent[]
   platformNotes               InstitutionNote[]
   insumos                     Insumo[]
@@ -2213,6 +2214,27 @@ model AuditLog {
   @@index([institutionId, createdAt])
   @@index([platformAdminId, createdAt])
   @@map("audit_logs")
+}
+
+// Errores inesperados (HTTP 500) visibles para soporte de plataforma.
+// No guarda cuerpos, parámetros, stack traces ni otros datos sensibles.
+model PlatformError {
+  id            String   @id @default(uuid())
+  institutionId String?  @map("institution_id")
+  userId        String?  @map("user_id")
+  code          String   @default("INTERNAL_ERROR") @db.VarChar(100)
+  message       String   @db.VarChar(500)
+  method        String   @db.VarChar(10)
+  route         String   @db.VarChar(255)
+  requestId     String?  @map("request_id") @db.VarChar(100)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  institution Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([institutionId, createdAt])
+  @@index([route, createdAt])
+  @@map("platform_errors")
 }
 
 // ============================================================

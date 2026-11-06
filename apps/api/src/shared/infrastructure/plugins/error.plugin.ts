@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import fp from 'fastify-plugin'
 import { Prisma } from '@prisma/client'
 import { AppError } from '../../domain/errors/app.errors'
+import { prisma } from '../database/prisma'
 
 export const errorPlugin = fp(async (app: FastifyInstance) => {
   app.setErrorHandler((error, req, reply) => {
@@ -60,6 +61,21 @@ export const errorPlugin = fp(async (app: FastifyInstance) => {
 
     // Error inesperado
     req.log.error({ err: error, reqId: req.id }, 'Unhandled error')
+    const user = (req as { user?: { sub?: string; institutionId?: string } }).user
+    const route = (req.routeOptions.url || req.url.split('?')[0] || 'unknown').slice(0, 255)
+    void prisma.platformError.create({
+      data: {
+        institutionId: user?.institutionId ?? null,
+        userId: user?.sub ?? null,
+        code: typeof error.code === 'string' ? error.code.slice(0, 100) : 'INTERNAL_ERROR',
+        message: (error.name || 'UnexpectedError').slice(0, 500),
+        method: req.method.slice(0, 10),
+        route,
+        requestId: req.id?.slice(0, 100) ?? null,
+      },
+    }).catch((persistenceError) => {
+      req.log.error({ err: persistenceError, reqId: req.id }, 'Failed to persist platform error')
+    })
     return reply.status(500).send({
       error: {
         code: 'INTERNAL_ERROR',
