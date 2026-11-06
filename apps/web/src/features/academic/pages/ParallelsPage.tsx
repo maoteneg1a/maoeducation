@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Edit2, Plus, UserIcon } from 'lucide-react'
+import { Check, ChevronsUpDown, Edit2, Plus, Search, UserIcon, X } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
@@ -49,6 +49,46 @@ function useTeachers() {
         (r) => r.data,
       ),
   })
+}
+
+function TutorPicker({ teachers, value, onChange }: { teachers: TeacherUser[]; value?: string; onChange: (value?: string) => void }) {
+  const [open, setOpen] = React.useState(false)
+  const [search, setSearch] = React.useState('')
+  const trigger = React.useRef<HTMLButtonElement>(null)
+  const results = React.useRef<HTMLDivElement>(null)
+  const selected = teachers.find((teacher) => teacher.id === value)
+  const term = search.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+  const matches = teachers.filter((teacher) => !term || `${teacher.fullName} ${teacher.email}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(term))
+  const choose = (next?: string) => { onChange(next); setOpen(false); setSearch(''); trigger.current?.focus() }
+
+  return <div className="space-y-2" onKeyDown={(event) => {
+    if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); trigger.current?.focus() }
+  }}>
+    <Button ref={trigger} type="button" variant="outline" aria-expanded={open} className="h-10 w-full justify-between px-3 font-normal" onClick={() => setOpen((current) => !current)}>
+      <span className={selected ? '' : 'text-muted-foreground'}>{selected?.fullName ?? 'Sin tutor'}</span><ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
+    </Button>
+    {open && <div className="rounded-lg border bg-background p-3 shadow-sm">
+      <div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por nombre o correo…" className="pr-9 pl-9" onKeyDown={(event) => {
+          if (event.key === 'ArrowDown') { event.preventDefault(); results.current?.querySelector<HTMLButtonElement>('button')?.focus() }
+        }} />
+        {search && <button type="button" aria-label="Limpiar búsqueda" className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-muted" onClick={() => setSearch('')}><X className="h-4 w-4" /></button>}
+      </div>
+      <div ref={results} className="mt-2 max-h-48 space-y-1 overflow-y-auto overscroll-contain" onKeyDown={(event) => {
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+        const buttons = Array.from(results.current?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+        const current = buttons.indexOf(document.activeElement as HTMLButtonElement)
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : Math.max(0, Math.min(buttons.length - 1, current + (event.key === 'ArrowDown' ? 1 : -1)))
+        event.preventDefault(); buttons[next]?.focus()
+      }}>
+        <button type="button" className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none" onClick={() => choose()}><span className="text-muted-foreground">Sin tutor</span>{!value && <Check className="h-4 w-4 text-primary" />}</button>
+        {!matches.length ? <p className="px-2 py-3 text-sm text-muted-foreground">No hay docentes que coincidan.</p> : matches.slice(0, 50).map((teacher) => <button key={teacher.id} type="button" className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left hover:bg-muted focus:bg-muted focus:outline-none" onClick={() => choose(teacher.id)}>
+          <span className="min-w-0"><span className="block text-sm font-medium">{teacher.fullName}</span><span className="block truncate text-xs text-muted-foreground">{teacher.email}</span></span>{value === teacher.id && <Check className="h-4 w-4 shrink-0 text-primary" />}
+        </button>)}
+      </div>
+      <p className="mt-2 border-t pt-2 text-xs text-muted-foreground">{matches.length} docente{matches.length === 1 ? '' : 's'}{matches.length > 50 ? ' · Escribe para afinar la búsqueda.' : ''}</p>
+    </div>}
+  </div>
 }
 
 const parallelSchema = z.object({
@@ -326,22 +366,7 @@ export function ParallelsPage() {
             )}
             <div className="space-y-2">
               <Label>Tutor / Director de grupo</Label>
-              <Select
-                value={form.watch('tutorId') || '__none__'}
-                onValueChange={(v) => form.setValue('tutorId', v === '__none__' ? undefined : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sin tutor asignado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Sin tutor</SelectItem>
-                  {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <TutorPicker teachers={teachers} value={form.watch('tutorId')} onChange={(value) => form.setValue('tutorId', value, { shouldDirty: true })} />
             </div>
             <div className="space-y-2">
               <Label>Capacidad (opcional)</Label>
