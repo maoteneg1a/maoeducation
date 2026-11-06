@@ -7,7 +7,7 @@ import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.m
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import { storage } from '../../../shared/infrastructure/services/storage.service'
 import { buildActaPdf } from '../application/services/acta-pdf.service'
-import { notifyGuardiansOfStudent, sendPushToUser } from '../../../shared/infrastructure/services/push.service'
+import { notifyGuardiansOfStudent, notifyStudentAndGuardians } from '../../../shared/infrastructure/services/push.service'
 import type {
   AddEventDto,
   AssignDeceDto,
@@ -150,16 +150,14 @@ export default async function incidentRoutes(app: FastifyInstance) {
         .send(await repo.addEvent(req.params.id, req.user.institutionId, req.user.sub, req.body)),
   )
 
-  // Notificar al representante (vía mensajería)
+  // Notificar al estudiante y sus representantes (vía mensajería y push)
   app.post<{ Params: { id: string } }>(
     '/incidents/:id/notify-guardian',
     { preHandler: [requirePermission('incidents', 'write')] },
     async (req, reply) => {
       const incident = await repo.getById(req.params.id, req.user.institutionId)
       const guardianIds = await repo.getStudentGuardianIds(incident.studentId)
-      if (guardianIds.length === 0) {
-        return reply.status(400).send({ message: 'El estudiante no tiene representantes registrados' })
-      }
+      const recipientIds = [...new Set([incident.studentId, ...guardianIds])]
       const studentName = personName(incident.student)
       const subject = `Incidente disciplinario de ${studentName}`
       const body =
@@ -168,25 +166,21 @@ export default async function incidentRoutes(app: FastifyInstance) {
         `Por favor comuníquese con la institución para dar seguimiento.`
       await messageRepo.createThread(
         req.user.institutionId,
-        { subject, body, recipientIds: guardianIds },
+        { subject, body, recipientIds },
         req.user.sub,
       )
       await repo.markGuardianNotified(
         req.params.id,
         req.user.institutionId,
         req.user.sub,
-        `Representante(s) notificado(s): ${guardianIds.length}`,
+        `Estudiante y representante(s) notificados: ${recipientIds.length}`,
       )
-      void Promise.allSettled(
-        guardianIds.map((guardianId) =>
-          sendPushToUser(guardianId, {
-            title: 'Nuevo mensaje — Auleka',
-            body: subject,
-            url: '/messages',
-          }),
-        ),
-      )
-      return reply.send({ notified: guardianIds.length })
+      void notifyStudentAndGuardians(incident.studentId, {
+        title: 'Nuevo mensaje — Auleka',
+        body: subject,
+        url: '/messages',
+      })
+      return reply.send({ notified: recipientIds.length })
     },
   )
 

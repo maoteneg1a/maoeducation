@@ -50,7 +50,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
 }
 
 /**
- * Envía una notificación a todos los representantes de un estudiante.
+ * Envía una notificación familiar: al estudiante y a todos sus representantes.
  * Resuelve el nombre del alumno para incluirlo automáticamente en el body.
  */
 export async function notifyGuardiansOfStudent(
@@ -61,14 +61,13 @@ export async function notifyGuardiansOfStudent(
     prisma.guardianStudent.findMany({ where: { studentId }, select: { guardianId: true } }),
     prisma.profile.findUnique({ where: { userId: studentId }, select: { firstName: true, lastName: true } }),
   ])
-  if (links.length === 0) return
-
   const studentName = profile ? `${profile.firstName} ${profile.lastName}` : null
   const personalizedPayload = studentName
     ? { ...payload, body: payload.body.replace('Tu representado', studentName).replace('tu representado', studentName) }
     : payload
 
-  await Promise.allSettled(links.map((l) => sendPushToUser(l.guardianId, personalizedPayload)))
+  const recipientIds = new Set([studentId, ...links.map((link) => link.guardianId)])
+  await Promise.allSettled([...recipientIds].map((userId) => sendPushToUser(userId, personalizedPayload)))
 }
 
 /** Notifica al alumno y a sus representantes sin duplicar destinatarios. */
@@ -88,7 +87,7 @@ export async function notifyStudentAndGuardians(
   await Promise.allSettled([...recipientIds].map((userId) => sendPushToUser(userId, personalizedPayload)))
 }
 
-/** Envía una notificación a los representantes de los estudiantes de un curso. */
+/** Envía una notificación a los estudiantes de un curso y a sus representantes. */
 export async function notifyGuardiansOfCourseAssignment(
   courseAssignmentId: string,
   payload: PushPayload,
@@ -109,19 +108,20 @@ export async function notifyGuardiansOfCourseAssignment(
     select: {
       student: {
         select: {
+          id: true,
           studentGuardians: { select: { guardianId: true } },
         },
       },
     },
   })
 
-  const guardianIds = [
+  const recipientIds = [
     ...new Set(
       enrollments.flatMap((enrollment) =>
-        enrollment.student.studentGuardians.map((link) => link.guardianId),
+        [enrollment.student.id, ...enrollment.student.studentGuardians.map((link) => link.guardianId)],
       ),
     ),
   ]
 
-  await Promise.allSettled(guardianIds.map((guardianId) => sendPushToUser(guardianId, payload)))
+  await Promise.allSettled(recipientIds.map((userId) => sendPushToUser(userId, payload)))
 }

@@ -94,7 +94,7 @@ export function IncidentDetailPage() {
   })
   const mNotify = useMutation({
     mutationFn: () => notifyGuardian(id),
-    onSuccess: (r) => { toast.success(`Representante(s) notificado(s): ${r.notified}`); refresh() },
+    onSuccess: (r) => { toast.success(`Estudiante y familia notificados: ${r.notified}`); refresh() },
     onError: (e) => toast.error(getErrorMessage(e)),
   })
   const mUpload = useMutation({
@@ -233,7 +233,7 @@ export function IncidentDetailPage() {
                 onClick={() => mNotify.mutate()}
               >
                 <Send className="mr-2 h-4 w-4" />
-                {inc.guardianNotifiedAt ? 'Representante notificado' : 'Notificar al representante'}
+                {inc.guardianNotifiedAt ? 'Estudiante y representante notificados' : 'Notificar a estudiante y representante'}
               </Button>
 
               {canManage && (
