@@ -1845,7 +1845,7 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
       )}
 
       {/* Filter bar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:gap-4">
         {!isStudentOrGuardian && (
           <div className="w-full sm:w-64">
             <Select value={selectedAssignmentId} onValueChange={guarded(setSelectedAssignmentId, selectedAssignmentId)}>
