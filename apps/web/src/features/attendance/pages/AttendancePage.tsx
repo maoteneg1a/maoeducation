@@ -35,6 +35,7 @@ import {
   getDailyAttendance,
   bulkSaveDailyAttendance,
   getAssignments,
+  getTutorAssignments,
   getStudentAbsences,
   type AttendanceEntry,
 } from '@/features/attendance/api/attendance.api'
@@ -97,7 +98,7 @@ function StaffAttendancePage() {
   const [period, setPeriod] = useState(1)
   // Enlaces directos desde el panel "Hoy": ?ca=<asignación> o ?parallel=<paralelo>, y &date=
   const [searchParams] = useSearchParams()
-  const [view, setView] = useState<'day' | 'class'>(() => searchParams.get('ca') ? 'class' : 'day')
+  const [view, setView] = useState<'day' | 'tutor' | 'class'>(() => searchParams.get('ca') ? 'class' : 'day')
   const linkedParallel = searchParams.get('parallel')
   const linkedDate = searchParams.get('date')
 
@@ -118,6 +119,10 @@ function StaffAttendancePage() {
     queryKey: ['assignments'],
     queryFn: () => getAssignments(),
   })
+  const { data: tutorAssignments = [] } = useQuery({
+    queryKey: ['attendance-tutor-assignments'],
+    queryFn: getTutorAssignments,
+  })
   const { data: schedule = [] } = useQuery({
     queryKey: ['attendance-own-schedule', user?.id],
     queryFn: () => getSchedule(user?.id ? { teacherId: user.id } : undefined),
@@ -127,9 +132,9 @@ function StaffAttendancePage() {
   const dailyTutorAssignments = React.useMemo(() => assignments.filter((assignment) =>
     assignment.parallel.level.attendanceMode === 'daily'
     && (privileged || assignment.parallel.tutorId === user?.id)), [assignments, privileged, user?.id])
-  const upperTutorParallels = React.useMemo(() => [...new Map(assignments
-    .filter((assignment) => assignment.parallel.level.attendanceMode === 'per_subject' && assignment.parallel.tutorId === user?.id)
-    .map((assignment) => [assignment.parallel.id, assignment.parallel])).values()], [assignments, user?.id])
+  const upperTutorParallels = React.useMemo(() => [...new Map(tutorAssignments
+    .filter((assignment) => assignment.parallel.level.attendanceMode === 'per_subject')
+    .map((assignment) => [assignment.parallel.id, assignment.parallel])).values()], [tutorAssignments])
   const hasDailyTutorGrade = dailyTutorAssignments.length > 0
 
   // Opciones del selector: en niveles "diaria" se muestra el PARALELO (sin
@@ -145,7 +150,9 @@ function StaffAttendancePage() {
       isDaily: false
       courseAssignmentId: string
     }> = []
-    for (const a of assignments) {
+    const visibleAssignments = view === 'tutor' ? tutorAssignments : assignments
+    for (const a of visibleAssignments) {
+      if (view === 'tutor' && a.parallel.level.attendanceMode !== 'per_subject') continue
       const base = `${a.parallel.level.name} - ${a.parallel.name}`
       if (view === 'day') {
         if (a.parallel.level.attendanceMode === 'daily' && (privileged || a.parallel.tutorId === user?.id)) {
@@ -168,34 +175,40 @@ function StaffAttendancePage() {
       })
     }
     return [...daily.values(), ...perSubject]
-  }, [assignments, view])
+  }, [assignments, privileged, tutorAssignments, user?.id, view])
 
   useEffect(() => {
     if (!assignments.length || selectedValue || isDirty) return
     if (view === 'day') {
       const parallels = [...new Set(dailyTutorAssignments.map((assignment) => assignment.parallel.id))]
       if (parallels.length === 1) setSelectedValue(`parallel:${parallels[0]}`)
+      else if (parallels.length === 0 && upperTutorParallels.length > 0) setView('tutor')
       else if (parallels.length === 0 && !privileged) setView('class')
     } else if (options.length === 1) setSelectedValue(options[0].value)
-  }, [assignments, dailyTutorAssignments, isDirty, options, privileged, selectedValue, view])
+  }, [assignments, dailyTutorAssignments, isDirty, options, privileged, selectedValue, upperTutorParallels.length, view])
 
   const selected = options.find((o) => o.value === selectedValue)
   const isDaily = selected?.isDaily ?? false
   const parallelId = selected && selected.isDaily ? selected.parallelId : ''
   const courseAssignmentId = selected && !selected.isDaily ? selected.courseAssignmentId : ''
-  const assignment = assignments.find((a) => a.id === courseAssignmentId)
+  const assignment = [...assignments, ...tutorAssignments].find((a) => a.id === courseAssignmentId)
   const isClassHour = !isDaily && !!assignment
   const selectedWeekday = selectedDate ? new Date(`${selectedDate}T12:00:00`).getDay() : 0
-  const weekdayStarts = React.useMemo(() => [...new Set(schedule.filter((entry) => entry.weekday === selectedWeekday).map((entry) => entry.startTime))].sort(), [schedule, selectedWeekday])
-  const scheduledHours = React.useMemo(() => schedule
-    .filter((entry) => entry.weekday === selectedWeekday && entry.courseAssignment.id === courseAssignmentId)
+  const tutorSchedule = React.useMemo(() => tutorAssignments.flatMap((item) =>
+    (item.scheduleEntries ?? []).map((entry) => ({ ...entry, courseAssignmentId: item.id }))), [tutorAssignments])
+  const activeSchedule = view === 'tutor'
+    ? tutorSchedule
+    : schedule.map((entry) => ({ ...entry, courseAssignmentId: entry.courseAssignment.id }))
+  const weekdayStarts = React.useMemo(() => [...new Set(activeSchedule.filter((entry) => entry.weekday === selectedWeekday).map((entry) => entry.startTime))].sort(), [activeSchedule, selectedWeekday])
+  const scheduledHours = React.useMemo(() => activeSchedule
+    .filter((entry) => entry.weekday === selectedWeekday && entry.courseAssignmentId === courseAssignmentId)
     .sort((a, b) => a.startTime.localeCompare(b.startTime))
-    .map((entry) => ({ period: Math.max(1, weekdayStarts.indexOf(entry.startTime) + 1), label: `${entry.startTime}–${entry.endTime}` })), [courseAssignmentId, schedule, selectedWeekday, weekdayStarts])
+    .map((entry) => ({ period: Math.max(1, weekdayStarts.indexOf(entry.startTime) + 1), label: `${entry.startTime}–${entry.endTime}` })), [activeSchedule, courseAssignmentId, selectedWeekday, weekdayStarts])
   useEffect(() => {
     if (isDirty || !scheduledHours.length || scheduledHours.some((hour) => hour.period === period)) return
     setPeriod(scheduledHours[0].period)
   }, [isDirty, period, scheduledHours])
-  const canWrite = !isDaily || privileged || assignments.some((a) => a.parallel.id === parallelId && a.parallel.tutorId === user?.id)
+  const canWrite = view !== 'tutor' && (!isDaily || privileged || assignments.some((a) => a.parallel.id === parallelId && a.parallel.tutorId === user?.id))
   const { data: history = [] } = useQuery({
     queryKey: ['class-attendance-history', courseAssignmentId],
     queryFn: () => getClassHistory(courseAssignmentId), enabled: !!isClassHour,
@@ -334,28 +347,30 @@ function StaffAttendancePage() {
         </p>
       </div>
 
-      {(hasDailyTutorGrade || privileged) && <div className="flex flex-wrap gap-2" aria-label="Tipo de asistencia">
-        {([...(hasDailyTutorGrade || privileged ? ['day' as const] : []), 'class' as const]).map((v) => <Button key={v} disabled={saveMutation.isPending} variant={view === v ? 'default' : 'outline'} onClick={async () => {
+      {(hasDailyTutorGrade || upperTutorParallels.length > 0 || privileged) && <div className="flex flex-wrap gap-2" aria-label="Tipo de asistencia">
+        {([...(hasDailyTutorGrade || privileged ? ['day' as const] : []), ...(upperTutorParallels.length > 0 ? ['tutor' as const] : []), 'class' as const]).map((v) => <Button key={v} disabled={saveMutation.isPending} variant={view === v ? 'default' : 'outline'} onClick={async () => {
           if (v === view || !(await confirmDiscard())) return
           setView(v); setSelectedValue(''); setLocalRecords(new Map()); setIsDirty(false)
-        }}>{v === 'day' ? 'Lista diaria de mi grado' : 'Mis clases'}</Button>)}
+        }}>{v === 'day' ? 'Lista diaria' : v === 'tutor' ? 'Mi tutoría' : 'Mis clases'}</Button>)}
       </div>}
       {upperTutorParallels.length > 0 && <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
         <p className="font-semibold">Tu tutoría: {upperTutorParallels.map((parallel) => `${parallel.level.name} ${parallel.name}`).join(', ')}</p>
-        <p className="mt-1">Desde 8.º cada docente registra la asistencia de su propia materia. Como tutor no vuelves a tomar una lista general: aquí registras solamente las clases que impartes.</p>
+        <p className="mt-1">En «Mi tutoría» consultas la asistencia registrada por todos los docentes. En «Mis clases» registras únicamente las clases que impartes.</p>
       </div>}
       <p className="text-sm text-muted-foreground">
         {view === 'day'
           ? 'Para tutores de 2.º a 7.º: registra una sola asistencia para toda la jornada. Las materias especiales no duplican este registro.'
-          : 'Selecciona únicamente la clase que impartiste. En 2.º a 7.º este registro no reemplaza la lista diaria del tutor.'}
+          : view === 'tutor'
+            ? 'Selecciona una materia y hora para consultar el registro de tu tutoría. Esta vista es solo lectura.'
+            : 'Selecciona únicamente la clase que impartiste. En 2.º a 7.º este registro no reemplaza la lista diaria del tutor.'}
       </p>
       {/* Filter bar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4">
         <div className="w-full sm:w-72">
-          <label className="mb-1 block text-sm font-medium">{view === 'day' ? 'Grado de mi tutoría' : 'Clase que impartí'}</label>
+          <label className="mb-1 block text-sm font-medium">{view === 'day' ? 'Grado de mi tutoría' : view === 'tutor' ? 'Materia de mi tutoría' : 'Clase que impartí'}</label>
           <Select disabled={saveMutation.isPending} value={selectedValue} onValueChange={handleAssignmentChange}>
             <SelectTrigger>
-              <SelectValue placeholder={view === 'day' ? 'Seleccionar mi grado' : 'Seleccionar mi materia y grado'} />
+              <SelectValue placeholder={view === 'day' ? 'Seleccionar mi grado' : view === 'tutor' ? 'Seleccionar materia' : 'Seleccionar mi materia y grado'} />
             </SelectTrigger>
             <SelectContent>
               {options.map((o) => (
@@ -368,6 +383,7 @@ function StaffAttendancePage() {
         </div>
 
         <div className="w-full sm:w-auto">
+          <label className="mb-1 block text-sm font-medium">Fecha</label>
           <input
             type="date"
             disabled={saveMutation.isPending}
@@ -394,6 +410,7 @@ function StaffAttendancePage() {
         }}>{h.date.slice(0, 10)} · {h.period}ª hora · {h._count._all} estudiantes</Button>)}</div></details>}
       </div>}
       {isDaily && !canWrite && <p className="text-sm text-muted-foreground">Consulta de la jornada. El tutor registra la lista diaria; registra tu materia en «Asistencia por hora».</p>}
+      {view === 'tutor' && selectedValue && <p className="text-sm text-muted-foreground">Solo consulta: la asistencia la registra el docente de esta materia.</p>}
       {/* Daily mode banner */}
       {selectedValue && isDaily && (
         <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
@@ -406,8 +423,8 @@ function StaffAttendancePage() {
       {!selectedValue ? (
         <EmptyState
           icon={Users}
-          title={view === 'day' ? 'Selecciona tu grado y fecha' : 'Selecciona tu materia, grado y fecha'}
-          description={view === 'day' ? 'El tutor registra una sola lista para toda la jornada.' : 'Cada docente registra únicamente la hora de la materia que impartió.'}
+          title={view === 'day' ? 'Selecciona tu grado y fecha' : view === 'tutor' ? 'Selecciona una materia y fecha' : 'Selecciona tu materia, grado y fecha'}
+          description={view === 'day' ? 'El tutor registra una sola lista para toda la jornada.' : view === 'tutor' ? 'Aquí puedes consultar lo registrado por los docentes de tu tutoría.' : 'Cada docente registra únicamente la hora de la materia que impartió.'}
         />
       ) : attendanceLoading ? (
         <PageLoader />

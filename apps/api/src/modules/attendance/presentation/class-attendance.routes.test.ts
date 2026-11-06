@@ -45,6 +45,19 @@ describe('daily attendance and individual class hours', () => {
   })
   afterEach(async () => { await app.close() })
 
+  it('lists every subject of the authenticated teacher tutoría for consultation', async () => {
+    db.courseAssignment.findMany.mockResolvedValue([{ id: 'other-subject' }])
+    const res = await app.inject('/attendance/tutor-assignments')
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual([{ id: 'other-subject' }])
+    expect(db.courseAssignment.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        institutionId: 'school', isActive: true,
+        parallel: { tutorId: 'teacher', isActive: true },
+      },
+    }))
+  })
+
   it('keeps the daily record as reference and an untaken hour unrecorded', async () => {
     const res = await app.inject('/attendance/class-hour?courseAssignmentId=ca&date=2026-11-03&period=2')
     expect(res.statusCode).toBe(200)

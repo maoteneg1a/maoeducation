@@ -43,6 +43,28 @@ async function staffOrAttendanceWriter(req: FastifyRequest, reply: FastifyReply)
 export default async function attendanceRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware)
 
+  app.get('/attendance/tutor-assignments', {
+    preHandler: [requirePermission('attendance', 'read')],
+  }, async (req, reply) => {
+    if (!req.user.roles.includes('teacher')) return reply.send([])
+    const assignments = await prisma.courseAssignment.findMany({
+      where: {
+        institutionId: req.user.institutionId,
+        isActive: true,
+        parallel: { tutorId: req.user.sub, isActive: true },
+      },
+      include: {
+        subject: true,
+        parallel: { include: { level: true } },
+        academicYear: { select: { id: true, name: true, isActive: true } },
+        teacher: { select: { id: true, profile: { select: { firstName: true, lastName: true } } } },
+        scheduleEntries: { select: { weekday: true, startTime: true, endTime: true } },
+      },
+      orderBy: [{ parallel: { level: { sortOrder: 'asc' } } }, { subject: { name: 'asc' } }],
+    })
+    return reply.send(assignments)
+  })
+
   app.get<{ Querystring: { courseAssignmentId: string; date: string; period: number } }>('/attendance/class-hour', {
     preHandler: [requirePermission('attendance', 'read')],
     schema: { querystring: { type: 'object', required: ['courseAssignmentId', 'date', 'period'], properties: {
