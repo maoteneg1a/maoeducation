@@ -28,6 +28,7 @@ export interface CourseAssignment {
   }
   academicYear: { id: string; name: string; isActive: boolean }
   teacher: { id: string; profile: { firstName: string; lastName: string } }
+  scheduleEntries?: Array<{ weekday: number; startTime: string; endTime: string }>
 }
 
 export function getAttendance(courseAssignmentId: string, date: string) {
@@ -57,6 +58,10 @@ export function bulkSaveDailyAttendance(payload: {
 
 export function getAssignments(params?: Record<string, string>) {
   return apiGet<CourseAssignment[]>('academic/course-assignments', params)
+}
+
+export function getTutorAssignments() {
+  return apiGet<CourseAssignment[]>('attendance/tutor-assignments')
 }
 
 export interface StudentSearchResult {
