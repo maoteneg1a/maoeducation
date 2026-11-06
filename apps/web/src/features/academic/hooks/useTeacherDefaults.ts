@@ -14,25 +14,28 @@ export function useTeacherDefaults() {
   const { data: years = [] } = useAcademicYears()
   const activeYear = years.find((y) => y.isActive)
 
-  const { data: allAssignments = [] } = useCourseAssignments(
+  const { data: ownAssignments = [] } = useCourseAssignments(
     activeYear ? { academicYearId: activeYear.id } : undefined,
+  )
+  const { data: allConsultableAssignments = [] } = useCourseAssignments(
+    activeYear ? { academicYearId: activeYear.id, scope: 'consultable' } : { scope: 'consultable' },
   )
 
   // Filter to teacher's own assignments
   const assignments = React.useMemo(() => {
-    if (!user) return allAssignments
-    if (user.roles.includes('admin') || user.roles.includes('rector') || user.roles.includes('inspector')) return allAssignments
-    return allAssignments.filter((a) => a.teacherId === user.id)
-  }, [allAssignments, user])
+    if (!user) return ownAssignments
+    if (user.roles.includes('admin') || user.roles.includes('rector') || user.roles.includes('inspector')) return ownAssignments
+    return ownAssignments.filter((a) => a.teacherId === user.id)
+  }, [ownAssignments, user])
 
   // Lectura: además de sus materias, el tutor consulta todas las asignaturas
   // de los paralelos que tiene a cargo. La escritura sigue limitada en backend.
   const consultableAssignments = React.useMemo(() => {
-    if (!user) return allAssignments
-    if (user.roles.includes('admin') || user.roles.includes('rector') || user.roles.includes('inspector')) return allAssignments
+    if (!user) return allConsultableAssignments
+    if (user.roles.includes('admin') || user.roles.includes('rector') || user.roles.includes('inspector')) return allConsultableAssignments
     const tutored = new Set(user.tutorParallelIds ?? [])
-    return allAssignments.filter((a) => a.teacherId === user.id || tutored.has(a.parallelId))
-  }, [allAssignments, user])
+    return allConsultableAssignments.filter((a) => a.teacherId === user.id || tutored.has(a.parallelId))
+  }, [allConsultableAssignments, user])
 
   // Pick default assignment:
   // 1. If teacher tutors a parallel → use that parallel's assignment
@@ -50,6 +53,12 @@ export function useTeacherDefaults() {
     return ''
   }, [assignments, user])
 
+  const defaultConsultationAssignmentId = React.useMemo(() => {
+    const tutorIds = user?.tutorParallelIds ?? []
+    return consultableAssignments.find((a) => tutorIds.includes(a.parallelId))?.id
+      ?? defaultAssignmentId
+  }, [consultableAssignments, defaultAssignmentId, user])
+
   const { data: periods = [] } = usePeriods(activeYear?.id ?? '')
 
   const defaultPeriodId = React.useMemo(() => {
@@ -64,6 +73,7 @@ export function useTeacherDefaults() {
     consultableAssignments,
     periods,
     defaultAssignmentId,
+    defaultConsultationAssignmentId,
     defaultPeriodId,
   }
 }
