@@ -25,6 +25,15 @@ export function useTeacherDefaults() {
     return allAssignments.filter((a) => a.teacherId === user.id)
   }, [allAssignments, user])
 
+  // Lectura: además de sus materias, el tutor consulta todas las asignaturas
+  // de los paralelos que tiene a cargo. La escritura sigue limitada en backend.
+  const consultableAssignments = React.useMemo(() => {
+    if (!user) return allAssignments
+    if (user.roles.includes('admin') || user.roles.includes('rector') || user.roles.includes('inspector')) return allAssignments
+    const tutored = new Set(user.tutorParallelIds ?? [])
+    return allAssignments.filter((a) => a.teacherId === user.id || tutored.has(a.parallelId))
+  }, [allAssignments, user])
+
   // Pick default assignment:
   // 1. If teacher tutors a parallel → use that parallel's assignment
   // 2. If teacher has only one assignment → use it
@@ -52,6 +61,7 @@ export function useTeacherDefaults() {
   return {
     activeYear,
     assignments,
+    consultableAssignments,
     periods,
     defaultAssignmentId,
     defaultPeriodId,

@@ -2,7 +2,7 @@ import { closedReinforcementPlans } from '../../../shared/infrastructure/service
 import { computePeriodGrades } from '../../../shared/infrastructure/services/period-grades.service'
 import { bulletinGradeColumns } from '../application/services/bulletin-grade-columns'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
-import { NotFoundError } from '../../../shared/domain/errors/app.errors'
+import { ForbiddenError, NotFoundError } from '../../../shared/domain/errors/app.errors'
 import { resolveGuardianStudentId } from '../../../shared/infrastructure/services/guardian-scope.service'
 import {
   average,
@@ -90,6 +90,11 @@ export class PrismaReportRepository {
       },
     })
     if (!assignment) throw new NotFoundError('Asignación no encontrada')
+    if (caller?.roles.includes('teacher') && !caller.roles.some((role) => ['admin', 'rector', 'inspector', 'dece'].includes(role))) {
+      const ownsAssignment = assignment.teacher.id === caller.userId
+      const tutorsParallel = assignment.parallel.tutorId === caller.userId
+      if (!ownsAssignment && !tutorsParallel) throw new ForbiddenError('Solo puedes consultar tus materias o las de tu paralelo como tutor')
+    }
 
     const insumos = await prisma.insumo.findMany({
       where: { institutionId, courseAssignmentId: query.courseAssignmentId, academicPeriodId: query.periodId },

@@ -11,6 +11,7 @@ import { BadRequestError } from '../../../shared/domain/errors/app.errors'
 import {
   assertCourseAssignmentAccess,
   assertParallelInScope,
+  isPrivilegedStaff,
   resolveViewableStudentId,
 } from '../../../shared/infrastructure/services/teacher-scope.service'
 import {
@@ -321,6 +322,60 @@ export default async function activityRoutes(app: FastifyInstance) {
   )
 
   // ─── Grades ────────────────────────────────────────────────────────────────
+
+  app.get<{ Querystring: { periodId: string } }>(
+    '/grades/completion',
+    { preHandler: [requirePermission('grades', 'read', 'own')] },
+    async (req) => {
+      const { institutionId, sub, roles } = req.user
+      const privileged = isPrivilegedStaff(roles)
+      const assignments = await prisma.courseAssignment.findMany({
+        where: {
+          institutionId,
+          isActive: true,
+          academicYear: { academicPeriods: { some: { id: req.query.periodId } } },
+          ...(!privileged && { OR: [{ teacherId: sub }, { parallel: { tutorId: sub } }] }),
+        },
+        select: {
+          id: true,
+          parallelId: true,
+          academicYearId: true,
+          subject: { select: { name: true } },
+          teacher: { select: { profile: { select: { firstName: true, lastName: true } } } },
+          activities: {
+            where: { academicPeriodId: req.query.periodId, activityDate: { lte: new Date() } },
+            select: { _count: { select: { grades: { where: { OR: [{ score: { not: null } }, { isExcused: true }, { status: 'no_realizado' }] } } } } },
+          },
+        },
+      })
+      const enrollmentCounts = await prisma.studentEnrollment.groupBy({
+        by: ['parallelId', 'academicYearId'],
+        where: {
+          institutionId,
+          status: 'active',
+          parallelId: { in: [...new Set(assignments.map((assignment) => assignment.parallelId))] },
+        },
+        _count: { _all: true },
+      })
+      const enrolled = new Map(enrollmentCounts.map((row) => [`${row.parallelId}:${row.academicYearId}`, row._count._all]))
+      return assignments.map((assignment) => {
+        const students = enrolled.get(`${assignment.parallelId}:${assignment.academicYearId}`) ?? 0
+        const expected = assignment.activities.length * students
+        const graded = assignment.activities.reduce((sum, activity) => sum + activity._count.grades, 0)
+        const missing = Math.max(0, expected - graded)
+        return {
+          courseAssignmentId: assignment.id,
+          subject: assignment.subject.name,
+          teacher: `${assignment.teacher.profile?.firstName ?? ''} ${assignment.teacher.profile?.lastName ?? ''}`.trim(),
+          activities: assignment.activities.length,
+          graded,
+          expected,
+          missing,
+          status: assignment.activities.length === 0 ? 'no_activities' : graded === 0 ? 'no_grades' : missing > 0 ? 'incomplete' : 'complete',
+        }
+      })
+    },
+  )
 
   app.get<{ Querystring: { activityId: string } }>(
     '/grades',

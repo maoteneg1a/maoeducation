@@ -172,7 +172,7 @@ export const router = createBrowserRouter([
       // ---- Grades ----
       {
         path: 'grades',
-        element: <PermissionGuard permission="grades:read" />,
+        element: <PermissionGuard permission="grades:write" />,
         children: [
           {
             index: true,
@@ -182,6 +182,17 @@ export const router = createBrowserRouter([
               })),
           },
         ],
+      },
+      {
+        path: 'grades/consulta',
+        element: <PermissionGuard permission="grades:read" />,
+        children: [{
+          index: true,
+          lazy: () =>
+            import('@/features/grades/pages/GradeEntryPage').then((m) => ({
+              Component: m.GradeConsultationPage,
+            })),
+        }],
       },
       // ---- Behavior (comportamiento) ----
       {

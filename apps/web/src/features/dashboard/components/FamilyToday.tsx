@@ -60,7 +60,7 @@ export function FamilyToday() {
             <div key={item.id} className="border-b py-2 last:border-0"><p className="text-sm font-medium">{item.title}</p><p className="text-xs text-muted-foreground">{item.subject} · entrega {new Date(item.dueDate).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' })}</p></div>
           ))}
         </TodayCard>
-        <TodayCard title="Calificaciones recientes" icon={GraduationCap} href="/grades" empty="No hay calificaciones recientes">
+        <TodayCard title="Calificaciones recientes" icon={GraduationCap} href="/grades/consulta" empty="No hay calificaciones recientes">
           {data.recentGrades.map((item) => (
             <div key={item.id} className="flex items-center justify-between gap-3 border-b py-2 last:border-0"><div><p className="text-sm font-medium">{item.activity}</p><p className="text-xs text-muted-foreground">{item.subject}</p></div><span className="font-semibold tabular-nums">{item.score.toFixed(2)} / {item.maxScore}</span></div>
           ))}
