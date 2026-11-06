@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useState, useEffect } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { CheckCheck, CheckCircle2, Clock, Save, Users } from 'lucide-react'
@@ -39,6 +39,7 @@ import {
   type AttendanceEntry,
 } from '@/features/attendance/api/attendance.api'
 import { useUnsavedChanges } from '@/shared/hooks/useUnsavedChanges'
+import { getSchedule } from '@/features/schedules/api/schedules.api'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useAuthStore } from '@/store/auth.store'
 import { useGuardianStudentId } from '@/features/guardian/components/ChildSwitcher'
@@ -117,6 +118,11 @@ function StaffAttendancePage() {
     queryKey: ['assignments'],
     queryFn: () => getAssignments(),
   })
+  const { data: schedule = [] } = useQuery({
+    queryKey: ['attendance-own-schedule', user?.id],
+    queryFn: () => getSchedule(user?.id ? { teacherId: user.id } : undefined),
+    enabled: !!user?.id && !privileged,
+  })
 
   const dailyTutorAssignments = React.useMemo(() => assignments.filter((assignment) =>
     assignment.parallel.level.attendanceMode === 'daily'
@@ -178,7 +184,17 @@ function StaffAttendancePage() {
   const parallelId = selected && selected.isDaily ? selected.parallelId : ''
   const courseAssignmentId = selected && !selected.isDaily ? selected.courseAssignmentId : ''
   const assignment = assignments.find((a) => a.id === courseAssignmentId)
-  const isClassHour = !isDaily && assignment?.parallel.level.attendanceMode === 'daily'
+  const isClassHour = !isDaily && !!assignment
+  const selectedWeekday = selectedDate ? new Date(`${selectedDate}T12:00:00`).getDay() : 0
+  const weekdayStarts = React.useMemo(() => [...new Set(schedule.filter((entry) => entry.weekday === selectedWeekday).map((entry) => entry.startTime))].sort(), [schedule, selectedWeekday])
+  const scheduledHours = React.useMemo(() => schedule
+    .filter((entry) => entry.weekday === selectedWeekday && entry.courseAssignment.id === courseAssignmentId)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+    .map((entry) => ({ period: Math.max(1, weekdayStarts.indexOf(entry.startTime) + 1), label: `${entry.startTime}–${entry.endTime}` })), [courseAssignmentId, schedule, selectedWeekday, weekdayStarts])
+  useEffect(() => {
+    if (isDirty || !scheduledHours.length || scheduledHours.some((hour) => hour.period === period)) return
+    setPeriod(scheduledHours[0].period)
+  }, [isDirty, period, scheduledHours])
   const canWrite = !isDaily || privileged || assignments.some((a) => a.parallel.id === parallelId && a.parallel.tutorId === user?.id)
   const { data: history = [] } = useQuery({
     queryKey: ['class-attendance-history', courseAssignmentId],
@@ -327,7 +343,6 @@ function StaffAttendancePage() {
       {upperTutorParallels.length > 0 && <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
         <p className="font-semibold">Tu tutoría: {upperTutorParallels.map((parallel) => `${parallel.level.name} ${parallel.name}`).join(', ')}</p>
         <p className="mt-1">Desde 8.º cada docente registra la asistencia de su propia materia. Como tutor no vuelves a tomar una lista general: aquí registras solamente las clases que impartes.</p>
-        <Button asChild variant="outline" size="sm" className="mt-3 bg-white"><Link to="/reports?tab=attendance">Consultar el consolidado de mi tutoría</Link></Button>
       </div>}
       <p className="text-sm text-muted-foreground">
         {view === 'day'
@@ -363,15 +378,16 @@ function StaffAttendancePage() {
         </div>
       </div>
 
-      {isClassHour && <div className="space-y-2">
-        <label className="flex items-center gap-2 text-sm">Hora de clase
-          <select disabled={saveMutation.isPending} className="rounded border p-2" value={period} onChange={async (e) => {
+      {isClassHour && <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+        <label className="flex flex-wrap items-center gap-2 text-sm font-medium">Hora de la clase
+          <select disabled={saveMutation.isPending} className="h-9 rounded-md border bg-background px-3" value={period} onChange={async (e) => {
             const next = Number(e.target.value)
             if (!(await confirmDiscard())) return
             setPeriod(next); setLocalRecords(new Map()); setIsDirty(false)
-          }}>{Array.from({ length: 20 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}ª hora</option>)}</select>
+          }}>{(scheduledHours.length ? scheduledHours : Array.from({ length: 10 }, (_, i) => ({ period: i + 1, label: `${i + 1}.ª hora` }))).map((hour) => <option key={hour.period} value={hour.period}>{hour.label}</option>)}</select>
         </label>
-        <p className="text-sm text-muted-foreground">Registra cada hora impartida. La jornada del tutor es una referencia; este registro no cambia ni duplica las faltas del día.</p>
+        <p className="text-sm text-muted-foreground">{scheduledHours.length ? 'Las horas corresponden a tu horario para el día seleccionado.' : 'Esta materia no tiene un bloque en el horario del día seleccionado. Puedes escoger la hora manualmente o pedir que completen el horario.'}</p>
+        {assignment.parallel.level.attendanceMode === 'daily' && <p className="text-xs text-muted-foreground">En 2.º a 7.º este registro deja constancia de tu clase, pero no reemplaza ni duplica la lista diaria del tutor.</p>}
         {history.length > 0 && <details><summary className="cursor-pointer text-sm">Historial de horas registradas (últimas 100)</summary><div className="flex flex-wrap gap-2 py-2">{history.map((h) => <Button key={`${h.date}:${h.period}`} disabled={saveMutation.isPending} size="sm" variant="outline" onClick={async () => {
           if (!(await confirmDiscard())) return
           setSelectedDate(h.date.slice(0, 10)); setPeriod(h.period); setLocalRecords(new Map()); setIsDirty(false)

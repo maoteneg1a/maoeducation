@@ -71,7 +71,9 @@ export default async function attendanceRoutes(app: FastifyInstance) {
     } } },
   }, async (req) => {
     await assertCourseAssignmentAccess(req, req.body.courseAssignmentId!, 'write')
-    return repo.saveClassHour(req.user.institutionId, req.body, req.user.sub)
+    const result = await repo.saveClassHour(req.user.institutionId, req.body, req.user.sub)
+    if (result.attendanceMode === 'per_subject') void sendAttendanceNotifications(result.newlyFlagged, req.body.date)
+    return result
   })
 
   // GET /attendance?courseAssignmentId=&date=  (materia)  ó  ?parallelId=&date=  (diaria)
