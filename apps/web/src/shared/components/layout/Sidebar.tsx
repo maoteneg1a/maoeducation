@@ -170,6 +170,13 @@ export const NAV_SECTIONS: NavSection[] = [
         permission: 'enrollment:read',
         module: 'enrollment',
       },
+      {
+        label: 'Nóminas',
+        icon: Users,
+        path: '/rosters',
+        permission: 'users:read',
+        roles: ['admin', 'rector'],
+      },
 
     ],
   },

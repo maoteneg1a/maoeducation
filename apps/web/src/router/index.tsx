@@ -67,6 +67,14 @@ export const router = createBrowserRouter([
       },
       // ---- Users ----
       {
+        path: 'rosters',
+        element: <PermissionGuard permission="users:read" />,
+        children: [{
+          index: true,
+          lazy: () => import('@/features/rosters/pages/RostersPage').then((m) => ({ Component: m.RostersPage })),
+        }],
+      },
+      {
         path: 'users',
         element: <PermissionGuard permission="users:read" />,
         children: [
