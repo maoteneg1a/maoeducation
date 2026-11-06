@@ -141,8 +141,15 @@ export function CourseAssignmentsPage() {
 
   const { data: teachers = [] } = useQuery({
     queryKey: ['users', { role: 'teacher' }],
-    queryFn: () =>
-      apiGet<{ data: Teacher[]; total: number }>('users', { role: 'teacher' }).then((r) => r.data),
+    queryFn: async () => {
+      const limit = 200
+      const first = await apiGet<{ data: Teacher[]; total: number }>('users', { role: 'teacher', page: 1, limit })
+      const pages = Math.ceil(first.total / limit)
+      if (pages <= 1) return first.data
+      const remaining = await Promise.all(Array.from({ length: pages - 1 }, (_, index) =>
+        apiGet<{ data: Teacher[]; total: number }>('users', { role: 'teacher', page: index + 2, limit })))
+      return [first, ...remaining].flatMap((response) => response.data)
+    },
   })
 
   const [open, setOpen] = React.useState(false)
