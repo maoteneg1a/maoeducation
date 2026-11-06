@@ -28,13 +28,25 @@ interface InstitutionActivityCount {
   total: bigint
 }
 
-function toSeries(rows: DailyCount[]) {
-  return rows.map((r) => ({ date: r.date.toISOString().slice(0, 10), count: Number(r.count) }))
+function bucketDate(date: Date, hourly: boolean) {
+  return hourly ? date.toISOString() : date.toISOString().slice(0, 10)
 }
 
-function toAcademicSeries(rows: AcademicDailyCount[]) {
+function toSeries(rows: DailyCount[], hourly: boolean) {
+  return rows.map((r) => ({ date: bucketDate(r.date, hourly), count: Number(r.count) }))
+}
+
+function startOfReportingPeriod(days: number) {
+  if (days === 1) return new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const nowInEcuador = new Date(Date.now() - 5 * 60 * 60 * 1000)
+  nowInEcuador.setUTCHours(0, 0, 0, 0)
+  nowInEcuador.setUTCDate(nowInEcuador.getUTCDate() - (days - 1))
+  return new Date(nowInEcuador.getTime() + 5 * 60 * 60 * 1000)
+}
+
+function toAcademicSeries(rows: AcademicDailyCount[], hourly: boolean) {
   return rows.map((r) => ({
-    date: r.date.toISOString().slice(0, 10),
+    date: bucketDate(r.date, hourly),
     attendance: Number(r.attendance),
     grades: Number(r.grades),
     activities: Number(r.activities),
@@ -49,7 +61,18 @@ const REFRESH_COOKIE_PATH = '/api/v1/auth'
 export default async function platformStatsRoutes(app: FastifyInstance) {
   const protectedOpts = { preHandler: [platformAuthMiddleware] }
 
-  app.get('/platform/stats/overview', protectedOpts, async (_req, reply) => {
+  app.get<{ Querystring: { days?: number } }>('/platform/stats/overview', {
+    ...protectedOpts,
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: { days: { type: 'integer', enum: [1, 7, 30, 90] } },
+      },
+    },
+  }, async (req, reply) => {
+    const periodDays = req.query.days ?? 30
+    const periodStart = startOfReportingPeriod(periodDays)
+    const hourly = periodDays === 1
     const [
       totalInstitutions,
       totalPersonalAccounts,
@@ -80,22 +103,22 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
       prisma.lead.count(),
       prisma.lead.groupBy({ by: ['status'], _count: { _all: true } }),
       prisma.$queryRaw<DailyCount[]>`
-        SELECT date_trunc('day', created_at) AS date, count(*)::bigint AS count
+        SELECT CASE WHEN ${hourly} THEN date_trunc('hour', created_at) ELSE date_trunc('day', created_at - interval '5 hours') END AS date, count(*)::bigint AS count
         FROM institutions
-        WHERE created_at >= now() - interval '30 days'
+        WHERE created_at >= ${periodStart}
         GROUP BY 1 ORDER BY 1
       `,
       prisma.$queryRaw<DailyCount[]>`
-        SELECT date_trunc('day', created_at) AS date, count(*)::bigint AS count
+        SELECT CASE WHEN ${hourly} THEN date_trunc('hour', created_at) ELSE date_trunc('day', created_at - interval '5 hours') END AS date, count(*)::bigint AS count
         FROM users
-        WHERE created_at >= now() - interval '30 days'
+        WHERE created_at >= ${periodStart}
         GROUP BY 1 ORDER BY 1
       `,
-      prisma.pageView.count({ where: { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } } }),
+      prisma.pageView.count({ where: { createdAt: { gte: periodStart } } }),
       prisma.$queryRaw<DailyCount[]>`
-        SELECT date_trunc('day', created_at) AS date, count(*)::bigint AS count
+        SELECT CASE WHEN ${hourly} THEN date_trunc('hour', created_at) ELSE date_trunc('day', created_at - interval '5 hours') END AS date, count(*)::bigint AS count
         FROM page_views
-        WHERE created_at >= now() - interval '30 days'
+        WHERE created_at >= ${periodStart}
         GROUP BY 1 ORDER BY 1
       `,
       prisma.pageView.groupBy({
@@ -103,19 +126,19 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
         _count: { _all: true },
         orderBy: { _count: { path: 'desc' } },
         take: 10,
-        where: { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+        where: { createdAt: { gte: periodStart } },
       }),
-      prisma.attendanceRecord.count({ where: { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } } }),
-      prisma.grade.count({ where: { gradedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } } }),
-      prisma.activity.count({ where: { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } } }),
+      prisma.attendanceRecord.count({ where: { createdAt: { gte: periodStart } } }),
+      prisma.grade.count({ where: { gradedAt: { gte: periodStart } } }),
+      prisma.activity.count({ where: { createdAt: { gte: periodStart } } }),
       prisma.$queryRaw<{ count: bigint }[]>`
         SELECT count(DISTINCT institution_id)::bigint AS count
         FROM (
-          SELECT institution_id FROM attendance_records WHERE created_at >= now() - interval '30 days'
+          SELECT institution_id FROM attendance_records WHERE created_at >= ${periodStart}
           UNION ALL
-          SELECT institution_id FROM grades WHERE graded_at >= now() - interval '30 days'
+          SELECT institution_id FROM grades WHERE graded_at >= ${periodStart}
           UNION ALL
-          SELECT institution_id FROM activities WHERE created_at >= now() - interval '30 days'
+          SELECT institution_id FROM activities WHERE created_at >= ${periodStart}
         ) activity
       `,
       prisma.$queryRaw<AcademicDailyCount[]>`
@@ -124,14 +147,14 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
                sum(grades)::bigint AS grades,
                sum(activities)::bigint AS activities
         FROM (
-          SELECT date_trunc('day', created_at) AS date, count(*) AS attendance, 0 AS grades, 0 AS activities
-          FROM attendance_records WHERE created_at >= now() - interval '30 days' GROUP BY 1
+          SELECT CASE WHEN ${hourly} THEN date_trunc('hour', created_at) ELSE date_trunc('day', created_at - interval '5 hours') END AS date, count(*) AS attendance, 0 AS grades, 0 AS activities
+          FROM attendance_records WHERE created_at >= ${periodStart} GROUP BY 1
           UNION ALL
-          SELECT date_trunc('day', graded_at) AS date, 0, count(*), 0
-          FROM grades WHERE graded_at >= now() - interval '30 days' GROUP BY 1
+          SELECT CASE WHEN ${hourly} THEN date_trunc('hour', graded_at) ELSE date_trunc('day', graded_at - interval '5 hours') END AS date, 0, count(*), 0
+          FROM grades WHERE graded_at >= ${periodStart} GROUP BY 1
           UNION ALL
-          SELECT date_trunc('day', created_at) AS date, 0, 0, count(*)
-          FROM activities WHERE created_at >= now() - interval '30 days' GROUP BY 1
+          SELECT CASE WHEN ${hourly} THEN date_trunc('hour', created_at) ELSE date_trunc('day', created_at - interval '5 hours') END AS date, 0, 0, count(*)
+          FROM activities WHERE created_at >= ${periodStart} GROUP BY 1
         ) daily_activity
         GROUP BY date ORDER BY date
       `,
@@ -144,27 +167,27 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
         FROM institutions i
         JOIN (
           SELECT institution_id, count(*) AS attendance, 0 AS grades, 0 AS activities
-          FROM attendance_records WHERE created_at >= now() - interval '30 days' GROUP BY institution_id
+          FROM attendance_records WHERE created_at >= ${periodStart} GROUP BY institution_id
           UNION ALL
           SELECT institution_id, 0, count(*), 0
-          FROM grades WHERE graded_at >= now() - interval '30 days' GROUP BY institution_id
+          FROM grades WHERE graded_at >= ${periodStart} GROUP BY institution_id
           UNION ALL
           SELECT institution_id, 0, 0, count(*)
-          FROM activities WHERE created_at >= now() - interval '30 days' GROUP BY institution_id
+          FROM activities WHERE created_at >= ${periodStart} GROUP BY institution_id
         ) activity ON activity.institution_id = i.id
         GROUP BY i.id, i.name ORDER BY total DESC LIMIT 10
       `,
       prisma.$queryRaw<{ count: bigint }[]>`
         SELECT count(DISTINCT visitor_id)::bigint AS count
         FROM page_views
-        WHERE created_at >= now() - interval '30 days' AND visitor_id IS NOT NULL
+        WHERE created_at >= ${periodStart} AND visitor_id IS NOT NULL
       `,
       prisma.platformError.count({ where: { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } }),
-      prisma.platformError.count({ where: { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } } }),
+      prisma.platformError.count({ where: { createdAt: { gte: periodStart } } }),
       prisma.$queryRaw<DailyCount[]>`
-        SELECT date_trunc('day', created_at) AS date, count(*)::bigint AS count
+        SELECT CASE WHEN ${hourly} THEN date_trunc('hour', created_at) ELSE date_trunc('day', created_at - interval '5 hours') END AS date, count(*)::bigint AS count
         FROM platform_errors
-        WHERE created_at >= now() - interval '30 days'
+        WHERE created_at >= ${periodStart}
         GROUP BY 1 ORDER BY 1
       `,
       prisma.platformError.groupBy({
@@ -172,7 +195,7 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
         _count: { _all: true },
         orderBy: { _count: { route: 'desc' } },
         take: 8,
-        where: { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+        where: { createdAt: { gte: periodStart } },
       }),
       prisma.platformError.findMany({
         take: 10,
@@ -189,17 +212,18 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
         byStatus: leadsByStatus.map((l) => ({ status: l.status, count: l._count._all })),
       },
       signups: {
-        institutions: toSeries(institutionSignups),
-        users: toSeries(userSignups),
+        institutions: toSeries(institutionSignups, hourly),
+        users: toSeries(userSignups, hourly),
       },
       academicActivity: {
-        periodDays: 30,
+        periodDays,
+        granularity: hourly ? 'hour' : 'day',
         attendance: attendance30d,
         grades: grades30d,
         activities: activities30d,
         total: attendance30d + grades30d + activities30d,
         activeInstitutions: Number(activeInstitutions30d[0]?.count ?? 0),
-        series: toAcademicSeries(academicSeries),
+        series: toAcademicSeries(academicSeries, hourly),
         topInstitutions: topActiveInstitutions.map((i) => ({
           institutionId: i.institutionId,
           name: i.name,
@@ -210,15 +234,15 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
         })),
       },
       pageViews: {
-        total30d: pageViewsTotal,
-        uniqueVisitors30d: Number(uniqueVisitors30d[0]?.count ?? 0),
-        series: toSeries(pageViewSeries),
+        totalInPeriod: pageViewsTotal,
+        uniqueVisitors: Number(uniqueVisitors30d[0]?.count ?? 0),
+        series: toSeries(pageViewSeries, hourly),
         topPages: topPages.map((p) => ({ path: p.path, count: p._count._all })),
       },
       errors: {
         total7d: errors7d,
-        total30d: errors30d,
-        series: toSeries(errorSeries),
+        totalInPeriod: errors30d,
+        series: toSeries(errorSeries, hourly),
         topRoutes: topErrorRoutes.map((item) => ({ route: item.route, count: item._count._all })),
         recent: recentErrors.map((item) => ({
           id: item.id,

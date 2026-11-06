@@ -87,6 +87,7 @@ export interface StatsOverview {
   }
   academicActivity: {
     periodDays: number
+    granularity: 'hour' | 'day'
     attendance: number
     grades: number
     activities: number
@@ -103,14 +104,14 @@ export interface StatsOverview {
     }[]
   }
   pageViews: {
-    total30d: number
-    uniqueVisitors30d: number
+    totalInPeriod: number
+    uniqueVisitors: number
     series: { date: string; count: number }[]
     topPages: { path: string; count: number }[]
   }
   errors: {
     total7d: number
-    total30d: number
+    totalInPeriod: number
     series: { date: string; count: number }[]
     topRoutes: { route: string; count: number }[]
     recent: {
@@ -264,7 +265,7 @@ export const platformApi = {
     return URL.createObjectURL(blob)
   },
 
-  getStatsOverview: () => platformGet<StatsOverview>('platform/stats/overview'),
+  getStatsOverview: (days: 1 | 7 | 30 | 90 = 30) => platformGet<StatsOverview>('platform/stats/overview', { days }),
   getPlatformUsers: (params: { institutionId: string; page?: number; limit?: number; search?: string }) =>
     platformGet<{ data: PlatformUser[]; total: number }>('platform/users', params),
   impersonateUser: (userId: string) =>
