@@ -58,7 +58,7 @@ export default async function attendanceRoutes(app: FastifyInstance) {
         parallel: { include: { level: true } },
         academicYear: { select: { id: true, name: true, isActive: true } },
         teacher: { select: { id: true, profile: { select: { firstName: true, lastName: true } } } },
-        scheduleEntries: { select: { weekday: true, startTime: true, endTime: true } },
+        schedule: { select: { weekday: true, startTime: true, endTime: true } },
       },
       orderBy: [{ parallel: { level: { sortOrder: 'asc' } } }, { subject: { name: 'asc' } }],
     })
