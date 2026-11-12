@@ -28,7 +28,7 @@ describe('datos de los anexos', () => {
     const snap = await buildSnapshot('early_alerts', context)
     expect(snap.framework).toBe('LEGACY')
     expect(snap.academicYear).toEqual({ name: '2026–2027' })
-    expect(snap.alertRoster).toEqual([{ studentId: 'student', student: 'Ana Pérez', result: '5.50' }, { studentId: 'other-student', student: 'Luis López', result: '6.25' }])
+    expect(snap.alertRoster).toEqual([{ studentId: 'other-student', student: 'López Luis', result: '6.25' }, { studentId: 'student', student: 'Pérez Ana', result: '5.50' }])
     expect(db.earlyAlert.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({
       institutionId: 'school', academicYearId: 'year', academicPeriodId: 'period', courseAssignmentId: 'subject',
       student: { studentEnrollments: { some: { institutionId: 'school', academicYearId: 'year', parallelId: 'parallel' } } },

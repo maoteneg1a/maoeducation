@@ -198,7 +198,7 @@ export function IncidentsPage() {
       header: 'Estudiante',
       cell: ({ row }) => {
         const s = row.original.student
-        const name = `${s.profile.firstName} ${s.profile.lastName}`
+        const name = `${s.profile.lastName} ${s.profile.firstName}`
         return (
           <div>
             <p className="font-medium text-sm">{name}</p>
@@ -252,7 +252,7 @@ export function IncidentsPage() {
       header: 'Reportado por',
       cell: ({ row }) => {
         const r = row.original.reporter
-        return `${r.profile.firstName} ${r.profile.lastName}`
+        return `${r.profile.lastName} ${r.profile.firstName}`
       },
     },
     {

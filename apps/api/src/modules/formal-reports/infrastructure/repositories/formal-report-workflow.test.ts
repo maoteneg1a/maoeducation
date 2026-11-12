@@ -56,7 +56,7 @@ describe('bandejas y acciones del informe', () => {
     expect(db.reinforcementPlan.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'plan', institutionId: 'school' } }))
     expect(db.formalReport.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
       studentId: 'student', courseAssignmentId: 'assignment', academicPeriodId: 'period', reinforcementPlanId: 'plan',
-      content: expect.objectContaining({ objetivo: 'Objetivo adaptado para este informe', docente_refuerzo: 'teacher Persona', agrupacion: 'Individual', fecha_inicio: '2026-10-26', matematica_saberes: 'Fracciones equivalentes', matematica_estrategias: 'Práctica guiada' }),
+      content: expect.objectContaining({ objetivo: 'Objetivo adaptado para este informe', docente_refuerzo: 'Persona teacher', agrupacion: 'Individual', fecha_inicio: '2026-10-26', matematica_saberes: 'Fracciones equivalentes', matematica_estrategias: 'Práctica guiada' }),
     }) }))
   })
   it('muestra la firma actual en el borrador sin firmarlo ni guardar una copia de envío', async () => {

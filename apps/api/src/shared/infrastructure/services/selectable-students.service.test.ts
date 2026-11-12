@@ -16,7 +16,7 @@ describe('student form directory', () => {
   })
   it('returns documents and course labels for students who share a name', async () => {
     db.user.findMany.mockResolvedValue([{ id: 'student', profile: { firstName: 'ANA', lastName: 'PÉREZ', dni: 'E009114170' }, studentEnrollments: [{ parallel: { id: '2AM', name: 'A-M', level: { name: 'Segundo' }, academicYear: { name: '2026-2027' } } }] }])
-    expect(await listSelectableStudents('school', { userId: 'teacher', roles: ['teacher'] })).toEqual([{ id: 'student', fullName: 'ANA PÉREZ', dni: 'E009114170', groups: [{ id: '2AM', name: 'A-M', levelName: 'Segundo', yearName: '2026-2027' }] }])
+    expect(await listSelectableStudents('school', { userId: 'teacher', roles: ['teacher'] })).toEqual([{ id: 'student', fullName: 'PÉREZ ANA', dni: 'E009114170', groups: [{ id: '2AM', name: 'A-M', levelName: 'Segundo', yearName: '2026-2027' }] }])
   })
   it.each(['admin', 'rector', 'inspector', 'dece'])('preserves institution-wide student access for %s', async (role) => {
     await listSelectableStudents('school', { userId: 'staff', roles: [role] })

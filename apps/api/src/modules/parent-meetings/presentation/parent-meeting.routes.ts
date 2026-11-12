@@ -19,7 +19,7 @@ function personName(
   fallback = '',
 ): string {
   if (!p?.profile) return fallback
-  return `${p.profile.firstName} ${p.profile.lastName}`.trim()
+  return `${p.profile.lastName} ${p.profile.firstName}`.trim()
 }
 
 /** Lee un archivo del storage y lo devuelve como Buffer (o null si no existe). */

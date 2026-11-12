@@ -167,7 +167,7 @@ async function bulletinPdfData(
       studentCode: bulletin.student.profile?.dni ?? null,
       parallelName: bulletin.parallel?.name ?? '',
       levelName: bulletin.parallel?.level?.name ?? '',
-      tutorName: tutor ? `${tutor.firstName} ${tutor.lastName}` : '',
+      tutorName: tutor ? `${tutor.lastName} ${tutor.firstName}` : '',
       yearName: bulletin.academicYear?.name ?? '',
       periods: bulletin.periods.map((p: { id: string; name: string }) => ({ id: p.id, name: p.name })),
       subjects: (bulletin.subjects as Subj[]).map(mapSubject),

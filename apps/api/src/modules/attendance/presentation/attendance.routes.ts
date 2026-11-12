@@ -247,7 +247,7 @@ export default async function attendanceRoutes(app: FastifyInstance) {
         createdAt: r.createdAt,
         reviewNotes: r.reviewNotes,
         student: { id: r.student.id, name: r.student.profile ? `${r.student.profile.lastName} ${r.student.profile.firstName}` : '' },
-        requestedBy: r.justifier.profile ? `${r.justifier.profile.firstName} ${r.justifier.profile.lastName}` : r.justifier.email,
+        requestedBy: r.justifier.profile ? `${r.justifier.profile.lastName} ${r.justifier.profile.firstName}` : r.justifier.email,
         records: r.attendanceRecords.map((a) => ({
           id: a.attendanceRecord.id,
           date: a.attendanceRecord.date.toISOString().slice(0, 10),

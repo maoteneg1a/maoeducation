@@ -93,7 +93,7 @@ export default async function guardianRoutes(app: FastifyInstance) {
       for (const row of req.body.rows) {
         const studentDni = normalizeStudentDocument(String(row.studentDni ?? ''))
         const dni = String(row.dni ?? '').replace(/\D/g, '')
-        const fullName = `${row.firstName?.trim() ?? ''} ${row.lastName?.trim() ?? ''}`.trim()
+        const fullName = `${row.lastName?.trim() ?? ''} ${row.firstName?.trim() ?? ''}`.trim()
         try {
           const student = await prisma.user.findFirst({
             where: { institutionId, profile: { dni: studentDni }, userRoles: { some: { role: { name: 'student' } } } },

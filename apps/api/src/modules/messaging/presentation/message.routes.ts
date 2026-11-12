@@ -25,7 +25,7 @@ function mapUser(u: { id: string; email: string; profile: { firstName: string; l
   return {
     id: u.id,
     email: u.email,
-    fullName: u.profile ? `${u.profile.firstName} ${u.profile.lastName}` : u.email,
+    fullName: u.profile ? `${u.profile.lastName} ${u.profile.firstName}` : u.email,
     roles: u.userRoles.map((r) => r.role.name),
   }
 }

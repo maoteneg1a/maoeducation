@@ -128,7 +128,7 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
           where,
           skip,
           take: limit,
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ profile: { lastName: 'asc' } }, { profile: { firstName: 'asc' } }, { id: 'asc' }],
           include: {
             profile: true,
             institution: { select: { id: true, name: true, settings: true } },
@@ -143,7 +143,7 @@ export default async function platformStatsRoutes(app: FastifyInstance) {
           id: u.id,
           email: u.email,
           isActive: u.isActive,
-          fullName: u.profile ? `${u.profile.firstName} ${u.profile.lastName}` : u.email,
+          fullName: u.profile ? `${u.profile.lastName} ${u.profile.firstName}` : u.email,
           roles: u.userRoles.map((ur) => ur.role.name),
           institutionId: u.institution.id,
           institutionName: u.institution.name,

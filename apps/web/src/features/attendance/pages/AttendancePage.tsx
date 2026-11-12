@@ -424,7 +424,7 @@ function StaffAttendancePage() {
                 status: null,
                 notes: '',
               }
-              const fullName = `${entry.student.profile.firstName} ${entry.student.profile.lastName}`
+              const fullName = `${entry.student.profile.lastName} ${entry.student.profile.firstName}`
 
               return (
                 <Card key={studentId}>
@@ -500,7 +500,7 @@ function StaffAttendancePage() {
                     status: null,
                     notes: '',
                   }
-                  const fullName = `${entry.student.profile.firstName} ${entry.student.profile.lastName}`
+                  const fullName = `${entry.student.profile.lastName} ${entry.student.profile.firstName}`
 
                   return (
                     <TableRow key={studentId}>

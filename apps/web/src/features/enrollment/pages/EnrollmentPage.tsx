@@ -1,3 +1,4 @@
+import { comparePersonNames } from '@/shared/lib/person-name'
 import React, { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
@@ -635,7 +636,7 @@ export function EnrollmentPage() {
       header: 'Estudiante',
       cell: ({ row }) => {
         const { profile } = row.original.student
-        const fullName = `${profile.firstName} ${profile.lastName}`
+        const fullName = `${profile.lastName} ${profile.firstName}`
         return (
           <div>
             <p className="font-medium text-sm leading-none">{fullName}</p>
@@ -926,7 +927,7 @@ export function EnrollmentPage() {
           relationship: String(pick(e, 'parentesco', 'relacion')).toLowerCase() || undefined,
           isPrimary: /^(si|sí|s|1|true|x)$/i.test(String(pick(e, 'principal'))),
         })}
-        previewLabel={(r) => `Estudiante ${r.studentDni} ← ${r.firstName} ${r.lastName} (${r.dni})${r.relationship ? ` · ${r.relationship}` : ''}`}
+        previewLabel={(r) => `Estudiante ${r.studentDni} ← ${r.lastName} ${r.firstName} (${r.dni})${r.relationship ? ` · ${r.relationship}` : ''}`}
         onSubmit={async (rows) => {
           const res = await apiPost<{
             created: number
@@ -1009,11 +1010,11 @@ export function EnrollmentPage() {
                 <p className="text-sm font-medium">Vista previa: {importRows.length} estudiante(s)</p>
                 <div className="max-h-64 overflow-auto rounded-md border">
                   <table className="w-full min-w-[640px] text-sm">
-                    <thead className="sticky top-0 bg-muted"><tr><th className="p-2 text-left">Cédula</th><th className="p-2 text-left">Nombres</th><th className="p-2 text-left">Apellidos</th><th className="p-2 text-left">Validación</th></tr></thead>
+                    <thead className="sticky top-0 bg-muted"><tr><th className="p-2 text-left">Cédula</th><th className="p-2 text-left">Apellidos</th><th className="p-2 text-left">Nombres</th><th className="p-2 text-left">Validación</th></tr></thead>
                     <tbody>
-                      {importRows.map((row, index) => {
+                      {[...importRows].sort(comparePersonNames).map((row, index) => {
                         const valid = isValidStudentDocument(row.dni) && !!row.firstName && !!row.lastName
-                        return <tr key={`${row.dni}-${index}`} className="border-t"><td className="p-2">{row.dni || '—'}</td><td className="p-2">{row.firstName || '—'}</td><td className="p-2">{row.lastName || '—'}</td><td className={`p-2 ${valid ? 'text-emerald-700' : 'text-destructive'}`}>{valid ? 'Lista' : 'Revisar datos'}</td></tr>
+                        return <tr key={`${row.dni}-${index}`} className="border-t"><td className="p-2">{row.dni || '—'}</td><td className="p-2">{row.lastName || '—'}</td><td className="p-2">{row.firstName || '—'}</td><td className={`p-2 ${valid ? 'text-emerald-700' : 'text-destructive'}`}>{valid ? 'Lista' : 'Revisar datos'}</td></tr>
                       })}
                     </tbody>
                   </table>

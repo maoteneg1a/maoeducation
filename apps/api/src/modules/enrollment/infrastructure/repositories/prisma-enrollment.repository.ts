@@ -87,7 +87,7 @@ export class PrismaEnrollmentRepository {
     return users.map((u) => ({
       id: u.id,
       email: u.email,
-      fullName: `${u.profile?.firstName ?? ''} ${u.profile?.lastName ?? ''}`.trim(),
+      fullName: `${u.profile?.lastName ?? ''} ${u.profile?.firstName ?? ''}`.trim(),
       dni: u.profile?.dni ?? null,
     }))
   }

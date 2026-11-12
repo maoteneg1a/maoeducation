@@ -1,3 +1,4 @@
+import { comparePersonNames } from '@/shared/lib/person-name'
 import { StudentName } from '../components/StudentName'
 import * as React from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -317,7 +318,7 @@ function GradesGrid({ data }: { data: GradesReportData }) {
         <tbody>
           {students.map((row, i) => {
             const { student, grades } = row
-            const fullName = `${student.profile.lastName}, ${student.profile.firstName}`
+            const fullName = `${student.profile.lastName} ${student.profile.firstName}`
 
             // Promedios por insumo y total: vienen del backend (única fuente).
             const avgById = avgByInsumoId(row.summary)
@@ -464,7 +465,7 @@ function CompactGrid({ data, examWeight, canEditWeight, onEditWeight }: CompactG
         <tbody>
           {students.map((row, i) => {
             const { student } = row
-            const fullName = `${student.profile.lastName}, ${student.profile.firstName}`
+            const fullName = `${student.profile.lastName} ${student.profile.firstName}`
             const avgById = avgByInsumoId(row.summary)
             const insumoAvgs = regularInsumos.map((ins) => avgById.get(ins.id) ?? null)
             const regularAvg = row.summary.insumosBase
@@ -946,7 +947,7 @@ function AnnualByPeriodGrid({
   }
   const students = [...studentMap.entries()]
     .map(([id, p]) => ({ id, ...p }))
-    .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`))
+    .sort(comparePersonNames)
 
   return (
     <div className="overflow-x-auto rounded-lg border">
@@ -1036,7 +1037,7 @@ function AnnualDetailGrid({
   }
   const students = [...studentMap.entries()]
     .map(([id, p]) => ({ id, ...p }))
-    .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`))
+    .sort(comparePersonNames)
 
   return (
     <div className="overflow-x-auto rounded-lg border">

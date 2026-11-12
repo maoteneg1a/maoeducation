@@ -23,7 +23,7 @@ export async function getGuardianChildren(guardianId: string) {
         },
       },
     },
-    orderBy: { student: { profile: { lastName: 'asc' } } },
+    orderBy: [{ student: { profile: { lastName: 'asc' } } }, { student: { profile: { firstName: 'asc' } } }, { studentId: 'asc' }],
   })
 
   return links.map((l) => {
@@ -31,7 +31,7 @@ export async function getGuardianChildren(guardianId: string) {
     return {
       id: l.student.id,
       fullName: l.student.profile
-        ? `${l.student.profile.firstName} ${l.student.profile.lastName}`
+        ? `${l.student.profile.lastName} ${l.student.profile.firstName}`
         : '—',
       dni: l.student.profile?.dni ?? null,
       relationship: l.relationship,
@@ -57,7 +57,7 @@ export async function resolveGuardianStudentId(
   const links = await prisma.guardianStudent.findMany({
     where: { guardianId },
     select: { studentId: true },
-    orderBy: { student: { profile: { lastName: 'asc' } } },
+    orderBy: [{ student: { profile: { lastName: 'asc' } } }, { student: { profile: { firstName: 'asc' } } }, { studentId: 'asc' }],
   })
 
   if (links.length === 0) throw new NotFoundError('No tienes alumnos vinculados')

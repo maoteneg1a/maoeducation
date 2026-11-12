@@ -257,7 +257,7 @@ export function MessagingPage() {
             threads.map((thread) => {
               const lastMessage = thread.messages?.[0]
               const creatorName = thread.creator?.profile
-                ? `${thread.creator.profile.firstName} ${thread.creator.profile.lastName}`
+                ? `${thread.creator.profile.lastName} ${thread.creator.profile.firstName}`
                 : 'Usuario'
               const preview = lastMessage?.body?.slice(0, 60) ?? ''
               const unread = isThreadUnread(thread)
@@ -452,7 +452,7 @@ export function MessagingPage() {
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Creado por{' '}
                     {selectedThread.creator?.profile
-                      ? `${selectedThread.creator.profile.firstName} ${selectedThread.creator.profile.lastName}`
+                      ? `${selectedThread.creator.profile.lastName} ${selectedThread.creator.profile.firstName}`
                       : 'Usuario'}{' '}
                     · {formatDate(selectedThread.createdAt)}
                   </p>
@@ -463,7 +463,7 @@ export function MessagingPage() {
                   {selectedThread.messages.map((message) => {
                     const isOwn = message.sender.id === currentUserId
                     const senderName = message.sender.profile
-                      ? `${message.sender.profile.firstName} ${message.sender.profile.lastName}`
+                      ? `${message.sender.profile.lastName} ${message.sender.profile.firstName}`
                       : 'Usuario'
 
                     return (

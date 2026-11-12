@@ -98,7 +98,7 @@ export function ReinforcementCaseWizard({ courseAssignmentId, academicPeriodId }
 }
 
 function studentName(p: { profile: { firstName: string; lastName: string } | null } | null | undefined): string {
-  return p?.profile ? `${p.profile.firstName} ${p.profile.lastName}` : ''
+  return p?.profile ? `${p.profile.lastName} ${p.profile.firstName}` : ''
 }
 
 function CaseRow({

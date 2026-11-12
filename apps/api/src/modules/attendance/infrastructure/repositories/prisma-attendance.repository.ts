@@ -324,7 +324,7 @@ export class PrismaAttendanceRepository {
       student: {
         id: studentId,
         fullName: enrollment.student.profile
-          ? `${enrollment.student.profile.firstName} ${enrollment.student.profile.lastName}`
+          ? `${enrollment.student.profile.lastName} ${enrollment.student.profile.firstName}`
           : 'Estudiante',
         dni: enrollment.student.profile?.dni ?? null,
       },

@@ -1,6 +1,6 @@
 /** En móvil ocupa una columna corta; un toque despliega el nombre completo. */
 export function StudentName({ lastName, firstName }: { lastName: string; firstName: string }) {
-  const fullName = `${lastName}, ${firstName}`
+  const fullName = `${lastName} ${firstName}`
   const surname = lastName.trim().split(/\s+/)[0] || '—'
   const initial = firstName.trim().slice(0, 1)
   return <>

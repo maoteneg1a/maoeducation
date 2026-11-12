@@ -212,7 +212,7 @@ export function CourseAssignmentsPage() {
       header: 'Docente',
       cell: ({ row }) => {
         const a = row.original as unknown as AssignmentRaw
-        if (a.teacher?.profile) return `${a.teacher.profile.firstName} ${a.teacher.profile.lastName}`
+        if (a.teacher?.profile) return `${a.teacher.profile.lastName} ${a.teacher.profile.firstName}`
         return row.original.teacherId
       },
     },

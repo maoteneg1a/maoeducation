@@ -338,7 +338,7 @@ export class PrismaReportRepository {
         assignmentId: assignment.id,
         subjectName: assignment.subject.name,
         teacherName: assignment.teacher?.profile
-          ? `${assignment.teacher.profile.firstName} ${assignment.teacher.profile.lastName}`
+          ? `${assignment.teacher.profile.lastName} ${assignment.teacher.profile.firstName}`
           : '',
         examWeight,
         projectWeight: assignment.projectWeight ?? examWeight / 2,
@@ -463,6 +463,8 @@ export class PrismaReportRepository {
         { parallel: { level: { sortOrder: 'asc' } } },
         { parallel: { name: 'asc' } },
         { student: { profile: { lastName: 'asc' } } },
+        { student: { profile: { firstName: 'asc' } } },
+        { studentId: 'asc' },
       ],
     })
 
@@ -822,7 +824,7 @@ export class PrismaReportRepository {
         projectWeight: assignment.projectWeight ?? assignment.examWeight / 2,
         isQualitative,
         teacherName: assignment.teacher?.profile
-          ? `${assignment.teacher.profile.firstName} ${assignment.teacher.profile.lastName}`
+          ? `${assignment.teacher.profile.lastName} ${assignment.teacher.profile.firstName}`
           : '',
         periodGrades,
         finalAverage,

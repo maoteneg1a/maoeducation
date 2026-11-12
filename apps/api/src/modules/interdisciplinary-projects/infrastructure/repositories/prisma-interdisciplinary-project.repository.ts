@@ -304,7 +304,7 @@ export class PrismaInterdisciplinaryProjectRepository {
         return {
           subjectName: c.courseAssignment.subject.name,
           teacherName: c.courseAssignment.teacher.profile
-            ? `${c.courseAssignment.teacher.profile.firstName} ${c.courseAssignment.teacher.profile.lastName}`
+            ? `${c.courseAssignment.teacher.profile.lastName} ${c.courseAssignment.teacher.profile.firstName}`
             : '',
           contribucion: c.contribucion,
           responsabilidad: c.responsabilidad,

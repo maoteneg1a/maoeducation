@@ -127,7 +127,7 @@ export default async function userRoutes(app: FastifyInstance) {
         const dni = String(row.dni ?? '').replace(/\D/g, '')
         const firstName = row.firstName?.trim() ?? ''
         const lastName = row.lastName?.trim() ?? ''
-        const fullName = `${firstName} ${lastName}`.trim()
+        const fullName = `${lastName} ${firstName}`.trim()
         const email = row.email?.trim().toLowerCase() || dni
         if (seen.has(dni)) {
           results.push({ dni, fullName, status: 'skipped', reason: 'Cédula repetida en el archivo' })

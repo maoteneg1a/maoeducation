@@ -33,7 +33,7 @@ export async function listSelectableStudents(institutionId: string, actor: { use
   })
   return students.map((s) => ({
     id: s.id,
-    fullName: s.profile ? `${s.profile.firstName} ${s.profile.lastName}`.trim() : '',
+    fullName: s.profile ? `${s.profile.lastName} ${s.profile.firstName}`.trim() : '',
     dni: s.profile?.dni ?? null,
     groups: s.studentEnrollments.map(({ parallel: p }) => ({ id: p.id, name: p.name, levelName: p.level.name, yearName: p.academicYear.name })),
   }))

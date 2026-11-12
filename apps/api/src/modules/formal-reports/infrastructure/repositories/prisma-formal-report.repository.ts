@@ -23,7 +23,7 @@ import type {
 const personSelect = { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } as const
 type Person = { id: string; email: string; profile: { firstName: string; lastName: string } | null }
 export const personName = (u: Person | null | undefined) =>
-  !u ? '' : u.profile ? `${u.profile.firstName} ${u.profile.lastName}`.trim() : u.email
+  !u ? '' : u.profile ? `${u.profile.lastName} ${u.profile.firstName}`.trim() : u.email
 
 const reportInclude = {
   author: { select: personSelect },

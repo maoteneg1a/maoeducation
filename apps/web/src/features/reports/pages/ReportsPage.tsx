@@ -565,7 +565,7 @@ function BrandingForm({
 
 function BulletinReportView({ data }: { data: StudentBulletinData }) {
   const tutorName = data.parallel.tutor?.profile
-    ? `${data.parallel.tutor.profile.firstName} ${data.parallel.tutor.profile.lastName}`
+    ? `${data.parallel.tutor.profile.lastName} ${data.parallel.tutor.profile.firstName}`
     : ''
   const printDate = new Date().toLocaleDateString('es-EC')
 

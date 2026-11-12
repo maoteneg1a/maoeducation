@@ -15,5 +15,5 @@ export function filterStudentChoices(students: StudentChoice[], search: string, 
     if (groupId && !s.groups?.some((g) => g.id === groupId)) return false
     const text = normalizeStudentSearch(`${s.fullName} ${s.dni ?? ''}`)
     return terms.every((term) => text.includes(term))
-  })
+  }).sort((a, b) => a.fullName.localeCompare(b.fullName, 'es', { sensitivity: 'base' }))
 }
