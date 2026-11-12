@@ -34,7 +34,7 @@ export function ContributionCard({ contribution, projectId, academicPeriodId, su
   const [competencySaberIds, setCompetencySaberIds] = React.useState<string[]>(contribution.competencySaberIds)
 
   const teacherName = contribution.courseAssignment?.teacher.profile
-    ? `${contribution.courseAssignment.teacher.profile.firstName} ${contribution.courseAssignment.teacher.profile.lastName}`
+    ? `${contribution.courseAssignment.teacher.profile.lastName} ${contribution.courseAssignment.teacher.profile.firstName}`
     : ''
 
   return (

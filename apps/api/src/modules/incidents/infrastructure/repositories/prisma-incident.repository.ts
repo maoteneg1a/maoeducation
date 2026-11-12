@@ -45,7 +45,7 @@ const detailRelations = {
 
 function fullName(p: { profile: { firstName: string; lastName: string } | null } | null, fallback = ''): string {
   if (!p?.profile) return fallback
-  return `${p.profile.firstName} ${p.profile.lastName}`.trim()
+  return `${p.profile.lastName} ${p.profile.firstName}`.trim()
 }
 
 /** Actor autenticado, derivado del JWT (req.user). */
@@ -260,7 +260,7 @@ export class PrismaIncidentRepository {
         },
         include: detailRelations,
       })
-      const name = dece.profile ? `${dece.profile.firstName} ${dece.profile.lastName}` : 'DECE'
+      const name = dece.profile ? `${dece.profile.lastName} ${dece.profile.firstName}` : 'DECE'
       await tx.incidentEvent.create({
         data: {
           incidentId: id,

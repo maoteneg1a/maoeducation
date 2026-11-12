@@ -34,6 +34,8 @@ import { getErrorMessage } from '@/shared/lib/utils'
 
 interface User {
   id: string
+  firstName: string
+  lastName: string
   fullName: string
   email: string
   dni?: string
@@ -203,11 +205,9 @@ export function UsersPage() {
 
   function openEdit(user: User) {
     setEditingUser(user)
-    const parts = user.fullName.trim().split(' ')
-    const mid = Math.ceil(parts.length / 2)
     editForm.reset({
-      firstName: parts.slice(0, mid).join(' '),
-      lastName: parts.slice(mid).join(' '),
+      firstName: user.firstName,
+      lastName: user.lastName,
       dni: user.dni ?? '',
       phone: user.phone ?? '',
       isActive: user.isActive,
@@ -336,7 +336,7 @@ export function UsersPage() {
           email: String(pick(e, 'correo', 'email', 'correo_electronico')) || undefined,
           phone: String(pick(e, 'telefono', 'celular', 'phone')) || undefined,
         })}
-        previewLabel={(r) => `${r.dni} · ${r.firstName} ${r.lastName}${r.email ? ` · ${r.email}` : ''}`}
+        previewLabel={(r) => `${r.dni} · ${r.lastName} ${r.firstName}${r.email ? ` · ${r.email}` : ''}`}
         onSubmit={async (rows) => {
           const res = await apiPost<{ created: number; skipped: number; results: Array<{ dni: string; fullName: string; status: string; reason?: string }> }>(
             'users/bulk',

@@ -316,7 +316,7 @@ export class PrismaPedagogicRecoveryRepository {
         })
       : []
     const nameById = new Map(
-      students.map((s) => [s.id, s.profile ? `${s.profile.firstName} ${s.profile.lastName}` : s.id]),
+      students.map((s) => [s.id, s.profile ? `${s.profile.lastName} ${s.profile.firstName}` : s.id]),
     )
 
     const candidates: SkillReinforcementCandidate[] = []
@@ -501,10 +501,10 @@ export class PrismaPedagogicRecoveryRepository {
     return {
       institutionName: institution?.name ?? '',
       logoUrl: settings.branding?.logoUrl ?? null,
-      studentName: plan.student.profile ? `${plan.student.profile.firstName} ${plan.student.profile.lastName}` : '',
+      studentName: plan.student.profile ? `${plan.student.profile.lastName} ${plan.student.profile.firstName}` : '',
       studentDni: plan.student.profile?.dni ?? null,
       teacherName: plan.courseAssignment.teacher.profile
-        ? `${plan.courseAssignment.teacher.profile.firstName} ${plan.courseAssignment.teacher.profile.lastName}`
+        ? `${plan.courseAssignment.teacher.profile.lastName} ${plan.courseAssignment.teacher.profile.firstName}`
         : '',
       subjectName: plan.courseAssignment.subject.name,
       levelName: plan.courseAssignment.parallel.level.name,
@@ -527,7 +527,7 @@ export class PrismaPedagogicRecoveryRepository {
           notes: s.notes,
         })),
       guardianName: guardianLink?.guardian.profile
-        ? `${guardianLink.guardian.profile.firstName} ${guardianLink.guardian.profile.lastName}`
+        ? `${guardianLink.guardian.profile.lastName} ${guardianLink.guardian.profile.firstName}`
         : null,
     }
   }
@@ -785,7 +785,7 @@ export class PrismaPedagogicRecoveryRepository {
     const recipient = dto.recipient?.trim() || 'Representante'
     const text = dto.text?.trim() || suggestCommunicationText(
       mediumLabel,
-      plan.participants.map((p) => `${p.student.profile?.firstName ?? ''} ${p.student.profile?.lastName ?? ''}`.trim()),
+      plan.participants.map((p) => `${p.student.profile?.lastName ?? ''} ${p.student.profile?.firstName ?? ''}`.trim()),
       recipient,
       plan.commitments.map((c) => c.commitmentLabel),
     )
@@ -1012,10 +1012,10 @@ export class PrismaPedagogicRecoveryRepository {
       institutionName: institution?.name ?? '',
       logoUrl: settings.branding?.logoUrl ?? null,
       studentNames: plan.participants.map((p) =>
-        p.student.profile ? `${p.student.profile.firstName} ${p.student.profile.lastName}` : p.studentId,
+        p.student.profile ? `${p.student.profile.lastName} ${p.student.profile.firstName}` : p.studentId,
       ),
       teacherName: plan.courseAssignment.teacher.profile
-        ? `${plan.courseAssignment.teacher.profile.firstName} ${plan.courseAssignment.teacher.profile.lastName}`
+        ? `${plan.courseAssignment.teacher.profile.lastName} ${plan.courseAssignment.teacher.profile.firstName}`
         : '',
       subjectName: plan.courseAssignment.subject.name,
       levelName: plan.courseAssignment.parallel.level.name,
@@ -1078,7 +1078,7 @@ export class PrismaPedagogicRecoveryRepository {
         evaluation: r.evaluation,
         pedagogicalDecision: r.pedagogicalDecision ?? '',
         outcomes: r.outcomes.map((o) => ({
-          studentName: o.student.profile ? `${o.student.profile.firstName} ${o.student.profile.lastName}` : o.studentId,
+          studentName: o.student.profile ? `${o.student.profile.lastName} ${o.student.profile.firstName}` : o.studentId,
           result: o.result,
           observation: o.observation ?? '',
         })),

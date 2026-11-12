@@ -46,7 +46,7 @@ const fmtDate = (d: string | null) => {
 }
 
 const personName = (p: { profile: { firstName: string; lastName: string } | null } | null) =>
-  p?.profile ? `${p.profile.firstName} ${p.profile.lastName}` : '—'
+  p?.profile ? `${p.profile.lastName} ${p.profile.firstName}` : '—'
 
 export function StudentFolderPage() {
   const { id = '' } = useParams<{ id: string }>()

@@ -528,7 +528,7 @@ export function DeceCasePage() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     {formatDate(entry.createdAt)} ·{' '}
                     {entry.actor.profile
-                      ? `${entry.actor.profile.firstName} ${entry.actor.profile.lastName}`
+                      ? `${entry.actor.profile.lastName} ${entry.actor.profile.firstName}`
                       : 'Usuario registrado'}
                   </p>
                 </div>

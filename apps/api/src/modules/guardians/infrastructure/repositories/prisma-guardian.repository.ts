@@ -13,13 +13,14 @@ export class PrismaGuardianRepository {
     await this.ensureStudent(studentId, institutionId)
     const links = await prisma.guardianStudent.findMany({
       where: { studentId },
+      orderBy: [{ guardian: { profile: { lastName: 'asc' } } }, { guardian: { profile: { firstName: 'asc' } } }, { guardianId: 'asc' }],
       include: { guardian: { include: { profile: true } } },
     })
     return links.map((l) => ({
       guardianId: l.guardianId,
       email: l.guardian.email,
       fullName: l.guardian.profile
-        ? `${l.guardian.profile.firstName} ${l.guardian.profile.lastName}`
+        ? `${l.guardian.profile.lastName} ${l.guardian.profile.firstName}`
         : l.guardian.email,
       relationship: l.relationship,
       isPrimary: l.isPrimary,

@@ -39,7 +39,7 @@ const SEVERITY_LABELS: Record<string, string> = {
 }
 
 const personName = (p: { profile: { firstName: string; lastName: string } } | null | undefined) =>
-  p?.profile ? `${p.profile.firstName} ${p.profile.lastName}` : '—'
+  p?.profile ? `${p.profile.lastName} ${p.profile.firstName}` : '—'
 
 const fmt = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short' }) : '—'

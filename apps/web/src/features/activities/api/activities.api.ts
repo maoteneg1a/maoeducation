@@ -155,7 +155,7 @@ export const activitiesApi = {
       rows.map((r): StudentGrade => ({
         closedPlanId: r.closedPlanId,
         studentId: r.student.id,
-        studentName: `${r.student.profile.firstName} ${r.student.profile.lastName}`,
+        studentName: `${r.student.profile.lastName} ${r.student.profile.firstName}`,
         activityId,
         score: nullableNumber(r.grade?.baseScore ?? r.grade?.score),
         reinforcementScore: nullableNumber(r.grade?.reinforcementScore),

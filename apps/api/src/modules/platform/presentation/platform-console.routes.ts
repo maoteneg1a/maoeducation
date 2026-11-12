@@ -59,6 +59,7 @@ export default async function platformConsoleRoutes(app: FastifyInstance) {
       }),
       prisma.user.findMany({
         where: { institutionId: id, userRoles: { some: { role: { name: { in: ['admin', 'rector'] } } } } },
+        orderBy: [{ profile: { lastName: 'asc' } }, { profile: { firstName: 'asc' } }, { id: 'asc' }],
         select: { id: true, email: true, isActive: true, lastLoginAt: true, profile: { select: { firstName: true, lastName: true } } },
         take: 10,
       }),
@@ -114,7 +115,7 @@ export default async function platformConsoleRoutes(app: FastifyInstance) {
         email: a.email,
         isActive: a.isActive,
         lastLoginAt: a.lastLoginAt,
-        fullName: a.profile ? `${a.profile.firstName} ${a.profile.lastName}` : a.email,
+        fullName: a.profile ? `${a.profile.lastName} ${a.profile.firstName}` : a.email,
       })),
       notes: notes.map((n) => ({ id: n.id, body: n.body, createdAt: n.createdAt, author: authorName.get(n.platformAdminId) ?? '—' })),
       recentActivity: recentAudit,

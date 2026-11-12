@@ -261,6 +261,7 @@ export default async function announcementRoutes(app: FastifyInstance) {
     const recipientIds = recipients.map((recipient) => recipient.id)
     const users = recipientIds.length === 0 ? [] : await prisma.user.findMany({
       where: { id: { in: recipientIds } },
+      orderBy: [{ profile: { lastName: 'asc' } }, { profile: { firstName: 'asc' } }, { id: 'asc' }],
       select: {
         id: true,
         profile: { select: { firstName: true, lastName: true } },
@@ -273,7 +274,7 @@ export default async function announcementRoutes(app: FastifyInstance) {
       ...tracking,
       recipients: users.map((user) => ({
         id: user.id,
-        name: user.profile ? `${user.profile.firstName} ${user.profile.lastName}` : 'Usuario',
+        name: user.profile ? `${user.profile.lastName} ${user.profile.firstName}` : 'Usuario',
         readAt: user.announcementReads[0]?.readAt ?? null,
         response: user.announcementRsvps[0]?.response ?? null,
         respondedAt: user.announcementRsvps[0]?.respondedAt ?? null,

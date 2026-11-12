@@ -21,7 +21,7 @@ function fullName(
   fallback = '',
 ): string {
   if (!p?.profile) return fallback
-  return `${p.profile.firstName} ${p.profile.lastName}`.trim()
+  return `${p.profile.lastName} ${p.profile.firstName}`.trim()
 }
 
 export class PrismaStudentFolderRepository {

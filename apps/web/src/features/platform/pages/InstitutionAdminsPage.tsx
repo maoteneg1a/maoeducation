@@ -95,7 +95,7 @@ export function InstitutionAdminsPage() {
     {
       id: 'name',
       header: 'Nombre',
-      cell: ({ row }) => `${row.original.firstName} ${row.original.lastName}`,
+      cell: ({ row }) => `${row.original.lastName} ${row.original.firstName}`,
     },
     { accessorKey: 'email', header: 'Email' },
     {

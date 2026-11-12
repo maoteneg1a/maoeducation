@@ -1,3 +1,4 @@
+import { comparePersonNames } from '@/shared/lib/person-name'
 import { useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Upload, FileSpreadsheet, X, AlertCircle } from 'lucide-react'
@@ -166,16 +167,16 @@ export function ExcelStudentUpload({ onStudentsParsed }: Props) {
             <table className="w-full min-w-[520px] text-xs">
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
-                  <th className="text-left px-3 py-1.5 font-medium text-gray-500">Nombre</th>
-                  <th className="text-left px-3 py-1.5 font-medium text-gray-500">Apellido</th>
+                  <th className="text-left px-3 py-1.5 font-medium text-gray-500">Apellidos</th>
+                  <th className="text-left px-3 py-1.5 font-medium text-gray-500">Nombres</th>
                   <th className="text-left px-3 py-1.5 font-medium text-gray-500">Cédula</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {preview.slice(0, 20).map((s, i) => (
+                {[...preview].sort(comparePersonNames).slice(0, 20).map((s, i) => (
                   <tr key={i}>
-                    <td className="px-3 py-1.5 text-gray-700">{s.firstName}</td>
                     <td className="px-3 py-1.5 text-gray-700">{s.lastName}</td>
+                    <td className="px-3 py-1.5 text-gray-700">{s.firstName}</td>
                     <td className="px-3 py-1.5 text-gray-500">{s.dni || '—'}</td>
                   </tr>
                 ))}

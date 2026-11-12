@@ -48,7 +48,7 @@ const fmtDate = (d: string) => {
 }
 
 const personName = (p: { profile: { firstName: string; lastName: string } } | null) =>
-  p?.profile ? `${p.profile.firstName} ${p.profile.lastName}` : '—'
+  p?.profile ? `${p.profile.lastName} ${p.profile.firstName}` : '—'
 
 function todayIso() {
   return todayLocalISO()

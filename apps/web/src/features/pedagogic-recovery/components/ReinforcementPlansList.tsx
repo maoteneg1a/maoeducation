@@ -94,7 +94,7 @@ export function ReinforcementPlansList({ courseAssignmentId, academicPeriodId, p
                   })
                 }
               >
-                + Plan NEE: {e.student.profile.firstName} {e.student.profile.lastName}
+                + Plan NEE: {e.student.profile.lastName} {e.student.profile.firstName}
               </Button>
             ))}
           </div>
@@ -141,7 +141,7 @@ function PlanRow({
     onError: (err) => toast.error(getErrorMessage(err)),
   })
 
-  const studentName = `${plan.student.profile.firstName} ${plan.student.profile.lastName}`
+  const studentName = `${plan.student.profile.lastName} ${plan.student.profile.firstName}`
   const itemCount = isCompetencyModel ? competencyIds.length : skillIds.length
 
   const handleSave = () => {

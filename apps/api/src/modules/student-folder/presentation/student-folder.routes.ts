@@ -13,7 +13,7 @@ function personName(
   fallback = 'estudiante',
 ): string {
   if (!p?.profile) return fallback
-  return `${p.profile.firstName} ${p.profile.lastName}`.trim()
+  return `${p.profile.lastName} ${p.profile.firstName}`.trim()
 }
 
 export default async function studentFolderRoutes(app: FastifyInstance) {

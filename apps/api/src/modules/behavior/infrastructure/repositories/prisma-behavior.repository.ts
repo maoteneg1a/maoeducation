@@ -34,12 +34,12 @@ export class PrismaBehaviorRepository {
         const p = e.student.profile
         return {
           studentId: e.studentId,
-          studentName: p ? `${p.firstName} ${p.lastName}` : e.student.email,
+          studentName: p ? `${p.lastName} ${p.firstName}` : e.student.email,
           code: g?.code ?? null,
           notes: g?.notes ?? null,
         }
       })
-      .sort((a, b) => a.studentName.localeCompare(b.studentName))
+      .sort((a, b) => a.studentName.localeCompare(b.studentName, 'es', { sensitivity: 'base' }))
   }
 
   async bulkSave(institutionId: string, dto: SaveBehaviorDto, recordedBy: string) {

@@ -86,7 +86,7 @@ export function CommitmentForm({ incident, onCreated }: { incident: Incident; on
               const selected = new Set(details.timelineEventIds ?? incident.events?.map((item) => item.id))
               if (e.target.checked) selected.add(event.id); else selected.delete(event.id)
               patch({ timelineEventIds: [...selected] })
-            }} /><span>{event.description || 'Actuación registrada'}<span className="block text-xs text-muted-foreground">{new Date(event.createdAt).toLocaleString('es-EC')} · {event.actor?.profile?.firstName} {event.actor?.profile?.lastName}</span></span></label>
+            }} /><span>{event.description || 'Actuación registrada'}<span className="block text-xs text-muted-foreground">{new Date(event.createdAt).toLocaleString('es-EC')} · {event.actor?.profile?.lastName} {event.actor?.profile?.firstName}</span></span></label>
           ))}
           {!incident.events?.length && <p className="text-xs text-muted-foreground">Todavía no hay actuaciones registradas.</p>}
         </div>}

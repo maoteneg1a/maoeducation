@@ -30,7 +30,7 @@ import { z } from 'zod'
 type Tx = Prisma.TransactionClient
 const person = { id: true, profile: { select: { firstName: true, lastName: true } } }
 const name = (user: { profile: { firstName: string; lastName: string } | null }) =>
-  user.profile ? `${user.profile.firstName} ${user.profile.lastName}` : 'Sin nombre registrado'
+  user.profile ? `${user.profile.lastName} ${user.profile.firstName}` : 'Sin nombre registrado'
 function parse<T extends z.ZodTypeAny>(schema: T, input: unknown): z.output<T> {
   const result = schema.safeParse(input)
   if (!result.success)

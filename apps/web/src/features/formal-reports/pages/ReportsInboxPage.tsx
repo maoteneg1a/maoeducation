@@ -1,3 +1,4 @@
+import { comparePersonNames } from '@/shared/lib/person-name'
 import { ReportMailbox } from '../components/ReportMailbox'
 import { Input } from '@/shared/components/ui/input'
 import { reinforcementDeskApi } from '@/features/reinforcement-desk/api/reinforcement-desk.api'
@@ -257,7 +258,7 @@ function NewReportPicker({ open, onOpenChange, onContinue }: { open: boolean; on
 
   const students = enrollments
     .filter((e) => e.status === 'active' && (!selectedPlan || selectedPlan.students.some((s) => s.id === e.student.id)))
-    .sort((a, b) => a.student.profile.lastName.localeCompare(b.student.profile.lastName))
+    .sort((a, b) => comparePersonNames(a.student.profile, b.student.profile))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

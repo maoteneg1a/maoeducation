@@ -130,7 +130,7 @@ export class PrismaReinforcementDeskRepository {
         learningTarget: p.learningTargetTitle,
         initialResult: p.detectionInitialResult,
         period: p.academicPeriod,
-        students: students.map((s) => ({ id: s.id, name: fullName(s) })),
+        students: students.map((s) => ({ id: s.id, name: fullName(s) })).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
         subject: p.courseAssignment.subject.name,
         parallel: { id: p.courseAssignment.parallel.id, name: `${p.courseAssignment.parallel.level.name} ${p.courseAssignment.parallel.name}` },
         sessions: p._count.sessions,
@@ -208,7 +208,7 @@ export class PrismaReinforcementDeskRepository {
     return {
       case: kase,
       canEdit,
-      students: students.map((s) => ({ id: s.id, name: fullName(s) })),
+      students: students.map((s) => ({ id: s.id, name: fullName(s) })).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
       scores,
       sessions: sessions.map((s) => ({
         id: s.id,

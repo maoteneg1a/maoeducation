@@ -86,7 +86,7 @@ export async function buildDossier(institutionId: string, actor: Actor, studentI
       evidence.push({ id: file.id, label: canOpen ? file.fileName : 'Documento reservado', folio: null, status: file.isSigned ? 'SIGNED_FILE' : 'UPLOADED', date: iso(file.createdAt), kind: 'uploaded_file',
         subject: file.courseAssignmentId ? subjectName.get(file.courseAssignmentId) : null, canOpen,
         canRemove: canOpen && (file.uploadedBy === actor.userId || isAuthority(actor)),
-        uploader: file.uploader.profile ? `${file.uploader.profile.firstName} ${file.uploader.profile.lastName}` : undefined,
+        uploader: file.uploader.profile ? `${file.uploader.profile.lastName} ${file.uploader.profile.firstName}` : undefined,
         observation: canOpen ? file.observation : null,
       })
       if (!item.requiresSignature || file.isSigned) complete++

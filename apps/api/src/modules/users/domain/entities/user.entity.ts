@@ -3,6 +3,10 @@ export interface UserListItem {
   email: string
   isActive: boolean
   roles: string[]
+  firstName: string
+  lastName: string
+  dni: string | null
+  phone: string | null
   fullName: string
   avatarUrl: string | null
   createdAt: Date

@@ -227,7 +227,7 @@ export function InterdisciplinaryProjectDetailPage() {
                 <SelectContent>
                   {availableToJoin.map((a) => (
                     <SelectItem key={a.id} value={a.id}>
-                      {a.subject?.name ?? a.subjectName} — {a.teacher?.profile ? `${a.teacher.profile.firstName} ${a.teacher.profile.lastName}` : ''}
+                      {a.subject?.name ?? a.subjectName} — {a.teacher?.profile ? `${a.teacher.profile.lastName} ${a.teacher.profile.firstName}` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>

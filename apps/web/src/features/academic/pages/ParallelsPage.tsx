@@ -202,7 +202,7 @@ export function ParallelsPage() {
             <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
               <UserIcon className="h-3 w-3 text-primary" />
             </div>
-            <span className="text-sm">{t.profile.firstName} {t.profile.lastName}</span>
+            <span className="text-sm">{t.profile.lastName} {t.profile.firstName}</span>
           </div>
         )
       },

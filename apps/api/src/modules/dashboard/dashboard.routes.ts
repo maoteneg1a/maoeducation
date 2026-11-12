@@ -188,7 +188,7 @@ export default async function dashboardRoutes(app: FastifyInstance) {
         endTime: entry.endTime,
         room: entry.room,
         teacher: entry.courseAssignment.teacher.profile
-          ? `${entry.courseAssignment.teacher.profile.firstName} ${entry.courseAssignment.teacher.profile.lastName}`
+          ? `${entry.courseAssignment.teacher.profile.lastName} ${entry.courseAssignment.teacher.profile.firstName}`
           : null,
       })),
     })
@@ -221,7 +221,7 @@ export default async function dashboardRoutes(app: FastifyInstance) {
         student: { select: { id: true, profile: { select: { firstName: true, lastName: true, dni: true } } } },
         parallel: { include: { level: true } },
       },
-      orderBy: [{ parallel: { level: { sortOrder: 'asc' } } }, { student: { profile: { lastName: 'asc' } } }],
+      orderBy: [{ parallel: { level: { sortOrder: 'asc' } } }, { student: { profile: { lastName: 'asc' } } }, { student: { profile: { firstName: 'asc' } } }, { studentId: 'asc' }],
     })
     const studentIds = enrollments.map((row) => row.studentId)
     const since = new Date()

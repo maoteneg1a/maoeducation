@@ -142,7 +142,7 @@ export class PrismaPlatformRepository implements IPlatformRepository {
         institutionId,
         userRoles: { some: { role: { name: 'admin' } } },
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ profile: { lastName: 'asc' } }, { profile: { firstName: 'asc' } }, { id: 'asc' }],
       select: ADMIN_USER_SELECT,
     })
     return users.map(toAdminDto)

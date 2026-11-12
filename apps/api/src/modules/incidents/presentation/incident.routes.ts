@@ -26,7 +26,7 @@ const messageRepo = new PrismaMessageRepository()
 
 function personName(p: { profile: { firstName: string; lastName: string } | null } | null): string {
   if (!p?.profile) return 'estudiante'
-  return `${p.profile.firstName} ${p.profile.lastName}`
+  return `${p.profile.lastName} ${p.profile.firstName}`
 }
 
 export default async function incidentRoutes(app: FastifyInstance) {

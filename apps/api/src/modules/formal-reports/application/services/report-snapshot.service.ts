@@ -26,7 +26,7 @@ export interface GradesSnapshotRow {
 }
 
 const name = (u: { email: string; profile: { firstName: string; lastName: string } | null } | null) =>
-  !u ? '' : u.profile ? `${u.profile.firstName} ${u.profile.lastName}`.trim() : u.email
+  !u ? '' : u.profile ? `${u.profile.lastName} ${u.profile.firstName}`.trim() : u.email
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : null)
 

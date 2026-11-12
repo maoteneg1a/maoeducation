@@ -19,7 +19,7 @@ import { getErrorMessage } from '@/shared/lib/utils'
 import { useAsyncAction } from '@/shared/hooks/useAsyncAction'
 
 const personName = (p: { profile: { firstName: string; lastName: string } } | null | undefined) =>
-  p?.profile ? `${p.profile.firstName} ${p.profile.lastName}` : '—'
+  p?.profile ? `${p.profile.lastName} ${p.profile.firstName}` : '—'
 
 const fmtDate = (d: string | null) => {
   if (!d) return '—'

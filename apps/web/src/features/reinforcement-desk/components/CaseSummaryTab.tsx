@@ -105,7 +105,7 @@ export function CaseSummaryTab({ kase }: { kase: LegacyCase }) {
                 <ul className="mt-1 text-xs">
                   {r.outcomes.map((o) => (
                     <li key={o.id}>
-                      {o.student.profile ? `${o.student.profile.firstName} ${o.student.profile.lastName}` : o.studentId}: {OUTCOME_LABEL[o.result] ?? o.result}
+                      {o.student.profile ? `${o.student.profile.lastName} ${o.student.profile.firstName}` : o.studentId}: {OUTCOME_LABEL[o.result] ?? o.result}
                       {o.assessmentValue ? ` (${o.assessmentValue})` : ''}
                     </li>
                   ))}
