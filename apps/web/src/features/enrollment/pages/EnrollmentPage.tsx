@@ -1,3 +1,4 @@
+import { TransferEnrollmentsDialog } from '../components/TransferEnrollmentsDialog'
 import { comparePersonNames } from '@/shared/lib/person-name'
 import React, { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -797,6 +798,14 @@ export function EnrollmentPage() {
             </SelectContent>
           </Select>
         </div>
+        {canCreateEnrollment && visibleParallels.find((p) => p.id === parallelId) && (
+          <TransferEnrollmentsDialog
+            key={parallelId}
+            source={visibleParallels.find((p) => p.id === parallelId)!}
+            parallels={visibleParallels}
+            enrollments={enrollments}
+          />
+        )}
         {isPersonalAccount && canManageParallels && (
           <PersonalParallelsDialog
             parallels={visibleParallels}
