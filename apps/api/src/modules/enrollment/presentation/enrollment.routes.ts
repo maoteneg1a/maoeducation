@@ -18,6 +18,7 @@ import type {
   UpdateEnrollmentAdaptationDto,
   CreateStudentEnrollmentDto,
   BulkCreateStudentsDto,
+  TransferEnrollmentsDto,
 } from '../application/dtos/enrollment.dto'
 
 const repo = new PrismaEnrollmentRepository()
@@ -99,6 +100,33 @@ export default async function enrollmentRoutes(app: FastifyInstance) {
       await assertPlanCapacity(req.user.institutionId, 'students', 1)
       const enrollment = await repo.createStudentAndEnroll(req.user.institutionId, { ...req.body, dni: document })
       return reply.status(201).send(enrollment)
+    },
+  )
+
+  app.post<{ Body: TransferEnrollmentsDto }>(
+    '/enrollments/transfer',
+    {
+      preHandler: [requirePermission('enrollment', 'manage', 'own')],
+      schema: {
+        body: {
+          type: 'object', additionalProperties: false,
+          required: ['sourceParallelId', 'targetParallelId', 'enrollmentIds'],
+          properties: {
+            sourceParallelId: { type: 'string', minLength: 1 },
+            targetParallelId: { type: 'string', minLength: 1 },
+            enrollmentIds: { type: 'array', minItems: 1, maxItems: 500, uniqueItems: true, items: { type: 'string', minLength: 1 } },
+            reason: { type: 'string', maxLength: 500 },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      await assertParallelInScope(req, req.body.sourceParallelId)
+      await assertParallelInScope(req, req.body.targetParallelId)
+      return reply.send(await repo.transfer(req.user.institutionId, req.body, {
+        userId: req.user.sub, impersonatorId: req.user.impersonatedBy,
+        ipAddress: req.ip, userAgent: req.headers['user-agent'],
+      }))
     },
   )
 

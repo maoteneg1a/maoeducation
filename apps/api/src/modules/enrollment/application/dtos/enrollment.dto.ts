@@ -43,3 +43,18 @@ export interface BulkCreateStudentsDto {
   parallelId?: string
   academicYearId?: string
 }
+
+/** Cambio interno de paralelo/jornada, sin crear otra matrícula. */
+export interface TransferEnrollmentsDto {
+  sourceParallelId: string
+  targetParallelId: string
+  enrollmentIds: string[]
+  reason?: string
+}
+
+export interface EnrollmentTransferActor {
+  userId: string
+  impersonatorId?: string
+  ipAddress?: string
+  userAgent?: string
+}

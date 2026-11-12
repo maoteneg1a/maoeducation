@@ -41,6 +41,7 @@ const ACTION_LABELS: Record<string, string> = {
   'guardians.bulk_import': 'Importación de representantes',
   'role.update_permissions': 'Permisos de rol cambiados',
   'enrollment.status_change': 'Estado de matrícula',
+  'enrollment.parallel_transfer': 'Cambio de paralelo/jornada',
   'promotion.decision': 'Decisión de promoción',
   'course_assignment.change_teacher': 'Cambio de docente',
   'academic_year.rollover': 'Cierre / apertura de año',

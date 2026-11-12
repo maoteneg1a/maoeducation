@@ -23,6 +23,8 @@ export interface AcademicYear {
 
 export interface Parallel {
   id: string
+  isActive: boolean
+  educationOffer?: string | null
   name: string
   level: { id: string; name: string }
   academicYear: { id: string; name: string; isActive: boolean }
@@ -108,4 +110,14 @@ export function importStudents(data: {
   academicYearId?: string
 }) {
   return apiPost<StudentImportResult>('enrollments/students/bulk', data)
+}
+
+
+export function transferEnrollments(data: {
+  sourceParallelId: string
+  targetParallelId: string
+  enrollmentIds: string[]
+  reason?: string
+}) {
+  return apiPost<{ transferred: number; sourceParallelId: string; targetParallelId: string }>('enrollments/transfer', data)
 }

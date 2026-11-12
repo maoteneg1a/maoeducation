@@ -1,7 +1,8 @@
 import bcrypt from 'bcryptjs'
+import { Prisma } from '@prisma/client'
 import { normalizeStudentDocument, isValidStudentDocument, STUDENT_DOCUMENT_ERROR } from '../../../../shared/domain/student-document'
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
-import { NotFoundError, ConflictError } from '../../../../shared/domain/errors/app.errors'
+import { NotFoundError, ConflictError, BadRequestError } from '../../../../shared/domain/errors/app.errors'
 import type {
   CreateEnrollmentDto,
   BulkEnrollmentDto,
@@ -9,6 +10,8 @@ import type {
   UpdateEnrollmentAdaptationDto,
   CreateStudentEnrollmentDto,
   BulkCreateStudentsDto,
+  TransferEnrollmentsDto,
+  EnrollmentTransferActor,
 } from '../../application/dtos/enrollment.dto'
 
 const LIST_INCLUDE = {
@@ -36,6 +39,80 @@ const LIST_ORDER = [
 ] as const
 
 export class PrismaEnrollmentRepository {
+  async transfer(institutionId: string, dto: TransferEnrollmentsDto, actor: EnrollmentTransferActor) {
+    const ids = [...new Set(dto.enrollmentIds)]
+    if (!ids.length || ids.length > 500 || ids.length !== dto.enrollmentIds.length) {
+      throw new BadRequestError('Selecciona entre 1 y 500 matrículas sin repetir')
+    }
+    if (dto.sourceParallelId === dto.targetParallelId) {
+      throw new BadRequestError('Selecciona un paralelo de destino diferente al de origen')
+    }
+
+    // Serializable evita que dos cambios simultáneos excedan el cupo o muevan
+    // la misma matrícula a destinos distintos. Ante conflicto se relee el estado.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await prisma.$transaction(async (tx) => {
+          const [source, target] = await Promise.all([
+            tx.parallel.findFirst({ where: { id: dto.sourceParallelId, institutionId } }),
+            tx.parallel.findFirst({ where: { id: dto.targetParallelId, institutionId } }),
+          ])
+          if (!source || !target) throw new NotFoundError('Paralelo no encontrado')
+          if (!target.isActive) throw new BadRequestError('El paralelo de destino está inactivo')
+          if (source.academicYearId !== target.academicYearId || source.levelId !== target.levelId) {
+            throw new BadRequestError('El destino debe ser del mismo grado y año lectivo')
+          }
+          if (source.educationOffer !== target.educationOffer) {
+            throw new BadRequestError('El destino debe tener la misma oferta educativa')
+          }
+          const where = {
+            institutionId, id: { in: ids }, parallelId: source.id,
+            academicYearId: source.academicYearId, status: 'active',
+          }
+          const enrollments = await tx.studentEnrollment.findMany({
+            where, select: { id: true, studentId: true },
+          })
+          if (enrollments.length !== ids.length) {
+            throw new ConflictError('Alguna matrícula ya cambió o no está activa en el paralelo de origen. Actualiza la lista')
+          }
+          if (target.capacity !== null) {
+            const occupied = await tx.studentEnrollment.count({
+              where: { institutionId, parallelId: target.id, status: 'active' },
+            })
+            if (occupied + ids.length > target.capacity) {
+              throw new ConflictError('El paralelo de destino no tiene cupos suficientes')
+            }
+          }
+          // Solo cambia el paralelo: identidad, fecha, estado y NEE se conservan.
+          // Las calificaciones y asistencias mantienen sus referencias originales.
+          const result = await tx.studentEnrollment.updateMany({ where, data: { parallelId: target.id } })
+          if (result.count !== ids.length) throw new ConflictError('Las matrículas cambiaron durante la operación. Actualiza la lista')
+          await tx.auditLog.createMany({
+            data: enrollments.map((enrollment) => ({
+              institutionId, userId: actor.userId, impersonatorId: actor.impersonatorId ?? null,
+              ipAddress: actor.ipAddress?.slice(0, 45) ?? null,
+              userAgent: actor.userAgent?.slice(0, 500) ?? null,
+              action: 'enrollment.parallel_transfer', resourceType: 'student_enrollment', resourceId: enrollment.id,
+              oldValue: { parallelId: source.id, parallelName: source.name },
+              newValue: {
+                parallelId: target.id, parallelName: target.name,
+                studentId: enrollment.studentId, academicYearId: source.academicYearId,
+                reason: dto.reason?.trim() || 'Cambio de paralelo/jornada',
+              },
+            })),
+          })
+          return { transferred: result.count, sourceParallelId: source.id, targetParallelId: target.id }
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+          if (attempt < 2) continue
+          throw new ConflictError('Otra operación está modificando estas matrículas. Actualiza la lista y vuelve a intentar')
+        }
+        throw error
+      }
+    }
+  }
+
   async list(institutionId: string, parallelId?: string, yearId?: string) {
     return prisma.studentEnrollment.findMany({
       where: {
