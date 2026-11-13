@@ -578,14 +578,20 @@ export class PrismaPlanningRepository {
     // ignora el filtro por grado (comportamiento histórico) en vez de bloquear
     // silenciosamente. El fix real es que el wizard ya no crea Levels así.
     const isRealGrade = findGradeByCode(gradeCode) !== null
-    return competencies.map((c) => ({
-      id: c.id,
-      code: c.code,
-      text: c.text,
-      sabers: c.sabers
-        .filter((s) => !isRealGrade || s.gradeCodes.length === 0 || s.gradeCodes.includes(gradeCode))
-        .map((s) => ({ id: s.id, type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description })),
-    }))
+    return competencies.map((c) => {
+      const filtered = c.sabers.filter((s) => !isRealGrade || s.gradeCodes.length === 0 || s.gradeCodes.includes(gradeCode))
+      // Mismo criterio que listSaberesForCompetency: un hueco del catálogo
+      // (competencia sin ningún saber etiquetado para ESTE grado todavía)
+      // nunca debe dejar la competencia sin saberes para elegir — se cae al
+      // conjunto completo sin filtrar antes que ofrecer una lista vacía.
+      const sabersToUse = filtered.length > 0 ? filtered : c.sabers
+      return {
+        id: c.id,
+        code: c.code,
+        text: c.text,
+        sabers: sabersToUse.map((s) => ({ id: s.id, type: s.type as 'declarativo' | 'procedimental' | 'actitudinal', code: s.code, description: s.description })),
+      }
+    })
   }
 
   async suggestDistribution(
