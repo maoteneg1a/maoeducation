@@ -11,3 +11,6 @@ build/
 *.log
 .DS_Store
 coverage/
+
+# Evidencias privadas generadas/adjuntas de juntas de curso (driver local)
+/apps/api/uploads/course-boards/

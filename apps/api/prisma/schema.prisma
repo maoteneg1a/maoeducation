@@ -17,6 +17,7 @@ datasource db {
 // ============================================================
 
 model Institution {
+  courseBoards CourseBoard[]
   classAttendanceRecords ClassAttendanceRecord[]
   formativeReinforcementResults FormativeReinforcementResult[]
   id        String   @id @default(uuid())
@@ -92,6 +93,8 @@ model Institution {
 }
 
 model User {
+  chairedCourseBoards CourseBoard[] @relation("CourseBoardChair")
+  courseBoardEvidence CourseBoardEvidence[] @relation("CourseBoardUploader")
   classAttendanceAsStudent ClassAttendanceRecord[] @relation("ClassAttendanceStudent")
   classAttendanceRecorded ClassAttendanceRecord[] @relation("ClassAttendanceRecorder")
   formativeReinforcementResults FormativeReinforcementResult[] @relation("FormativeStudent")
@@ -375,6 +378,7 @@ model AcademicPeriodScheme {
 }
 
 model AcademicPeriod {
+  courseBoards CourseBoard[]
   formativeReinforcementResults FormativeReinforcementResult[]
   id             String   @id @default(uuid())
   academicYearId String   @map("academic_year_id")
@@ -423,6 +427,7 @@ model Level {
 }
 
 model Parallel {
+  courseBoards CourseBoard[]
   id             String  @id @default(uuid())
   institutionId  String  @map("institution_id")
   levelId        String  @map("level_id")
@@ -2880,4 +2885,50 @@ model FormativeReinforcementResult {
   @@index([institutionId, courseAssignmentId, academicPeriodId, studentId, createdAt], map: "formative_result_scope_idx")
   @@index([planId], map: "formative_result_plan_idx")
   @@map("formative_reinforcement_results")
+}
+
+// Una carpeta de evidencias por paralelo y período; los documentos emitidos son inmutables.
+model CourseBoard {
+  id String @id @default(uuid())
+  institutionId String @map("institution_id")
+  parallelId String @map("parallel_id")
+  academicPeriodId String @map("academic_period_id")
+  chairId String? @map("chair_id")
+  status String @default("OPEN") @db.VarChar(20)
+  conclusions String @default("")
+  snapshot Json?
+  revision Int @default(0)
+  closedAt DateTime? @map("closed_at")
+  closedBy String? @map("closed_by")
+  createdBy String @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  institution Institution @relation(fields: [institutionId], references: [id])
+  parallel Parallel @relation(fields: [parallelId], references: [id])
+  academicPeriod AcademicPeriod @relation(fields: [academicPeriodId], references: [id])
+  chair User? @relation("CourseBoardChair", fields: [chairId], references: [id])
+  evidence CourseBoardEvidence[]
+  @@unique([parallelId, academicPeriodId])
+  @@index([institutionId, academicPeriodId])
+  @@map("course_boards")
+}
+
+model CourseBoardEvidence {
+  id String @id @default(uuid())
+  boardId String @map("board_id")
+  kind String @db.VarChar(30)
+  label String @db.VarChar(200)
+  fileName String @map("file_name") @db.VarChar(255)
+  storedName String @map("stored_name") @db.VarChar(500)
+  mimeType String @map("mime_type") @db.VarChar(100)
+  fileSize Int @map("file_size")
+  sha256 String @db.VarChar(64)
+  snapshot Json?
+  isSigned Boolean @default(false) @map("is_signed")
+  uploadedBy String @map("uploaded_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  board CourseBoard @relation(fields: [boardId], references: [id])
+  uploader User @relation("CourseBoardUploader", fields: [uploadedBy], references: [id])
+  @@index([boardId, createdAt])
+  @@map("course_board_evidence")
 }
