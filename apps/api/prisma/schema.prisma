@@ -2889,6 +2889,7 @@ model FormativeReinforcementResult {
 
 // Una carpeta de evidencias por paralelo y período; los documentos emitidos son inmutables.
 model CourseBoard {
+  meeting Json @default("{}")
   id String @id @default(uuid())
   institutionId String @map("institution_id")
   parallelId String @map("parallel_id")

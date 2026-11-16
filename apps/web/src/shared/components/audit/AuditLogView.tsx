@@ -40,6 +40,7 @@ const ACTION_LABELS: Record<string, string> = {
   'users.bulk_import': 'Importación de personal',
   'guardians.bulk_import': 'Importación de representantes',
   'role.update_permissions': 'Permisos de rol cambiados',
+  'course_board.meeting_update': 'Datos de reunión de junta actualizados',
   'course_board.close': 'Junta de curso cerrada',
   'course_board.reopen': 'Junta de curso reabierta',
   'course_board.evidence': 'Evidencia de junta guardada',

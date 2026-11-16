@@ -1,3 +1,6 @@
+import { z } from 'zod'
+import { assertMeetingReady, readMeeting, meetingDetailsSchema } from '../domain/meeting-details'
+import { buildMeetingPdf, MEETING_TITLES } from './meeting-pdf'
 import crypto from 'node:crypto'
 import path from 'node:path'
 import { Prisma } from '@prisma/client'
@@ -31,7 +34,7 @@ function chairWhere(institutionId: string): Prisma.UserWhereInput {
 async function context(institutionId: string, actor: Actor, parallelId: string, periodId: string) {
   const parallel = await prisma.parallel.findFirst({
     where: { id: parallelId, institutionId, ...accessWhere(actor, periodId) },
-    include: { academicYear: true, courseAssignments: { where: { institutionId, isActive: true }, select: { id: true, teacherId: true, subject: { select: { name: true } } } } },
+    include: { tutor: { select: person }, academicYear: true, courseAssignments: { where: { institutionId, isActive: true }, select: { id: true, teacherId: true, teacher: { select: person }, subject: { select: { name: true } } } } },
   })
   if (!parallel) throw new NotFoundError('Curso no encontrado o sin acceso')
   const period = await prisma.academicPeriod.findFirst({ where: { id: periodId, academicYearId: parallel.academicYearId } })
@@ -82,10 +85,17 @@ export async function boardOptions(institutionId: string, actor: Actor, yearId?:
 }
 
 export async function createBoard(institutionId: string, actor: Actor, parallelId: string, periodId: string) {
-  const { parallel } = await context(institutionId, actor, parallelId, periodId)
+  const { parallel, period } = await context(institutionId, actor, parallelId, periodId)
+  const people = new Map<string, { name: string; role: string; attendance: 'pending' }>()
+  if (parallel.tutor) people.set(parallel.tutor.id, { name: name(parallel.tutor.profile), role: 'Tutor/a', attendance: 'pending' })
+  for (const a of parallel.courseAssignments) {
+    const previous = people.get(a.teacherId)
+    people.set(a.teacherId, { name: name(a.teacher.profile), role: `${previous ? `${previous.role}; ` : ''}Docente de ${a.subject.name}`.slice(0, 200), attendance: 'pending' })
+  }
+  const meeting = readMeeting({ number: String(period.periodNumber).padStart(2, '0'), responsible: parallel.tutor ? name(parallel.tutor.profile) : '', agenda: '1. Saludo e instalación de la sesión.\n2. Constatación del quórum.\n3. Lectura y aprobación del acta anterior.', participants: [...people.values()] })
   const board = await prisma.courseBoard.upsert({
     where: { parallelId_academicPeriodId: { parallelId, academicPeriodId: periodId } },
-    create: { institutionId, parallelId, academicPeriodId: periodId, createdBy: actor.userId, chairId: parallel.tutorId }, update: {},
+    create: { institutionId, parallelId, academicPeriodId: periodId, createdBy: actor.userId, chairId: parallel.tutorId, meeting: json(meeting) }, update: {},
     select: { id: true },
   })
   return board
@@ -103,6 +113,7 @@ export async function boardDetail(institutionId: string, actor: Actor, id: strin
   return {
     id: board.id, yearId: parallel.academicYearId, status: board.status, revision: board.revision, closedAt: board.closedAt, conclusions: board.conclusions,
     chairId: board.chairId, chairName: board.status === 'CLOSED' && matrix.chairName ? matrix.chairName : board.chair ? name(board.chair.profile) : 'Sin responsable asignado',
+    meeting: readMeeting(board.meeting), canEditMeeting: board.status === 'OPEN' && (canDirect || parallel.tutorId === actor.userId),
     canDirect, canUpload: canDirect || parallel.tutorId === actor.userId || (hasPermission(actor, 'formal_reports', 'write', 'own') && parallel.courseAssignments.some((a) => a.teacherId === actor.userId)), canAssignChair: isAuthority(actor), canReport: board.status === 'OPEN' && hasPermission(actor, 'formal_reports', 'write', 'own'),
     isTutor: parallel.tutorId === actor.userId, isAuthority: isAuthority(actor),
     ownAssignmentIds: parallel.courseAssignments.filter((a) => a.teacherId === actor.userId).map((a) => a.id),
@@ -147,6 +158,7 @@ export async function emitConsolidated(institutionId: string, actor: Actor, id: 
     return file
   }
   const matrix = await snapshot(institutionId, board.parallelId, board.academicPeriodId)
+  matrix.meeting = readMeeting(board.meeting)
   return saveEvidence(institutionId, actor, board, { label: 'Consolidado de calificaciones', kind: 'CONSOLIDATED', buffer: await buildBoardPdf(matrix), mimeType: 'application/pdf', fileName: 'consolidado.pdf', snapshot: matrix })
 }
 
@@ -175,6 +187,7 @@ export async function emitBoardReport(institutionId: string, actor: Actor, id: s
     labels: { situation: matrix.config.situationLabel, actions: matrix.config.actionsLabel, recommendations: matrix.config.recommendationsLabel },
     institutionName: matrix.institutionName, parallelName: matrix.parallelName, periodName: matrix.periodName, yearName: matrix.yearName, generatedAt: matrix.generatedAt,
   }
+  matrix.meeting = readMeeting(board.meeting)
   return saveEvidence(institutionId, actor, board, { label: template.label, kind: 'REPORT', buffer: await buildBoardPdf(matrix, { report: document }), mimeType: 'application/pdf', fileName: 'informe.pdf', snapshot: document })
 }
 
@@ -186,10 +199,39 @@ export async function closeBoard(institutionId: string, actor: Actor, id: string
   if (conclusions.trim().length < 5 || conclusions.length > 12000) throw new BadRequestError('Registra los acuerdos y conclusiones de la junta (5 a 12000 caracteres)')
   const matrix = await snapshot(institutionId, board.parallelId, board.academicPeriodId)
   if (matrixHash(matrix) !== expectedMatrixHash) throw new ConflictError('Las notas o el resumen cambiaron. Actualiza y revisa el consolidado antes de cerrar')
+  matrix.meeting = readMeeting(board.meeting)
+  assertMeetingReady(matrix.meeting, 'MINUTES')
   matrix.chairName = board.chair ? name(board.chair.profile) : matrix.tutorName
   const reports = await prisma.courseBoardEvidence.findMany({ where: { boardId: id, kind: 'REPORT' }, select: { id: true, snapshot: true } })
   const buffer = await buildBoardPdf(matrix, { conclusions: conclusions.trim(), chairName: matrix.chairName, reports: reports.map((r) => r.snapshot as unknown as BoardReportDocument) })
   return saveEvidence(institutionId, actor, board, { label: 'Acta y consolidado de cierre', kind: 'MINUTES', buffer, mimeType: 'application/pdf', fileName: 'acta-junta.pdf', snapshot: { matrix, conclusions: conclusions.trim(), reports } }, { matrix, conclusions: conclusions.trim() })
+}
+
+export async function updateMeeting(institutionId: string, actor: Actor, id: string, body: unknown) {
+  const parsed = z.object({ revision: z.number().int().nonnegative(), meeting: meetingDetailsSchema }).safeParse(body)
+  if (!parsed.success) throw new BadRequestError('Revisa fechas, horas, nombres y funciones de los participantes')
+  const { board, parallel } = await accessibleBoard(institutionId, actor, id)
+  if (!isAuthority(actor) && board.chairId !== actor.userId && parallel.tutorId !== actor.userId) throw new ForbiddenError('Solo el tutor, quien dirige o la autoridad puede preparar la reunión')
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.courseBoard.updateMany({ where: { id, institutionId, status: 'OPEN', revision: parsed.data.revision }, data: { meeting: json(parsed.data.meeting), revision: { increment: 1 } } })
+    if (!updated.count) throw new ConflictError('La junta cambió o está cerrada. Actualiza antes de guardar')
+    await tx.auditLog.create({ data: { institutionId, userId: actor.userId, action: 'course_board.meeting_update', resourceType: 'course_board', resourceId: id } })
+  })
+  return { ok: true }
+}
+
+export async function emitMeetingDocument(institutionId: string, actor: Actor, id: string, kind: 'CALL' | 'ATTENDANCE' | 'MINUTES') {
+  const { board } = await accessibleBoard(institutionId, actor, id)
+  if (board.status === 'CLOSED' || kind === 'MINUTES') {
+    const file = await prisma.courseBoardEvidence.findFirst({ where: { boardId: id, kind }, orderBy: { createdAt: 'desc' }, select: { id: true } })
+    if (!file) throw new BadRequestError(kind === 'MINUTES' ? 'El acta se genera al cerrar la junta' : 'Este documento no se emitió antes del cierre')
+    return file
+  }
+  const matrix = await snapshot(institutionId, board.parallelId, board.academicPeriodId)
+  matrix.meeting = readMeeting(board.meeting)
+  assertMeetingReady(matrix.meeting, kind)
+  const buffer = await buildMeetingPdf(matrix, kind)
+  return saveEvidence(institutionId, actor, board, { label: MEETING_TITLES[kind], kind, buffer, mimeType: 'application/pdf', fileName: kind === 'CALL' ? 'convocatoria.pdf' : 'asistencia.pdf', snapshot: { meeting: matrix.meeting, institutionName: matrix.institutionName, parallelName: matrix.parallelName, yearName: matrix.yearName, logoUrl: matrix.logoUrl } })
 }
 
 export async function reopenBoard(institutionId: string, actor: Actor, id: string) {

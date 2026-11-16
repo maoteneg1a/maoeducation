@@ -9,6 +9,20 @@
 
 La pantalla tiene tres pestañas: consolidado, reunión/cierre e informes/evidencias. **Actualizar** recarga las notas y los documentos de una junta abierta. El tutor es el responsable inicial; la autoridad puede designar a otro usuario activo que tenga acceso a reportes. Solo la autoridad o la persona designada puede cerrar o reabrir la junta.
 
+## Convocatoria, asistencia y acta
+
+En **Reunión y cierre → Datos de la reunión** se completa una sola ficha: número, jornada, fechas, lugar, horario, responsable, orden del día y convocados. Teléfono, correo y antecedentes son opcionales. El número es editable y se comparte entre los tres documentos; su valor inicial corresponde al número del período.
+
+Los docentes del paralelo se precargan sin marcar asistencia. Se pueden agregar invitados, editar funciones (incluida Secretaría) y registrar quién asistió. Solo tutor, autoridad o responsable designado pueden modificar esta ficha mientras la junta esté abierta.
+
+- **Convocatoria PDF**: fecha de convocatoria/reunión, responsable, antecedentes, orden del día, lugar, horario previsto y convocados.
+- **Asistencia PDF**: datos de reunión, orden del día, nombres y funciones; firmas en blanco para el papel.
+- **Acta y consolidado PDF**: se genera al cerrar. Incluye desarrollo, asistencia registrada, acuerdos, hora real de finalización y firmas de los asistentes registrados. Si aún no se registró asistencia, lo indica y deja filas en blanco; no asume quórum ni aceptación.
+
+El encabezado reutiliza el escudo configurado de la institución, grado/paralelo, jornada, número y año lectivo. El texto de cierre usa el mismo grado del encabezado. La hora prevista y la hora real de cierre son independientes; la fecha de emisión del sistema no sustituye los datos de la reunión.
+
+Cada PDF emitido queda en las evidencias. Una corrección de la ficha no modifica las copias ya emitidas. No se pueden guardar cambios en una junta cerrada: primero debe reabrirla quien tenga permiso. Los documentos que no fueron emitidos antes del cierre no se generan retroactivamente mientras permanezca cerrada.
+
 ## Evidencias y entrega física
 
 La carpeta es **año lectivo → período → grado/paralelo**. No se duplica en cada expediente individual.
@@ -37,7 +51,7 @@ La autoridad dispone de **Configurar juntas**: nombre del documento, etiquetas d
 
 ## Instalación y validación
 
-Aplicar `20261112180000_course_boards` mediante el procedimiento habitual de migraciones antes de habilitar el frontend. No requiere nuevas variables de producción: reutiliza el almacenamiento existente.
+Aplicar `20261112180000_course_boards` y `20261116160000_course_board_meeting` mediante el procedimiento habitual de migraciones antes de habilitar el frontend. No requiere nuevas variables de producción: reutiliza el almacenamiento existente.
 
 Las pruebas de integración solo admiten `COURSE_BOARDS_TEST_DATABASE_URL` apuntando a `127.0.0.1:55439/juntas_test`. Nunca usan `DATABASE_URL` como alternativa. Validan cálculo, permisos, archivos privados, cierre, reapertura, concurrencia y recuperación ante errores al guardar.
 

@@ -1,7 +1,10 @@
+import type { MeetingDetails } from './meeting-details'
 import type { BoardConfig } from './course-board-config'
 
 export interface BoardSnapshot {
   institutionName: string
+  logoUrl?: string | null
+  meeting?: MeetingDetails
   parallelName: string
   periodName: string
   yearName: string

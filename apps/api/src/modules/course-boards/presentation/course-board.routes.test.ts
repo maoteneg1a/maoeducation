@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   actor: { sub: 'teacher', institutionId: 'school', roles: ['teacher'], permissions: ['reports:read:own'] },
-  boardOptions: vi.fn(), updateBoardConfig: vi.fn(), createBoard: vi.fn(), boardDetail: vi.fn(), emitConsolidated: vi.fn(),
+  updateMeeting: vi.fn(), emitMeetingDocument: vi.fn(), boardOptions: vi.fn(), updateBoardConfig: vi.fn(), createBoard: vi.fn(), boardDetail: vi.fn(), emitConsolidated: vi.fn(),
   emitBoardReport: vi.fn(), closeBoard: vi.fn(), reopenBoard: vi.fn(), assignBoardChair: vi.fn(), uploadBoardEvidence: vi.fn(), boardFile: vi.fn(),
 }))
 vi.mock('../application/course-board.service', () => mocks)
@@ -36,6 +36,15 @@ describe('authenticated course board endpoints', () => {
     expect(mocks.boardOptions).not.toHaveBeenCalled()
     expect(mocks.boardDetail).not.toHaveBeenCalled()
     expect(mocks.boardFile).not.toHaveBeenCalled()
+  })
+  it('validates the requested document type and uses the authenticated course scope', async () => {
+    mocks.emitMeetingDocument.mockResolvedValue({ id: 'file' })
+    const valid = await app.inject({ method: 'POST', url: '/course-boards/board/documents/CALL' })
+    expect(valid.statusCode).toBe(200)
+    expect(mocks.emitMeetingDocument).toHaveBeenCalledWith('school', expect.objectContaining({ userId: 'teacher' }), 'board', 'CALL')
+    const invalid = await app.inject({ method: 'POST', url: '/course-boards/board/documents/OTHER' })
+    expect(invalid.statusCode).toBe(400)
+    expect(mocks.emitMeetingDocument).toHaveBeenCalledTimes(1)
   })
   it('uses the authenticated school and actor when creating the course folder', async () => {
     const response = await app.inject({ method: 'POST', url: '/course-boards', payload: { parallelId: 'parallel', periodId: 'period', institutionId: 'forged' } })

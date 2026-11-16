@@ -1,3 +1,8 @@
+export interface MeetingDetails {
+  number: string; shift: string; invitationDate: string; meetingDate: string; startTime: string; scheduledEndTime: string; actualEndTime: string
+  location: string; responsible: string; phone: string; email: string; background: string; agenda: string; development: string
+  participants: Array<{ name: string; role: string; attendance: 'pending' | 'present' | 'absent' }>
+}
 import { apiClient, apiGet, apiPost, apiPut } from '@/shared/lib/api-client'
 export interface BoardConfig {
   title: string; situationLabel: string; actionsLabel: string; recommendationsLabel: string
@@ -17,6 +22,7 @@ export interface BoardReport {
 }
 export interface BoardData {
   id: string; yearId: string; status: string; revision: number; matrixHash: string; closedAt: string | null; conclusions: string
+  meeting: MeetingDetails; canEditMeeting: boolean
   chairId: string | null; chairName: string; canDirect: boolean; canUpload: boolean; canAssignChair: boolean; canReport: boolean
   isTutor: boolean; isAuthority: boolean; ownAssignmentIds: string[]
   matrix: {
@@ -40,3 +46,6 @@ export async function uploadBoardEvidence(id: string, file: File, signed: boolea
   const body = new FormData(); body.append('file', file)
   return apiClient.post(`course-boards/${id}/evidence?signed=${signed}`, { body }).json<{ id: string }>()
 }
+
+export const saveMeeting = (id: string, meeting: MeetingDetails, revision: number) => apiPut(`course-boards/${id}/meeting`, { meeting, revision })
+export const meetingPdf = (id: string, kind: 'CALL' | 'ATTENDANCE' | 'MINUTES') => apiPost<{ id: string }>(`course-boards/${id}/documents/${kind}`, {})

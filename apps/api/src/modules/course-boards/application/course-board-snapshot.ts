@@ -46,7 +46,7 @@ export async function buildBoardSnapshot(db: Prisma.TransactionClient, instituti
   const rules = resolveAgreement(institution.settings, parallel.academicYearId)
   const name = (p: { firstName: string; lastName: string } | null) => p ? `${p.lastName} ${p.firstName}`.trim() : 'Sin nombre'
   return {
-    institutionName: institution.name, parallelName: `${parallel.level.name} ${parallel.name}`,
+    institutionName: institution.name, logoUrl: (institution.settings as { branding?: { logoUrl?: string } })?.branding?.logoUrl ?? null, parallelName: `${parallel.level.name} ${parallel.name}`,
     yearName: parallel.academicYear.name, periodName: period.name, tutorName: parallel.tutor ? name(parallel.tutor.profile) : 'Sin tutor asignado',
     generatedAt: new Date().toISOString(), config: cfg,
     subjects: assignments.map((a) => ({ id: a.id, name: a.subject.name, teacherId: a.teacherId, teacherName: name(a.teacher.profile), isQualitative: a.subject.isQualitative })),

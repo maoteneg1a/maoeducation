@@ -59,6 +59,8 @@ suite('course boards with PostgreSQL', () => {
     const qualitativeInsumo = await db.insumo.create({ data: { institutionId: school, courseAssignmentId: otherAssignmentId, academicPeriodId: periodId, name: 'Valoración', createdBy: t.id } })
     await db.manualInsumoAverage.create({ data: { institutionId: school, studentId, insumoId: qualitativeInsumo.id, score: 8, recordedBy: t.id } })
     boardId = (await boards.createBoard(school, tutor, parallelId, periodId)).id
+    const created = await db.courseBoard.findUniqueOrThrow({ where: { id: boardId } })
+    await db.courseBoard.update({ where: { id: boardId }, data: { meeting: { ...(created.meeting as Record<string, unknown>), shift: 'Matutina', invitationDate: '2026-11-01', meetingDate: '2026-11-12', startTime: '09:00', scheduledEndTime: '10:30', actualEndTime: '10:35', location: 'Auditorio' } } })
   }, 30000)
   afterAll(async () => { await db.$disconnect() })
 
@@ -167,6 +169,42 @@ suite('course boards with PostgreSQL', () => {
     expect(stored.size).toBe(count)
     expect((await db.courseBoard.findUniqueOrThrow({ where: { id: boardId } })).revision).toBe(0)
     expect(await db.courseBoardEvidence.count({ where: { boardId } })).toBe(0)
+  })
+
+  it('uses one saved form for the call, attendance sheet and closing act', async () => {
+    const before = await boards.boardDetail(school, tutor, boardId)
+    expect(before.meeting.participants).toHaveLength(2)
+    expect(before.meeting.participants.every((p) => p.attendance === 'pending')).toBe(true)
+    const meeting = { ...before.meeting, number: '07', development: '1. Saludo e instalación.\n2. Se constató la asistencia registrada.', participants: before.meeting.participants.map((p, index) => ({ ...p, attendance: index === 0 ? 'present' as const : 'absent' as const })) }
+    await expect(boards.updateMeeting(school, teacher, boardId, { revision: before.revision, meeting })).rejects.toMatchObject({ statusCode: 403 })
+    await boards.updateMeeting(school, tutor, boardId, { revision: before.revision, meeting })
+    await expect(boards.updateMeeting(school, tutor, boardId, { revision: before.revision, meeting })).rejects.toMatchObject({ statusCode: 409 })
+    const call = await boards.emitMeetingDocument(school, teacher, boardId, 'CALL')
+    const attendance = await boards.emitMeetingDocument(school, teacher, boardId, 'ATTENDANCE')
+    const reviewed = await boards.boardDetail(school, tutor, boardId)
+    const minutes = await boards.closeBoard(school, tutor, boardId, 'Seguimiento acordado por el curso.', reviewed.revision, reviewed.matrixHash)
+    for (const [id, filename] of [[call.id, 'convocatoria'], [attendance.id, 'asistencia'], [minutes.id, 'acta']]) {
+      const file = await boards.boardFile(school, tutor, id)
+      expect(file.snapshot).toMatchObject(id === minutes.id ? { matrix: { meeting: { number: '07', shift: 'Matutina', actualEndTime: '10:35' } } } : { meeting: { number: '07', shift: 'Matutina' } })
+      writeFileSync(`/private/tmp/mao-juntas-${filename}-word.pdf`, stored.get(file.storedName)!)
+    }
+    expect(await boards.emitMeetingDocument(school, tutor, boardId, 'CALL')).toEqual(call)
+    await expect(boards.updateMeeting(school, tutor, boardId, { revision: reviewed.revision, meeting })).rejects.toMatchObject({ statusCode: 409 })
+    await boards.reopenBoard(school, tutor, boardId)
+    const reopened = await boards.boardDetail(school, tutor, boardId)
+    await boards.updateMeeting(school, tutor, boardId, { revision: reopened.revision, meeting: { ...meeting, shift: 'Vespertina' } })
+    expect((await db.courseBoardEvidence.findUniqueOrThrow({ where: { id: call.id } })).snapshot).toMatchObject({ meeting: { shift: 'Matutina' } })
+  })
+
+  it('requires actual meeting data rather than inventing dates, shifts or the ending time', async () => {
+    const before = await boards.boardDetail(school, tutor, boardId)
+    await boards.updateMeeting(school, tutor, boardId, { revision: before.revision, meeting: { ...before.meeting, shift: '', actualEndTime: '' } })
+    await expect(boards.emitMeetingDocument(school, tutor, boardId, 'CALL')).rejects.toMatchObject({ statusCode: 400 })
+    const current = await boards.boardDetail(school, tutor, boardId)
+    await boards.updateMeeting(school, tutor, boardId, { revision: current.revision, meeting: { ...current.meeting, shift: 'Matutina' } })
+    const reviewed = await boards.boardDetail(school, tutor, boardId)
+    await expect(boards.closeBoard(school, tutor, boardId, 'Acuerdos del curso', reviewed.revision, reviewed.matrixHash)).rejects.toMatchObject({ statusCode: 400 })
+    expect((await db.courseBoard.findUniqueOrThrow({ where: { id: boardId } })).status).toBe('OPEN')
   })
 
   it('saves configurable report labels without overwriting other institutional settings', async () => {

@@ -1,3 +1,4 @@
+import { BoardMeetingForm } from '../components/BoardMeetingForm'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -54,6 +55,7 @@ export function CourseBoardDetailPage() {
   const [search, setSearch] = useState('')
   const [conclusions, setConclusions] = useState('')
   const [signed, setSigned] = useState(false)
+  const [meetingDirty, setMeetingDirty] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => { if (board) setConclusions(board.conclusions) }, [board?.id, board?.conclusions])
   const refresh = () => qc.invalidateQueries({ queryKey: ['course-boards'] })
@@ -82,11 +84,12 @@ export function CourseBoardDetailPage() {
         <p className="text-xs text-muted-foreground">— Sin calificación registrada. * Faltan componentes de la nota del período. Datos {closed ? 'conservados al cierre' : 'actualizados al abrir o recargar la pantalla'}: {date(m.generatedAt)}.</p>
       </TabsContent>
       <TabsContent value="meeting" className="space-y-4">
+        <BoardMeetingForm board={board} disabled={busy} onDirtyChange={setMeetingDirty} />
         <div className="overflow-auto rounded-md border"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="p-3 text-left">Estudiante</th>{cfg.showAttendance && <><th className="p-3">Faltas</th><th className="p-3">Atrasos</th></>}{cfg.showIncidents && <th className="p-3">Incidencias</th>}{cfg.showReinforcement && <th className="p-3">Casos de refuerzo</th>}<th className="p-3 text-left">Comportamiento / observación</th></tr></thead><tbody>{m.rows.map((r) => <tr key={r.id} className="border-t"><td className="p-3">{r.name}</td>{cfg.showAttendance && <><td className="p-3 text-center">{r.absences}</td><td className="p-3 text-center">{r.late}</td></>}{cfg.showIncidents && <td className="p-3 text-center">{r.incidents}</td>}{cfg.showReinforcement && <td className="p-3 text-center">{r.reinforcement}</td>}<td className="max-w-md whitespace-pre-wrap p-3">{[r.behavior, r.observation].filter(Boolean).join(' · ') || '—'}</td></tr>)}</tbody></table></div>
         <p className="text-xs text-muted-foreground">La asistencia cuenta registros por materia o jornada, según el curso; no equivale necesariamente a días distintos. Las incidencias se muestran como cantidades, sin exponer expedientes confidenciales.</p>
         {board.canAssignChair && !closed && options && <div className="max-w-md space-y-1"><Label htmlFor="board-chair">Persona que dirige la junta</Label><select id="board-chair" className="w-full rounded-md border bg-background p-2" value={board.chairId ?? ''} disabled={busy} onChange={(e) => chair.mutate(e.target.value)}><option value="" disabled>Seleccionar responsable</option>{options.chairs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>}
         <div className="space-y-2"><Label htmlFor="board-conclusions">Acuerdos y conclusiones</Label><Textarea id="board-conclusions" rows={5} maxLength={12000} value={conclusions} disabled={closed || !board.canDirect || busy} onChange={(e) => setConclusions(e.target.value)} placeholder="Registra lo acordado e indica responsables y fechas de seguimiento cuando corresponda." /></div>
-        {board.canDirect && (closed ? <Button variant="outline" disabled={busy} onClick={() => reopen.mutate()}>{reopen.isPending ? 'Reabriendo...' : 'Reabrir junta'}</Button> : <div className="space-y-2"><p className="text-sm text-muted-foreground">Al cerrar se guardarán el consolidado y el acta de esta junta. Las calificaciones seguirán su proceso académico habitual.</p><Button disabled={busy || conclusions.trim().length < 5} onClick={() => close.mutate()}>{close.isPending ? 'Cerrando...' : 'Cerrar junta y generar acta'}</Button></div>)}
+        {board.canDirect && (closed ? <Button variant="outline" disabled={busy} onClick={() => reopen.mutate()}>{reopen.isPending ? 'Reabriendo...' : 'Reabrir junta'}</Button> : <div className="space-y-2"><p className="text-sm text-muted-foreground">Al cerrar se guardarán el consolidado y el acta de esta junta. Las calificaciones seguirán su proceso académico habitual.</p><Button disabled={busy || meetingDirty || conclusions.trim().length < 5} onClick={() => close.mutate()}>{close.isPending ? 'Cerrando...' : 'Cerrar junta y generar acta'}</Button></div>)}
         {!board.canDirect && <p className="text-sm text-muted-foreground">El cierre lo realiza la persona designada para dirigir la junta o la autoridad.</p>}
       </TabsContent>
       <TabsContent value="evidence" className="space-y-4">

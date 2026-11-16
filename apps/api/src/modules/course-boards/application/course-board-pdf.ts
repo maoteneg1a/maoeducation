@@ -1,3 +1,4 @@
+import { drawMeetingContent } from './meeting-pdf'
 import PDFDocument from 'pdfkit'
 import type { BoardSnapshot, BoardReportDocument } from '../domain/course-board.types'
 
@@ -11,7 +12,7 @@ export function buildBoardPdf(snapshot: BoardSnapshot, options: { report?: Board
     function header(title: string) {
       doc.font('Helvetica-Bold').fontSize(13).text(snapshot.institutionName, { align: 'center' })
       doc.fontSize(11).text(title, { align: 'center' })
-      doc.font('Helvetica').fontSize(9).text(`${snapshot.parallelName} · ${snapshot.yearName} · ${snapshot.periodName}`, { align: 'center' })
+      doc.font('Helvetica').fontSize(9).text(`${snapshot.parallelName}${snapshot.meeting?.shift ? ` ${snapshot.meeting.shift}` : ''} · ${snapshot.yearName} · ${snapshot.periodName}`, { align: 'center' })
       doc.moveDown(0.6)
     }
     function paragraph(label: string, text: string) {
@@ -63,6 +64,10 @@ export function buildBoardPdf(snapshot: BoardSnapshot, options: { report?: Board
         doc.fontSize(8).text('— Sin calificación registrada. * Faltan componentes de la nota del período.', 34, doc.y + 4, { width: doc.page.width - 68 })
       }
       if (options.conclusions !== undefined) {
+        if (snapshot.meeting) {
+          doc.addPage({ size: 'A4', layout: 'portrait', margin: 34 })
+          drawMeetingContent(doc, snapshot, 'MINUTES', options)
+        } else {
         doc.addPage(); header(`${snapshot.config.title} · Acta de cierre`)
         paragraph('Tutor/a', snapshot.tutorName)
         paragraph('Dirige la reunión', options.chairName || snapshot.tutorName)
@@ -71,6 +76,7 @@ export function buildBoardPdf(snapshot: BoardSnapshot, options: { report?: Board
         }
         paragraph('Acuerdos y conclusiones', options.conclusions)
         doc.moveDown(2).text('Firma de quien dirige: _________________________     Firma del tutor: _________________________')
+        }
       }
     }
     const range = doc.bufferedPageRange()

@@ -21,6 +21,10 @@ export default async function courseBoardRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string }; Body: { conclusions: string; revision: number; matrixHash: string } }>('/course-boards/:id/close', {
     schema: { params, body: { type: 'object', additionalProperties: false, required: ['conclusions', 'revision', 'matrixHash'], properties: { conclusions: { type: 'string', minLength: 5, maxLength: 12000 }, revision: { type: 'integer', minimum: 0 }, matrixHash: { type: 'string', pattern: '^[a-f0-9]{64}$' } } } },
   }, async (req) => boards.closeBoard(req.user.institutionId, actorOf(req.user), req.params.id, req.body.conclusions, req.body.revision, req.body.matrixHash))
+  app.put<{ Params: { id: string }; Body: unknown }>('/course-boards/:id/meeting', { schema: { params } }, async (req) => boards.updateMeeting(req.user.institutionId, actorOf(req.user), req.params.id, req.body))
+  app.post<{ Params: { id: string; kind: 'CALL' | 'ATTENDANCE' | 'MINUTES' } }>('/course-boards/:id/documents/:kind', {
+    schema: { params: { type: 'object', required: ['id', 'kind'], properties: { id: { type: 'string', minLength: 1 }, kind: { type: 'string', enum: ['CALL', 'ATTENDANCE', 'MINUTES'] } } } },
+  }, async (req) => boards.emitMeetingDocument(req.user.institutionId, actorOf(req.user), req.params.id, req.params.kind))
   app.post<{ Params: { id: string } }>('/course-boards/:id/reopen', { schema: { params } }, async (req) => { await boards.reopenBoard(req.user.institutionId, actorOf(req.user), req.params.id); return { ok: true } })
   app.put<{ Params: { id: string }; Body: { chairId: string } }>('/course-boards/:id/chair', {
     schema: { params, body: { type: 'object', additionalProperties: false, required: ['chairId'], properties: { chairId: { type: 'string', minLength: 1 } } } },
