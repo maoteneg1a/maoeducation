@@ -17,6 +17,16 @@ describe('Word-inspired meeting printouts', () => {
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-')
     expect(pdf.toString('latin1').match(/\/Type \/Page\b/g)).toHaveLength(1)
   })
+  it('prints a faint logo watermark and respects disabling it across meeting and closing PDFs', async () => {
+    const sharp = (await import('sharp')).default
+    const logo = await sharp({ create: { width: 80, height: 100, channels: 4, background: '#2459a3' } }).png().toBuffer()
+    const withLogo = { ...snapshot, logoUrl: `data:image/png;base64,${logo.toString('base64')}` }
+    for (const pdf of [await buildMeetingPdf(withLogo, 'CALL'), await buildBoardPdf(withLogo, { conclusions: 'Acuerdos del curso.' })]) {
+      expect(pdf.toString('latin1')).toContain('/ca 0.05')
+    }
+    const disabled = await buildMeetingPdf({ ...withLogo, config: { ...snapshot.config, watermarkEnabled: false } }, 'CALL')
+    expect(disabled.toString('latin1')).not.toContain('/ca 0.05')
+  })
   it('repeats the course header and table headings when the participant list spans pages', async () => {
     const meeting = { ...snapshot.meeting!, participants: Array.from({ length: 65 }, (_, i) => ({ name: `Apellidos y nombres del docente invitado ${i + 1}`, role: 'Docente de asignatura; integrante de la junta', attendance: 'pending' as const })) }
     const pdf = await buildMeetingPdf({ ...snapshot, meeting }, 'ATTENDANCE')

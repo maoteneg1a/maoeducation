@@ -44,10 +44,12 @@ async function context(institutionId: string, actor: Actor, parallelId: string, 
   return { parallel, period }
 }
 async function accessibleBoard(institutionId: string, actor: Actor, id: string) {
-  const board = await prisma.courseBoard.findFirst({ where: { id, institutionId }, include: { chair: { select: person }, invitation: { select: { id: true, publishedAt: true } } } })
+  const board = await prisma.courseBoard.findFirst({ where: { id, institutionId }, include: { institution: { select: { settings: true } }, chair: { select: person }, invitation: { select: { id: true, publishedAt: true } } } })
   if (!board) throw new NotFoundError('Junta no encontrada')
   const ctx = await context(institutionId, actor, board.parallelId, board.academicPeriodId)
-  return { board, ...ctx }
+  const meeting = readMeeting(board.meeting)
+  if (board.status === 'OPEN' && !meeting.background) meeting.background = boardConfig(board.institution.settings).convocationBackground
+  return { board: { ...board, meeting }, ...ctx }
 }
 function requireDirector(actor: Actor, board: { chairId: string | null }) {
   if (!isAuthority(actor) && board.chairId !== actor.userId) throw new ForbiddenError('Solo quien dirige la junta o la autoridad puede realizar esta acción')
@@ -94,7 +96,8 @@ export async function createBoard(institutionId: string, actor: Actor, parallelI
     const previous = people.get(a.teacherId)
     people.set(a.teacherId, { userId: a.teacherId, name: name(a.teacher.profile), role: `${previous ? `${previous.role}; ` : ''}Docente de ${a.subject.name}`.slice(0, 200), attendance: 'pending' })
   }
-  const meeting = readMeeting({ number: String(period.periodNumber).padStart(2, '0'), responsible: parallel.tutor ? name(parallel.tutor.profile) : '', agenda: '1. Saludo e instalación de la sesión.\n2. Constatación del quórum.\n3. Lectura y aprobación del acta anterior.', participants: [...people.values()] })
+  const institution = await prisma.institution.findUniqueOrThrow({ where: { id: institutionId }, select: { settings: true } })
+  const meeting = readMeeting({ background: boardConfig(institution.settings).convocationBackground, number: String(period.periodNumber).padStart(2, '0'), responsible: parallel.tutor ? name(parallel.tutor.profile) : '', agenda: '1. Saludo e instalación de la sesión.\n2. Constatación del quórum.\n3. Lectura y aprobación del acta anterior.', participants: [...people.values()] })
   const board = await prisma.courseBoard.upsert({
     where: { parallelId_academicPeriodId: { parallelId, academicPeriodId: periodId } },
     create: { institutionId, parallelId, academicPeriodId: periodId, createdBy: actor.userId, chairId: parallel.tutorId, meeting: json(meeting) }, update: {},

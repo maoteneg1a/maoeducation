@@ -5,6 +5,8 @@ export interface MeetingDetails {
 }
 import { apiClient, apiGet, apiPost, apiPut } from '@/shared/lib/api-client'
 export interface BoardConfig {
+  convocationBackground: string; headerBackground: string; tableHeaderBackground: string; textColor: string; borderColor: string
+  watermarkEnabled: boolean; watermarkOpacity: number
   title: string; situationLabel: string; actionsLabel: string; recommendationsLabel: string
   showAttendance: boolean; showIncidents: boolean; showReinforcement: boolean
   reportTypes: Array<{ key: string; label: string; enabled: boolean; authors: 'tutor' | 'teacher' | 'both' }>

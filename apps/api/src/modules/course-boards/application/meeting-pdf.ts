@@ -1,3 +1,4 @@
+import { documentStyle, installBoardWatermark } from './board-pdf-style'
 import PDFDocument from 'pdfkit'
 import type PDFKit from 'pdfkit'
 import { resolveLogo } from '../../../shared/infrastructure/services/pdf-helpers'
@@ -11,6 +12,7 @@ const formatDate = (value: string) => value ? new Intl.DateTimeFormat('es-EC', {
 /** Los tres formatos comparten institución, grado/paralelo, jornada, número y año. */
 export function drawMeetingContent(doc: Doc, snapshot: BoardSnapshot, kind: MeetingDocumentKind, options: { conclusions?: string; reports?: BoardReportDocument[] } = {}) {
   const m = snapshot.meeting!
+  const style = documentStyle(snapshot)
   const left = doc.page.margins.left
   const width = doc.page.width - left - doc.page.margins.right
   const course = `${snapshot.parallelName} ${m.shift}`.trim()
@@ -19,20 +21,24 @@ export function drawMeetingContent(doc: Doc, snapshot: BoardSnapshot, kind: Meet
     doc.font('Helvetica-Bold').fontSize(10)
     const lines = `${snapshot.institutionName.toUpperCase()}\n${snapshot.config.title.toUpperCase()} — ${course.toUpperCase()}\n${MEETING_TITLES[kind].toUpperCase()} N.º ${m.number}`
     const height = Math.max(76, doc.heightOfString(lines, { width: centerWidth - 16 }) + 20)
-    doc.strokeColor('#333333').lineWidth(0.6).rect(left, y, width, height).stroke()
+    doc.save().fillColor(style.headerBackground).rect(left, y, width, height).fill().restore()
+    doc.fillColor(style.textColor).strokeColor(style.borderColor).lineWidth(0.6).rect(left, y, width, height).stroke()
     doc.moveTo(left + logoWidth, y).lineTo(left + logoWidth, y + height).stroke()
     doc.moveTo(left + width - yearWidth, y).lineTo(left + width - yearWidth, y + height).stroke()
     const logo = resolveLogo(snapshot.logoUrl)
     if (logo) { try { doc.image(logo, left + 8, y + 8, { fit: [logoWidth - 16, height - 16], align: 'center', valign: 'center' }) } catch { /* conserva el encabezado si el logo no es compatible */ } }
     doc.text(lines, left + logoWidth + 8, y + 10, { width: centerWidth - 16, align: 'center' })
     doc.fontSize(9).text(`AÑO LECTIVO\n${snapshot.yearName}`, left + width - yearWidth + 6, y + 22, { width: yearWidth - 12, align: 'center' })
-    doc.font('Helvetica').fontSize(10).fillColor('#000000')
+    doc.font('Helvetica').fontSize(10).fillColor(style.textColor)
     doc.x = left; doc.y = y + height + 16
   }
   function room(height: number) { if (doc.y + height > doc.page.height - doc.page.margins.bottom - 15) doc.addPage({ size: 'A4', layout: 'portrait', margin: 34 }) }
   function paragraph(label: string, text: string) {
     room(42)
-    doc.font('Helvetica-Bold').fontSize(10).text(label, left, doc.y, { width })
+    const y = doc.y
+    doc.save().fillColor(style.headerBackground).rect(left, y, width, 18).fill().restore()
+    doc.font('Helvetica-Bold').fontSize(10).fillColor(style.textColor).text(label, left + 5, y + 3, { width: width - 10 })
+    doc.x = left; doc.y = y + 21
     doc.font('Helvetica').text(text || '________________________________________________________________', left, doc.y + 3, { width, paragraphGap: 5 })
     doc.moveDown(0.7)
   }
@@ -42,7 +48,8 @@ export function drawMeetingContent(doc: Doc, snapshot: BoardSnapshot, kind: Meet
     const height = Math.max(26, doc.heightOfString(text || '—', { width: width - labelWidth - 14 }) + 12)
     room(height)
     const y = doc.y
-    doc.strokeColor('#777777').rect(left, y, width, height).stroke()
+    doc.save().fillColor(style.headerBackground).rect(left, y, labelWidth, height).fill().restore()
+    doc.strokeColor(style.borderColor).rect(left, y, width, height).stroke()
     doc.moveTo(left + labelWidth, y).lineTo(left + labelWidth, y + height).stroke()
     doc.font('Helvetica-Bold').text(label, left + 6, y + 6, { width: labelWidth - 12 })
     doc.font('Helvetica').text(text || '—', left + labelWidth + 6, y + 6, { width: width - labelWidth - 12 })
@@ -53,7 +60,7 @@ export function drawMeetingContent(doc: Doc, snapshot: BoardSnapshot, kind: Meet
     function cells(values: string[], height: number, bold = false) {
       const y = doc.y; let x = left
       doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9)
-      values.forEach((value, i) => { doc.strokeColor('#777777').rect(x, y, columns[i], height).stroke(); doc.text(value, x + 6, y + 7, { width: columns[i] - 12 }); x += columns[i] })
+      values.forEach((value, i) => { if (bold) doc.save().fillColor(style.tableHeaderBackground).rect(x, y, columns[i], height).fill().restore(); doc.fillColor(style.textColor).strokeColor(style.borderColor).rect(x, y, columns[i], height).stroke(); doc.text(value, x + 6, y + 7, { width: columns[i] - 12 }); x += columns[i] })
       doc.x = left; doc.y = y + height
     }
     room(65); cells(['Nombres', 'Cargo / función', 'Firma'], 28, true)
@@ -102,6 +109,7 @@ export function buildMeetingPdf(snapshot: BoardSnapshot, kind: 'CALL' | 'ATTENDA
     const doc = new PDFDocument({ size: 'A4', margin: 34, bufferPages: true })
     const chunks: Buffer[] = []
     doc.on('data', (chunk) => chunks.push(chunk)); doc.on('error', reject); doc.on('end', () => resolve(Buffer.concat(chunks)))
+    installBoardWatermark(doc, snapshot)
     drawMeetingContent(doc, snapshot, kind)
     const range = doc.bufferedPageRange()
     for (let i = 0; i < range.count; i++) {

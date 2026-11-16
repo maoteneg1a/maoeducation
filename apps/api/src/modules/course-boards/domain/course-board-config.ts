@@ -1,6 +1,13 @@
 import { z } from 'zod'
 
+export const DEFAULT_CONVOCATION_BACKGROUND = 'LOEI. Art. 18 Obligaciones de los docentes. d. Elaborar su planificación académica anual y presentarla oportunamente a las autoridades de la institución educativa y a sus estudiantes.'
+const color = z.string().regex(/^#[0-9a-fA-F]{6}$/)
+
 export const boardConfigSchema = z.object({
+  convocationBackground: z.string().trim().max(4000).default(DEFAULT_CONVOCATION_BACKGROUND),
+  headerBackground: color.default('#D9E2F3'), tableHeaderBackground: color.default('#B4C6E7'),
+  textColor: color.default('#000000'), borderColor: color.default('#333333'),
+  watermarkEnabled: z.boolean().default(true), watermarkOpacity: z.number().min(0).max(0.15).default(0.05),
   title: z.string().trim().min(1).max(120),
   situationLabel: z.string().trim().min(1).max(100),
   actionsLabel: z.string().trim().min(1).max(100),
@@ -15,6 +22,9 @@ export const boardConfigSchema = z.object({
 })
 export type BoardConfig = z.infer<typeof boardConfigSchema>
 export const DEFAULT_BOARD_CONFIG: BoardConfig = {
+  convocationBackground: DEFAULT_CONVOCATION_BACKGROUND,
+  headerBackground: '#D9E2F3', tableHeaderBackground: '#B4C6E7', textColor: '#000000', borderColor: '#333333',
+  watermarkEnabled: true, watermarkOpacity: 0.05,
   title: 'Junta de curso', situationLabel: 'Situación observada', actionsLabel: 'Acciones realizadas', recommendationsLabel: 'Recomendaciones',
   showAttendance: true, showIncidents: true, showReinforcement: true,
   reportTypes: [

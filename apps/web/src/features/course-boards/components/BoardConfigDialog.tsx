@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
+import { Textarea } from '@/shared/components/ui/textarea'
 import { Label } from '@/shared/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog'
 import { getErrorMessage } from '@/shared/lib/utils'
@@ -15,10 +16,14 @@ export function BoardConfigDialog({ config }: { config: BoardConfig }) {
   const mutation = useMutation({ mutationFn: saveBoardConfig, onSuccess: () => { qc.invalidateQueries({ queryKey: ['course-boards'] }); setOpen(false); toast.success('Configuración guardada') }, onError: (e) => toast.error(getErrorMessage(e)) })
   return <Dialog open={open} onOpenChange={(value) => { if (mutation.isPending) return; if (value) setDraft(structuredClone(config)); setOpen(value) }}>
     <DialogTrigger asChild><Button variant="outline">Configurar juntas</Button></DialogTrigger>
-    <DialogContent className="sm:max-w-2xl">
+    <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
       <DialogHeader><DialogTitle>Configuración de juntas</DialogTitle><DialogDescription>Los períodos, materias y reglas de notas se toman de la configuración académica. Los documentos ya emitidos conservan su formato.</DialogDescription></DialogHeader>
       <fieldset disabled={mutation.isPending} className="space-y-4">
         {(['title', 'situationLabel', 'actionsLabel', 'recommendationsLabel'] as const).map((key, i) => <div key={key} className="space-y-1"><Label htmlFor={`board-config-${key}`}>{['Nombre del módulo/documento', 'Primer campo del informe', 'Segundo campo del informe', 'Tercer campo del informe'][i]}</Label><Input id={`board-config-${key}`} value={draft[key]} maxLength={key === 'title' ? 120 : 100} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} /></div>)}
+        <div className="space-y-1"><Label htmlFor="board-config-background">Antecedentes predeterminados de la convocatoria</Label><Textarea id="board-config-background" rows={4} maxLength={4000} value={draft.convocationBackground} onChange={(e) => setDraft({ ...draft, convocationBackground: e.target.value })} /><p className="text-xs text-muted-foreground">Se precargan en las convocatorias nuevas y en las abiertas sin antecedentes. Puedes editarlos en cada convocatoria.</p></div>
+        <div className="grid grid-cols-2 gap-3">{(['headerBackground', 'tableHeaderBackground', 'textColor', 'borderColor'] as const).map((key, i) => <div key={key} className="space-y-1"><Label htmlFor={`board-config-${key}`}>{['Encabezados y secciones', 'Cabecera de tablas', 'Texto', 'Bordes'][i]}</Label><Input id={`board-config-${key}`} type="color" value={draft[key]} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} /></div>)}</div>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.watermarkEnabled} onChange={(e) => setDraft({ ...draft, watermarkEnabled: e.target.checked })} />Usar el logo institucional como marca de agua</label>
+        {draft.watermarkEnabled && <div className="space-y-1"><Label htmlFor="board-config-watermark">Opacidad de la marca de agua: {Math.round(draft.watermarkOpacity * 100)} %</Label><input id="board-config-watermark" className="w-full" type="range" min={0} max={15} step={1} value={Math.round(draft.watermarkOpacity * 100)} onChange={(e) => setDraft({ ...draft, watermarkOpacity: Number(e.target.value) / 100 })} /><p className="text-xs text-muted-foreground">Por defecto 5 %, para mantenerla tenue al imprimir.</p></div>}
         <div className="flex flex-wrap gap-4">{(['showAttendance', 'showIncidents', 'showReinforcement'] as const).map((key, i) => <label className="flex items-center gap-2 text-sm" key={key}><input type="checkbox" checked={draft[key]} onChange={(e) => setDraft({ ...draft, [key]: e.target.checked })} />{['Asistencia', 'Incidencias (cantidad)', 'Casos de refuerzo'][i]}</label>)}</div>
         <div className="space-y-2"><Label>Tipos de informe (siempre opcionales)</Label>
           {draft.reportTypes.map((t, index) => <div className="flex flex-wrap items-center gap-2 rounded-md border p-2" key={t.key}>

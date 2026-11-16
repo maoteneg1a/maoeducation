@@ -61,7 +61,7 @@ export const BoardMeetingForm = forwardRef<BoardMeetingHandle, { board: BoardDat
           {field('location', 'Lugar')}{field('invitationDate', 'Fecha de convocatoria', 'date')}{field('meetingDate', 'Fecha de reunión', 'date')}
           {field('responsible', 'Responsable de la convocatoria')}{field('startTime', 'Hora de inicio', 'time')}{field('scheduledEndTime', 'Finalización prevista', 'time')}
         </div>
-        <details><summary className="cursor-pointer text-sm">Contacto y antecedentes (opcional)</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{field('phone', 'Teléfono / extensión', 'text', 100)}{field('email', 'Correo electrónico', 'email')}</div><div className="mt-3 space-y-1"><Label htmlFor="meeting-background">Antecedentes de la convocatoria</Label><Textarea id="meeting-background" value={draft.background} maxLength={4000} onChange={(e) => set('background', e.target.value)} /></div></details>
+        <details><summary className="cursor-pointer text-sm">Contacto (opcional)</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{field('phone', 'Teléfono / extensión', 'text', 100)}{field('email', 'Correo electrónico', 'email')}</div></details><div className="space-y-1"><Label htmlFor="meeting-background">Antecedentes de la convocatoria</Label><Textarea id="meeting-background" value={draft.background} maxLength={4000} onChange={(e) => set('background', e.target.value)} /></div>
         <div className="space-y-1"><Label htmlFor="meeting-agenda">Orden del día</Label><Textarea id="meeting-agenda" rows={4} value={draft.agenda} maxLength={6000} onChange={(e) => set('agenda', e.target.value)} /></div>
 
       </fieldset>
