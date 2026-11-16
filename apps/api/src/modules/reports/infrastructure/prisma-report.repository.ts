@@ -24,7 +24,7 @@ import type {
 } from '../application/dtos/report.dto'
 
 // Fallback si la institución no tiene configurada la escala de valor cualitativo.
-const DEFAULT_QUALITATIVE_VALUE_SCALE: QualitativeBand[] = [
+export const DEFAULT_QUALITATIVE_VALUE_SCALE: QualitativeBand[] = [
   { min: 9.5, max: 10.0, code: 'A+' },
   { min: 9.0, max: 9.49, code: 'A-' },
   { min: 8.0, max: 8.99, code: 'B+' },

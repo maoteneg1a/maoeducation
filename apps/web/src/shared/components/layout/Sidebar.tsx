@@ -127,6 +127,13 @@ export const NAV_SECTIONS: NavSection[] = [
         module: 'reports',
       },
       {
+        label: 'Juntas de curso',
+        icon: FileText,
+        path: '/course-boards',
+        permission: 'reports:read',
+        module: 'reports',
+      },
+      {
         label: 'Recuperación',
         icon: BookOpen,
         path: '/pedagogic-recovery',

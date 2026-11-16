@@ -441,6 +441,14 @@ export const router = createBrowserRouter([
           })),
         }],
       },
+      {
+        path: 'course-boards',
+        element: <PermissionGuard permission="reports:read" />,
+        children: [
+          { index: true, lazy: () => import('@/features/course-boards/pages/CourseBoardsPage').then((m) => ({ Component: m.CourseBoardsPage })) },
+          { path: ':id', lazy: () => import('@/features/course-boards/pages/CourseBoardsPage').then((m) => ({ Component: m.CourseBoardDetailPage })) },
+        ],
+      },
       // ---- Incidents ----
       {
         path: 'incidents',

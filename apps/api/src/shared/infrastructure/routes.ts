@@ -17,6 +17,7 @@ export async function registerRoutes(app: FastifyInstance) {
 
   app.register(import('../../modules/tasks/presentation/task.routes'), { prefix: '/api/v1' })
   app.register(import('../../modules/reports/presentation/report.routes'), { prefix: '/api/v1' })
+  app.register(import('../../modules/course-boards/presentation/course-board.routes'), { prefix: '/api/v1' })
   app.register(import('../../modules/dashboard/dashboard.routes'), { prefix: '/api/v1' })
   app.register(import('../../modules/platform/presentation/platform.routes'), { prefix: '/api/v1' })
   app.register(import('../../modules/subscription/presentation/subscription.routes'), { prefix: '/api/v1' })
