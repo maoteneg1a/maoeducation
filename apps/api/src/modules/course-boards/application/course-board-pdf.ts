@@ -1,3 +1,4 @@
+import { documentStyle, installBoardWatermark } from './board-pdf-style'
 import { drawMeetingContent } from './meeting-pdf'
 import PDFDocument from 'pdfkit'
 import type { BoardSnapshot, BoardReportDocument } from '../domain/course-board.types'
@@ -9,8 +10,15 @@ export function buildBoardPdf(snapshot: BoardSnapshot, options: { report?: Board
     doc.on('data', (chunk) => chunks.push(chunk))
     doc.on('error', reject)
     doc.on('end', () => resolve(Buffer.concat(chunks)))
+    const style = documentStyle(snapshot)
+    installBoardWatermark(doc, snapshot)
+    doc.fillColor(style.textColor)
     function header(title: string) {
-      doc.font('Helvetica-Bold').fontSize(13).text(snapshot.institutionName, { align: 'center' })
+      const y = doc.y, width = doc.page.width - 68
+      doc.font('Helvetica-Bold').fontSize(13)
+      const height = doc.heightOfString(snapshot.institutionName, { width }) + doc.fontSize(11).heightOfString(title, { width }) + 26
+      doc.save().fillColor(style.headerBackground).rect(34, y - 4, width, height).fill().restore()
+      doc.fillColor(style.textColor).font('Helvetica-Bold').fontSize(13).text(snapshot.institutionName, { align: 'center' })
       doc.fontSize(11).text(title, { align: 'center' })
       doc.font('Helvetica').fontSize(9).text(`${snapshot.parallelName}${snapshot.meeting?.shift ? ` ${snapshot.meeting.shift}` : ''} · ${snapshot.yearName} · ${snapshot.periodName}`, { align: 'center' })
       doc.moveDown(0.6)
@@ -42,6 +50,7 @@ export function buildBoardPdf(snapshot: BoardSnapshot, options: { report?: Board
           const y = doc.y
           doc.font('Helvetica-Bold').fontSize(8)
           const headingHeight = Math.max(34, ...subjects.map((s) => doc.heightOfString(s.name, { width: colWidth - 4 }))) + 8
+          doc.save().fillColor(style.tableHeaderBackground).rect(34, y - 3, doc.page.width - 68, headingHeight).fill().restore()
           doc.text('N.º', 34, y, { width: 27, height: headingHeight - 4 })
           doc.text('Apellidos y nombres', 64, y, { width: nameWidth - 4, height: headingHeight - 4 })
           subjects.forEach((s, i) => doc.text(s.name, 64 + nameWidth + i * colWidth, y, { width: colWidth - 4, height: headingHeight - 4 }))
@@ -58,7 +67,7 @@ export function buildBoardPdf(snapshot: BoardSnapshot, options: { report?: Board
             const g = row.grades.find((item) => item.assignmentId === s.id)
             doc.text(`${g?.display ?? '—'}${g?.partial ? ' *' : ''}`, 64 + nameWidth + i * colWidth, y, { width: colWidth - 4 })
           })
-          doc.moveTo(34, y + height - 4).lineTo(doc.page.width - 34, y + height - 4).strokeColor('#dddddd').stroke()
+          doc.moveTo(34, y + height - 4).lineTo(doc.page.width - 34, y + height - 4).strokeColor(style.borderColor).stroke()
           doc.y = y + height
         })
         doc.fontSize(8).text('— Sin calificación registrada. * Faltan componentes de la nota del período.', 34, doc.y + 4, { width: doc.page.width - 68 })

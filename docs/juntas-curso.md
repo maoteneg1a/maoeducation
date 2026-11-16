@@ -16,7 +16,7 @@ Cada junta mantiene un solo aviso vinculado. Volver a publicar sin cambios no du
 
 ## Convocatoria, asistencia y acta
 
-En **Convocatoria** se completa una sola ficha: número, jornada, fechas, lugar, horario, responsable, orden del día y convocados. Teléfono, correo y antecedentes son opcionales. El número es editable y se comparte entre los tres documentos; su valor inicial corresponde al número del período.
+En **Convocatoria** se completa una sola ficha: número, jornada, fechas, lugar, horario, responsable, orden del día y convocados. Teléfono y correo son opcionales. Los antecedentes precargan el texto del formato Word aportado (LOEI, art. 18, literal d); la institución puede cambiar ese texto y editarlo en cada convocatoria. El número es editable y se comparte entre los tres documentos; su valor inicial corresponde al número del período.
 
 Los datos se guardan automáticamente al revisar la publicación en Avisos, descargar una convocatoria/asistencia o al cerrar la junta. **Guardar borrador** es opcional para continuar luego. Cambiar de pestaña conserva lo escrito. La asistencia, el desarrollo y la hora real de finalización están visibles en la sección de reunión.
 
@@ -54,7 +54,9 @@ Cerrar la junta no modifica notas ni cierra el período académico. Se guarda un
 
 ## Configuración
 
-La autoridad dispone de **Configurar juntas**: nombre del documento, etiquetas de los tres campos, secciones del resumen y catálogo de informes (nombre, activo y autor: tutor/docente/ambos). Puede agregar tipos o desactivarlos; todos son opcionales. Los campos y tipos se guardan en `Institution.settings.courseBoards`. Los límites y tipos de archivo se toman de la configuración de anexos existente, con un máximo de 10 MB por archivo.
+Los PDF nuevos usan los azules del Word por defecto (`#D9E2F3` en encabezados/secciones y `#B4C6E7` en cabeceras de tablas), texto negro y el logo institucional como marca de agua al 5 % en todas las páginas. Se pueden cambiar los cuatro colores (encabezados, tablas, texto y bordes), desactivar la marca o ajustar su opacidad de 0 a 15 %. Sin logo se omite la marca de agua. Los PDF ya emitidos no se modifican.
+
+La autoridad dispone de **Configurar juntas**: antecedentes predeterminados de la convocatoria, colores y marca de agua, además de nombre del documento, etiquetas de los tres campos, secciones del resumen y catálogo de informes (nombre, activo y autor: tutor/docente/ambos). Puede agregar tipos o desactivarlos; todos son opcionales. Los campos y tipos se guardan en `Institution.settings.courseBoards`. Los límites y tipos de archivo se toman de la configuración de anexos existente, con un máximo de 10 MB por archivo.
 
 ## Instalación y validación
 
