@@ -1,7 +1,9 @@
 import { z } from 'zod'
 import { assertMeetingReady, readMeeting, meetingDetailsSchema } from '../domain/meeting-details'
+import { convocationHash, resolveConvocationRecipients } from '../domain/convocation-recipients'
 import { buildMeetingPdf, MEETING_TITLES } from './meeting-pdf'
 import crypto from 'node:crypto'
+import { sendPushToUser } from '../../../shared/infrastructure/services/push.service'
 import path from 'node:path'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../../shared/infrastructure/database/prisma'
@@ -42,7 +44,7 @@ async function context(institutionId: string, actor: Actor, parallelId: string, 
   return { parallel, period }
 }
 async function accessibleBoard(institutionId: string, actor: Actor, id: string) {
-  const board = await prisma.courseBoard.findFirst({ where: { id, institutionId }, include: { chair: { select: person } } })
+  const board = await prisma.courseBoard.findFirst({ where: { id, institutionId }, include: { chair: { select: person }, invitation: { select: { id: true, publishedAt: true } } } })
   if (!board) throw new NotFoundError('Junta no encontrada')
   const ctx = await context(institutionId, actor, board.parallelId, board.academicPeriodId)
   return { board, ...ctx }
@@ -86,11 +88,11 @@ export async function boardOptions(institutionId: string, actor: Actor, yearId?:
 
 export async function createBoard(institutionId: string, actor: Actor, parallelId: string, periodId: string) {
   const { parallel, period } = await context(institutionId, actor, parallelId, periodId)
-  const people = new Map<string, { name: string; role: string; attendance: 'pending' }>()
-  if (parallel.tutor) people.set(parallel.tutor.id, { name: name(parallel.tutor.profile), role: 'Tutor/a', attendance: 'pending' })
+  const people = new Map<string, { userId: string; name: string; role: string; attendance: 'pending' }>()
+  if (parallel.tutor) people.set(parallel.tutor.id, { userId: parallel.tutor.id, name: name(parallel.tutor.profile), role: 'Tutor/a', attendance: 'pending' })
   for (const a of parallel.courseAssignments) {
     const previous = people.get(a.teacherId)
-    people.set(a.teacherId, { name: name(a.teacher.profile), role: `${previous ? `${previous.role}; ` : ''}Docente de ${a.subject.name}`.slice(0, 200), attendance: 'pending' })
+    people.set(a.teacherId, { userId: a.teacherId, name: name(a.teacher.profile), role: `${previous ? `${previous.role}; ` : ''}Docente de ${a.subject.name}`.slice(0, 200), attendance: 'pending' })
   }
   const meeting = readMeeting({ number: String(period.periodNumber).padStart(2, '0'), responsible: parallel.tutor ? name(parallel.tutor.profile) : '', agenda: '1. Saludo e instalación de la sesión.\n2. Constatación del quórum.\n3. Lectura y aprobación del acta anterior.', participants: [...people.values()] })
   const board = await prisma.courseBoard.upsert({
@@ -113,7 +115,7 @@ export async function boardDetail(institutionId: string, actor: Actor, id: strin
   return {
     id: board.id, yearId: parallel.academicYearId, status: board.status, revision: board.revision, closedAt: board.closedAt, conclusions: board.conclusions,
     chairId: board.chairId, chairName: board.status === 'CLOSED' && matrix.chairName ? matrix.chairName : board.chair ? name(board.chair.profile) : 'Sin responsable asignado',
-    meeting: readMeeting(board.meeting), canEditMeeting: board.status === 'OPEN' && (canDirect || parallel.tutorId === actor.userId),
+    invitation: board.invitation ? { ...board.invitation, needsUpdate: publishedInvitationHash(evidence, board.invitation.id) !== convocationHash(readMeeting(board.meeting)) } : null, meeting: readMeeting(board.meeting), canEditMeeting: board.status === 'OPEN' && (canDirect || parallel.tutorId === actor.userId),
     canDirect, canUpload: canDirect || parallel.tutorId === actor.userId || (hasPermission(actor, 'formal_reports', 'write', 'own') && parallel.courseAssignments.some((a) => a.teacherId === actor.userId)), canAssignChair: isAuthority(actor), canReport: board.status === 'OPEN' && hasPermission(actor, 'formal_reports', 'write', 'own'),
     isTutor: parallel.tutorId === actor.userId, isAuthority: isAuthority(actor),
     ownAssignmentIds: parallel.courseAssignments.filter((a) => a.teacherId === actor.userId).map((a) => a.id),
@@ -123,12 +125,19 @@ export async function boardDetail(institutionId: string, actor: Actor, id: strin
   }
 }
 
+function publishedInvitationHash(evidence: Array<{ kind: string; snapshot: unknown }>, noticeId: string) {
+  const file = evidence.find((f) => f.kind === 'CALL' && (f.snapshot as { announcementId?: string } | null)?.announcementId === noticeId)
+  return (file?.snapshot as { invitationHash?: string } | undefined)?.invitationHash
+}
+type InvitationPublication = { id: string; title: string; body: string; eventAt: Date; location: string; recipientIds: string[]; storedName: string }
+
 // Toda escritura toca la revisión de la carpeta: el cierre detecta informes o adjuntos concurrentes.
-async function saveEvidence(institutionId: string, actor: Actor, board: { id: string; revision: number }, file: { label: string; kind: string; buffer: Buffer; mimeType: string; fileName: string; snapshot?: unknown; isSigned?: boolean }, close?: { matrix: BoardSnapshot; conclusions: string }) {
+async function saveEvidence(institutionId: string, actor: Actor, board: { id: string; revision: number }, file: { label: string; kind: string; buffer: Buffer; mimeType: string; fileName: string; snapshot?: unknown; isSigned?: boolean }, close?: { matrix: BoardSnapshot; conclusions: string }, notice?: InvitationPublication) {
   const extension: Record<string, string> = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
   const storedName = `course-boards/${crypto.randomUUID()}.${extension[file.mimeType]}`
   await storage.save(storedName, file.buffer, file.mimeType)
   try {
+    if (notice) await storage.save(`announcements/${notice.storedName}`, file.buffer, file.mimeType)
     return await prisma.$transaction(async (tx) => {
       const changed = await tx.courseBoard.updateMany({
         where: { id: board.id, institutionId, revision: board.revision, ...(file.kind === 'UPLOAD' ? {} : { status: 'OPEN' }) },
@@ -141,13 +150,72 @@ async function saveEvidence(institutionId: string, actor: Actor, board: { id: st
         sha256: crypto.createHash('sha256').update(file.buffer).digest('hex'),
         snapshot: file.snapshot === undefined ? undefined : json(file.snapshot), isSigned: file.isSigned ?? false, uploadedBy: actor.userId,
       }, select: { id: true } })
-      await tx.auditLog.create({ data: { institutionId, userId: actor.userId, action: close ? 'course_board.close' : 'course_board.evidence', resourceType: 'course_board', resourceId: board.id, newValue: { evidenceId: evidence.id, kind: file.kind, label: file.label } } })
+      if (notice) {
+        const fields = { title: notice.title, body: notice.body, eventAt: notice.eventAt, location: notice.location,
+          audience: 'selected_users', recipientIds: notice.recipientIds, communicationType: 'convocation', priority: 'important',
+          publishedAt: new Date(), attachmentName: 'convocatoria.pdf', attachmentStoredName: notice.storedName,
+          attachmentMimeType: file.mimeType, attachmentSize: file.buffer.length }
+        await tx.announcement.upsert({ where: { courseBoardId: board.id },
+          create: { ...fields, id: notice.id, courseBoardId: board.id, institutionId, createdBy: actor.userId }, update: fields })
+        await tx.announcementRead.deleteMany({ where: { announcementId: notice.id } })
+        await tx.announcementRsvp.deleteMany({ where: { announcementId: notice.id } })
+      }
+      await tx.auditLog.create({ data: { institutionId, userId: actor.userId, action: notice ? 'course_board.publish_invitation' : close ? 'course_board.close' : 'course_board.evidence', resourceType: 'course_board', resourceId: board.id, newValue: { evidenceId: evidence.id, kind: file.kind, label: file.label } } })
       return evidence
     })
   } catch (err) {
-    await storage.remove(storedName)
+    await Promise.allSettled([storage.remove(storedName), ...(notice ? [storage.remove(`announcements/${notice.storedName}`)] : [])])
     throw err
   }
+}
+
+async function invitationContext(institutionId: string, actor: Actor, id: string) {
+  const ctx = await accessibleBoard(institutionId, actor, id)
+  const { board, parallel } = ctx
+  if (!isAuthority(actor) && board.chairId !== actor.userId && parallel.tutorId !== actor.userId) throw new ForbiddenError('Solo el tutor, quien dirige o la autoridad puede publicar la convocatoria')
+  const meeting = readMeeting(board.meeting)
+  assertMeetingReady(meeting, 'CALL')
+  const staff = await prisma.user.findMany({ where: { institutionId, isActive: true, userRoles: { some: { role: { name: { in: ['teacher', 'admin', 'rector', 'inspector', 'dece'] } } } } }, select: person })
+  const { recipients, unlinked } = resolveConvocationRecipients(meeting.participants, staff.map((u) => ({ id: u.id, name: name(u.profile) })))
+  const evidence = await prisma.courseBoardEvidence.findMany({ where: { boardId: id, kind: 'CALL' }, select: { kind: true, snapshot: true }, orderBy: { createdAt: 'desc' } })
+  const invitationHash = convocationHash(meeting)
+  const alreadyPublished = !!board.invitation && publishedInvitationHash(evidence, board.invitation.id) === invitationHash
+  const eventAt = new Date(`${meeting.meetingDate}T${meeting.startTime}:00-05:00`)
+  if (!alreadyPublished) {
+    if (board.status !== 'OPEN') throw new ConflictError('La junta está cerrada')
+    if (eventAt.getTime() <= Date.now()) throw new BadRequestError('Publica la convocatoria antes de la fecha y hora de la reunión')
+    if (!recipients.length) throw new BadRequestError('No hay cuentas del personal vinculadas a los convocados. Puedes descargar y entregar el PDF')
+  }
+  return { ...ctx, meeting, recipients, unlinked, eventAt, alreadyPublished, invitationHash }
+}
+export async function previewInvitation(institutionId: string, actor: Actor, id: string) {
+  const ctx = await invitationContext(institutionId, actor, id)
+  const matrix = await snapshot(institutionId, ctx.board.parallelId, ctx.board.academicPeriodId)
+  const title = `Convocatoria · ${matrix.parallelName} · ${matrix.periodName}`.slice(0, 200)
+  const body = `Se convoca a la junta de curso de ${matrix.parallelName}, jornada ${ctx.meeting.shift}.\nFecha: ${ctx.meeting.meetingDate} · ${ctx.meeting.startTime}\nLugar: ${ctx.meeting.location}\n\n${ctx.meeting.agenda}\n\nResponsable: ${ctx.meeting.responsible}\nConsulta la convocatoria adjunta y confirma tu asistencia.`
+  return { revision: ctx.board.revision, title, body, recipients: ctx.recipients, unlinked: ctx.unlinked,
+    alreadyPublished: ctx.alreadyPublished, updating: !!ctx.board.invitation, noticeId: ctx.board.invitation?.id ?? null }
+}
+export async function publishInvitation(institutionId: string, actor: Actor, id: string, revision: number) {
+  const ctx = await invitationContext(institutionId, actor, id)
+  if (ctx.board.revision !== revision) throw new ConflictError('La convocatoria cambió. Revisa la vista previa antes de publicar')
+  if (ctx.alreadyPublished) return { id: ctx.board.invitation!.id }
+  const preview = await previewInvitation(institutionId, actor, id)
+  if (preview.revision !== revision) throw new ConflictError('La convocatoria cambió. Revisa la vista previa antes de publicar')
+  const matrix = await snapshot(institutionId, ctx.board.parallelId, ctx.board.academicPeriodId)
+  matrix.meeting = ctx.meeting
+  const noticeId = ctx.board.invitation?.id ?? crypto.randomUUID()
+  const old = ctx.board.invitation ? await prisma.announcement.findUnique({ where: { id: noticeId }, select: { attachmentStoredName: true } }) : null
+  await saveEvidence(institutionId, actor, ctx.board, { kind: 'CALL', label: 'Convocatoria publicada en Avisos',
+    buffer: await buildMeetingPdf(matrix, 'CALL'), mimeType: 'application/pdf', fileName: 'convocatoria.pdf',
+    snapshot: { meeting: ctx.meeting, announcementId: noticeId, invitationHash: ctx.invitationHash, parallelName: matrix.parallelName } }, undefined,
+    { id: noticeId, title: preview.title, body: preview.body, eventAt: ctx.eventAt, location: ctx.meeting.location,
+      recipientIds: ctx.recipients.map((u) => u.id), storedName: `${crypto.randomUUID()}.pdf` })
+  await Promise.allSettled(ctx.recipients.filter((u) => u.id !== actor.userId).map((u) => sendPushToUser(u.id, {
+    title: ctx.board.invitation ? 'Convocatoria actualizada' : 'Convocatoria a junta de curso', body: preview.title, url: `/announcements?notice=${noticeId}`,
+  })))
+  if (old?.attachmentStoredName) await storage.remove(`announcements/${old.attachmentStoredName}`).catch(() => {})
+  return { id: noticeId }
 }
 
 export async function emitConsolidated(institutionId: string, actor: Actor, id: string) {
@@ -217,7 +285,7 @@ export async function updateMeeting(institutionId: string, actor: Actor, id: str
     if (!updated.count) throw new ConflictError('La junta cambió o está cerrada. Actualiza antes de guardar')
     await tx.auditLog.create({ data: { institutionId, userId: actor.userId, action: 'course_board.meeting_update', resourceType: 'course_board', resourceId: id } })
   })
-  return { ok: true }
+  return { revision: parsed.data.revision + 1, meeting: parsed.data.meeting }
 }
 
 export async function emitMeetingDocument(institutionId: string, actor: Actor, id: string, kind: 'CALL' | 'ATTENDANCE' | 'MINUTES') {

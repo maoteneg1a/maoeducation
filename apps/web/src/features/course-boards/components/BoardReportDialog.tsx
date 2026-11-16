@@ -23,6 +23,7 @@ export function BoardReportDialog({ board }: { board: BoardData }) {
   const subjects = board.matrix.subjects.filter((s) => board.isAuthority || board.ownAssignmentIds.includes(s.id))
   const generalAllowed = selectedType?.authors !== 'teacher' && (board.isTutor || board.isAuthority)
   const selectedAssignment = assignmentId === 'general' ? generalAllowed : selectedType?.authors !== 'tutor' && subjects.some((s) => s.id === assignmentId)
+  const scopes = [...(generalAllowed ? [{ id: 'general', name: 'General del curso' }] : []), ...(selectedType?.authors !== 'tutor' ? subjects : [])]
   const mutation = useMutation({
     mutationFn: () => generateBoardReport(board.id, { typeKey, courseAssignmentId: assignmentId === 'general' ? undefined : assignmentId, situation, actions, recommendations }),
     onSuccess: ({ id }) => {
@@ -40,7 +41,7 @@ export function BoardReportDialog({ board }: { board: BoardData }) {
       <DialogHeader><DialogTitle>Informe para imprimir</DialogTitle><DialogDescription>Se guardará una copia del PDF en esta junta. Solo completa el informe cuando sea necesario.</DialogDescription></DialogHeader>
       <fieldset disabled={mutation.isPending} className="space-y-3">
         <div className="space-y-1"><Label htmlFor="board-report-type">Tipo de informe</Label><select id="board-report-type" className="w-full rounded-md border bg-background p-2" value={typeKey} onChange={(e) => { setTypeKey(e.target.value); const type = types.find((t) => t.key === e.target.value); setAssignmentId(type?.authors === 'tutor' || (type?.authors === 'both' && (board.isTutor || board.isAuthority)) ? 'general' : subjects[0]?.id ?? '') }}>{types.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}</select></div>
-        <div className="space-y-1"><Label htmlFor="board-report-subject">Alcance</Label><select id="board-report-subject" className="w-full rounded-md border bg-background p-2" value={assignmentId} onChange={(e) => setAssignmentId(e.target.value)}>{generalAllowed && <option value="general">General del curso</option>}{selectedType?.authors !== 'tutor' && subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+        <div className="space-y-1"><Label htmlFor={scopes.length > 1 ? "board-report-subject" : undefined}>Alcance</Label>{scopes.length === 1 ? <p className="text-sm">{scopes[0].name}</p> : <select id="board-report-subject" className="w-full rounded-md border bg-background p-2" value={assignmentId} onChange={(e) => setAssignmentId(e.target.value)}>{scopes.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>}</div>
         <div className="space-y-1"><Label htmlFor="board-situation">{cfg.situationLabel} *</Label><Textarea id="board-situation" value={situation} maxLength={6000} onChange={(e) => setSituation(e.target.value)} /></div>
         <div className="space-y-1"><Label htmlFor="board-actions">{cfg.actionsLabel}</Label><Textarea id="board-actions" value={actions} maxLength={6000} onChange={(e) => setActions(e.target.value)} /></div>
         <div className="space-y-1"><Label htmlFor="board-recommendations">{cfg.recommendationsLabel}</Label><Textarea id="board-recommendations" value={recommendations} maxLength={6000} onChange={(e) => setRecommendations(e.target.value)} /></div>

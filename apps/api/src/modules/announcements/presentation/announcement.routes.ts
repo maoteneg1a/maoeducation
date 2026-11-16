@@ -8,7 +8,7 @@ import { isPrivilegedStaff } from '../../../shared/infrastructure/services/teach
 import { sendPushToUser } from '../../../shared/infrastructure/services/push.service'
 import { storage } from '../../../shared/infrastructure/services/storage.service'
 
-type Audience = 'all' | 'staff' | 'authorities' | 'teachers' | 'families' | 'parallels'
+type Audience = 'selected_users' | 'all' | 'staff' | 'authorities' | 'teachers' | 'families' | 'parallels'
 type CommunicationType = 'announcement' | 'meeting' | 'convocation' | 'socialization' | 'training' | 'circular'
 
 interface CreateAnnouncementBody {
@@ -44,10 +44,12 @@ function targetParallelIds(value: unknown): string[] {
 }
 
 function isVisibleToUser(
-  row: { audience: string; parallelIds: unknown },
+  row: { audience: string; parallelIds: unknown; recipientIds?: unknown; createdBy?: string },
   roles: string[],
   parallels: string[],
+  userId: string,
 ) {
+  if (row.audience === 'selected_users') return row.createdBy === userId || targetParallelIds(row.recipientIds).includes(userId)
   if (row.audience === 'all') return true
   if (row.audience === 'staff') return roles.some((role) => STAFF_ROLES.includes(role))
   if (row.audience === 'authorities') return roles.some((role) => AUTHORITY_ROLES.includes(role))
@@ -60,8 +62,8 @@ function canManageCommunications(roles: string[]) {
   return roles.some((role) => COMMUNICATION_MANAGER_ROLES.includes(role))
 }
 
-async function communicationTracking(row: { id: string; audience: string; parallelIds: unknown }, institutionId: string) {
-  const recipients = await recipientsFor(institutionId, row.audience as Audience, targetParallelIds(row.parallelIds))
+async function communicationTracking(row: { id: string; audience: string; parallelIds: unknown; recipientIds?: unknown }, institutionId: string) {
+  const recipients = await recipientsFor(institutionId, row.audience as Audience, targetParallelIds(row.parallelIds), targetParallelIds(row.recipientIds))
   const recipientIds = recipients.map((recipient) => recipient.id)
   if (recipientIds.length === 0) {
     return { recipientCount: 0, readCount: 0, readPercent: 0, confirmedCount: 0, declinedCount: 0, responsePercent: 0 }
@@ -113,7 +115,9 @@ async function recipientsFor(
   institutionId: string,
   audience: Audience,
   parallelIds: string[],
+  recipientIds: string[] = [],
 ) {
+  if (audience === 'selected_users') return prisma.user.findMany({ where: { institutionId, id: { in: recipientIds } }, select: { id: true } })
   if (audience === 'all') {
     return prisma.user.findMany({ where: { institutionId, isActive: true }, select: { id: true } })
   }
@@ -172,7 +176,7 @@ export default async function announcementRoutes(app: FastifyInstance) {
     })
     rows.sort((a, b) => Number(b.priority === 'important') - Number(a.priority === 'important'))
     const parallels = await userParallelIds(sub, institutionId, roles)
-    const visible = canManageCommunications(roles) ? rows : rows.filter((row) => isVisibleToUser(row, roles, parallels))
+    const visible = canManageCommunications(roles) ? rows : rows.filter((row) => isVisibleToUser(row, roles, parallels, sub))
     const items = await Promise.all(visible.map(async (row) => {
       const { reads, rsvps, flyerStoredName: _flyerStoredName, attachmentStoredName: _attachmentStoredName, ...announcement } = row
       void _flyerStoredName
@@ -183,7 +187,9 @@ export default async function announcementRoutes(app: FastifyInstance) {
         readAt: reads[0]?.readAt ?? null,
         myResponse: rsvps[0]?.response ?? null,
         myResponseAt: rsvps[0]?.respondedAt ?? null,
-        ...(canManageCommunications(roles) ? { tracking: await communicationTracking(row, institutionId) } : {}),
+        canTrack: canManageCommunications(roles) || row.createdBy === sub,
+        canRespond: row.audience !== 'selected_users' || targetParallelIds(row.recipientIds).includes(sub),
+        ...((canManageCommunications(roles) || row.createdBy === sub) ? { tracking: await communicationTracking(row, institutionId) } : {}),
         flyerUrl: row.flyerStoredName ? `/announcements/${row.id}/flyer` : null,
         attachmentUrl: row.attachmentStoredName ? `/announcements/${row.id}/attachment` : null,
       }
@@ -240,9 +246,10 @@ export default async function announcementRoutes(app: FastifyInstance) {
       throw new BadRequestError('Esta comunicación no requiere confirmación')
     }
     const parallels = await userParallelIds(req.user.sub, req.user.institutionId, req.user.roles)
-    if (!canManageCommunications(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels)) {
+    if (!canManageCommunications(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels, req.user.sub)) {
       throw new ForbiddenError('No tienes acceso a este aviso')
     }
+    if (row.audience === 'selected_users' && !targetParallelIds(row.recipientIds).includes(req.user.sub)) throw new ForbiddenError('No figuras entre los convocados de este aviso')
     const response = req.body?.response
     if (response !== 'confirmed' && response !== 'declined') throw new BadRequestError('Respuesta inválida')
     const rsvp = await prisma.announcementRsvp.upsert({
@@ -254,10 +261,10 @@ export default async function announcementRoutes(app: FastifyInstance) {
   })
 
   app.get<{ Params: { id: string } }>('/announcements/:id/tracking', async (req, reply) => {
-    if (!canManageCommunications(req.user.roles)) throw new ForbiddenError('Solo autoridades pueden consultar el seguimiento')
     const row = await prisma.announcement.findFirst({ where: { id: req.params.id, institutionId: req.user.institutionId } })
     if (!row) throw new NotFoundError('Aviso no encontrado')
-    const recipients = await recipientsFor(req.user.institutionId, row.audience as Audience, targetParallelIds(row.parallelIds))
+    if (!canManageCommunications(req.user.roles) && row.createdBy !== req.user.sub) throw new ForbiddenError('Solo el autor o la autoridad puede consultar el seguimiento')
+    const recipients = await recipientsFor(req.user.institutionId, row.audience as Audience, targetParallelIds(row.parallelIds), targetParallelIds(row.recipientIds))
     const recipientIds = recipients.map((recipient) => recipient.id)
     const users = recipientIds.length === 0 ? [] : await prisma.user.findMany({
       where: { id: { in: recipientIds } },
@@ -288,7 +295,7 @@ export default async function announcementRoutes(app: FastifyInstance) {
     })
     if (!row) throw new NotFoundError('Aviso no encontrado')
     const parallels = await userParallelIds(req.user.sub, req.user.institutionId, req.user.roles)
-    if (!canManageCommunications(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels)) {
+    if (!canManageCommunications(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels, req.user.sub)) {
       throw new ForbiddenError('No tienes acceso a este aviso')
     }
     const read = await prisma.announcementRead.upsert({
@@ -352,7 +359,7 @@ export default async function announcementRoutes(app: FastifyInstance) {
       if (!row) throw new NotFoundError('Aviso no encontrado')
       if (req.params.kind !== 'flyer' && req.params.kind !== 'attachment') throw new BadRequestError('Tipo de archivo inválido')
       const parallels = await userParallelIds(req.user.sub, req.user.institutionId, req.user.roles)
-      if (!canManageCommunications(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels)) {
+      if (!canManageCommunications(req.user.roles) && !isVisibleToUser(row, req.user.roles, parallels, req.user.sub)) {
         throw new ForbiddenError('No tienes acceso a este aviso')
       }
       const isFlyer = req.params.kind === 'flyer'

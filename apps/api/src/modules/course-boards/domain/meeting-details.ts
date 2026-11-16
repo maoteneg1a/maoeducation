@@ -9,7 +9,7 @@ export const meetingDetailsSchema = z.object({
   location: z.string().trim().max(200).default(''), responsible: z.string().trim().max(200).default(''),
   phone: z.string().trim().max(100).default(''), email: z.union([z.literal(''), z.string().email().max(200)]).default(''),
   background: z.string().trim().max(4000).default(''), agenda: z.string().trim().max(6000).default(''), development: z.string().trim().max(12000).default(''),
-  participants: z.array(z.object({ name: z.string().trim().min(1).max(200), role: z.string().trim().min(1).max(200), attendance: z.enum(['pending', 'present', 'absent']).default('pending') })).max(100).default([]),
+  participants: z.array(z.object({ userId: z.string().min(1).optional(), name: z.string().trim().min(1).max(200), role: z.string().trim().min(1).max(200), attendance: z.enum(['pending', 'present', 'absent']).default('pending') })).max(100).default([]),
 })
 export type MeetingDetails = z.infer<typeof meetingDetailsSchema>
 export type MeetingDocumentKind = 'CALL' | 'ATTENDANCE' | 'MINUTES'

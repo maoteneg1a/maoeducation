@@ -1,10 +1,12 @@
 import { apiClient, apiDelete, apiGet, apiPost } from '@/shared/lib/api-client'
 
-export type AnnouncementAudience = 'all' | 'staff' | 'authorities' | 'teachers' | 'families' | 'parallels'
+export type AnnouncementAudience = 'selected_users' | 'all' | 'staff' | 'authorities' | 'teachers' | 'families' | 'parallels'
 export type CommunicationType = 'announcement' | 'meeting' | 'convocation' | 'socialization' | 'training' | 'circular'
 
 export interface Announcement {
   id: string
+  canTrack?: boolean
+  canRespond?: boolean
   title: string
   body: string
   communicationType: CommunicationType

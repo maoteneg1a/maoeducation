@@ -16,6 +16,10 @@ export default async function courseBoardRoutes(app: FastifyInstance) {
     schema: { body: { type: 'object', additionalProperties: false, required: ['parallelId', 'periodId'], properties: { parallelId: { type: 'string', minLength: 1 }, periodId: { type: 'string', minLength: 1 } } } },
   }, async (req, reply) => reply.code(201).send(await boards.createBoard(req.user.institutionId, actorOf(req.user), req.body.parallelId, req.body.periodId)))
   app.get<{ Params: { id: string } }>('/course-boards/:id', { schema: { params } }, async (req) => boards.boardDetail(req.user.institutionId, actorOf(req.user), req.params.id))
+  app.get<{ Params: { id: string } }>('/course-boards/:id/invitation', { schema: { params } }, async (req) => boards.previewInvitation(req.user.institutionId, actorOf(req.user), req.params.id))
+  app.post<{ Params: { id: string }; Body: { revision: number } }>('/course-boards/:id/invitation', {
+    schema: { params, body: { type: 'object', additionalProperties: false, required: ['revision'], properties: { revision: { type: 'integer', minimum: 0 } } } },
+  }, async (req) => boards.publishInvitation(req.user.institutionId, actorOf(req.user), req.params.id, req.body.revision))
   app.post<{ Params: { id: string } }>('/course-boards/:id/consolidated', { schema: { params } }, async (req) => boards.emitConsolidated(req.user.institutionId, actorOf(req.user), req.params.id))
   app.post<{ Params: { id: string }; Body: unknown }>('/course-boards/:id/reports', { schema: { params } }, async (req) => boards.emitBoardReport(req.user.institutionId, actorOf(req.user), req.params.id, req.body))
   app.post<{ Params: { id: string }; Body: { conclusions: string; revision: number; matrixHash: string } }>('/course-boards/:id/close', {
