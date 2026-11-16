@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   actor: { sub: 'teacher', institutionId: 'school', roles: ['teacher'], permissions: ['reports:read:own'] },
-  updateMeeting: vi.fn(), emitMeetingDocument: vi.fn(), boardOptions: vi.fn(), updateBoardConfig: vi.fn(), createBoard: vi.fn(), boardDetail: vi.fn(), emitConsolidated: vi.fn(),
+  previewInvitation: vi.fn(), publishInvitation: vi.fn(), updateMeeting: vi.fn(), emitMeetingDocument: vi.fn(), boardOptions: vi.fn(), updateBoardConfig: vi.fn(), createBoard: vi.fn(), boardDetail: vi.fn(), emitConsolidated: vi.fn(),
   emitBoardReport: vi.fn(), closeBoard: vi.fn(), reopenBoard: vi.fn(), assignBoardChair: vi.fn(), uploadBoardEvidence: vi.fn(), boardFile: vi.fn(),
 }))
 vi.mock('../application/course-board.service', () => mocks)
@@ -60,6 +60,14 @@ describe('authenticated course board endpoints', () => {
     const response = await app.inject({ method: 'POST', url: '/course-boards/board/close', payload: { conclusions: 'Acuerdos de la junta', revision: 4, matrixHash: 'a'.repeat(64) } })
     expect(response.statusCode).toBe(200)
     expect(mocks.closeBoard).toHaveBeenCalledWith('school', expect.objectContaining({ userId: 'teacher' }), 'board', 'Acuerdos de la junta', 4, 'a'.repeat(64))
+  })
+  it('publishes only the previewed revision using authenticated scope', async () => {
+    mocks.publishInvitation.mockResolvedValue({ id: 'notice' })
+    const invalid = await app.inject({ method: 'POST', url: '/course-boards/board/invitation', payload: {} })
+    expect(invalid.statusCode).toBe(400)
+    const response = await app.inject({ method: 'POST', url: '/course-boards/board/invitation', payload: { revision: 3 } })
+    expect(response.statusCode).toBe(200)
+    expect(mocks.publishInvitation).toHaveBeenCalledWith('school', expect.objectContaining({ userId: 'teacher' }), 'board', 3)
   })
   it('serves private files with safe headers and no cache', async () => {
     mocks.boardFile.mockResolvedValue({ storedName: 'course-boards/private.pdf', mimeType: 'application/pdf', fileName: 'Acta de junta.pdf' })

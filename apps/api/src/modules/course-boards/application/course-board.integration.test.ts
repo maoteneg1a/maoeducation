@@ -6,6 +6,9 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Actor } from '../../../shared/infrastructure/services/actor'
 import { DEFAULT_BOARD_CONFIG } from '../domain/course-board-config'
 
+vi.mock('../../../shared/infrastructure/services/push.service', () => ({ sendPushToUser: vi.fn(async () => {}) }))
+import { sendPushToUser } from '../../../shared/infrastructure/services/push.service'
+
 const stored = vi.hoisted(() => new Map<string, Buffer>())
 vi.mock('../../../shared/infrastructure/database/prisma', async () => {
   const { PrismaClient } = await import('@prisma/client')
@@ -62,6 +65,47 @@ suite('course boards with PostgreSQL', () => {
     const created = await db.courseBoard.findUniqueOrThrow({ where: { id: boardId } })
     await db.courseBoard.update({ where: { id: boardId }, data: { meeting: { ...(created.meeting as Record<string, unknown>), shift: 'Matutina', invitationDate: '2026-11-01', meetingDate: '2026-11-12', startTime: '09:00', scheduledEndTime: '10:30', actualEndTime: '10:35', location: 'Auditorio' } } })
   }, 30000)
+  it('publishes a single invitation with an independent archived PDF and requires a new response after edits', async () => {
+    const detail = await boards.boardDetail(school, tutor, boardId)
+    const futureDate = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
+    await boards.updateMeeting(school, tutor, boardId, { revision: detail.revision, meeting: { ...detail.meeting, meetingDate: futureDate } })
+    const preview = await boards.previewInvitation(school, tutor, boardId)
+    expect(preview.recipients.map((u) => u.id).sort()).toEqual([tutor.userId, teacher.userId].sort())
+    expect(preview.alreadyPublished).toBe(false)
+    await expect(boards.publishInvitation(school, tutor, boardId, preview.revision - 1)).rejects.toThrow(/cambió/)
+    const published = await boards.publishInvitation(school, tutor, boardId, preview.revision)
+    const notice = await db.announcement.findUniqueOrThrow({ where: { id: published.id } })
+    expect(notice.audience).toBe('selected_users')
+    expect(notice.communicationType).toBe('convocation')
+    expect(notice.recipientIds).toEqual(expect.arrayContaining([tutor.userId, teacher.userId]))
+    expect(stored.has(`announcements/${notice.attachmentStoredName}`)).toBe(true)
+    const evidence = await db.courseBoardEvidence.findFirstOrThrow({ where: { boardId, kind: 'CALL' } })
+    expect(stored.get(evidence.storedName)).toEqual(stored.get(`announcements/${notice.attachmentStoredName}`))
+    expect(evidence.storedName).not.toBe(`announcements/${notice.attachmentStoredName}`)
+    const after = await boards.boardDetail(school, tutor, boardId)
+    expect(after.invitation?.needsUpdate).toBe(false)
+    const repeated = await boards.publishInvitation(school, tutor, boardId, after.revision)
+    expect(repeated.id).toBe(published.id)
+    expect(await db.courseBoardEvidence.count({ where: { boardId, kind: 'CALL' } })).toBe(1)
+    await db.announcementRsvp.create({ data: { announcementId: published.id, userId: teacher.userId, response: 'confirmed' } })
+    const updated = await boards.updateMeeting(school, tutor, boardId, { revision: after.revision, meeting: { ...after.meeting, location: 'Sala nueva', participants: after.meeting.participants.map((p) => ({ ...p, attendance: 'present' })) } })
+    expect((await boards.boardDetail(school, tutor, boardId)).invitation?.needsUpdate).toBe(true)
+    const republished = await boards.publishInvitation(school, tutor, boardId, updated.revision)
+    expect(republished.id).toBe(published.id)
+    expect(await db.announcement.count({ where: { courseBoardId: boardId } })).toBe(1)
+    expect(await db.announcementRsvp.count({ where: { announcementId: published.id } })).toBe(0)
+    expect(await db.courseBoardEvidence.count({ where: { boardId, kind: 'CALL' } })).toBe(2)
+    expect((await boards.boardDetail(school, tutor, boardId)).meeting.participants.every((p) => p.attendance === 'present')).toBe(true)
+    expect(stored.has(evidence.storedName)).toBe(true)
+    expect(sendPushToUser).toHaveBeenCalledWith(teacher.userId, expect.objectContaining({ url: `/announcements?notice=${published.id}` }))
+  })
+  it('restricts invitation publishing to the tutor/director and requires a future meeting', async () => {
+    await expect(boards.previewInvitation(school, teacher, boardId)).rejects.toThrow(/Solo el tutor/)
+    const detail = await boards.boardDetail(school, tutor, boardId)
+    await boards.updateMeeting(school, tutor, boardId, { revision: detail.revision, meeting: { ...detail.meeting, meetingDate: '2020-01-01' } })
+    await expect(boards.previewInvitation(school, tutor, boardId)).rejects.toThrow(/antes de la fecha/)
+    expect(await db.announcement.count({ where: { courseBoardId: boardId } })).toBe(0)
+  })
   afterAll(async () => { await db.$disconnect() })
 
   it('reuses the canonical grades, honors zeroes, sorts surnames and allows a tutor to see all subjects', async () => {
@@ -177,7 +221,8 @@ suite('course boards with PostgreSQL', () => {
     expect(before.meeting.participants.every((p) => p.attendance === 'pending')).toBe(true)
     const meeting = { ...before.meeting, number: '07', development: '1. Saludo e instalación.\n2. Se constató la asistencia registrada.', participants: before.meeting.participants.map((p, index) => ({ ...p, attendance: index === 0 ? 'present' as const : 'absent' as const })) }
     await expect(boards.updateMeeting(school, teacher, boardId, { revision: before.revision, meeting })).rejects.toMatchObject({ statusCode: 403 })
-    await boards.updateMeeting(school, tutor, boardId, { revision: before.revision, meeting })
+    const savedMeeting = await boards.updateMeeting(school, tutor, boardId, { revision: before.revision, meeting })
+    expect(savedMeeting).toMatchObject({ revision: before.revision + 1, meeting: { number: '07', shift: 'Matutina' } })
     await expect(boards.updateMeeting(school, tutor, boardId, { revision: before.revision, meeting })).rejects.toMatchObject({ statusCode: 409 })
     const call = await boards.emitMeetingDocument(school, teacher, boardId, 'CALL')
     const attendance = await boards.emitMeetingDocument(school, teacher, boardId, 'ATTENDANCE')

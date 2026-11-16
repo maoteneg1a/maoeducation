@@ -18,6 +18,7 @@ import { announcementsApi, type Announcement, type AnnouncementAudience, type Co
 import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
 
 const audienceLabels: Record<AnnouncementAudience, string> = {
+  selected_users: 'Personas convocadas',
   all: 'Toda la institución',
   staff: 'Personal',
   authorities: 'Autoridades',
@@ -87,7 +88,7 @@ export function AnnouncementsPage() {
   const { data: selectedTracking } = useQuery({
     queryKey: ['announcement-tracking', selected?.id],
     queryFn: () => announcementsApi.tracking(selected!.id),
-    enabled: canManage && !!selected,
+    enabled: !!selected && (canManage || selected.canTrack === true),
   })
   const orderedAnnouncements = React.useMemo(
     () => [...announcements].sort((a, b) => Number(a.isRead) - Number(b.isRead)),
@@ -276,7 +277,7 @@ export function AnnouncementsPage() {
 
               <div className="whitespace-pre-wrap break-words text-sm leading-6">{selected.body}</div>
 
-              {canManage && (selectedTracking ?? selected.tracking) && (() => {
+              {(canManage || selected.canTrack) && (selectedTracking ?? selected.tracking) && (() => {
                 const tracking = (selectedTracking ?? selected.tracking) as AnnouncementTracking & { recipients?: Array<{ id: string; name: string; readAt: string | null; response: string | null }> }
                 return (
                   <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
@@ -310,7 +311,7 @@ export function AnnouncementsPage() {
                 </div>
               )}
 
-              {['meeting', 'convocation', 'socialization', 'training'].includes(selected.communicationType) && (
+              {selected.canRespond !== false && ['meeting', 'convocation', 'socialization', 'training'].includes(selected.communicationType) && (
                 <div className="rounded-lg border bg-muted/30 p-4">
                   <div className="mb-2 text-sm font-medium">¿Participarás en esta actividad?</div>
                   <div className="flex flex-wrap gap-2">
@@ -343,7 +344,7 @@ export function AnnouncementsPage() {
               <div className="space-y-1.5"><Label>Fecha y hora del evento</Label><Input type="datetime-local" value={form.eventAt ?? ''} onChange={(event) => setForm({ ...form, eventAt: event.target.value || null })} /></div>
               <div className="space-y-1.5"><Label>Lugar</Label><Input value={form.location ?? ''} onChange={(event) => setForm({ ...form, location: event.target.value })} /></div>
               <div className="space-y-1.5"><Label>Prioridad</Label><Select value={form.priority} onValueChange={(priority: 'normal' | 'important') => setForm({ ...form, priority })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="normal">Normal</SelectItem><SelectItem value="important">Importante</SelectItem></SelectContent></Select></div>
-              <div className="space-y-1.5"><Label>Destinatarios</Label><Select value={form.audience} onValueChange={(audience: AnnouncementAudience) => setForm({ ...form, audience, parallelIds: [] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(audienceLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Destinatarios</Label><Select value={form.audience} onValueChange={(audience: AnnouncementAudience) => setForm({ ...form, audience, parallelIds: [] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(audienceLabels).filter(([value]) => value !== 'selected_users').map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
             </div>
             {form.audience === 'parallels' && (
               <div className="space-y-2 rounded-md border p-3">

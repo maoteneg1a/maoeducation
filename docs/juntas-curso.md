@@ -2,16 +2,23 @@
 
 ## Uso
 
-1. En **Juntas de curso**, selecciona año lectivo y período. Abre el grado/paralelo o pulsa **Preparar junta**.
-2. **Consolidado PDF** genera el listado de alumnos por apellidos y las notas del período de todas las materias. El PDF queda guardado en la junta y se descarga para imprimir.
-3. **Generar informe** permite elegir un tipo y completar situación, acciones y recomendaciones. Es opcional. El tutor prepara informes generales; cada docente prepara los de sus materias. La autoridad puede emitirlos para el curso.
-4. En **Reunión y cierre**, la persona que dirige revisa el resumen y registra acuerdos, responsables y fechas de seguimiento en el campo de conclusiones. **Cerrar junta y generar acta** archiva el consolidado, los resúmenes de los informes y las conclusiones.
+1. En **Juntas de curso**, selecciona año lectivo y período y pulsa **Crear convocatoria** en el grado/paralelo.
+2. Completa fecha, hora, lugar, jornada, orden del día y convocados. **Publicar en Avisos** muestra una vista previa con destinatarios; **Publicar convocatoria** adjunta el PDF al aviso y guarda una copia en las evidencias. También puedes descargarla para entregar en físico.
+3. Antes de la reunión, consulta el **Consolidado** y genera los informes opcionales para imprimir. El tutor prepara informes generales; cada docente, los de sus materias.
+4. Durante la junta, en **Reunión y cierre**, registra asistencia real, desarrollo y acuerdos. **Cerrar junta y generar acta** guarda el acta y el consolidado revisado.
+5. En **Informes y evidencias**, consulta los PDF o adjunta las copias firmadas.
 
-La pantalla tiene tres pestañas: consolidado, reunión/cierre e informes/evidencias. **Actualizar** recarga las notas y los documentos de una junta abierta. El tutor es el responsable inicial; la autoridad puede designar a otro usuario activo que tenga acceso a reportes. Solo la autoridad o la persona designada puede cerrar o reabrir la junta.
+Las pestañas siguen ese orden: convocatoria, consolidado, reunión/cierre e informes/evidencias. **Actualizar** recarga notas y documentos. El tutor es el responsable inicial; la autoridad puede designar a otra persona con acceso a reportes. Solo la autoridad o la persona designada puede cerrar o reabrir la junta.
+
+La publicación se realiza antes de la fecha y hora de reunión. El aviso llega únicamente a las cuentas activas del personal que figuran entre los convocados, nunca a familias/alumnos por pertenecer al curso. Los nombres sin cuenta única vinculada se muestran antes de publicar para entregarles el PDF. El tutor puede publicar y consultar el seguimiento de su convocatoria sin obtener permisos generales de publicación en Avisos.
+
+Cada junta mantiene un solo aviso vinculado. Volver a publicar sin cambios no duplica el aviso ni reenvía notificaciones. Si se modifica la convocatoria, se revisa y actualiza explícitamente el mismo aviso, se conserva otra versión del PDF y se solicitan nuevas confirmaciones. Confirmar previamente en Avisos no registra asistencia real. El desarrollo, asistencia real y hora de cierre no alteran la convocatoria enviada.
 
 ## Convocatoria, asistencia y acta
 
-En **Reunión y cierre → Datos de la reunión** se completa una sola ficha: número, jornada, fechas, lugar, horario, responsable, orden del día y convocados. Teléfono, correo y antecedentes son opcionales. El número es editable y se comparte entre los tres documentos; su valor inicial corresponde al número del período.
+En **Convocatoria** se completa una sola ficha: número, jornada, fechas, lugar, horario, responsable, orden del día y convocados. Teléfono, correo y antecedentes son opcionales. El número es editable y se comparte entre los tres documentos; su valor inicial corresponde al número del período.
+
+Los datos se guardan automáticamente al revisar la publicación en Avisos, descargar una convocatoria/asistencia o al cerrar la junta. **Guardar borrador** es opcional para continuar luego. Cambiar de pestaña conserva lo escrito. La asistencia, el desarrollo y la hora real de finalización están visibles en la sección de reunión.
 
 Los docentes del paralelo se precargan sin marcar asistencia. Se pueden agregar invitados, editar funciones (incluida Secretaría) y registrar quién asistió. Solo tutor, autoridad o responsable designado pueden modificar esta ficha mientras la junta esté abierta.
 
@@ -51,8 +58,8 @@ La autoridad dispone de **Configurar juntas**: nombre del documento, etiquetas d
 
 ## Instalación y validación
 
-Aplicar `20261112180000_course_boards` y `20261116160000_course_board_meeting` mediante el procedimiento habitual de migraciones antes de habilitar el frontend. No requiere nuevas variables de producción: reutiliza el almacenamiento existente.
+Aplicar `20261112180000_course_boards` , `20261116160000_course_board_meeting` y `20261116190000_course_board_invitation` mediante el procedimiento habitual de migraciones antes de habilitar el frontend. No requiere nuevas variables de producción: reutiliza el almacenamiento existente.
 
-Las pruebas de integración solo admiten `COURSE_BOARDS_TEST_DATABASE_URL` apuntando a `127.0.0.1:55439/juntas_test`. Nunca usan `DATABASE_URL` como alternativa. Validan cálculo, permisos, archivos privados, cierre, reapertura, concurrencia y recuperación ante errores al guardar.
+Las pruebas de integración solo admiten `COURSE_BOARDS_TEST_DATABASE_URL` apuntando a `127.0.0.1:55439/juntas_test`. Nunca usan `DATABASE_URL` como alternativa. Validan cálculo, permisos, archivos privados, publicación dirigida en Avisos, actualización sin duplicados, cierre, reapertura, concurrencia y recuperación ante errores al guardar.
 
 Durante la validación desde una base vacía se detectó un fallo preexistente en `20260916120000_reinforcement_case_flow`: intenta modificar `learning_situations.interdisciplinary_subject_ids`, columna aún inexistente en ese punto de la cadena. No se modifica esa migración en este cambio. Para validar las tablas nuevas se preparó un esquema aislado a partir del modelo anterior al módulo y se aplicó allí únicamente la migración de juntas.
