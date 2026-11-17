@@ -250,6 +250,15 @@ export default async function activityRoutes(app: FastifyInstance) {
     },
   )
 
+  app.post<{ Body: { courseAssignmentId: string; periodId: string; name: string } }>(
+    '/activities/period-project/components',
+    { preHandler: [requirePermission('activities', 'write', 'own')] },
+    async (req, reply) => {
+      await assertCourseAssignmentAccess(req, req.body.courseAssignmentId, 'write')
+      return reply.status(201).send(await repo.addPeriodProjectComponent(req.user.institutionId, req.body.courseAssignmentId, req.body.periodId, req.user.sub, req.body.name))
+    },
+  )
+
   app.get<{ Params: { id: string } }>('/activities/:id/project-sharing', { preHandler: [requirePermission('activities', 'read', 'own')] }, async (req, reply) => {
     await assertActivityAccess(req, req.params.id, 'read')
     return reply.send(await repo.getProjectSharing(req.user.institutionId, req.params.id, req.user.sub))

@@ -4,7 +4,7 @@ import * as React from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Save, GraduationCap, BarChart3, Settings2, ExternalLink, CheckCheck, Keyboard, AlertTriangle } from 'lucide-react'
+import { Save, GraduationCap, BarChart3, Settings2, ExternalLink, CheckCheck, Keyboard, AlertTriangle, Plus, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Checkbox } from '@/shared/components/ui/checkbox'
@@ -1546,6 +1546,44 @@ function ProjectSharingControl({ activityId }: { activityId: string }) {
   </Card>
 }
 
+function PeriodProjectActivities({
+  activities, courseAssignmentId, periodId, selectedActivityId, onSelect,
+}: {
+  activities: Array<{ id: string; name: string }>
+  courseAssignmentId: string
+  periodId: string
+  selectedActivityId: string
+  onSelect: (id: string) => void
+}) {
+  const qc = useQueryClient()
+  const [newName, setNewName] = React.useState('')
+  const refresh = () => qc.invalidateQueries({ queryKey: ['activities', courseAssignmentId, periodId] })
+  const add = useMutation({
+    mutationFn: () => activitiesApi.addPeriodProjectComponent(courseAssignmentId, periodId, newName),
+    onSuccess: (activity) => { setNewName(''); refresh(); onSelect(activity.id); toast.success('Aspecto agregado al proyecto') },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
+  const rename = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => activitiesApi.updateActivity(id, { name }),
+    onSuccess: () => { refresh(); toast.success('Aspecto actualizado') },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
+  const remove = useMutation({
+    mutationFn: activitiesApi.deleteActivity,
+    onSuccess: (_, id) => { refresh(); if (selectedActivityId === id) onSelect(''); toast.success('Aspecto eliminado') },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
+  return <Card className="space-y-3 p-4">
+    <div><p className="font-semibold">Proyecto del período</p><p className="text-xs text-muted-foreground">Puedes usar una nota directa o dividir el proyecto en varios aspectos; el sistema los promedia.</p></div>
+    <div className="space-y-2">{activities.map((activity) => <div key={activity.id} className={cn('flex items-center gap-2 rounded-md border p-2', selectedActivityId === activity.id && 'border-primary bg-primary/5')}>
+      <button type="button" className="min-w-0 flex-1 truncate text-left text-sm font-medium" onClick={() => onSelect(activity.id)}>{activity.name}</button>
+      <Button type="button" variant="ghost" size="sm" title="Cambiar nombre" onClick={() => { const name = window.prompt('Nombre del aspecto del proyecto', activity.name)?.trim(); if (name && name !== activity.name) rename.mutate({ id: activity.id, name }) }}><Pencil className="h-3.5 w-3.5" /></Button>
+      <Button type="button" variant="ghost" size="sm" title="Eliminar aspecto" disabled={remove.isPending} onClick={() => { if (window.confirm(`¿Eliminar "${activity.name}"? Solo se puede eliminar si no tiene notas registradas.`)) remove.mutate(activity.id) }}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+    </div>)}</div>
+    <div className="flex gap-2"><Input value={newName} maxLength={200} placeholder="Ej. Investigación, producto final o exposición" onChange={(event) => setNewName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && newName.trim()) add.mutate() }} /><Button type="button" variant="outline" disabled={!newName.trim()} loading={add.isPending} onClick={() => add.mutate()}><Plus className="h-4 w-4" />Agregar actividad</Button></div>
+  </Card>
+}
+
 function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
   const qc = useQueryClient()
   const user = useAuthStore((state) => state.user)
@@ -1615,6 +1653,7 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
   })
 
   const selectedActivity = activitiesList.find((a) => a.id === selectedActivityId)
+  const periodProjectActivities = activitiesList.filter((activity) => activity.metadata?.periodProject === true)
   const completionPeriodId = consultationMode && selectedPeriodId !== ALL_PERIODS ? selectedPeriodId : ''
   const { data: gradeCompletion = [] } = useQuery({
     queryKey: ['grade-completion', completionPeriodId],
@@ -1988,6 +2027,10 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
           </div>
         )}
       </div>
+
+      {activeTab === 'entry' && !isStudentOrGuardian && periodProjectActivities.length > 0 && selectedAssignmentId && selectedPeriodId && (
+        <PeriodProjectActivities activities={periodProjectActivities} courseAssignmentId={selectedAssignmentId} periodId={selectedPeriodId} selectedActivityId={selectedActivityId} onSelect={setSelectedActivityId} />
+      )}
 
       {consultationMode && !isStudentOrGuardian && completionPeriodId && subjectsRequiringReview.length > 0 && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">

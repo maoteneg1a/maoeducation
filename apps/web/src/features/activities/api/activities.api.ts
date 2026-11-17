@@ -150,6 +150,7 @@ export const activitiesApi = {
     apiPatch<Activity>(`activities/${id}/insumo`, { insumoId }),
   deleteActivity: (id: string) => apiDelete(`activities/${id}`),
   ensurePeriodProject: (courseAssignmentId: string, periodId: string) => apiPost<Activity>('activities/period-project', { courseAssignmentId, periodId }),
+  addPeriodProjectComponent: (courseAssignmentId: string, periodId: string, name: string) => apiPost<Activity>('activities/period-project/components', { courseAssignmentId, periodId, name }),
   getProjectSharing: (activityId: string) => apiGet<{ options: Array<{ courseAssignmentId: string; subjectName: string; selected: boolean }> }>(`activities/${activityId}/project-sharing`),
   updateProjectSharing: (activityId: string, courseAssignmentIds: string[]) => apiPut<{ options: Array<{ courseAssignmentId: string; subjectName: string; selected: boolean }> }>(`activities/${activityId}/project-sharing`, { courseAssignmentIds }),
 

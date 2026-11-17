@@ -56,6 +56,21 @@ export class PrismaActivityRepository {
     return this.ensurePeriodProjectActivity(institutionId, courseAssignmentId, periodId, actorId)
   }
 
+  async addPeriodProjectComponent(institutionId: string, courseAssignmentId: string, periodId: string, actorId: string, name: string) {
+    const title = name.trim()
+    if (!title || title.length > 200) throw new ValidationError('El nombre del aspecto debe tener entre 1 y 200 caracteres')
+    await this.ensurePeriodProject(institutionId, courseAssignmentId, periodId, actorId)
+    const [type, institution] = await Promise.all([
+      prisma.activityType.findFirst({ where: { institutionId, code: 'project', isActive: true } }),
+      prisma.institution.findUnique({ where: { id: institutionId }, select: { settings: true } }),
+    ])
+    if (!type) throw new ConflictError('La institución no tiene habilitado el tipo de actividad Proyecto')
+    const maxScore = (institution?.settings as { gradingConfig?: { gradingScaleMax?: number } } | null)?.gradingConfig?.gradingScaleMax ?? 10
+    return prisma.activity.create({
+      data: { institutionId, courseAssignmentId, academicPeriodId: periodId, activityTypeId: type.id, name: title, description: 'Aspecto del proyecto del período', maxScore, isPublished: true, createdBy: actorId, metadata: { periodProject: true } },
+    })
+  }
+
   private async projectSharingContext(institutionId: string, activityId: string, actorId: string) {
     const activity = await prisma.activity.findFirst({ where: { id: activityId, institutionId, activityType: { code: 'project' } }, include: { grades: true, academicPeriod: { select: { isClosed: true } }, courseAssignment: { include: { subject: true } } } })
     if (!activity || !this.periodProjectMetadata(activity.metadata).periodProject) throw new NotFoundError('Proyecto del período no encontrado')
