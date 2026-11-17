@@ -42,7 +42,7 @@ export class PrismaActivityRepository {
     const config = (institution?.settings as { gradingConfig?: { periodProjectEnabled?: boolean; defaultProjectWeight?: number; gradingScaleMax?: number } } | null)?.gradingConfig
     if (!config?.periodProjectEnabled || !(config.defaultProjectWeight && config.defaultProjectWeight > 0)) throw new ConflictError('El administrador no ha habilitado Proyecto del período')
     return prisma.activity.create({
-      data: { institutionId, courseAssignmentId, academicPeriodId: periodId, activityTypeId: type.id, name: 'Proyecto del período', description: 'Nota individual del proyecto del período', maxScore: config.gradingScaleMax ?? 10, isPublished: true, createdBy: actorId, metadata: { periodProject: true } },
+      data: { institutionId, courseAssignmentId, academicPeriodId: periodId, activityTypeId: type.id, name: 'Proyecto del período', description: 'Nota individual del proyecto del período', maxScore: config.gradingScaleMax ?? 10, activityDate: new Date(), isPublished: true, createdBy: actorId, metadata: { periodProject: true } },
       include: { grades: true },
     })
   }
@@ -67,15 +67,17 @@ export class PrismaActivityRepository {
     if (!type) throw new ConflictError('La institución no tiene habilitado el tipo de actividad Proyecto')
     const maxScore = (institution?.settings as { gradingConfig?: { gradingScaleMax?: number } } | null)?.gradingConfig?.gradingScaleMax ?? 10
     return prisma.activity.create({
-      data: { institutionId, courseAssignmentId, academicPeriodId: periodId, activityTypeId: type.id, name: title, description: 'Aspecto del proyecto del período', maxScore, isPublished: true, createdBy: actorId, metadata: { periodProject: true } },
+      data: { institutionId, courseAssignmentId, academicPeriodId: periodId, activityTypeId: type.id, name: title, description: 'Aspecto del proyecto del período', maxScore, activityDate: new Date(), isPublished: true, createdBy: actorId, metadata: { periodProject: true } },
     })
   }
 
   private async projectSharingContext(institutionId: string, activityId: string, actorId: string) {
     const activity = await prisma.activity.findFirst({ where: { id: activityId, institutionId, activityType: { code: 'project' } }, include: { grades: true, academicPeriod: { select: { isClosed: true } }, courseAssignment: { include: { subject: true } } } })
     if (!activity || !this.periodProjectMetadata(activity.metadata).periodProject) throw new NotFoundError('Proyecto del período no encontrado')
-    if (activity.courseAssignment.teacherId !== actorId) throw new ConflictError('Solo puedes compartir notas entre tus propias materias')
-    const assignments = await prisma.courseAssignment.findMany({ where: { institutionId, teacherId: actorId, parallelId: activity.courseAssignment.parallelId, academicYearId: activity.courseAssignment.academicYearId, isActive: true }, include: { subject: true }, orderBy: { subject: { name: 'asc' } } })
+    // El scope de la ruta ya valida si el actor puede operar esta asignación.
+    // Las opciones pertenecen al DOCENTE responsable de la materia, no
+    // necesariamente al usuario conectado (un administrador también puede probarla).
+    const assignments = await prisma.courseAssignment.findMany({ where: { institutionId, teacherId: activity.courseAssignment.teacherId, parallelId: activity.courseAssignment.parallelId, academicYearId: activity.courseAssignment.academicYearId, isActive: true }, include: { subject: true }, orderBy: { subject: { name: 'asc' } } })
     return { activity, assignments }
   }
 

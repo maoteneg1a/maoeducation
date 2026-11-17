@@ -13,6 +13,8 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/shared/components/ui/select'
@@ -45,12 +47,13 @@ const gradeKeys = {
   byActivity: (activityId: string) => ['grades', 'activity', activityId] as const,
   summary: (cid: string, pid: string) => ['grades', 'summary', cid, pid] as const,
 }
+const PERIOD_PROJECT_GROUP = '__period_project_group__'
 
 function useGradesByActivity(activityId: string) {
   return useQuery({
     queryKey: gradeKeys.byActivity(activityId),
     queryFn: () => activitiesApi.getGradesByActivity(activityId),
-    enabled: !!activityId,
+    enabled: !!activityId && activityId !== PERIOD_PROJECT_GROUP,
   })
 }
 
@@ -1538,29 +1541,30 @@ function ProjectSharingControl({ activityId }: { activityId: string }) {
   if (!data?.options.length) return null
   const original = data.options.filter((row) => row.selected).map((row) => row.courseAssignmentId).sort().join('|')
   const changed = original !== [...selected].sort().join('|')
-  return <Card className="p-3">
-    <p className="text-sm font-medium">Usar estas mismas notas en otras materias que imparto</p>
-    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">{data.options.map((row) => <label key={row.courseAssignmentId} className="flex items-center gap-2 text-sm"><Checkbox checked={selected.includes(row.courseAssignmentId)} onCheckedChange={(checked) => setSelected((current) => checked ? [...current, row.courseAssignmentId] : current.filter((id) => id !== row.courseAssignmentId))} />{row.subjectName}</label>)}</div>
-    <p className="mt-2 text-xs text-muted-foreground">Solo aparecen materias tuyas del mismo paralelo. Al desmarcar una materia conserva su última nota.</p>
-    {changed && <Button className="mt-2" size="sm" variant="outline" loading={mutation.isPending} onClick={() => { if (selected.length > data.options.filter((row) => row.selected).length && !window.confirm('Las notas de esta materia reemplazarán las notas actuales de las materias marcadas. ¿Continuar?')) return; mutation.mutate() }}>Aplicar selección</Button>}
-  </Card>
+  return <details className="rounded-lg border bg-background">
+    <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Compartir esta actividad en otras materias</summary>
+    <div className="border-t px-4 py-3">
+      <p className="text-sm font-medium">Usar estas mismas notas en</p>
+      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">{data.options.map((row) => <label key={row.courseAssignmentId} className="flex items-center gap-2 text-sm"><Checkbox checked={selected.includes(row.courseAssignmentId)} onCheckedChange={(checked) => setSelected((current) => checked ? [...current, row.courseAssignmentId] : current.filter((id) => id !== row.courseAssignmentId))} />{row.subjectName}</label>)}</div>
+      <p className="mt-2 text-xs text-muted-foreground">Solo aparecen materias del mismo docente y paralelo. Al desmarcar una materia conserva su última nota.</p>
+      {changed && <Button className="mt-2" size="sm" variant="outline" loading={mutation.isPending} onClick={() => { if (selected.length > data.options.filter((row) => row.selected).length && !window.confirm('Las notas de esta materia reemplazarán las notas actuales de las materias marcadas. ¿Continuar?')) return; mutation.mutate() }}>Aplicar selección</Button>}
+    </div>
+  </details>
 }
 
 function PeriodProjectActivities({
-  activities, courseAssignmentId, periodId, selectedActivityId, onSelect,
+  activities, courseAssignmentId, periodId,
 }: {
   activities: Array<{ id: string; name: string }>
   courseAssignmentId: string
   periodId: string
-  selectedActivityId: string
-  onSelect: (id: string) => void
 }) {
   const qc = useQueryClient()
   const [newName, setNewName] = React.useState('')
   const refresh = () => qc.invalidateQueries({ queryKey: ['activities', courseAssignmentId, periodId] })
   const add = useMutation({
     mutationFn: () => activitiesApi.addPeriodProjectComponent(courseAssignmentId, periodId, newName),
-    onSuccess: (activity) => { setNewName(''); refresh(); onSelect(activity.id); toast.success('Aspecto agregado al proyecto') },
+    onSuccess: () => { setNewName(''); refresh(); toast.success('Nueva columna agregada al proyecto') },
     onError: (error) => toast.error(getErrorMessage(error)),
   })
   const rename = useMutation({
@@ -1570,18 +1574,72 @@ function PeriodProjectActivities({
   })
   const remove = useMutation({
     mutationFn: activitiesApi.deleteActivity,
-    onSuccess: (_, id) => { refresh(); if (selectedActivityId === id) onSelect(''); toast.success('Aspecto eliminado') },
+    onSuccess: () => { refresh(); toast.success('Aspecto eliminado') },
     onError: (error) => toast.error(getErrorMessage(error)),
   })
-  return <Card className="space-y-3 p-4">
-    <div><p className="font-semibold">Proyecto del período</p><p className="text-xs text-muted-foreground">Puedes usar una nota directa o dividir el proyecto en varios aspectos; el sistema los promedia.</p></div>
-    <div className="space-y-2">{activities.map((activity) => <div key={activity.id} className={cn('flex items-center gap-2 rounded-md border p-2', selectedActivityId === activity.id && 'border-primary bg-primary/5')}>
-      <button type="button" className="min-w-0 flex-1 truncate text-left text-sm font-medium" onClick={() => onSelect(activity.id)}>{activity.name}</button>
+  return <details className="rounded-lg border bg-background">
+    <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium"><span>Configurar actividades del proyecto</span><Badge variant="secondary">{activities.length}</Badge></summary>
+    <div className="space-y-3 border-t p-4">
+      <p className="text-xs text-muted-foreground">Usa una nota directa o divide el proyecto en varios aspectos; el sistema los promedia.</p>
+      <div className="space-y-2">{activities.map((activity) => <div key={activity.id} className="flex items-center gap-2 rounded-md border p-2">
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">{activity.name}</span>
       <Button type="button" variant="ghost" size="sm" title="Cambiar nombre" onClick={() => { const name = window.prompt('Nombre del aspecto del proyecto', activity.name)?.trim(); if (name && name !== activity.name) rename.mutate({ id: activity.id, name }) }}><Pencil className="h-3.5 w-3.5" /></Button>
       <Button type="button" variant="ghost" size="sm" title="Eliminar aspecto" disabled={remove.isPending} onClick={() => { if (window.confirm(`¿Eliminar "${activity.name}"? Solo se puede eliminar si no tiene notas registradas.`)) remove.mutate(activity.id) }}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
     </div>)}</div>
-    <div className="flex gap-2"><Input value={newName} maxLength={200} placeholder="Ej. Investigación, producto final o exposición" onChange={(event) => setNewName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && newName.trim()) add.mutate() }} /><Button type="button" variant="outline" disabled={!newName.trim()} loading={add.isPending} onClick={() => add.mutate()}><Plus className="h-4 w-4" />Agregar actividad</Button></div>
-  </Card>
+      <div className="flex gap-2"><Input value={newName} maxLength={200} placeholder="Ej. Investigación, producto final o exposición" onChange={(event) => setNewName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && newName.trim()) add.mutate() }} /><Button type="button" variant="outline" disabled={!newName.trim()} loading={add.isPending} onClick={() => add.mutate()}><Plus className="h-4 w-4" />Agregar</Button></div>
+    </div>
+  </details>
+}
+
+function PeriodProjectGradeGrid({
+  activities, courseAssignmentId, periodId, scale,
+}: {
+  activities: Array<{ id: string; name: string; maxScore: number }>
+  courseAssignmentId: string
+  periodId: string
+  scale: number
+}) {
+  const qc = useQueryClient()
+  const gradeQueries = useQueries({ queries: activities.map((activity) => ({ queryKey: gradeKeys.byActivity(activity.id), queryFn: () => activitiesApi.getGradesByActivity(activity.id) })) })
+  const [drafts, setDrafts] = React.useState<Record<string, string>>({})
+  const [modified, setModified] = React.useState<Set<string>>(new Set())
+  const addColumn = useMutation({
+    mutationFn: (name: string) => activitiesApi.addPeriodProjectComponent(courseAssignmentId, periodId, name),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['activities', courseAssignmentId, periodId] }); toast.success('Nueva columna agregada') },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
+  const save = useMutation({
+    mutationFn: () => activitiesApi.bulkSaveGrades([...modified].map((key) => { const [activityId, studentId] = key.split(':'); const text = drafts[key] ?? ''; return { activityId, studentId, score: text.trim() === '' ? null : Number(text), status: 'entregado' as const } })),
+    onSuccess: () => { setModified(new Set()); setDrafts({}); qc.invalidateQueries({ predicate: (query) => /grade|report|activit/i.test(String(query.queryKey[0])) }); toast.success('Notas del proyecto guardadas') },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
+  if (gradeQueries.some((query) => query.isLoading)) return <PageLoader />
+  const students = gradeQueries[0]?.data ?? []
+  const current = new Map<string, number | null>()
+  activities.forEach((activity, index) => (gradeQueries[index]?.data ?? []).forEach((grade) => current.set(`${activity.id}:${grade.studentId}`, grade.score)))
+  const valueOf = (activityId: string, studentId: string) => { const key = `${activityId}:${studentId}`; return Object.prototype.hasOwnProperty.call(drafts, key) ? drafts[key] : current.get(key) == null ? '' : String(current.get(key)) }
+  const invalid = [...modified].some((key) => { const value = drafts[key]; const activity = activities.find((row) => row.id === key.split(':')[0]); return value?.trim() !== '' && (!Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > (activity?.maxScore ?? scale)) })
+  return <div className="space-y-3">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div><h2 className="font-semibold">Proyecto del período</h2><p className="text-xs text-muted-foreground">Cada actividad es una columna; el promedio de las columnas es la nota del proyecto.</p></div>
+      <div className="flex gap-2">
+        <Button type="button" variant="outline" onClick={() => { const name = window.prompt('Nombre de la nueva columna del proyecto')?.trim(); if (name) addColumn.mutate(name) }} loading={addColumn.isPending}><Plus className="h-4 w-4" />Nueva columna</Button>
+        <Button type="button" onClick={() => save.mutate()} disabled={!modified.size || invalid} loading={save.isPending}><Save className="h-4 w-4" />Guardar {modified.size ? `(${modified.size})` : ''}</Button>
+      </div>
+    </div>
+    {invalid && <p className="text-sm text-destructive">Hay notas fuera del rango permitido.</p>}
+    <div className="overflow-x-auto rounded-lg border">
+      <table className="min-w-max w-full text-sm">
+        <thead className="bg-violet-50 text-violet-950 dark:bg-violet-950/30 dark:text-violet-100"><tr><th className="sticky left-0 z-10 min-w-64 border-r bg-inherit p-3 text-left">Estudiante</th>{activities.map((activity) => <th key={activity.id} className="min-w-40 border-r p-3 text-center"><div>{activity.name}</div><div className="text-[10px] font-normal opacity-70">/{activity.maxScore}</div></th>)}<th className="min-w-28 p-3 text-center">Promedio</th></tr></thead>
+        <tbody>{students.map((student) => {
+          const values = activities.map((activity) => { const text = valueOf(activity.id, student.studentId); return text === '' || !Number.isFinite(Number(text)) ? null : Number(text) * scale / activity.maxScore })
+          const valid = values.filter((value): value is number => value != null)
+          const average = valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : null
+          return <tr key={student.studentId} className="border-t"><td className="sticky left-0 z-10 border-r bg-background p-3 font-medium">{student.studentName}</td>{activities.map((activity) => { const key = `${activity.id}:${student.studentId}`; return <td key={activity.id} className="border-r p-2"><Input className="mx-auto w-24 text-center" type="number" min={0} max={activity.maxScore} step="0.01" value={valueOf(activity.id, student.studentId)} onChange={(event) => { setDrafts((rows) => ({ ...rows, [key]: event.target.value })); setModified((rows) => new Set(rows).add(key)) }} /></td>})}<td className="p-3 text-center font-semibold tabular-nums">{average == null ? '—' : average.toFixed(2)}</td></tr>
+        })}</tbody>
+      </table>
+    </div>
+  </div>
 }
 
 function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
@@ -1654,6 +1712,12 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
 
   const selectedActivity = activitiesList.find((a) => a.id === selectedActivityId)
   const periodProjectActivities = activitiesList.filter((activity) => activity.metadata?.periodProject === true)
+  const formativeActivities = activitiesList.filter((activity) => !['exam', 'project'].includes(activity.activityType?.code ?? ''))
+  const examActivities = activitiesList.filter((activity) => activity.activityType?.code === 'exam')
+  const standaloneProjectActivities = activitiesList.filter((activity) => activity.activityType?.code === 'project' && activity.metadata?.periodProject !== true)
+  React.useEffect(() => {
+    if (periodProjectActivities.some((activity) => activity.id === selectedActivityId)) setSelectedActivityId(PERIOD_PROJECT_GROUP)
+  }, [periodProjectActivities, selectedActivityId])
   const completionPeriodId = consultationMode && selectedPeriodId !== ALL_PERIODS ? selectedPeriodId : ''
   const { data: gradeCompletion = [] } = useQuery({
     queryKey: ['grade-completion', completionPeriodId],
@@ -1696,7 +1760,7 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
   const bulkSave = useBulkSaveGrades()
   const ensureProject = useMutation({
     mutationFn: () => activitiesApi.ensurePeriodProject(selectedAssignmentId, selectedPeriodId),
-    onSuccess: (activity) => { qc.invalidateQueries({ queryKey: ['activities', selectedAssignmentId, selectedPeriodId] }); setSelectedActivityId(activity.id); toast.success('Proyecto del período listo para calificar') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['activities', selectedAssignmentId, selectedPeriodId] }); setSelectedActivityId(PERIOD_PROJECT_GROUP); toast.success('Proyecto del período listo para calificar') },
     onError: (error) => toast.error(getErrorMessage(error)),
   })
 
@@ -2003,23 +2067,34 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
               onValueChange={guarded(setSelectedActivityId, selectedActivityId)}
               disabled={!selectedPeriodId}
             >
-              <SelectTrigger>
+              <SelectTrigger className={cn(
+                (selectedActivityId === PERIOD_PROJECT_GROUP || selectedActivity?.activityType?.code === 'project') && 'border-violet-300 bg-violet-50/60 dark:border-violet-800 dark:bg-violet-950/20',
+                selectedActivity?.activityType?.code === 'exam' && 'border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20',
+                selectedActivity && !['exam', 'project'].includes(selectedActivity.activityType?.code ?? '') && 'border-emerald-300 bg-emerald-50/60 dark:border-emerald-800 dark:bg-emerald-950/20',
+              )}>
                 <SelectValue placeholder="Actividad" />
               </SelectTrigger>
               <SelectContent>
-                {activitiesList.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name}
-                    {a._count && (
-                      <span className="ml-1.5 text-xs text-muted-foreground">· {a._count.grades} calificadas</span>
-                    )}
-                  </SelectItem>
-                ))}
+                {formativeActivities.length > 0 && <>
+                  <SelectLabel className="rounded bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">Formativas</SelectLabel>
+                  {formativeActivities.map((a) => <SelectItem key={a.id} value={a.id} className="focus:bg-emerald-50 dark:focus:bg-emerald-950/30"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500" />{a.name}{a._count && <span className="ml-1.5 text-xs text-muted-foreground">· {a._count.grades} calificadas</span>}</SelectItem>)}
+                </>}
+                {formativeActivities.length > 0 && (examActivities.length > 0 || periodProjectActivities.length > 0 || standaloneProjectActivities.length > 0) && <SelectSeparator />}
+                {examActivities.length > 0 && <>
+                  <SelectLabel className="rounded bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">Sumativa · Examen</SelectLabel>
+                  {examActivities.map((a) => <SelectItem key={a.id} value={a.id} className="focus:bg-amber-50 dark:focus:bg-amber-950/30"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-amber-500" />{a.name}{a._count && <span className="ml-1.5 text-xs text-muted-foreground">· {a._count.grades} calificadas</span>}</SelectItem>)}
+                </>}
+                {examActivities.length > 0 && (periodProjectActivities.length > 0 || standaloneProjectActivities.length > 0) && <SelectSeparator />}
+                {(periodProjectActivities.length > 0 || standaloneProjectActivities.length > 0) && <>
+                  <SelectLabel className="rounded bg-violet-50 text-violet-800 dark:bg-violet-950/30 dark:text-violet-300">Sumativa · Proyecto</SelectLabel>
+                  {periodProjectActivities.length > 0 && <SelectItem value={PERIOD_PROJECT_GROUP} className="focus:bg-violet-50 dark:focus:bg-violet-950/30"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-violet-500" />Proyecto del período <span className="ml-1.5 text-xs text-muted-foreground">· {periodProjectActivities.length} columnas</span></SelectItem>}
+                  {standaloneProjectActivities.map((a) => <SelectItem key={a.id} value={a.id} className="focus:bg-violet-50 dark:focus:bg-violet-950/30"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-violet-500" />{a.name}{a._count && <span className="ml-1.5 text-xs text-muted-foreground">· {a._count.grades} calificadas</span>}</SelectItem>)}
+                </>}
               </SelectContent>
             </Select>
             </div>
             {gradingConfig?.periodProjectEnabled && (gradingConfig.defaultProjectWeight ?? 0) > 0 && selectedAssignmentId && selectedPeriodId && (
-              <Button type="button" variant={selectedActivity?.metadata?.periodProject ? 'default' : 'outline'} loading={ensureProject.isPending}
+              <Button type="button" variant={selectedActivityId === PERIOD_PROJECT_GROUP ? 'default' : 'outline'} loading={ensureProject.isPending}
                 onClick={() => ensureProject.mutate()} title="Crear o abrir la nota de proyecto configurada por la institución">
                 Proyecto {gradingConfig?.defaultProjectWeight}%
               </Button>
@@ -2029,7 +2104,7 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
       </div>
 
       {activeTab === 'entry' && !isStudentOrGuardian && periodProjectActivities.length > 0 && selectedAssignmentId && selectedPeriodId && (
-        <PeriodProjectActivities activities={periodProjectActivities} courseAssignmentId={selectedAssignmentId} periodId={selectedPeriodId} selectedActivityId={selectedActivityId} onSelect={setSelectedActivityId} />
+        <PeriodProjectActivities activities={periodProjectActivities} courseAssignmentId={selectedAssignmentId} periodId={selectedPeriodId} />
       )}
 
       {consultationMode && !isStudentOrGuardian && completionPeriodId && subjectsRequiringReview.length > 0 && (
@@ -2081,6 +2156,8 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
             description="Para ver el resumen de notas, selecciona la asignación y el período"
           />
         )
+      ) : selectedActivityId === PERIOD_PROJECT_GROUP && periodProjectActivities.length > 0 ? (
+        <PeriodProjectGradeGrid activities={periodProjectActivities} courseAssignmentId={selectedAssignmentId} periodId={selectedPeriodId} scale={gradingConfig?.gradingScaleMax ?? 10} />
       ) : !canShowGrades ? (
         <EmptyState
           icon={GraduationCap}
