@@ -54,7 +54,7 @@ export const BoardMeetingForm = forwardRef<BoardMeetingHandle, { board: BoardDat
     <section className="space-y-3 rounded-md border p-4">
       <h2 className="font-semibold">Convocatoria · {board.matrix.parallelName}</h2>
       <p className="my-3 text-sm text-muted-foreground">Una sola ficha completa los encabezados de convocatoria, asistencia y acta. Las firmas quedan en blanco para el papel.</p>
-      <fieldset disabled={!board.canEditMeeting || busy} className="min-w-0 space-y-4">
+      <fieldset disabled={!board.canEditInvitation || busy} className="min-w-0 space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {field('number', 'Número de junta', 'text', 30)}
           <div className="space-y-1"><Label htmlFor="meeting-shift">Jornada</Label><Input id="meeting-shift" list="meeting-shifts" value={draft.shift} maxLength={80} onChange={(e) => set('shift', e.target.value)} /><datalist id="meeting-shifts"><option value="Matutina" /><option value="Vespertina" /><option value="Nocturna" /></datalist></div>
@@ -65,16 +65,16 @@ export const BoardMeetingForm = forwardRef<BoardMeetingHandle, { board: BoardDat
         <div className="space-y-1"><Label htmlFor="meeting-agenda">Orden del día</Label><Textarea id="meeting-agenda" rows={4} value={draft.agenda} maxLength={6000} onChange={(e) => set('agenda', e.target.value)} /></div>
 
       </fieldset>
-    <fieldset disabled={!board.canEditMeeting || busy} className="min-w-0 space-y-4">
+    <fieldset disabled={!board.canEditInvitation || busy} className="min-w-0 space-y-4">
         <div className="space-y-2"><Label>Convocados</Label><p className="text-xs text-muted-foreground">El tutor y los docentes del curso aparecen al crear la convocatoria. Puedes agregar otros invitados.</p>
           <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-sm"><thead><tr><th className="p-2 text-left">Nombres</th><th className="p-2 text-left">Cargo / función</th><th /></tr></thead><tbody>{draft.participants.map((p, i) => <tr key={i}><td className="p-1"><Input aria-label={`Nombre del convocado ${i + 1}`} value={p.name} maxLength={200} onChange={(e) => person(i, { name: e.target.value, userId: undefined })} /></td><td className="p-1"><Input aria-label={`Función del convocado ${i + 1}`} value={p.role} maxLength={200} onChange={(e) => person(i, { role: e.target.value })} /></td><td className="p-1"><Button type="button" variant="ghost" size="sm" aria-label={`Quitar convocado ${i + 1}`} onClick={() => setDraft({ ...draft, participants: draft.participants.filter((_, index) => index !== i) })}>Quitar</Button></td></tr>)}</tbody></table></div>
           <Button variant="outline" disabled={draft.participants.length >= 100} onClick={() => setDraft({ ...draft, participants: [...draft.participants, { name: '', role: '', attendance: 'pending' }] })}>Agregar convocado</Button>
         </div>
     </fieldset>
     {dirty && <p className="text-sm text-muted-foreground">Los cambios se guardan al publicar, descargar un documento o cerrar la junta.</p>}
-    {saveDraft}
+    {board.canEditInvitation && saveDraft}
     <div className="flex flex-wrap gap-2">
-      {board.canEditMeeting && <Button disabled={busy} onClick={() => preview.mutate()}>{preview.isPending ? 'Preparando...' : board.invitation ? 'Revisar convocatoria en Avisos' : 'Publicar en Avisos'}</Button>}
+      {board.canPublishInvitation && <Button disabled={busy} onClick={() => preview.mutate()}>{preview.isPending ? 'Preparando...' : board.invitation ? 'Revisar convocatoria en Avisos' : 'Publicar en Avisos'}</Button>}
       {board.invitation && <Button variant="outline" asChild><Link to={`/announcements?notice=${board.invitation.id}`}>Ver aviso publicado</Link></Button>}
     </div>
     <Dialog open={!!invitation} onOpenChange={(open) => { if (!open && !publish.isPending) setInvitation(null) }}>
@@ -91,7 +91,7 @@ export const BoardMeetingForm = forwardRef<BoardMeetingHandle, { board: BoardDat
         </div>}
       </DialogContent>
     </Dialog>
-    <Button variant="outline" disabled={busy || (board.status === 'CLOSED' && !board.evidence.some((f) => f.kind === 'CALL'))} onClick={() => pdf.mutate('CALL')}>Descargar convocatoria</Button>
+    {(board.canPublishInvitation || board.status === 'CLOSED') && <Button variant="outline" disabled={busy || (board.status === 'CLOSED' && !board.evidence.some((f) => f.kind === 'CALL'))} onClick={() => pdf.mutate('CALL')}>Descargar convocatoria</Button>}
     </section>
     </TabsContent>
     <TabsContent value="meeting" forceMount className="space-y-4 data-[state=inactive]:hidden">

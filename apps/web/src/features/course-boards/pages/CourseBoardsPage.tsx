@@ -15,7 +15,6 @@ import { normalizeStudentSearch } from '@/shared/lib/student-options'
 import { openProtectedFile } from '@/shared/lib/protected-file'
 import { useAuthStore } from '@/store/auth.store'
 import * as api from '../api/course-boards.api'
-import { BoardConfigDialog } from '../components/BoardConfigDialog'
 import { BoardReportDialog } from '../components/BoardReportDialog'
 
 function useOptions(yearId?: string) { return useQuery({ queryKey: ['course-boards', 'options', yearId], queryFn: () => api.getBoardOptions(yearId) }) }
@@ -25,6 +24,7 @@ function download(id: string, name: string) { return openProtectedFile(`course-b
 export function CourseBoardsPage() {
   const [yearId, setYearId] = useState('')
   const [periodId, setPeriodId] = useState('')
+  const [showAll, setShowAll] = useState(false)
   const { data, isLoading, error } = useOptions(yearId || undefined)
   const navigate = useNavigate()
   const userId = useAuthStore((s) => s.user?.id)
@@ -32,19 +32,40 @@ export function CourseBoardsPage() {
   const open = useMutation({ mutationFn: (parallelId: string) => api.createBoard(parallelId, currentPeriodId), onSuccess: ({ id }) => navigate(`/course-boards/${id}`), onError: (e) => toast.error(getErrorMessage(e)) })
   if (isLoading) return <PageLoader />
   if (!data) return <p className="p-6 text-destructive">{getErrorMessage(error)}</p>
-  const parallels = data.parallels.filter((p) => p.participant || p.boards.some((b) => b.academicPeriodId === currentPeriodId && b.chairId === userId))
+  const parallels = data.parallels.filter((p) => {
+    const board = p.boards.find((item) => item.academicPeriodId === currentPeriodId)
+    if (data.canConfigure) return showAll || !!board
+    return p.secretaryId === userId || !!board && (p.participant || board.chairId === userId)
+  })
   return <div className="space-y-5 p-4 sm:p-6">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">Juntas de curso</h1><p className="text-sm text-muted-foreground">Crea la convocatoria, realiza la junta y conserva sus documentos.</p></div>{data.canConfigure && <BoardConfigDialog config={data.config} parallels={data.parallels} candidates={data.secretaryCandidates} />}</div>
+    <div><h1 className="text-2xl font-bold">Juntas de curso</h1><p className="text-sm text-muted-foreground">Crea la convocatoria, realiza la junta y conserva sus documentos.</p></div>
     <div className="flex flex-wrap gap-3">
       <div className="space-y-1"><Label htmlFor="board-year">Año lectivo</Label><select id="board-year" className="block rounded-md border bg-background p-2" value={yearId || data.yearId} onChange={(e) => { setYearId(e.target.value); setPeriodId('') }}>{data.years.map((y) => <option key={y.id} value={y.id}>{y.name}</option>)}</select></div>
       <div className="space-y-1"><Label htmlFor="board-period">Período</Label><select id="board-period" className="block rounded-md border bg-background p-2" value={currentPeriodId} onChange={(e) => setPeriodId(e.target.value)}>{data.periods.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+      {data.canConfigure && <div className="flex items-end"><Button variant="outline" onClick={() => setShowAll((value) => !value)}>{showAll ? 'Ver solo juntas creadas' : `Mostrar todos los paralelos (${data.parallels.length})`}</Button></div>}
     </div>
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{parallels.map((p) => {
-      const board = p.boards.find((b) => b.academicPeriodId === currentPeriodId)
-      const secretary = data.secretaryCandidates.find((candidate) => candidate.id === p.secretaryId)
-      return <div key={p.id} className="space-y-3 rounded-lg border p-4"><div className="flex items-center justify-between gap-2"><h2 className="font-semibold">{p.name}</h2><Badge variant={board?.status === 'CLOSED' ? 'success' : 'secondary'}>{board?.status === 'CLOSED' ? 'Cerrada' : board ? 'Abierta' : 'Sin convocatoria'}</Badge></div>{secretary && <p className="text-xs text-muted-foreground">Secretaría: {secretary.name}</p>}<Button variant="outline" disabled={open.isPending || !currentPeriodId} onClick={() => board ? navigate(`/course-boards/${board.id}`) : open.mutate(p.id)}>{board ? 'Abrir junta' : 'Crear convocatoria'}</Button></div>
-    })}</div>
-    {!parallels.length && <p className="text-muted-foreground">No hay cursos disponibles para tu perfil en este año lectivo.</p>}
+    {!!parallels.length && <div className="overflow-hidden rounded-lg border">
+      <div className="hidden grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_10rem_12rem] gap-4 bg-muted/60 px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid">
+        <span>Paralelo</span><span>Secretaría</span><span>Estado</span><span className="text-right">Acción</span>
+      </div>
+      {parallels.map((p) => {
+        const board = p.boards.find((b) => b.academicPeriodId === currentPeriodId)
+        const secretary = data.secretaryCandidates.find((candidate) => candidate.id === p.secretaryId)
+        const canCreate = p.secretaryId === userId
+        return <div key={p.id} className="grid gap-3 border-t px-4 py-3 first:border-t-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_10rem_12rem] md:items-center md:gap-4">
+          <div><span className="text-xs text-muted-foreground md:hidden">Paralelo</span><h2 className="font-semibold">{p.name}</h2></div>
+          <div><span className="text-xs text-muted-foreground md:hidden">Secretaría</span><p className="text-sm">{secretary?.name ?? 'Sin asignar'}</p></div>
+          <div><Badge variant={board?.status === 'CLOSED' ? 'success' : 'secondary'}>{board?.status === 'CLOSED' ? 'Cerrada' : board ? 'Abierta' : 'Sin convocatoria'}</Badge></div>
+          <div className="md:text-right">{board
+            ? <Button className="w-full md:w-auto" variant="outline" onClick={() => navigate(`/course-boards/${board.id}`)}>Abrir junta</Button>
+            : canCreate
+              ? <Button className="w-full md:w-auto" variant="outline" disabled={open.isPending || !currentPeriodId} onClick={() => open.mutate(p.id)}>Crear convocatoria</Button>
+              : <Button className="w-full md:w-auto" variant="outline" disabled>Solo secretaría</Button>}
+          </div>
+        </div>
+      })}
+    </div>}
+    {!parallels.length && <p className="rounded-lg border border-dashed p-6 text-center text-muted-foreground">{data.canConfigure ? 'Todavía no hay juntas creadas para este período. La asignación de secretarios está en Configuración → Juntas de curso.' : 'No tienes juntas asignadas para este período.'}</p>}
   </div>
 }
 

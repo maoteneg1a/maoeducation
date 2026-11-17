@@ -645,6 +645,20 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      // ---- Settings / Juntas de curso ----
+      {
+        path: 'settings/juntas-curso',
+        element: <PermissionGuard permission="academic_config:manage" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/course-boards/pages/CourseBoardSettingsPage').then((m) => ({
+                Component: m.CourseBoardSettingsPage,
+              })),
+          },
+        ],
+      },
       // ---- Settings / Marco normativo, reglas e informes (multi-escuela) ----
       {
         path: 'settings/normativa',
