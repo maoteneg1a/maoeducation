@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Manual · Calificación de proyectos interdisciplinarios</title>
+  <style>
+    @page { size: A4; margin: 15mm 16mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #172033; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 10.5pt; line-height: 1.45; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { font-size: 27pt; line-height: 1.08; letter-spacing: -.6px; }
+    h2 { margin: 0 0 8px; color: #173e72; font-size: 18pt; page-break-after: avoid; }
+    h3 { margin: 15px 0 5px; font-size: 12pt; page-break-after: avoid; }
+    .cover { min-height: 257mm; margin: -15mm -16mm; padding: 30mm 23mm; color: white; background: linear-gradient(145deg, #102b52 0%, #155c8d 58%, #24a09a 100%); page-break-after: always; }
+    .cover .tag { display: inline-block; margin-bottom: 30mm; padding: 6px 12px; border: 1px solid #ffffff55; border-radius: 99px; background: #ffffff16; font-size: 9pt; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; }
+    .cover h1 { max-width: 155mm; margin-bottom: 13px; }
+    .cover .lead { max-width: 145mm; color: #eaf7ff; font-size: 14pt; }
+    .cover .meta { margin-top: 55mm; color: #d5eff4; }
+    .page { page-break-before: always; }
+    .intro { padding: 14px 16px; border-left: 4px solid #26a69a; border-radius: 4px; background: #eef9f8; }
+    .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 17px 0 20px; }
+    .flow div { min-height: 75px; padding: 10px; border: 1px solid #d7e1ed; border-radius: 8px; background: #f8fbff; }
+    .flow b { display: block; margin-bottom: 5px; color: #155c8d; }
+    .step { display: grid; grid-template-columns: 29px 1fr; gap: 10px; margin: 13px 0; page-break-inside: avoid; }
+    .num { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 50%; color: white; background: #155c8d; font-weight: 800; }
+    .path { display: inline-block; padding: 3px 7px; border-radius: 4px; color: #173e72; background: #eaf1f8; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9pt; }
+    .mock { margin: 10px 0 14px; padding: 13px 15px; border: 1px solid #cbd7e4; border-radius: 8px; background: white; box-shadow: 0 2px 8px #173e7210; page-break-inside: avoid; }
+    .mock-title { margin-bottom: 9px; padding-bottom: 7px; border-bottom: 1px solid #e3e9ef; font-weight: 800; }
+    .field { display: flex; justify-content: space-between; gap: 18px; margin: 5px 0; padding: 7px 9px; border-radius: 5px; background: #f6f8fb; }
+    .check { color: #156c63; font-weight: 700; }
+    .warning { padding: 11px 13px; border: 1px solid #f2d18a; border-radius: 7px; background: #fff8e7; }
+    .ok { padding: 11px 13px; border: 1px solid #9fd9c9; border-radius: 7px; background: #eefaf6; }
+    table { width: 100%; margin: 10px 0 15px; border-collapse: collapse; page-break-inside: avoid; }
+    th, td { padding: 7px 8px; border: 1px solid #d8e1ea; text-align: left; }
+    th { color: #173e72; background: #edf3f8; }
+    ul { margin-top: 6px; padding-left: 20px; }
+    li { margin: 4px 0; }
+    .footer { margin-top: 22px; padding-top: 8px; border-top: 1px solid #dbe3ec; color: #66758a; font-size: 8.5pt; }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="tag">Auleka · Manual operativo</div>
+    <h1>Calificación de proyectos interdisciplinarios</h1>
+    <p class="lead">Flujo simple desde la configuración administrativa hasta el registro de una nota por materia, con opción de compartirla entre materias del mismo docente.</p>
+    <div class="meta"><b>Dirigido a:</b> administradores, coordinadores y docentes<br><b>Versión:</b> noviembre de 2026</div>
+  </section>
+
+  <section>
+    <h2>1. Qué resuelve este flujo</h2>
+    <p class="intro">La institución define cuánto vale el proyecto en el trimestre. Existe un solo proyecto interdisciplinario para el paralelo, pero cada asignatura conserva su propia nota. Si un profesor imparte varias materias participantes, puede registrar una vez y compartir la misma nota entre ellas.</p>
+    <div class="flow">
+      <div><b>1 · Administración</b>Configura el porcentaje institucional.</div>
+      <div><b>2 · Proyecto</b>Define paralelo, período y materias.</div>
+      <div><b>3 · Docente</b>Registra una nota individual por estudiante.</div>
+      <div><b>4 · Reversión</b>Desvincula una materia sin perder su nota.</div>
+    </div>
+    <h3>Reglas esenciales</h3>
+    <ul>
+      <li>La nota se calcula como actividad de tipo <b>Proyecto</b>; no es un insumo formativo.</li>
+      <li>Solo se pueden compartir notas entre materias del <b>mismo docente</b>, proyecto, paralelo y período.</li>
+      <li>Cada materia participa con el porcentaje configurado para Proyecto.</li>
+      <li>Un período cerrado no permite crear vínculos ni modificar notas.</li>
+    </ul>
+
+    <h2>2. Administración: configurar el porcentaje</h2>
+    <div class="step"><div class="num">1</div><div>Ingresa con un usuario administrador y abre <span class="path">Configuración → Calificaciones</span>.</div></div>
+    <div class="step"><div class="num">2</div><div>En <b>Porcentajes de la nota del período</b>, asigna el valor de <b>Proyecto (%)</b>. Ejemplo: 30.</div></div>
+    <div class="step"><div class="num">3</div><div>Comprueba que Actividades/Formativa, Examen y Proyecto sumen 100 % y guarda.</div></div>
+    <div class="mock">
+      <div class="mock-title">Porcentajes de la nota del período</div>
+      <div class="field"><span>Actividades / formativa</span><b>70 %</b></div>
+      <div class="field"><span>Examen</span><b>0 %</b></div>
+      <div class="field"><span>Proyecto</span><b>30 %</b></div>
+    </div>
+    <p class="warning"><b>Importante:</b> cambiar estos porcentajes recalcula los resultados del período en todas las materias. Confirma la regla institucional antes de guardar.</p>
+    <div class="footer">Manual de calificación de proyectos interdisciplinarios · Auleka</div>
+  </section>
+
+  <section class="page">
+    <h2>3. Crear y aprobar el proyecto</h2>
+    <div class="step"><div class="num">1</div><div>Abre <span class="path">Proyectos interdisciplinarios</span> y selecciona el paralelo y el trimestre.</div></div>
+    <div class="step"><div class="num">2</div><div>Crea el proyecto con un título claro, reto, propósito y producto final.</div></div>
+    <div class="step"><div class="num">3</div><div>Agrega las asignaturas participantes. Cada aporte queda asociado a una asignación concreta: materia + docente.</div></div>
+    <div class="step"><div class="num">4</div><div>Revisa el proyecto, envíalo y usa <b>Aprobar proyecto</b> cuando corresponda.</div></div>
+    <div class="ok"><b>Resultado:</b> todos trabajan sobre el mismo proyecto del paralelo, pero la calificación se mantiene separada por materia.</div>
+
+    <h2>4. Docente: registrar las notas</h2>
+    <div class="step"><div class="num">1</div><div>Abre el proyecto y localiza la tarjeta <b>Calificación del proyecto</b>.</div></div>
+    <div class="step"><div class="num">2</div><div>En <b>Calificar en</b>, selecciona una de tus materias participantes.</div></div>
+    <div class="step"><div class="num">3</div><div>Registra una nota por estudiante dentro de la escala institucional y pulsa <b>Guardar notas</b>.</div></div>
+    <div class="mock">
+      <div class="mock-title">Calificación del proyecto</div>
+      <div class="field"><span>Calificar en</span><b>Ciencias Naturales</b></div>
+      <table><thead><tr><th>Estudiante</th><th>Nota / 10</th></tr></thead><tbody><tr><td>Alvarado Camila</td><td>9,00</td></tr><tr><td>Benítez Mateo</td><td>8,50</td></tr><tr><td>Cedeño Sofía</td><td>9,25</td></tr></tbody></table>
+    </div>
+    <p>La actividad queda publicada como tipo Proyecto y también aparece en la pantalla normal de Calificaciones.</p>
+
+    <h2>5. Usar la misma nota en otras materias</h2>
+    <div class="step"><div class="num">1</div><div>Selecciona la materia que contiene las notas que deseas conservar como origen.</div></div>
+    <div class="step"><div class="num">2</div><div>En <b>Usar esta misma nota en</b>, marca las otras materias tuyas.</div></div>
+    <div class="step"><div class="num">3</div><div>Pulsa <b>Aplicar selección</b> y confirma. Las notas de la materia de origen reemplazan las notas actuales de las materias marcadas.</div></div>
+    <div class="mock">
+      <div class="mock-title">Usar esta misma nota en</div>
+      <div class="field"><span class="check">☑ Educación Cultural y Artística</span><span>Mismo docente</span></div>
+      <div class="field"><span class="check">☑ Proyectos Escolares</span><span>Mismo docente</span></div>
+    </div>
+    <p class="ok">Desde ese momento, editar la nota desde el proyecto o desde Calificaciones actualiza todas las materias vinculadas.</p>
+    <div class="footer">Manual de calificación de proyectos interdisciplinarios · Auleka</div>
+  </section>
+
+  <section class="page">
+    <h2>6. Reversar una materia</h2>
+    <p>Reversar no elimina notas. Solo termina la sincronización.</p>
+    <div class="step"><div class="num">1</div><div>Selecciona cualquiera de las materias vinculadas.</div></div>
+    <div class="step"><div class="num">2</div><div>Quita el check de la materia que debe calificarse de forma independiente.</div></div>
+    <div class="step"><div class="num">3</div><div>Pulsa <b>Aplicar selección</b>.</div></div>
+    <div class="step"><div class="num">4</div><div>Selecciona esa materia y modifica sus notas normalmente.</div></div>
+    <p class="ok"><b>Qué se conserva:</b> la materia desvinculada mantiene la última nota que tenía al momento de separarla. Los cambios futuros ya no se replican.</p>
+
+    <h2>7. Controles y casos frecuentes</h2>
+    <table>
+      <thead><tr><th>Situación</th><th>Comportamiento del sistema</th></tr></thead>
+      <tbody>
+        <tr><td>El docente tiene una sola materia</td><td>Registra la nota directamente; no se muestra una opción útil de replicación.</td></tr>
+        <tr><td>Participa una materia de otro profesor</td><td>No aparece entre las opciones para compartir.</td></tr>
+        <tr><td>La materia destino ya tiene notas</td><td>Se solicita confirmación antes de reemplazarlas.</td></tr>
+        <tr><td>Se cierra el trimestre</td><td>Las notas y los vínculos quedan en modo consulta.</td></tr>
+        <tr><td>El proyecto ya tiene notas</td><td>No se puede eliminar el proyecto ni retirar la materia, protegiendo el historial.</td></tr>
+        <tr><td>Se cambia una nota desde Calificaciones</td><td>Se actualizan las demás materias que continúen vinculadas.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>8. Lista de verificación administrativa</h2>
+    <ul>
+      <li>☐ El porcentaje de Proyecto está configurado y los tres componentes suman 100 %.</li>
+      <li>☐ El proyecto corresponde al paralelo y trimestre correctos.</li>
+      <li>☐ Todas las materias y docentes participantes están agregados.</li>
+      <li>☐ Los docentes conocen cuál materia usarán como origen si compartirán notas.</li>
+      <li>☐ Se revisaron las notas antes de cerrar el período.</li>
+    </ul>
+    <p class="warning"><b>Recomendación:</b> si cada materia evalúa criterios distintos, no utilices la replicación. Registra una nota independiente en cada materia.</p>
+    <div class="footer">Fin del manual · Calificación de proyectos interdisciplinarios · Auleka</div>
+  </section>
+</body>
+</html>

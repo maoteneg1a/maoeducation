@@ -56,6 +56,19 @@ export interface EligibleSituation {
   _count?: { weeks: number }
 }
 
+export interface ProjectGrading {
+  isClosed: boolean
+  gradingScaleMax: number
+  contributions: Array<{
+    id: string
+    subjectName: string
+    activityId: string | null
+    shareGroupId: string | null
+    grades: Record<string, number | null>
+  }>
+  students: Array<{ id: string; name: string }>
+}
+
 export const interdisciplinaryProjectApi = {
   listProjects: (params: { parallelId: string; academicPeriodId: string }) =>
     apiGet<InterdisciplinaryProject[]>('interdisciplinary-projects', params),
@@ -128,6 +141,15 @@ export const interdisciplinaryProjectApi = {
       evidencias?: string
     },
   ) => apiPut<WeekEntry>(`interdisciplinary-projects/contributions/${contributionId}/weeks`, data),
+
+  getGrading: (projectId: string) =>
+    apiGet<ProjectGrading>(`interdisciplinary-projects/${projectId}/grading`),
+
+  configureGradeSharing: (projectId: string, sourceContributionId: string, sharedContributionIds: string[]) =>
+    apiPut<ProjectGrading>(`interdisciplinary-projects/${projectId}/grading/sharing`, { sourceContributionId, sharedContributionIds }),
+
+  saveProjectGrades: (projectId: string, contributionId: string, grades: Array<{ studentId: string; score: number | null }>) =>
+    apiPut<ProjectGrading>(`interdisciplinary-projects/${projectId}/grading/grades`, { contributionId, grades }),
 
   async openProjectPdf(id: string) {
     const blob = await apiClient.get(`interdisciplinary-projects/${id}/pdf`).blob()
