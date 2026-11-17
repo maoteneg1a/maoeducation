@@ -12,6 +12,7 @@ import { Badge } from '@/shared/components/ui/badge'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectLabel,
   SelectSeparator,
@@ -2075,21 +2076,21 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
                 <SelectValue placeholder="Actividad" />
               </SelectTrigger>
               <SelectContent>
-                {formativeActivities.length > 0 && <>
+                {formativeActivities.length > 0 && <SelectGroup>
                   <SelectLabel className="rounded bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">Formativas</SelectLabel>
                   {formativeActivities.map((a) => <SelectItem key={a.id} value={a.id} className="focus:bg-emerald-50 dark:focus:bg-emerald-950/30"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500" />{a.name}{a._count && <span className="ml-1.5 text-xs text-muted-foreground">· {a._count.grades} calificadas</span>}</SelectItem>)}
-                </>}
+                </SelectGroup>}
                 {formativeActivities.length > 0 && (examActivities.length > 0 || periodProjectActivities.length > 0 || standaloneProjectActivities.length > 0) && <SelectSeparator />}
-                {examActivities.length > 0 && <>
+                {examActivities.length > 0 && <SelectGroup>
                   <SelectLabel className="rounded bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">Sumativa · Examen</SelectLabel>
                   {examActivities.map((a) => <SelectItem key={a.id} value={a.id} className="focus:bg-amber-50 dark:focus:bg-amber-950/30"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-amber-500" />{a.name}{a._count && <span className="ml-1.5 text-xs text-muted-foreground">· {a._count.grades} calificadas</span>}</SelectItem>)}
-                </>}
+                </SelectGroup>}
                 {examActivities.length > 0 && (periodProjectActivities.length > 0 || standaloneProjectActivities.length > 0) && <SelectSeparator />}
-                {(periodProjectActivities.length > 0 || standaloneProjectActivities.length > 0) && <>
+                {(periodProjectActivities.length > 0 || standaloneProjectActivities.length > 0) && <SelectGroup>
                   <SelectLabel className="rounded bg-violet-50 text-violet-800 dark:bg-violet-950/30 dark:text-violet-300">Sumativa · Proyecto</SelectLabel>
                   {periodProjectActivities.length > 0 && <SelectItem value={PERIOD_PROJECT_GROUP} className="focus:bg-violet-50 dark:focus:bg-violet-950/30"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-violet-500" />Proyecto del período <span className="ml-1.5 text-xs text-muted-foreground">· {periodProjectActivities.length} columnas</span></SelectItem>}
                   {standaloneProjectActivities.map((a) => <SelectItem key={a.id} value={a.id} className="focus:bg-violet-50 dark:focus:bg-violet-950/30"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-violet-500" />{a.name}{a._count && <span className="ml-1.5 text-xs text-muted-foreground">· {a._count.grades} calificadas</span>}</SelectItem>)}
-                </>}
+                </SelectGroup>}
               </SelectContent>
             </Select>
             </div>
