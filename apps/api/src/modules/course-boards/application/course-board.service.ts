@@ -100,6 +100,8 @@ export async function createBoard(institutionId: string, actor: Actor, parallelI
   const institution = await prisma.institution.findUniqueOrThrow({ where: { id: institutionId }, select: { settings: true } })
   const config = boardConfig(institution.settings)
   const secretaryId = config.secretaries[parallelId]
+  if (!secretaryId) throw new BadRequestError('La autoridad debe asignar secretaría a este paralelo antes de crear la convocatoria')
+  if (secretaryId !== actor.userId) throw new ForbiddenError('Solo la secretaría asignada puede crear la convocatoria')
   const { parallel, period } = await context(institutionId, actor, parallelId, periodId, secretaryId)
   const people = new Map<string, { userId: string; name: string; role: string; attendance: 'pending' }>()
   if (parallel.tutor) people.set(parallel.tutor.id, { userId: parallel.tutor.id, name: name(parallel.tutor.profile), role: 'Tutor/a', attendance: 'pending' })
@@ -137,7 +139,7 @@ export async function boardDetail(institutionId: string, actor: Actor, id: strin
   return {
     id: board.id, yearId: parallel.academicYearId, status: board.status, revision: board.revision, closedAt: board.closedAt, conclusions: board.conclusions,
     chairId: board.chairId, chairName: board.status === 'CLOSED' && matrix.chairName ? matrix.chairName : board.chair ? name(board.chair.profile) : 'Sin responsable asignado',
-    invitation: board.invitation ? { ...board.invitation, needsUpdate: publishedInvitationHash(evidence, board.invitation.id) !== convocationHash(readMeeting(board.meeting)) } : null, meeting: readMeeting(board.meeting), canEditMeeting: board.status === 'OPEN' && (canDirect || parallel.tutorId === actor.userId || isSecretary),
+    invitation: board.invitation ? { ...board.invitation, needsUpdate: publishedInvitationHash(evidence, board.invitation.id) !== convocationHash(readMeeting(board.meeting)) } : null, meeting: readMeeting(board.meeting), canEditInvitation: board.status === 'OPEN' && isSecretary, canEditMeeting: board.status === 'OPEN' && (canDirect || parallel.tutorId === actor.userId || isSecretary), canPublishInvitation: board.status === 'OPEN' && isSecretary,
     canDirect, canUpload: canDirect || parallel.tutorId === actor.userId || (hasPermission(actor, 'formal_reports', 'write', 'own') && parallel.courseAssignments.some((a) => a.teacherId === actor.userId)), canAssignChair: isAuthority(actor), canReport: board.status === 'OPEN' && hasPermission(actor, 'formal_reports', 'write', 'own'),
     isTutor: parallel.tutorId === actor.userId, isSecretary, secretaryId, secretaryName: secretary ? name(secretary.profile) : null, isAuthority: isAuthority(actor),
     ownAssignmentIds: parallel.courseAssignments.filter((a) => a.teacherId === actor.userId).map((a) => a.id),
@@ -195,7 +197,7 @@ async function invitationContext(institutionId: string, actor: Actor, id: string
   const ctx = await accessibleBoard(institutionId, actor, id)
   const { board, parallel } = ctx
   const secretaryId = boardConfig(board.institution.settings).secretaries[parallel.id]
-  if (!isAuthority(actor) && board.chairId !== actor.userId && parallel.tutorId !== actor.userId && secretaryId !== actor.userId) throw new ForbiddenError('Solo secretaría, el tutor, quien dirige o la autoridad puede publicar la convocatoria')
+  if (secretaryId !== actor.userId) throw new ForbiddenError('Solo la secretaría asignada puede publicar la convocatoria')
   const meeting = readMeeting(board.meeting)
   assertMeetingReady(meeting, 'CALL')
   const staff = await prisma.user.findMany({ where: { institutionId, isActive: true, userRoles: { some: { role: { name: { in: ['teacher', 'admin', 'rector', 'inspector', 'dece'] } } } } }, select: person })
@@ -304,18 +306,25 @@ export async function updateMeeting(institutionId: string, actor: Actor, id: str
   const { board, parallel } = await accessibleBoard(institutionId, actor, id)
   const secretaryId = boardConfig(board.institution.settings).secretaries[parallel.id]
   if (!isAuthority(actor) && board.chairId !== actor.userId && parallel.tutorId !== actor.userId && secretaryId !== actor.userId) throw new ForbiddenError('Solo secretaría, el tutor, quien dirige o la autoridad puede preparar la convocatoria')
+  const current = readMeeting(board.meeting)
+  const meeting = secretaryId === actor.userId ? parsed.data.meeting : {
+    ...current,
+    development: parsed.data.meeting.development,
+    actualEndTime: parsed.data.meeting.actualEndTime,
+    participants: current.participants.map((participant, index) => ({ ...participant, attendance: parsed.data.meeting.participants[index]?.attendance ?? participant.attendance })),
+  }
   await prisma.$transaction(async (tx) => {
-    const updated = await tx.courseBoard.updateMany({ where: { id, institutionId, status: 'OPEN', revision: parsed.data.revision }, data: { meeting: json(parsed.data.meeting), revision: { increment: 1 } } })
+    const updated = await tx.courseBoard.updateMany({ where: { id, institutionId, status: 'OPEN', revision: parsed.data.revision }, data: { meeting: json(meeting), revision: { increment: 1 } } })
     if (!updated.count) throw new ConflictError('La junta cambió o está cerrada. Actualiza antes de guardar')
     await tx.auditLog.create({ data: { institutionId, userId: actor.userId, action: 'course_board.meeting_update', resourceType: 'course_board', resourceId: id } })
   })
-  return { revision: parsed.data.revision + 1, meeting: parsed.data.meeting }
+  return { revision: parsed.data.revision + 1, meeting }
 }
 
 export async function emitMeetingDocument(institutionId: string, actor: Actor, id: string, kind: 'CALL' | 'ATTENDANCE' | 'MINUTES') {
   const { board, parallel } = await accessibleBoard(institutionId, actor, id)
   const secretaryId = boardConfig(board.institution.settings).secretaries[parallel.id]
-  if (kind === 'CALL' && !isAuthority(actor) && board.chairId !== actor.userId && parallel.tutorId !== actor.userId && secretaryId !== actor.userId) throw new ForbiddenError('Solo secretaría, el tutor, quien dirige o la autoridad puede emitir la convocatoria')
+  if (kind === 'CALL' && secretaryId !== actor.userId) throw new ForbiddenError('Solo la secretaría asignada puede emitir la convocatoria')
   if (board.status === 'CLOSED' || kind === 'MINUTES') {
     const file = await prisma.courseBoardEvidence.findFirst({ where: { boardId: id, kind }, orderBy: { createdAt: 'desc' }, select: { id: true } })
     if (!file) throw new BadRequestError(kind === 'MINUTES' ? 'El acta se genera al cerrar la junta' : 'Este documento no se emitió antes del cierre')

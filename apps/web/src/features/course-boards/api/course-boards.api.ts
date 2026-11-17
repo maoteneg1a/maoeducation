@@ -26,7 +26,7 @@ export interface BoardReport {
 export interface BoardData {
   id: string; yearId: string; status: string; revision: number; matrixHash: string; closedAt: string | null; conclusions: string
   invitation: { id: string; publishedAt: string; needsUpdate: boolean } | null
-  meeting: MeetingDetails; canEditMeeting: boolean
+  meeting: MeetingDetails; canEditInvitation: boolean; canEditMeeting: boolean; canPublishInvitation: boolean
   chairId: string | null; chairName: string; canDirect: boolean; canUpload: boolean; canAssignChair: boolean; canReport: boolean
   isTutor: boolean; isSecretary: boolean; secretaryId: string | null; secretaryName: string | null; isAuthority: boolean; ownAssignmentIds: string[]
   matrix: {

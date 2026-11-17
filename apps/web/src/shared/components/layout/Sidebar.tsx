@@ -311,6 +311,7 @@ export const NAV_SECTIONS: NavSection[] = [
           { label: 'Asignaciones', path: '/academic/assignments', hideForPersonal: true },
           { label: 'Insumos por paralelo', path: '/academic/insumo-setup', hideForPersonal: true },
           { label: 'Configuración de calificación', path: '/settings/calificacion' },
+          { label: 'Juntas de curso', path: '/settings/juntas-curso', hideForPersonal: true },
           { label: 'Marco normativo e informes', path: '/settings/normativa', hideForPersonal: true },
           { label: 'Formato de Planificación', path: '/settings/formato-planificacion', module: 'planning' },
           { label: 'Mis grados y materias', path: '/settings/mis-grados', showOnlyForPersonal: true },
