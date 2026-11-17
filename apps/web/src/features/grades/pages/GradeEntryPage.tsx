@@ -4,9 +4,10 @@ import * as React from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Save, GraduationCap, BarChart3, Settings2, ExternalLink, CheckCheck, Keyboard, AlertTriangle } from 'lucide-react'
+import { Save, GraduationCap, BarChart3, Settings2, ExternalLink, CheckCheck, Keyboard, AlertTriangle, Plus, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
+import { Checkbox } from '@/shared/components/ui/checkbox'
 import { Badge } from '@/shared/components/ui/badge'
 import {
   Select,
@@ -1524,7 +1525,67 @@ function StudentAnnualByPeriodGrid({
   )
 }
 
+function ProjectSharingControl({ activityId }: { activityId: string }) {
+  const qc = useQueryClient()
+  const { data } = useQuery({ queryKey: ['period-project-sharing', activityId], queryFn: () => activitiesApi.getProjectSharing(activityId) })
+  const [selected, setSelected] = React.useState<string[]>([])
+  React.useEffect(() => { if (data) setSelected(data.options.filter((row) => row.selected).map((row) => row.courseAssignmentId)) }, [data])
+  const mutation = useMutation({
+    mutationFn: () => activitiesApi.updateProjectSharing(activityId, selected),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['period-project-sharing', activityId] }); qc.invalidateQueries({ predicate: (query) => /activit|grade|report/i.test(String(query.queryKey[0])) }); toast.success(selected.length ? 'La misma nota se usará en las materias marcadas' : 'La materia quedó independiente; conserva sus notas') },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
+  if (!data?.options.length) return null
+  const original = data.options.filter((row) => row.selected).map((row) => row.courseAssignmentId).sort().join('|')
+  const changed = original !== [...selected].sort().join('|')
+  return <Card className="p-3">
+    <p className="text-sm font-medium">Usar estas mismas notas en otras materias que imparto</p>
+    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">{data.options.map((row) => <label key={row.courseAssignmentId} className="flex items-center gap-2 text-sm"><Checkbox checked={selected.includes(row.courseAssignmentId)} onCheckedChange={(checked) => setSelected((current) => checked ? [...current, row.courseAssignmentId] : current.filter((id) => id !== row.courseAssignmentId))} />{row.subjectName}</label>)}</div>
+    <p className="mt-2 text-xs text-muted-foreground">Solo aparecen materias tuyas del mismo paralelo. Al desmarcar una materia conserva su última nota.</p>
+    {changed && <Button className="mt-2" size="sm" variant="outline" loading={mutation.isPending} onClick={() => { if (selected.length > data.options.filter((row) => row.selected).length && !window.confirm('Las notas de esta materia reemplazarán las notas actuales de las materias marcadas. ¿Continuar?')) return; mutation.mutate() }}>Aplicar selección</Button>}
+  </Card>
+}
+
+function PeriodProjectActivities({
+  activities, courseAssignmentId, periodId, selectedActivityId, onSelect,
+}: {
+  activities: Array<{ id: string; name: string }>
+  courseAssignmentId: string
+  periodId: string
+  selectedActivityId: string
+  onSelect: (id: string) => void
+}) {
+  const qc = useQueryClient()
+  const [newName, setNewName] = React.useState('')
+  const refresh = () => qc.invalidateQueries({ queryKey: ['activities', courseAssignmentId, periodId] })
+  const add = useMutation({
+    mutationFn: () => activitiesApi.addPeriodProjectComponent(courseAssignmentId, periodId, newName),
+    onSuccess: (activity) => { setNewName(''); refresh(); onSelect(activity.id); toast.success('Aspecto agregado al proyecto') },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
+  const rename = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => activitiesApi.updateActivity(id, { name }),
+    onSuccess: () => { refresh(); toast.success('Aspecto actualizado') },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
+  const remove = useMutation({
+    mutationFn: activitiesApi.deleteActivity,
+    onSuccess: (_, id) => { refresh(); if (selectedActivityId === id) onSelect(''); toast.success('Aspecto eliminado') },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
+  return <Card className="space-y-3 p-4">
+    <div><p className="font-semibold">Proyecto del período</p><p className="text-xs text-muted-foreground">Puedes usar una nota directa o dividir el proyecto en varios aspectos; el sistema los promedia.</p></div>
+    <div className="space-y-2">{activities.map((activity) => <div key={activity.id} className={cn('flex items-center gap-2 rounded-md border p-2', selectedActivityId === activity.id && 'border-primary bg-primary/5')}>
+      <button type="button" className="min-w-0 flex-1 truncate text-left text-sm font-medium" onClick={() => onSelect(activity.id)}>{activity.name}</button>
+      <Button type="button" variant="ghost" size="sm" title="Cambiar nombre" onClick={() => { const name = window.prompt('Nombre del aspecto del proyecto', activity.name)?.trim(); if (name && name !== activity.name) rename.mutate({ id: activity.id, name }) }}><Pencil className="h-3.5 w-3.5" /></Button>
+      <Button type="button" variant="ghost" size="sm" title="Eliminar aspecto" disabled={remove.isPending} onClick={() => { if (window.confirm(`¿Eliminar "${activity.name}"? Solo se puede eliminar si no tiene notas registradas.`)) remove.mutate(activity.id) }}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+    </div>)}</div>
+    <div className="flex gap-2"><Input value={newName} maxLength={200} placeholder="Ej. Investigación, producto final o exposición" onChange={(event) => setNewName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && newName.trim()) add.mutate() }} /><Button type="button" variant="outline" disabled={!newName.trim()} loading={add.isPending} onClick={() => add.mutate()}><Plus className="h-4 w-4" />Agregar actividad</Button></div>
+  </Card>
+}
+
 function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
+  const qc = useQueryClient()
   const user = useAuthStore((state) => state.user)
   const { hasAnyRole, hasPermission } = usePermissions()
   const isStudentOrGuardian = hasAnyRole('student', 'guardian')
@@ -1592,6 +1653,7 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
   })
 
   const selectedActivity = activitiesList.find((a) => a.id === selectedActivityId)
+  const periodProjectActivities = activitiesList.filter((activity) => activity.metadata?.periodProject === true)
   const completionPeriodId = consultationMode && selectedPeriodId !== ALL_PERIODS ? selectedPeriodId : ''
   const { data: gradeCompletion = [] } = useQuery({
     queryKey: ['grade-completion', completionPeriodId],
@@ -1632,6 +1694,11 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
 
   const { data: grades = [], isLoading: gradesLoading } = useGradesByActivity(selectedActivityId)
   const bulkSave = useBulkSaveGrades()
+  const ensureProject = useMutation({
+    mutationFn: () => activitiesApi.ensurePeriodProject(selectedAssignmentId, selectedPeriodId),
+    onSuccess: (activity) => { qc.invalidateQueries({ queryKey: ['activities', selectedAssignmentId, selectedPeriodId] }); setSelectedActivityId(activity.id); toast.success('Proyecto del período listo para calificar') },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
 
   // Local grade state
   const [localGrades, setLocalGrades] = React.useState<Record<string, number | null>>({})
@@ -1929,7 +1996,8 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
         )}
 
         {activeTab === 'entry' && !isStudentOrGuardian && (
-          <div className="w-full sm:w-52">
+          <div className="flex w-full gap-2 sm:w-auto">
+            <div className="min-w-0 flex-1 sm:w-52">
             <Select
               value={selectedActivityId}
               onValueChange={guarded(setSelectedActivityId, selectedActivityId)}
@@ -1949,9 +2017,20 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
                 ))}
               </SelectContent>
             </Select>
+            </div>
+            {gradingConfig?.periodProjectEnabled && (gradingConfig.defaultProjectWeight ?? 0) > 0 && selectedAssignmentId && selectedPeriodId && (
+              <Button type="button" variant={selectedActivity?.metadata?.periodProject ? 'default' : 'outline'} loading={ensureProject.isPending}
+                onClick={() => ensureProject.mutate()} title="Crear o abrir la nota de proyecto configurada por la institución">
+                Proyecto {gradingConfig?.defaultProjectWeight}%
+              </Button>
+            )}
           </div>
         )}
       </div>
+
+      {activeTab === 'entry' && !isStudentOrGuardian && periodProjectActivities.length > 0 && selectedAssignmentId && selectedPeriodId && (
+        <PeriodProjectActivities activities={periodProjectActivities} courseAssignmentId={selectedAssignmentId} periodId={selectedPeriodId} selectedActivityId={selectedActivityId} onSelect={setSelectedActivityId} />
+      )}
 
       {consultationMode && !isStudentOrGuardian && completionPeriodId && subjectsRequiringReview.length > 0 && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -2018,6 +2097,7 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
         />
       ) : (
         <div className="space-y-4">
+          {selectedActivity?.metadata?.periodProject === true && <ProjectSharingControl activityId={selectedActivity.id} />}
           {/* Activity info + Save button */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">

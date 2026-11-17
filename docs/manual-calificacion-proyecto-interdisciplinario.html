@@ -42,7 +42,7 @@
   <section class="cover">
     <div class="tag">Auleka · Manual operativo</div>
     <h1>Calificación de proyectos interdisciplinarios</h1>
-    <p class="lead">Flujo simple desde la configuración administrativa hasta el registro de una nota por materia, con opción de compartirla entre materias del mismo docente.</p>
+    <p class="lead">Flujo directo desde Configuración hasta Calificaciones, sin habilitar módulos adicionales ni crear una planificación interdisciplinaria.</p>
     <div class="meta"><b>Dirigido a:</b> administradores, coordinadores y docentes<br><b>Versión:</b> noviembre de 2026</div>
   </section>
 
@@ -51,13 +51,13 @@
     <p class="intro">La institución define cuánto vale el proyecto en el trimestre. Existe un solo proyecto interdisciplinario para el paralelo, pero cada asignatura conserva su propia nota. Si un profesor imparte varias materias participantes, puede registrar una vez y compartir la misma nota entre ellas.</p>
     <div class="flow">
       <div><b>1 · Administración</b>Configura el porcentaje institucional.</div>
-      <div><b>2 · Proyecto</b>Define paralelo, período y materias.</div>
+      <div><b>2 · Calificaciones</b>El docente pulsa Proyecto 30 %.</div>
       <div><b>3 · Docente</b>Registra una nota individual por estudiante.</div>
       <div><b>4 · Reversión</b>Desvincula una materia sin perder su nota.</div>
     </div>
     <h3>Reglas esenciales</h3>
     <ul>
-      <li>La nota se calcula como actividad de tipo <b>Proyecto</b>; no es un insumo formativo.</li>
+      <li>La nota se calcula como actividad de tipo <b>Proyecto</b>; el sistema la prepara automáticamente.</li>
       <li>Solo se pueden compartir notas entre materias del <b>mismo docente</b>, proyecto, paralelo y período.</li>
       <li>Cada materia participa con el porcentaje configurado para Proyecto.</li>
       <li>Un período cerrado no permite crear vínculos ni modificar notas.</li>
@@ -65,7 +65,7 @@
 
     <h2>2. Administración: configurar el porcentaje</h2>
     <div class="step"><div class="num">1</div><div>Ingresa con un usuario administrador y abre <span class="path">Configuración → Calificaciones</span>.</div></div>
-    <div class="step"><div class="num">2</div><div>En <b>Porcentajes de la nota del período</b>, asigna el valor de <b>Proyecto (%)</b>. Ejemplo: 30.</div></div>
+    <div class="step"><div class="num">2</div><div>Activa <b>Habilitar Proyecto del período</b> y asigna el porcentaje. Ejemplo: 30.</div></div>
     <div class="step"><div class="num">3</div><div>Comprueba que Actividades/Formativa, Examen y Proyecto sumen 100 % y guarda.</div></div>
     <div class="mock">
       <div class="mock-title">Porcentajes de la nota del período</div>
@@ -78,26 +78,37 @@
   </section>
 
   <section class="page">
-    <h2>3. Crear y aprobar el proyecto</h2>
-    <div class="step"><div class="num">1</div><div>Abre <span class="path">Proyectos interdisciplinarios</span> y selecciona el paralelo y el trimestre.</div></div>
-    <div class="step"><div class="num">2</div><div>Crea el proyecto con un título claro, reto, propósito y producto final.</div></div>
-    <div class="step"><div class="num">3</div><div>Agrega las asignaturas participantes. Cada aporte queda asociado a una asignación concreta: materia + docente.</div></div>
-    <div class="step"><div class="num">4</div><div>Revisa el proyecto, envíalo y usa <b>Aprobar proyecto</b> cuando corresponda.</div></div>
-    <div class="ok"><b>Resultado:</b> todos trabajan sobre el mismo proyecto del paralelo, pero la calificación se mantiene separada por materia.</div>
+    <h2>3. Abrir el proyecto desde Calificaciones</h2>
+    <div class="step"><div class="num">1</div><div>El docente abre <span class="path">Calificaciones → Registrar notas</span>.</div></div>
+    <div class="step"><div class="num">2</div><div>Selecciona la materia y el trimestre.</div></div>
+    <div class="step"><div class="num">3</div><div>Pulsa el botón <b>Proyecto 30 %</b>. El sistema crea o abre la columna institucional.</div></div>
+    <div class="ok"><b>No se necesita:</b> activar el menú Proyectos interdisciplinarios, crear insumos, agregar aportes ni aprobar una planificación.</div>
 
     <h2>4. Docente: registrar las notas</h2>
-    <div class="step"><div class="num">1</div><div>Abre el proyecto y localiza la tarjeta <b>Calificación del proyecto</b>.</div></div>
-    <div class="step"><div class="num">2</div><div>En <b>Calificar en</b>, selecciona una de tus materias participantes.</div></div>
-    <div class="step"><div class="num">3</div><div>Registra una nota por estudiante dentro de la escala institucional y pulsa <b>Guardar notas</b>.</div></div>
+    <div class="step"><div class="num">1</div><div>Al pulsar <b>Proyecto 30 %</b> aparece la lista de estudiantes.</div></div>
+    <div class="step"><div class="num">2</div><div>Registra una nota por estudiante dentro de la escala institucional.</div></div>
+    <div class="step"><div class="num">3</div><div>Pulsa <b>Guardar notas</b>.</div></div>
     <div class="mock">
       <div class="mock-title">Calificación del proyecto</div>
-      <div class="field"><span>Calificar en</span><b>Ciencias Naturales</b></div>
+      <div class="field"><span>Materia seleccionada</span><b>Ciencias Naturales · Proyecto 30 %</b></div>
       <table><thead><tr><th>Estudiante</th><th>Nota / 10</th></tr></thead><tbody><tr><td>Alvarado Camila</td><td>9,00</td></tr><tr><td>Benítez Mateo</td><td>8,50</td></tr><tr><td>Cedeño Sofía</td><td>9,25</td></tr></tbody></table>
     </div>
-    <p>La actividad queda publicada como tipo Proyecto y también aparece en la pantalla normal de Calificaciones.</p>
+    <p>La columna queda publicada como tipo Proyecto y se reutiliza cada vez que el docente pulsa el botón.</p>
+
+    <h3>Evaluar varios aspectos</h3>
+    <p>El proyecto inicia con una actividad llamada <b>Proyecto del período</b>. Si el docente necesita varios criterios, puede cambiar ese nombre y pulsar <b>Agregar actividad</b>.</p>
+    <div class="mock">
+      <div class="mock-title">Proyecto del período · 30 %</div>
+      <div class="field"><span>Investigación</span><span>Editar · Eliminar</span></div>
+      <div class="field"><span>Producto final</span><span>Editar · Eliminar</span></div>
+      <div class="field"><span>Exposición</span><span>Editar · Eliminar</span></div>
+      <div class="field"><span>+ Agregar actividad</span><span></span></div>
+    </div>
+    <p>Las actividades del proyecto se promedian entre sí. Por ejemplo: 8 en Investigación, 9 en Producto final y 7 en Exposición producen una nota de proyecto de 8.</p>
+    <p class="warning">Una actividad que ya tiene notas no puede eliminarse. Primero deben retirarse sus notas para proteger el historial.</p>
 
     <h2>5. Usar la misma nota en otras materias</h2>
-    <div class="step"><div class="num">1</div><div>Selecciona la materia que contiene las notas que deseas conservar como origen.</div></div>
+    <div class="step"><div class="num">1</div><div>Abre Proyecto desde la materia que contiene las notas que deseas conservar.</div></div>
     <div class="step"><div class="num">2</div><div>En <b>Usar esta misma nota en</b>, marca las otras materias tuyas.</div></div>
     <div class="step"><div class="num">3</div><div>Pulsa <b>Aplicar selección</b> y confirma. Las notas de la materia de origen reemplazan las notas actuales de las materias marcadas.</div></div>
     <div class="mock">
@@ -134,8 +145,8 @@
     <h2>8. Lista de verificación administrativa</h2>
     <ul>
       <li>☐ El porcentaje de Proyecto está configurado y los tres componentes suman 100 %.</li>
-      <li>☐ El proyecto corresponde al paralelo y trimestre correctos.</li>
-      <li>☐ Todas las materias y docentes participantes están agregados.</li>
+      <li>☐ El interruptor Proyecto del período está habilitado.</li>
+      <li>☐ Los docentes seleccionaron el paralelo y trimestre correctos en Calificaciones.</li>
       <li>☐ Los docentes conocen cuál materia usarán como origen si compartirán notas.</li>
       <li>☐ Se revisaron las notas antes de cerrar el período.</li>
     </ul>
