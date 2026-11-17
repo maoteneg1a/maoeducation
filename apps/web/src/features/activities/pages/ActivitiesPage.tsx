@@ -365,7 +365,7 @@ function ActivityRow({ activity, types, onEdit, onTogglePublish, onDelete, isPub
     <div className="min-w-0 flex-1 basis-40">
       <p className="break-words text-sm font-medium">{activity.name}</p>
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        {type && <span>{type.name}</span>}<span>{formatDate(activity.activityDate)}</span><span>Sobre {activity.maxScore}</span>
+        {type && <span>{type.name}</span>}<span>{activity.activityDate ? formatDate(activity.activityDate) : 'Sin fecha'}</span><span>Sobre {activity.maxScore}</span>
         <span>{activity._count?.grades ?? 0} calificaciones</span>
       </div>
     </div>
@@ -464,7 +464,7 @@ export function ActivitiesPage() {
       curriculumSkillId: activity.curriculumSkillId ?? '',
       competencyId: activity.competencyId ?? '',
       maxScore: activity.maxScore,
-      activityDate: activity.activityDate,
+      activityDate: activity.activityDate ?? todayLocalISO(),
       description: activity.description ?? '',
     })
     setOpen(true)

@@ -42,7 +42,7 @@ export class PrismaActivityRepository {
     const config = (institution?.settings as { gradingConfig?: { periodProjectEnabled?: boolean; defaultProjectWeight?: number; gradingScaleMax?: number } } | null)?.gradingConfig
     if (!config?.periodProjectEnabled || !(config.defaultProjectWeight && config.defaultProjectWeight > 0)) throw new ConflictError('El administrador no ha habilitado Proyecto del período')
     return prisma.activity.create({
-      data: { institutionId, courseAssignmentId, academicPeriodId: periodId, activityTypeId: type.id, name: 'Proyecto del período', description: 'Nota individual del proyecto del período', maxScore: config.gradingScaleMax ?? 10, isPublished: true, createdBy: actorId, metadata: { periodProject: true } },
+      data: { institutionId, courseAssignmentId, academicPeriodId: periodId, activityTypeId: type.id, name: 'Proyecto del período', description: 'Nota individual del proyecto del período', maxScore: config.gradingScaleMax ?? 10, activityDate: new Date(), isPublished: true, createdBy: actorId, metadata: { periodProject: true } },
       include: { grades: true },
     })
   }
@@ -67,7 +67,7 @@ export class PrismaActivityRepository {
     if (!type) throw new ConflictError('La institución no tiene habilitado el tipo de actividad Proyecto')
     const maxScore = (institution?.settings as { gradingConfig?: { gradingScaleMax?: number } } | null)?.gradingConfig?.gradingScaleMax ?? 10
     return prisma.activity.create({
-      data: { institutionId, courseAssignmentId, academicPeriodId: periodId, activityTypeId: type.id, name: title, description: 'Aspecto del proyecto del período', maxScore, isPublished: true, createdBy: actorId, metadata: { periodProject: true } },
+      data: { institutionId, courseAssignmentId, academicPeriodId: periodId, activityTypeId: type.id, name: title, description: 'Aspecto del proyecto del período', maxScore, activityDate: new Date(), isPublished: true, createdBy: actorId, metadata: { periodProject: true } },
     })
   }
 

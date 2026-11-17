@@ -24,7 +24,7 @@ export interface Activity {
   name: string
   description?: string
   maxScore: number
-  activityDate: string
+  activityDate: string | null
   isPublished: boolean
   activityTypeId: string
   activityTypeName?: string
