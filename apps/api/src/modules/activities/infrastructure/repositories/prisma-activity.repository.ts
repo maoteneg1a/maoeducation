@@ -7,6 +7,7 @@ import { NotFoundError, ConflictError, ValidationError } from '../../../../share
 import { assertSkillsArePlanned, assertCompetenciesArePlanned } from '../../../../shared/infrastructure/services/planned-curriculum.service'
 import { activityKind, effectiveActivityScore } from '../../../../shared/domain/grade-math'
 import { improvedScore, resolveAgreement, type AgreementRules } from '../../../../shared/domain/agreement-rules'
+import { randomUUID } from 'node:crypto'
 
 const SUMMATIVE_IMPROVEMENT_MODES = ['agreement_direct', 'agreement_with_reinforcement'] as const
 import { STUDENT_ENROLLMENT_ORDER } from '../../../../shared/infrastructure/services/enrollment-query'
@@ -25,6 +26,75 @@ import type {
 const GRADE_STATUSES = new Set(['entregado', 'no_realizado', 'atrasado', 'excusado'])
 
 export class PrismaActivityRepository {
+  private periodProjectMetadata(metadata: unknown) {
+    return metadata as { periodProject?: boolean; projectGradeShareGroupId?: string }
+  }
+
+  private async ensurePeriodProjectActivity(institutionId: string, courseAssignmentId: string, periodId: string, actorId: string) {
+    const existing = await prisma.activity.findMany({ where: { institutionId, courseAssignmentId, academicPeriodId: periodId, activityType: { code: 'project' } }, include: { grades: true } })
+    const periodProject = existing.find((activity) => this.periodProjectMetadata(activity.metadata).periodProject)
+    if (periodProject) return periodProject
+    const [type, institution] = await Promise.all([
+      prisma.activityType.findFirst({ where: { institutionId, code: 'project', isActive: true } }),
+      prisma.institution.findUnique({ where: { id: institutionId }, select: { settings: true } }),
+    ])
+    if (!type) throw new ConflictError('La institución no tiene habilitado el tipo de actividad Proyecto')
+    const config = (institution?.settings as { gradingConfig?: { periodProjectEnabled?: boolean; defaultProjectWeight?: number; gradingScaleMax?: number } } | null)?.gradingConfig
+    if (!config?.periodProjectEnabled || !(config.defaultProjectWeight && config.defaultProjectWeight > 0)) throw new ConflictError('El administrador no ha habilitado Proyecto del período')
+    return prisma.activity.create({
+      data: { institutionId, courseAssignmentId, academicPeriodId: periodId, activityTypeId: type.id, name: 'Proyecto del período', description: 'Nota individual del proyecto del período', maxScore: config.gradingScaleMax ?? 10, isPublished: true, createdBy: actorId, metadata: { periodProject: true } },
+      include: { grades: true },
+    })
+  }
+
+  async ensurePeriodProject(institutionId: string, courseAssignmentId: string, periodId: string, actorId: string) {
+    const assignment = await prisma.courseAssignment.findFirst({ where: { id: courseAssignmentId, institutionId }, select: { academicYearId: true } })
+    if (!assignment) throw new NotFoundError('Asignación no encontrada')
+    const period = await prisma.academicPeriod.findFirst({ where: { id: periodId, academicYearId: assignment.academicYearId }, select: { isClosed: true } })
+    if (!period) throw new NotFoundError('Período no encontrado')
+    if (period.isClosed) throw new ConflictError('El período está cerrado')
+    return this.ensurePeriodProjectActivity(institutionId, courseAssignmentId, periodId, actorId)
+  }
+
+  private async projectSharingContext(institutionId: string, activityId: string, actorId: string) {
+    const activity = await prisma.activity.findFirst({ where: { id: activityId, institutionId, activityType: { code: 'project' } }, include: { grades: true, academicPeriod: { select: { isClosed: true } }, courseAssignment: { include: { subject: true } } } })
+    if (!activity || !this.periodProjectMetadata(activity.metadata).periodProject) throw new NotFoundError('Proyecto del período no encontrado')
+    if (activity.courseAssignment.teacherId !== actorId) throw new ConflictError('Solo puedes compartir notas entre tus propias materias')
+    const assignments = await prisma.courseAssignment.findMany({ where: { institutionId, teacherId: actorId, parallelId: activity.courseAssignment.parallelId, academicYearId: activity.courseAssignment.academicYearId, isActive: true }, include: { subject: true }, orderBy: { subject: { name: 'asc' } } })
+    return { activity, assignments }
+  }
+
+  async getProjectSharing(institutionId: string, activityId: string, actorId: string) {
+    const { activity, assignments } = await this.projectSharingContext(institutionId, activityId, actorId)
+    const activities = await prisma.activity.findMany({ where: { institutionId, academicPeriodId: activity.academicPeriodId, courseAssignmentId: { in: assignments.map((row) => row.id) }, activityType: { code: 'project' } }, select: { courseAssignmentId: true, metadata: true } })
+    const group = this.periodProjectMetadata(activity.metadata).projectGradeShareGroupId
+    const selected = new Set(activities.filter((row) => group && this.periodProjectMetadata(row.metadata).projectGradeShareGroupId === group).map((row) => row.courseAssignmentId))
+    return { options: assignments.filter((row) => row.id !== activity.courseAssignmentId).map((row) => ({ courseAssignmentId: row.id, subjectName: row.subject.name, selected: selected.has(row.id) })) }
+  }
+
+  async updateProjectSharing(institutionId: string, activityId: string, actorId: string, courseAssignmentIds: string[]) {
+    const { activity, assignments } = await this.projectSharingContext(institutionId, activityId, actorId)
+    if (activity.academicPeriod.isClosed) throw new ConflictError('El período está cerrado')
+    const allowed = new Set(assignments.map((row) => row.id)); const selectedIds = [...new Set(courseAssignmentIds)]
+    if (selectedIds.some((id) => id === activity.courseAssignmentId || !allowed.has(id))) throw new ConflictError('Solo puedes compartir con materias tuyas del mismo paralelo')
+    const targets: typeof activity[] = []
+    for (const assignmentId of selectedIds) targets.push(await this.ensurePeriodProjectActivity(institutionId, assignmentId, activity.academicPeriodId, actorId))
+    const oldGroup = this.periodProjectMetadata(activity.metadata).projectGradeShareGroupId
+    const group = selectedIds.length ? oldGroup ?? randomUUID() : undefined
+    const all = await prisma.activity.findMany({ where: { institutionId, academicPeriodId: activity.academicPeriodId, courseAssignmentId: { in: assignments.map((row) => row.id) }, activityType: { code: 'project' } }, include: { grades: true } })
+    await prisma.$transaction(async (tx) => {
+      for (const row of all.filter((candidate) => oldGroup && this.periodProjectMetadata(candidate.metadata).projectGradeShareGroupId === oldGroup && !targets.some((target) => target.id === candidate.id))) {
+        const metadata = { ...this.periodProjectMetadata(row.metadata) }; delete metadata.projectGradeShareGroupId
+        await tx.activity.update({ where: { id: row.id }, data: { metadata } })
+      }
+      for (const row of [activity, ...targets]) {
+        const metadata = { ...this.periodProjectMetadata(row.metadata) }; if (group) metadata.projectGradeShareGroupId = group; else delete metadata.projectGradeShareGroupId
+        await tx.activity.update({ where: { id: row.id }, data: { metadata } })
+      }
+      for (const target of targets) for (const grade of activity.grades) await tx.grade.upsert({ where: { activityId_studentId: { activityId: target.id, studentId: grade.studentId } }, create: { institutionId, activityId: target.id, studentId: grade.studentId, score: grade.score, status: grade.status, isExcused: grade.isExcused, notes: grade.notes, gradedBy: actorId, gradedAt: new Date() }, update: { score: grade.score, status: grade.status, isExcused: grade.isExcused, notes: grade.notes, gradedBy: actorId, gradedAt: new Date() } })
+    })
+    return this.getProjectSharing(institutionId, activityId, actorId)
+  }
   private async protectActivityCalculation(db: Prisma.TransactionClient, institutionId: string, activity: { id: string; courseAssignmentId: string; academicPeriodId: string }) {
     const grades = await db.grade.findMany({ where: { institutionId, activityId: activity.id }, select: { studentId: true, gradedAt: true, createdAt: true } })
     await assertReinforcementGradesOpen(db, institutionId, grades.map((grade) => ({ studentId: grade.studentId, courseAssignmentId: activity.courseAssignmentId, academicPeriodId: activity.academicPeriodId, recordedAt: grade.gradedAt ?? grade.createdAt })))

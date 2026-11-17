@@ -64,6 +64,7 @@ export interface GradingConfig {
   promotion: PromotionConfig
   /** Porcentaje del proyecto sobre la nota final. */
   defaultProjectWeight: number
+  periodProjectEnabled: boolean
   /** Peso conjunto de examen + proyecto, conservado por compatibilidad. */
   defaultExamWeight: number
   formativeReinforcement: FormativeReinforcementConfig
@@ -79,6 +80,7 @@ export interface UpdateGradingConfigDto {
   behaviorScale?: BehaviorLevel[]
   promotion?: Partial<PromotionConfig>
   defaultProjectWeight?: number
+  periodProjectEnabled?: boolean
   defaultExamWeight?: number
   formativeReinforcement?: Partial<FormativeReinforcementConfig>
   pedagogicRecovery?: Partial<PedagogicRecoveryConfig>

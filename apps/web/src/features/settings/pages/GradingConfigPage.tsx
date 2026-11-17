@@ -175,7 +175,7 @@ export function GradingConfigPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Porcentajes de la nota del período</CardTitle>
+          <CardTitle>Proyecto y porcentajes del período</CardTitle>
           <CardDescription>
             Define cuánto aportan las actividades, el examen y el proyecto a la nota final.
             Al guardar cambios en estos porcentajes se recalculan los períodos de todas las materias.
@@ -183,6 +183,11 @@ export function GradingConfigPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <label className="flex cursor-pointer items-start gap-3 rounded-md border p-4 text-sm">
+            <input type="checkbox" className="mt-0.5 h-4 w-4" checked={cfg.periodProjectEnabled}
+              onChange={(event) => { const project = event.target.checked ? Math.min(30, 100 - examPercent) : 0; setCfg({ ...cfg, periodProjectEnabled: event.target.checked, defaultProjectWeight: project, defaultExamWeight: examPercent + project }) }} />
+            <span><strong>Habilitar Proyecto del período</strong><span className="mt-1 block text-xs text-muted-foreground">Los docentes lo registrarán directamente en Calificaciones. No requiere el módulo de Proyectos interdisciplinarios.</span></span>
+          </label>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="formative-percent">Actividades / formativa (%)</Label>
@@ -197,6 +202,7 @@ export function GradingConfigPage() {
             <div className="space-y-1.5">
               <Label htmlFor="project-percent">Proyecto (%)</Label>
               <Input id="project-percent" type="number" min={0} max={100} step={1} value={cfg.defaultProjectWeight}
+                disabled={!cfg.periodProjectEnabled}
                 onChange={(e) => setCfg({ ...cfg, defaultProjectWeight: Number(e.target.value), defaultExamWeight: examPercent + Number(e.target.value) })} />
             </div>
           </div>

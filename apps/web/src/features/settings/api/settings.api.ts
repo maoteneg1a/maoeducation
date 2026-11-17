@@ -47,6 +47,7 @@ export interface GradingConfig {
   behaviorScale: BehaviorLevel[]
   promotion: PromotionConfig
   defaultProjectWeight: number
+  periodProjectEnabled: boolean
   defaultExamWeight: number
   formativeReinforcement: FormativeReinforcementConfig
   pedagogicRecovery: PedagogicRecoveryConfig

@@ -32,6 +32,7 @@ export interface Activity {
   taskId?: string
   courseAssignmentId: string
   academicPeriodId: string
+  metadata?: Record<string, unknown>
   /** Destreza del banco curricular vinculada a esta actividad — habilita el refuerzo automático por destreza. */
   curriculumSkillId?: string | null
   curriculumSkill?: { id: string; code: string; description: string } | null
@@ -148,6 +149,9 @@ export const activitiesApi = {
   assignInsumo: (id: string, insumoId: string) =>
     apiPatch<Activity>(`activities/${id}/insumo`, { insumoId }),
   deleteActivity: (id: string) => apiDelete(`activities/${id}`),
+  ensurePeriodProject: (courseAssignmentId: string, periodId: string) => apiPost<Activity>('activities/period-project', { courseAssignmentId, periodId }),
+  getProjectSharing: (activityId: string) => apiGet<{ options: Array<{ courseAssignmentId: string; subjectName: string; selected: boolean }> }>(`activities/${activityId}/project-sharing`),
+  updateProjectSharing: (activityId: string, courseAssignmentIds: string[]) => apiPut<{ options: Array<{ courseAssignmentId: string; subjectName: string; selected: boolean }> }>(`activities/${activityId}/project-sharing`, { courseAssignmentIds }),
 
   // Grades
   getGradesByActivity: (activityId: string) =>

@@ -49,6 +49,7 @@ export function extractGradingConfig(settings: unknown): GradingConfig {
     promotion: { ...DEFAULT_GRADING_CONFIG.promotion, ...(gc.promotion ?? {}) },
     defaultExamWeight: gc.defaultExamWeight ?? DEFAULT_GRADING_CONFIG.defaultExamWeight,
     defaultProjectWeight: gc.defaultProjectWeight ?? (gc.defaultExamWeight ?? DEFAULT_GRADING_CONFIG.defaultExamWeight) / 2,
+    periodProjectEnabled: gc.periodProjectEnabled ?? false,
     formativeReinforcement: {
       ...DEFAULT_GRADING_CONFIG.formativeReinforcement,
       cap: DEFAULT_GRADING_CONFIG.formativeReinforcement.cap * (gc.gradingScaleMax ?? DEFAULT_GRADING_CONFIG.gradingScaleMax) / DEFAULT_GRADING_CONFIG.gradingScaleMax,
@@ -194,6 +195,7 @@ export class PrismaInstitutionRepository {
       promotion: { ...current.promotion, ...(dto.promotion ?? {}) },
       defaultExamWeight: dto.defaultExamWeight ?? current.defaultExamWeight,
       defaultProjectWeight: dto.defaultProjectWeight ?? (dto.defaultExamWeight !== undefined && dto.defaultExamWeight !== current.defaultExamWeight ? dto.defaultExamWeight / 2 : current.defaultProjectWeight),
+      periodProjectEnabled: dto.periodProjectEnabled ?? current.periodProjectEnabled,
       formativeReinforcement: { ...current.formativeReinforcement, ...(dto.formativeReinforcement ?? {}) },
       pedagogicRecovery: { ...current.pedagogicRecovery, ...(dto.pedagogicRecovery ?? {}) },
       activityGradeReinforcement: {
