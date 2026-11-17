@@ -28,6 +28,7 @@ export interface Activity {
   isPublished: boolean
   activityTypeId: string
   activityTypeName?: string
+  activityType?: { id: string; name: string; code: string }
   insumoId?: string
   taskId?: string
   courseAssignmentId: string
