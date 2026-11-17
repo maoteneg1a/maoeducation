@@ -9,7 +9,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { getErrorMessage } from '@/shared/lib/utils'
 import { saveBoardConfig, type BoardConfig } from '../api/course-boards.api'
 
-export function BoardConfigDialog({ config }: { config: BoardConfig }) {
+interface Props {
+  config: BoardConfig
+  parallels: Array<{ id: string; name: string; secretaryId: string | null }>
+  candidates: Array<{ id: string; name: string }>
+}
+
+export function BoardConfigDialog({ config, parallels, candidates }: Props) {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(config)
@@ -19,6 +25,19 @@ export function BoardConfigDialog({ config }: { config: BoardConfig }) {
     <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
       <DialogHeader><DialogTitle>Configuración de juntas</DialogTitle><DialogDescription>Los períodos, materias y reglas de notas se toman de la configuración académica. Los documentos ya emitidos conservan su formato.</DialogDescription></DialogHeader>
       <fieldset disabled={mutation.isPending} className="space-y-4">
+        <div className="space-y-3 rounded-lg border p-4">
+          <div><h3 className="font-medium">Secretaría de cada junta</h3><p className="text-xs text-muted-foreground">Puede ser un docente de otro paralelo. La persona asignada podrá preparar y enviar la convocatoria, pero no cerrar la junta.</p></div>
+          {parallels.map((parallel) => <div key={parallel.id} className="grid items-center gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+            <Label htmlFor={`board-secretary-${parallel.id}`}>{parallel.name}</Label>
+            <select id={`board-secretary-${parallel.id}`} className="w-full rounded-md border bg-background p-2 text-sm" value={draft.secretaries[parallel.id] ?? ''} onChange={(e) => {
+              const secretaries = { ...draft.secretaries }
+              if (e.target.value) secretaries[parallel.id] = e.target.value
+              else delete secretaries[parallel.id]
+              setDraft({ ...draft, secretaries })
+            }}><option value="">Sin secretario asignado</option>{candidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}</select>
+          </div>)}
+          {!parallels.length && <p className="text-sm text-muted-foreground">No hay paralelos en el año seleccionado.</p>}
+        </div>
         {(['title', 'situationLabel', 'actionsLabel', 'recommendationsLabel'] as const).map((key, i) => <div key={key} className="space-y-1"><Label htmlFor={`board-config-${key}`}>{['Nombre del módulo/documento', 'Primer campo del informe', 'Segundo campo del informe', 'Tercer campo del informe'][i]}</Label><Input id={`board-config-${key}`} value={draft[key]} maxLength={key === 'title' ? 120 : 100} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} /></div>)}
         <div className="space-y-1"><Label htmlFor="board-config-background">Antecedentes predeterminados de la convocatoria</Label><Textarea id="board-config-background" rows={4} maxLength={4000} value={draft.convocationBackground} onChange={(e) => setDraft({ ...draft, convocationBackground: e.target.value })} /><p className="text-xs text-muted-foreground">Se precargan en las convocatorias nuevas y en las abiertas sin antecedentes. Puedes editarlos en cada convocatoria.</p></div>
         <div className="grid grid-cols-2 gap-3">{(['headerBackground', 'tableHeaderBackground', 'textColor', 'borderColor'] as const).map((key, i) => <div key={key} className="space-y-1"><Label htmlFor={`board-config-${key}`}>{['Encabezados y secciones', 'Cabecera de tablas', 'Texto', 'Bordes'][i]}</Label><Input id={`board-config-${key}`} type="color" value={draft[key]} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} /></div>)}</div>

@@ -8,7 +8,9 @@
 4. Durante la junta, en **Reunión y cierre**, registra asistencia real, desarrollo y acuerdos. **Cerrar junta y generar acta** guarda el acta y el consolidado revisado.
 5. En **Informes y evidencias**, consulta los PDF o adjunta las copias firmadas.
 
-Las pestañas siguen ese orden: convocatoria, consolidado, reunión/cierre e informes/evidencias. **Actualizar** recarga notas y documentos. El tutor es el responsable inicial; la autoridad puede designar a otra persona con acceso a reportes. Solo la autoridad o la persona designada puede cerrar o reabrir la junta.
+Las pestañas siguen ese orden: convocatoria, consolidado, reunión/cierre e informes/evidencias. **Actualizar** recarga notas y documentos. El tutor es el responsable inicial; la autoridad puede designar a otra persona para dirigir. Solo la autoridad o la persona designada para dirigir puede cerrar o reabrir la junta.
+
+La autoridad configura una **Secretaría** diferente para cada paralelo. Puede escoger a un docente de otro paralelo; por ejemplo, el secretario de A puede gestionar la convocatoria de B. La persona asignada ve esa junta, prepara la ficha, descarga y publica la convocatoria. Ser secretario no concede permiso para cerrar o reabrir la junta.
 
 La publicación se realiza antes de la fecha y hora de reunión. El aviso llega únicamente a las cuentas activas del personal que figuran entre los convocados, nunca a familias/alumnos por pertenecer al curso. Los nombres sin cuenta única vinculada se muestran antes de publicar para entregarles el PDF. El tutor puede publicar y consultar el seguimiento de su convocatoria sin obtener permisos generales de publicación en Avisos.
 
@@ -56,7 +58,7 @@ Cerrar la junta no modifica notas ni cierra el período académico. Se guarda un
 
 Los PDF nuevos usan los azules del Word por defecto (`#D9E2F3` en encabezados/secciones y `#B4C6E7` en cabeceras de tablas), texto negro y el logo institucional como marca de agua al 5 % en todas las páginas. Se pueden cambiar los cuatro colores (encabezados, tablas, texto y bordes), desactivar la marca o ajustar su opacidad de 0 a 15 %. Sin logo se omite la marca de agua. Los PDF ya emitidos no se modifican.
 
-La autoridad dispone de **Configurar juntas**: antecedentes predeterminados de la convocatoria, colores y marca de agua, además de nombre del documento, etiquetas de los tres campos, secciones del resumen y catálogo de informes (nombre, activo y autor: tutor/docente/ambos). Puede agregar tipos o desactivarlos; todos son opcionales. Los campos y tipos se guardan en `Institution.settings.courseBoards`. Los límites y tipos de archivo se toman de la configuración de anexos existente, con un máximo de 10 MB por archivo.
+La autoridad dispone de **Configurar juntas**: secretaría por paralelo, antecedentes predeterminados de la convocatoria, colores y marca de agua, además de nombre del documento, etiquetas de los tres campos, secciones del resumen y catálogo de informes (nombre, activo y autor: tutor/docente/ambos). Puede agregar tipos o desactivarlos; todos son opcionales. Los campos, tipos y asignaciones de secretaría se guardan en `Institution.settings.courseBoards`. Los límites y tipos de archivo se toman de la configuración de anexos existente, con un máximo de 10 MB por archivo.
 
 ## Instalación y validación
 

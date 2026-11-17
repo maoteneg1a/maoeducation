@@ -5,6 +5,7 @@ export interface MeetingDetails {
 }
 import { apiClient, apiGet, apiPost, apiPut } from '@/shared/lib/api-client'
 export interface BoardConfig {
+  secretaries: Record<string, string>
   convocationBackground: string; headerBackground: string; tableHeaderBackground: string; textColor: string; borderColor: string
   watermarkEnabled: boolean; watermarkOpacity: number
   title: string; situationLabel: string; actionsLabel: string; recommendationsLabel: string
@@ -14,8 +15,8 @@ export interface BoardConfig {
 export interface BoardOptions {
   years: Array<{ id: string; name: string; isActive: boolean }>; yearId: string
   periods: Array<{ id: string; name: string; isActive: boolean }>
-  parallels: Array<{ id: string; name: string; participant: boolean; boards: Array<{ id: string; academicPeriodId: string; status: string; chairId: string | null }> }>
-  chairs: Array<{ id: string; name: string }>; config: BoardConfig; canConfigure: boolean
+  parallels: Array<{ id: string; name: string; participant: boolean; secretaryId: string | null; boards: Array<{ id: string; academicPeriodId: string; status: string; chairId: string | null }> }>
+  chairs: Array<{ id: string; name: string }>; secretaryCandidates: Array<{ id: string; name: string }>; config: BoardConfig; canConfigure: boolean
 }
 export interface BoardReport {
   title: string; authorName: string; subjectName: string | null
@@ -27,7 +28,7 @@ export interface BoardData {
   invitation: { id: string; publishedAt: string; needsUpdate: boolean } | null
   meeting: MeetingDetails; canEditMeeting: boolean
   chairId: string | null; chairName: string; canDirect: boolean; canUpload: boolean; canAssignChair: boolean; canReport: boolean
-  isTutor: boolean; isAuthority: boolean; ownAssignmentIds: string[]
+  isTutor: boolean; isSecretary: boolean; secretaryId: string | null; secretaryName: string | null; isAuthority: boolean; ownAssignmentIds: string[]
   matrix: {
     institutionName: string; parallelName: string; periodName: string; yearName: string; tutorName: string; generatedAt: string; config: BoardConfig
     subjects: Array<{ id: string; name: string; teacherId: string; teacherName: string; isQualitative: boolean }>

@@ -4,9 +4,17 @@ import { boardConfig, boardConfigSchema, DEFAULT_BOARD_CONFIG, reportInputSchema
 describe('simple course board configuration', () => {
   it('provides three optional report types and independent default copies', () => {
     const cfg = boardConfig({})
+    expect(cfg.secretaries).toEqual({})
     expect(cfg.reportTypes.map((t) => t.key)).toEqual(['general', 'subject', 'reinforcement'])
     cfg.reportTypes[0].label = 'Changed'
     expect(boardConfig({}).reportTypes[0].label).toBe(DEFAULT_BOARD_CONFIG.reportTypes[0].label)
+  })
+  it('keeps configurable secretaries by parallel and rejects malformed identifiers', () => {
+    const parallelId = '11111111-1111-4111-8111-111111111111'
+    const teacherId = '22222222-2222-4222-8222-222222222222'
+    const cfg = { ...DEFAULT_BOARD_CONFIG, secretaries: { [parallelId]: teacherId } }
+    expect(boardConfig({ courseBoards: cfg }).secretaries).toEqual({ [parallelId]: teacherId })
+    expect(boardConfigSchema.safeParse({ ...DEFAULT_BOARD_CONFIG, secretaries: { [parallelId]: 'teacher' } }).success).toBe(false)
   })
   it('keeps institutional labels and custom report types', () => {
     const cfg = { ...DEFAULT_BOARD_CONFIG, situationLabel: 'Hallazgos', showIncidents: false, reportTypes: [{ key: 'custom', label: 'Informe institucional', enabled: true, authors: 'both' }] }
