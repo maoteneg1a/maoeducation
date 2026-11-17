@@ -16,6 +16,7 @@ import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useCourseAssignments } from '@/features/academic/hooks/useAcademic'
 import { useAiEnabled, useDraftProject } from '@/features/ai-assistant/hooks/useAiAssistant'
 import { ContributionCard } from '../components/ContributionCard'
+import { ProjectGradingCard } from '../components/ProjectGradingCard'
 import { useProject, useUpdateProject, useJoinProject } from '../hooks/useInterdisciplinaryProjects'
 import { interdisciplinaryProjectApi, type InterdisciplinaryProjectStatus } from '../api/interdisciplinary-project.api'
 import { useAsyncAction } from '@/shared/hooks/useAsyncAction'
@@ -212,6 +213,8 @@ export function InterdisciplinaryProjectDetailPage() {
           <p className="text-xs text-amber-600">Se necesitan al menos 2 asignaturas participantes para enviar el proyecto.</p>
         )}
       </Card>
+
+      <ProjectGradingCard projectId={project.id} />
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">

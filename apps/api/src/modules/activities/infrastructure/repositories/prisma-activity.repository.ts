@@ -413,6 +413,42 @@ export class PrismaActivityRepository {
     dto: BulkGradeDto,
     gradedById: string,
   ) {
+    // Las actividades de un proyecto interdisciplinario pueden compartir nota.
+    // Expandimos la captura aquí para que funcione igual tanto desde el proyecto
+    // como desde la pantalla normal de Calificaciones. La materia desvinculada ya
+    // no tiene groupId y, por tanto, vuelve a guardarse de forma independiente.
+    const requestedActivities = await prisma.activity.findMany({
+      where: { id: { in: [...new Set(dto.grades.map((grade) => grade.activityId))] }, institutionId },
+      select: { id: true, metadata: true },
+    })
+    const groupByActivity = new Map(requestedActivities.map((activity) => [
+      activity.id,
+      (activity.metadata as { projectGradeShareGroupId?: string }).projectGradeShareGroupId,
+    ]))
+    const requestedGroups = [...new Set([...groupByActivity.values()].filter((group): group is string => !!group))]
+    if (requestedGroups.length) {
+      const candidates = await prisma.activity.findMany({
+        where: { institutionId, activityType: { code: 'project' }, courseAssignment: { teacherId: gradedById } },
+        select: { id: true, metadata: true },
+      })
+      const activitiesByGroup = new Map<string, string[]>()
+      for (const candidate of candidates) {
+        const group = (candidate.metadata as { projectGradeShareGroupId?: string }).projectGradeShareGroupId
+        if (!group || !requestedGroups.includes(group)) continue
+        activitiesByGroup.set(group, [...(activitiesByGroup.get(group) ?? []), candidate.id])
+      }
+      const expanded = new Map(dto.grades.map((grade) => [`${grade.activityId}:${grade.studentId}`, grade]))
+      for (const grade of dto.grades) {
+        const group = groupByActivity.get(grade.activityId)
+        if (!group) continue
+        for (const activityId of activitiesByGroup.get(group) ?? []) {
+          const key = `${activityId}:${grade.studentId}`
+          if (!expanded.has(key)) expanded.set(key, { ...grade, activityId })
+        }
+      }
+      dto = { grades: [...expanded.values()] }
+    }
+
     // Bloquear la captura si la actividad pertenece a un periodo cerrado
     const activityIds = [...new Set(dto.grades.map((g) => g.activityId))]
     if (activityIds.length > 0) {

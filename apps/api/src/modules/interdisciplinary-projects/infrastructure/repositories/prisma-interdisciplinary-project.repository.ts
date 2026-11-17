@@ -1,14 +1,23 @@
 import { prisma } from '../../../../shared/infrastructure/database/prisma'
+import { randomUUID } from 'node:crypto'
 import { BadRequestError, ConflictError, NotFoundError } from '../../../../shared/domain/errors/app.errors'
 import { assertSkillsArePlanned, assertCompetenciesArePlanned } from '../../../../shared/infrastructure/services/planned-curriculum.service'
 import type {
   CreateInterdisciplinaryProjectDto,
+  ConfigureProjectGradeSharingDto,
   JoinProjectDto,
   ListInterdisciplinaryProjectsQuery,
   UpdateContributionDto,
   UpdateInterdisciplinaryProjectDto,
   UpsertWeekEntryDto,
+  SaveProjectGradesDto,
 } from '../../application/dtos/interdisciplinary-project.dto'
+
+type ProjectActivityMetadata = {
+  interdisciplinaryProjectId?: string
+  interdisciplinaryContributionId?: string
+  projectGradeShareGroupId?: string
+}
 
 const PROJECT_INCLUDE = {
   parallel: { include: { level: true } },
@@ -26,6 +35,159 @@ const PROJECT_INCLUDE = {
 }
 
 export class PrismaInterdisciplinaryProjectRepository {
+  private async gradingContext(projectId: string, institutionId: string, teacherId: string) {
+    const project = await prisma.interdisciplinaryProject.findFirst({
+      where: { id: projectId, institutionId },
+      include: {
+        institution: { select: { settings: true } },
+        academicPeriod: { select: { isClosed: true } },
+        contributions: {
+          where: { courseAssignment: { teacherId } },
+          include: { courseAssignment: { include: { subject: true } } },
+        },
+      },
+    })
+    if (!project) throw new NotFoundError('Proyecto interdisciplinario no encontrado')
+    if (project.contributions.length === 0) throw new ConflictError('No tienes materias asignadas en este proyecto')
+    return project
+  }
+
+  private gradingScale(project: Awaited<ReturnType<PrismaInterdisciplinaryProjectRepository['gradingContext']>>) {
+    return (project.institution.settings as { gradingConfig?: { gradingScaleMax?: number } } | null)?.gradingConfig?.gradingScaleMax ?? 10
+  }
+
+  private async projectActivities(projectId: string, institutionId: string, assignmentIds: string[]) {
+    const rows = await prisma.activity.findMany({
+      where: { institutionId, courseAssignmentId: { in: assignmentIds }, activityType: { code: 'project' } },
+      include: { grades: true },
+    })
+    return rows.filter((row) => (row.metadata as ProjectActivityMetadata).interdisciplinaryProjectId === projectId)
+  }
+
+  private async ensureProjectActivity(
+    project: Awaited<ReturnType<PrismaInterdisciplinaryProjectRepository['gradingContext']>>,
+    contributionId: string,
+    institutionId: string,
+    actorId: string,
+  ) {
+    const contribution = project.contributions.find((row) => row.id === contributionId)
+    if (!contribution) throw new ConflictError('Solo puedes calificar materias tuyas de este proyecto')
+    const activities = await this.projectActivities(project.id, institutionId, [contribution.courseAssignmentId])
+    const existing = activities.find((row) => (row.metadata as ProjectActivityMetadata).interdisciplinaryContributionId === contributionId)
+    if (existing) return existing
+    const type = await prisma.activityType.findFirst({ where: { institutionId, code: 'project', isActive: true } })
+    if (!type) throw new ConflictError('La institución no tiene habilitado el tipo de actividad Proyecto')
+    return prisma.activity.create({
+      data: {
+        institutionId,
+        courseAssignmentId: contribution.courseAssignmentId,
+        academicPeriodId: project.academicPeriodId,
+        activityTypeId: type.id,
+        name: project.title,
+        description: 'Nota individual del proyecto interdisciplinario',
+        maxScore: this.gradingScale(project),
+        isPublished: true,
+        createdBy: actorId,
+        metadata: { interdisciplinaryProjectId: project.id, interdisciplinaryContributionId: contribution.id },
+      },
+      include: { grades: true },
+    })
+  }
+
+  async getProjectGrading(projectId: string, institutionId: string, teacherId: string) {
+    const project = await this.gradingContext(projectId, institutionId, teacherId)
+    const assignmentIds = project.contributions.map((row) => row.courseAssignmentId)
+    const [activities, enrollments] = await Promise.all([
+      this.projectActivities(projectId, institutionId, assignmentIds),
+      prisma.studentEnrollment.findMany({
+        where: { institutionId, parallelId: project.parallelId, academicYearId: project.contributions[0].courseAssignment.academicYearId, status: 'active' },
+        include: { student: { include: { profile: true } } },
+      }),
+    ])
+    return {
+      isClosed: project.academicPeriod.isClosed,
+      gradingScaleMax: this.gradingScale(project),
+      contributions: project.contributions.map((contribution) => {
+        const activity = activities.find((row) => (row.metadata as ProjectActivityMetadata).interdisciplinaryContributionId === contribution.id)
+        return {
+          id: contribution.id,
+          subjectName: contribution.courseAssignment.subject.name,
+          activityId: activity?.id ?? null,
+          shareGroupId: activity ? (activity.metadata as ProjectActivityMetadata).projectGradeShareGroupId ?? null : null,
+          grades: Object.fromEntries((activity?.grades ?? []).map((grade) => [grade.studentId, grade.score == null ? null : Number(grade.score)])),
+        }
+      }),
+      students: enrollments
+        .map((row) => ({ id: row.studentId, name: row.student.profile ? `${row.student.profile.lastName} ${row.student.profile.firstName}`.trim() : row.student.email }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    }
+  }
+
+  async configureProjectGradeSharing(projectId: string, institutionId: string, teacherId: string, dto: ConfigureProjectGradeSharingDto) {
+    const project = await this.gradingContext(projectId, institutionId, teacherId)
+    if (project.academicPeriod.isClosed) throw new ConflictError('El período está cerrado')
+    const allowed = new Set(project.contributions.map((row) => row.id))
+    const selected = [...new Set([dto.sourceContributionId, ...dto.sharedContributionIds])]
+    if (selected.some((id) => !allowed.has(id))) throw new ConflictError('Solo puedes compartir notas entre materias tuyas de este proyecto')
+    const source = await this.ensureProjectActivity(project, dto.sourceContributionId, institutionId, teacherId)
+    const targets = [source]
+    for (const id of selected.filter((candidate) => candidate !== dto.sourceContributionId)) {
+      targets.push(await this.ensureProjectActivity(project, id, institutionId, teacherId))
+    }
+    const oldGroup = (source.metadata as ProjectActivityMetadata).projectGradeShareGroupId
+    const groupId = selected.length > 1 ? oldGroup ?? randomUUID() : undefined
+    const allActivities = await this.projectActivities(projectId, institutionId, [...allowed].map((id) => project.contributions.find((row) => row.id === id)!.courseAssignmentId))
+    await prisma.$transaction(async (tx) => {
+      // Reversar significa retirar el vínculo, nunca borrar la actividad ni sus notas.
+      if (oldGroup) {
+        for (const activity of allActivities.filter((row) => (row.metadata as ProjectActivityMetadata).projectGradeShareGroupId === oldGroup && !targets.some((target) => target.id === row.id))) {
+          const metadata = { ...(activity.metadata as ProjectActivityMetadata) }
+          delete metadata.projectGradeShareGroupId
+          await tx.activity.update({ where: { id: activity.id }, data: { metadata } })
+        }
+      }
+      for (const activity of targets) {
+        const metadata = { ...(activity.metadata as ProjectActivityMetadata) }
+        if (groupId) metadata.projectGradeShareGroupId = groupId
+        else delete metadata.projectGradeShareGroupId
+        await tx.activity.update({ where: { id: activity.id }, data: { metadata } })
+        if (activity.id !== source.id) {
+          for (const grade of source.grades) {
+            await tx.grade.upsert({
+              where: { activityId_studentId: { activityId: activity.id, studentId: grade.studentId } },
+              create: { institutionId, activityId: activity.id, studentId: grade.studentId, score: grade.score, status: grade.status, isExcused: grade.isExcused, notes: grade.notes, gradedBy: teacherId, gradedAt: new Date() },
+              update: { score: grade.score, status: grade.status, isExcused: grade.isExcused, notes: grade.notes, gradedBy: teacherId, gradedAt: new Date() },
+            })
+          }
+        }
+      }
+    })
+    return this.getProjectGrading(projectId, institutionId, teacherId)
+  }
+
+  async saveProjectGrades(projectId: string, institutionId: string, teacherId: string, dto: SaveProjectGradesDto) {
+    const project = await this.gradingContext(projectId, institutionId, teacherId)
+    if (project.academicPeriod.isClosed) throw new ConflictError('El período está cerrado')
+    const source = await this.ensureProjectActivity(project, dto.contributionId, institutionId, teacherId)
+    const enrolled = new Set((await prisma.studentEnrollment.findMany({ where: { institutionId, parallelId: project.parallelId, academicYearId: project.contributions[0].courseAssignment.academicYearId, status: 'active' }, select: { studentId: true } })).map((row) => row.studentId))
+    if (dto.grades.some((grade) => !enrolled.has(grade.studentId))) throw new BadRequestError('Hay estudiantes que no pertenecen al paralelo')
+    const scale = this.gradingScale(project)
+    if (dto.grades.some((grade) => grade.score != null && (!Number.isFinite(grade.score) || grade.score < 0 || grade.score > scale))) throw new BadRequestError(`Las notas deben estar entre 0 y ${scale}`)
+    const groupId = (source.metadata as ProjectActivityMetadata).projectGradeShareGroupId
+    const activities = groupId
+      ? (await this.projectActivities(projectId, institutionId, project.contributions.map((row) => row.courseAssignmentId))).filter((row) => (row.metadata as ProjectActivityMetadata).projectGradeShareGroupId === groupId)
+      : [source]
+    await prisma.$transaction(async (tx) => {
+      for (const activity of activities) for (const grade of dto.grades) {
+        await tx.grade.upsert({
+          where: { activityId_studentId: { activityId: activity.id, studentId: grade.studentId } },
+          create: { institutionId, activityId: activity.id, studentId: grade.studentId, score: grade.score, status: 'entregado', gradedBy: teacherId, gradedAt: new Date() },
+          update: { score: grade.score, status: 'entregado', gradedBy: teacherId, gradedAt: new Date() },
+        })
+      }
+    })
+    return this.getProjectGrading(projectId, institutionId, teacherId)
+  }
   listProjects(institutionId: string, query: ListInterdisciplinaryProjectsQuery) {
     return prisma.interdisciplinaryProject.findMany({
       where: { institutionId, parallelId: query.parallelId, academicPeriodId: query.academicPeriodId },
@@ -64,9 +226,14 @@ export class PrismaInterdisciplinaryProjectRepository {
 
   /** Borra el proyecto y en cascada sus contribuciones/semanas (onDelete: Cascade en el schema). */
   async deleteProject(id: string, institutionId: string) {
-    const project = await prisma.interdisciplinaryProject.findFirst({ where: { id, institutionId } })
+    const project = await prisma.interdisciplinaryProject.findFirst({ where: { id, institutionId }, include: { contributions: true } })
     if (!project) throw new NotFoundError('Proyecto interdisciplinario no encontrado')
-    await prisma.interdisciplinaryProject.delete({ where: { id } })
+    const activities = await this.projectActivities(id, institutionId, project.contributions.map((row) => row.courseAssignmentId))
+    if (activities.some((row) => row.grades.length > 0)) throw new ConflictError('No se puede eliminar un proyecto que ya tiene notas registradas')
+    await prisma.$transaction(async (tx) => {
+      if (activities.length) await tx.activity.deleteMany({ where: { id: { in: activities.map((row) => row.id) } } })
+      await tx.interdisciplinaryProject.delete({ where: { id } })
+    })
   }
 
   async createProject(institutionId: string, actorId: string, dto: CreateInterdisciplinaryProjectDto) {
@@ -192,7 +359,13 @@ export class PrismaInterdisciplinaryProjectRepository {
     if (contribution.project.status === 'aprobado') {
       throw new ConflictError('El proyecto ya fue aprobado y no se puede editar')
     }
-    await prisma.interdisciplinaryContribution.delete({ where: { id: contributionId } })
+    const activities = await this.projectActivities(contribution.projectId, institutionId, [contribution.courseAssignmentId])
+    const activity = activities.find((row) => (row.metadata as ProjectActivityMetadata).interdisciplinaryContributionId === contributionId)
+    if (activity?.grades.length) throw new ConflictError('No puedes retirar una materia que ya tiene notas del proyecto')
+    await prisma.$transaction(async (tx) => {
+      if (activity) await tx.activity.delete({ where: { id: activity.id } })
+      await tx.interdisciplinaryContribution.delete({ where: { id: contributionId } })
+    })
     return { ok: true }
   }
 

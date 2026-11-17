@@ -6,12 +6,14 @@ import { authMiddleware } from '../../../shared/infrastructure/middleware/auth.m
 import { requirePermission } from '../../../shared/infrastructure/middleware/rbac.middleware'
 import type {
   CreateInterdisciplinaryProjectDto,
+  ConfigureProjectGradeSharingDto,
   DraftInterdisciplinaryProjectDto,
   JoinProjectDto,
   ListInterdisciplinaryProjectsQuery,
   UpdateContributionDto,
   UpdateInterdisciplinaryProjectDto,
   UpsertWeekEntryDto,
+  SaveProjectGradesDto,
 } from '../application/dtos/interdisciplinary-project.dto'
 
 const repo = new PrismaInterdisciplinaryProjectRepository()
@@ -102,6 +104,26 @@ export default async function interdisciplinaryProjectRoutes(app: FastifyInstanc
     { preHandler: [requirePermission('planning', 'write', 'own')] },
     async (req, reply) =>
       reply.send(await repo.upsertWeekEntry(req.params.contributionId, req.user.institutionId, req.body)),
+  )
+
+  // Una nota de proyecto por materia. El docente puede vincular varias de sus
+  // materias del mismo proyecto; desvincularlas conserva la última nota copiada.
+  app.get<{ Params: { id: string } }>(
+    '/interdisciplinary-projects/:id/grading',
+    { preHandler: [requirePermission('activities', 'read', 'own')] },
+    async (req, reply) => reply.send(await repo.getProjectGrading(req.params.id, req.user.institutionId, req.user.sub)),
+  )
+
+  app.put<{ Params: { id: string }; Body: ConfigureProjectGradeSharingDto }>(
+    '/interdisciplinary-projects/:id/grading/sharing',
+    { preHandler: [requirePermission('activities', 'write', 'own')] },
+    async (req, reply) => reply.send(await repo.configureProjectGradeSharing(req.params.id, req.user.institutionId, req.user.sub, req.body)),
+  )
+
+  app.put<{ Params: { id: string }; Body: SaveProjectGradesDto }>(
+    '/interdisciplinary-projects/:id/grading/grades',
+    { preHandler: [requirePermission('activities', 'write', 'own')] },
+    async (req, reply) => reply.send(await repo.saveProjectGrades(req.params.id, req.user.institutionId, req.user.sub, req.body)),
   )
 
   // ─── PDF (secciones 6 y 7 del formato de referencia) ────────────────────
