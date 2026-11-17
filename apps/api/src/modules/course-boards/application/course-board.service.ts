@@ -20,8 +20,9 @@ const person = { id: true, profile: { select: { firstName: true, lastName: true 
 const name = (p: { firstName: string; lastName: string } | null) => p ? `${p.lastName} ${p.firstName}`.trim() : 'Sin nombre'
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value))
 function broad(actor: Actor) { return isAuthority(actor) || hasPermission(actor, 'reports', 'read', 'all') }
-function accessWhere(actor: Actor, periodId?: string): Prisma.ParallelWhereInput {
+function accessWhere(actor: Actor, periodId?: string, secretaryParallelIds: string[] = []): Prisma.ParallelWhereInput {
   return broad(actor) ? {} : { OR: [
+    ...(secretaryParallelIds.length ? [{ id: { in: secretaryParallelIds } }] : []),
     { tutorId: actor.userId },
     { courseAssignments: { some: { teacherId: actor.userId, isActive: true } } },
     { courseBoards: { some: { chairId: actor.userId, ...(periodId ? { academicPeriodId: periodId } : {}) } } },
@@ -33,9 +34,9 @@ function chairWhere(institutionId: string): Prisma.UserWhereInput {
     { rolePermissions: { some: { permission: { resource: { in: ['reports', '*'] }, action: { in: ['read', 'manage', '*'] } } } } },
   ] } } } }
 }
-async function context(institutionId: string, actor: Actor, parallelId: string, periodId: string) {
+async function context(institutionId: string, actor: Actor, parallelId: string, periodId: string, secretaryId?: string) {
   const parallel = await prisma.parallel.findFirst({
-    where: { id: parallelId, institutionId, ...accessWhere(actor, periodId) },
+    where: { id: parallelId, institutionId, ...accessWhere(actor, periodId, secretaryId === actor.userId ? [parallelId] : []) },
     include: { tutor: { select: person }, academicYear: true, courseAssignments: { where: { institutionId, isActive: true }, select: { id: true, teacherId: true, teacher: { select: person }, subject: { select: { name: true } } } } },
   })
   if (!parallel) throw new NotFoundError('Curso no encontrado o sin acceso')
@@ -46,7 +47,8 @@ async function context(institutionId: string, actor: Actor, parallelId: string, 
 async function accessibleBoard(institutionId: string, actor: Actor, id: string) {
   const board = await prisma.courseBoard.findFirst({ where: { id, institutionId }, include: { institution: { select: { settings: true } }, chair: { select: person }, invitation: { select: { id: true, publishedAt: true } } } })
   if (!board) throw new NotFoundError('Junta no encontrada')
-  const ctx = await context(institutionId, actor, board.parallelId, board.academicPeriodId)
+  const config = boardConfig(board.institution.settings)
+  const ctx = await context(institutionId, actor, board.parallelId, board.academicPeriodId, config.secretaries[board.parallelId])
   const meeting = readMeeting(board.meeting)
   if (board.status === 'OPEN' && !meeting.background) meeting.background = boardConfig(board.institution.settings).convocationBackground
   return { board: { ...board, meeting }, ...ctx }
@@ -68,9 +70,11 @@ export async function boardOptions(institutionId: string, actor: Actor, yearId?:
     prisma.institution.findUniqueOrThrow({ where: { id: institutionId }, select: { settings: true } }),
   ])
   const effectiveYearId = yearId || years.find((y) => y.isActive)?.id || years[0]?.id
-  const [parallels, periods, chairs] = await Promise.all([
+  const config = boardConfig(institution.settings)
+  const secretaryParallelIds = Object.entries(config.secretaries).filter(([, userId]) => userId === actor.userId).map(([parallelId]) => parallelId)
+  const [parallels, periods, chairs, secretaryCandidates] = await Promise.all([
     effectiveYearId ? prisma.parallel.findMany({
-      where: { institutionId, academicYearId: effectiveYearId, ...accessWhere(actor) },
+      where: { institutionId, academicYearId: effectiveYearId, ...accessWhere(actor, undefined, secretaryParallelIds) },
       select: { id: true, name: true, tutorId: true, level: { select: { name: true } },
         courseAssignments: { where: { institutionId, isActive: true, teacherId: actor.userId }, select: { id: true } },
         courseBoards: { select: { id: true, academicPeriodId: true, status: true, chairId: true, closedAt: true } },
@@ -81,23 +85,34 @@ export async function boardOptions(institutionId: string, actor: Actor, yearId?:
       where: chairWhere(institutionId),
       select: person, orderBy: [{ profile: { lastName: 'asc' } }, { profile: { firstName: 'asc' } }],
     }) : [],
+    isAuthority(actor) ? prisma.user.findMany({
+      where: { institutionId, isActive: true, userRoles: { some: { role: { name: 'teacher' } } } },
+      select: person, orderBy: [{ profile: { lastName: 'asc' } }, { profile: { firstName: 'asc' } }],
+    }) : [],
   ])
   return { years, yearId: effectiveYearId, periods,
-    parallels: parallels.map((p) => ({ id: p.id, name: `${p.level.name} ${p.name}`, participant: broad(actor) || p.tutorId === actor.userId || p.courseAssignments.length > 0, boards: p.courseBoards })),
-    chairs: chairs.map((u) => ({ id: u.id, name: name(u.profile) })), config: boardConfig(institution.settings), canConfigure: isAuthority(actor),
+    parallels: parallels.map((p) => ({ id: p.id, name: `${p.level.name} ${p.name}`, participant: broad(actor) || p.tutorId === actor.userId || p.courseAssignments.length > 0 || config.secretaries[p.id] === actor.userId, secretaryId: config.secretaries[p.id] ?? null, boards: p.courseBoards })),
+    chairs: chairs.map((u) => ({ id: u.id, name: name(u.profile) })), secretaryCandidates: secretaryCandidates.map((u) => ({ id: u.id, name: name(u.profile) })), config, canConfigure: isAuthority(actor),
   }
 }
 
 export async function createBoard(institutionId: string, actor: Actor, parallelId: string, periodId: string) {
-  const { parallel, period } = await context(institutionId, actor, parallelId, periodId)
+  const institution = await prisma.institution.findUniqueOrThrow({ where: { id: institutionId }, select: { settings: true } })
+  const config = boardConfig(institution.settings)
+  const secretaryId = config.secretaries[parallelId]
+  const { parallel, period } = await context(institutionId, actor, parallelId, periodId, secretaryId)
   const people = new Map<string, { userId: string; name: string; role: string; attendance: 'pending' }>()
   if (parallel.tutor) people.set(parallel.tutor.id, { userId: parallel.tutor.id, name: name(parallel.tutor.profile), role: 'Tutor/a', attendance: 'pending' })
   for (const a of parallel.courseAssignments) {
     const previous = people.get(a.teacherId)
     people.set(a.teacherId, { userId: a.teacherId, name: name(a.teacher.profile), role: `${previous ? `${previous.role}; ` : ''}Docente de ${a.subject.name}`.slice(0, 200), attendance: 'pending' })
   }
-  const institution = await prisma.institution.findUniqueOrThrow({ where: { id: institutionId }, select: { settings: true } })
-  const meeting = readMeeting({ background: boardConfig(institution.settings).convocationBackground, number: String(period.periodNumber).padStart(2, '0'), responsible: parallel.tutor ? name(parallel.tutor.profile) : '', agenda: '1. Saludo e instalación de la sesión.\n2. Constatación del quórum.\n3. Lectura y aprobación del acta anterior.', participants: [...people.values()] })
+  const secretary = secretaryId ? await prisma.user.findFirst({ where: { id: secretaryId, institutionId, isActive: true }, select: person }) : null
+  if (secretary) {
+    const previous = people.get(secretary.id)
+    people.set(secretary.id, { userId: secretary.id, name: name(secretary.profile), role: `${previous ? `${previous.role}; ` : ''}Secretaría`.slice(0, 200), attendance: 'pending' })
+  }
+  const meeting = readMeeting({ background: config.convocationBackground, number: String(period.periodNumber).padStart(2, '0'), responsible: secretary ? name(secretary.profile) : parallel.tutor ? name(parallel.tutor.profile) : '', agenda: '1. Saludo e instalación de la sesión.\n2. Constatación del quórum.\n3. Lectura y aprobación del acta anterior.', participants: [...people.values()] })
   const board = await prisma.courseBoard.upsert({
     where: { parallelId_academicPeriodId: { parallelId, academicPeriodId: periodId } },
     create: { institutionId, parallelId, academicPeriodId: periodId, createdBy: actor.userId, chairId: parallel.tutorId, meeting: json(meeting) }, update: {},
@@ -115,12 +130,16 @@ export async function boardDetail(institutionId: string, actor: Actor, id: strin
   ])
   const flow = extractReportsFlow(institution.settings)
   const canDirect = isAuthority(actor) || board.chairId === actor.userId
+  const config = boardConfig(institution.settings)
+  const secretaryId = config.secretaries[parallel.id] ?? null
+  const secretary = secretaryId ? await prisma.user.findFirst({ where: { id: secretaryId, institutionId }, select: person }) : null
+  const isSecretary = secretaryId === actor.userId
   return {
     id: board.id, yearId: parallel.academicYearId, status: board.status, revision: board.revision, closedAt: board.closedAt, conclusions: board.conclusions,
     chairId: board.chairId, chairName: board.status === 'CLOSED' && matrix.chairName ? matrix.chairName : board.chair ? name(board.chair.profile) : 'Sin responsable asignado',
-    invitation: board.invitation ? { ...board.invitation, needsUpdate: publishedInvitationHash(evidence, board.invitation.id) !== convocationHash(readMeeting(board.meeting)) } : null, meeting: readMeeting(board.meeting), canEditMeeting: board.status === 'OPEN' && (canDirect || parallel.tutorId === actor.userId),
+    invitation: board.invitation ? { ...board.invitation, needsUpdate: publishedInvitationHash(evidence, board.invitation.id) !== convocationHash(readMeeting(board.meeting)) } : null, meeting: readMeeting(board.meeting), canEditMeeting: board.status === 'OPEN' && (canDirect || parallel.tutorId === actor.userId || isSecretary),
     canDirect, canUpload: canDirect || parallel.tutorId === actor.userId || (hasPermission(actor, 'formal_reports', 'write', 'own') && parallel.courseAssignments.some((a) => a.teacherId === actor.userId)), canAssignChair: isAuthority(actor), canReport: board.status === 'OPEN' && hasPermission(actor, 'formal_reports', 'write', 'own'),
-    isTutor: parallel.tutorId === actor.userId, isAuthority: isAuthority(actor),
+    isTutor: parallel.tutorId === actor.userId, isSecretary, secretaryId, secretaryName: secretary ? name(secretary.profile) : null, isAuthority: isAuthority(actor),
     ownAssignmentIds: parallel.courseAssignments.filter((a) => a.teacherId === actor.userId).map((a) => a.id),
     matrix, matrixHash: matrixHash(matrix),
     evidence: evidence.map((f) => ({ id: f.id, kind: f.kind, label: f.label, fileName: f.fileName, mimeType: f.mimeType, isSigned: f.isSigned, createdAt: f.createdAt, authorName: name(f.uploader.profile), document: f.kind === 'REPORT' ? f.snapshot : null })),
@@ -175,7 +194,8 @@ async function saveEvidence(institutionId: string, actor: Actor, board: { id: st
 async function invitationContext(institutionId: string, actor: Actor, id: string) {
   const ctx = await accessibleBoard(institutionId, actor, id)
   const { board, parallel } = ctx
-  if (!isAuthority(actor) && board.chairId !== actor.userId && parallel.tutorId !== actor.userId) throw new ForbiddenError('Solo el tutor, quien dirige o la autoridad puede publicar la convocatoria')
+  const secretaryId = boardConfig(board.institution.settings).secretaries[parallel.id]
+  if (!isAuthority(actor) && board.chairId !== actor.userId && parallel.tutorId !== actor.userId && secretaryId !== actor.userId) throw new ForbiddenError('Solo secretaría, el tutor, quien dirige o la autoridad puede publicar la convocatoria')
   const meeting = readMeeting(board.meeting)
   assertMeetingReady(meeting, 'CALL')
   const staff = await prisma.user.findMany({ where: { institutionId, isActive: true, userRoles: { some: { role: { name: { in: ['teacher', 'admin', 'rector', 'inspector', 'dece'] } } } } }, select: person })
@@ -282,7 +302,8 @@ export async function updateMeeting(institutionId: string, actor: Actor, id: str
   const parsed = z.object({ revision: z.number().int().nonnegative(), meeting: meetingDetailsSchema }).safeParse(body)
   if (!parsed.success) throw new BadRequestError('Revisa fechas, horas, nombres y funciones de los participantes')
   const { board, parallel } = await accessibleBoard(institutionId, actor, id)
-  if (!isAuthority(actor) && board.chairId !== actor.userId && parallel.tutorId !== actor.userId) throw new ForbiddenError('Solo el tutor, quien dirige o la autoridad puede preparar la reunión')
+  const secretaryId = boardConfig(board.institution.settings).secretaries[parallel.id]
+  if (!isAuthority(actor) && board.chairId !== actor.userId && parallel.tutorId !== actor.userId && secretaryId !== actor.userId) throw new ForbiddenError('Solo secretaría, el tutor, quien dirige o la autoridad puede preparar la convocatoria')
   await prisma.$transaction(async (tx) => {
     const updated = await tx.courseBoard.updateMany({ where: { id, institutionId, status: 'OPEN', revision: parsed.data.revision }, data: { meeting: json(parsed.data.meeting), revision: { increment: 1 } } })
     if (!updated.count) throw new ConflictError('La junta cambió o está cerrada. Actualiza antes de guardar')
@@ -292,7 +313,9 @@ export async function updateMeeting(institutionId: string, actor: Actor, id: str
 }
 
 export async function emitMeetingDocument(institutionId: string, actor: Actor, id: string, kind: 'CALL' | 'ATTENDANCE' | 'MINUTES') {
-  const { board } = await accessibleBoard(institutionId, actor, id)
+  const { board, parallel } = await accessibleBoard(institutionId, actor, id)
+  const secretaryId = boardConfig(board.institution.settings).secretaries[parallel.id]
+  if (kind === 'CALL' && !isAuthority(actor) && board.chairId !== actor.userId && parallel.tutorId !== actor.userId && secretaryId !== actor.userId) throw new ForbiddenError('Solo secretaría, el tutor, quien dirige o la autoridad puede emitir la convocatoria')
   if (board.status === 'CLOSED' || kind === 'MINUTES') {
     const file = await prisma.courseBoardEvidence.findFirst({ where: { boardId: id, kind }, orderBy: { createdAt: 'desc' }, select: { id: true } })
     if (!file) throw new BadRequestError(kind === 'MINUTES' ? 'El acta se genera al cerrar la junta' : 'Este documento no se emitió antes del cierre')
@@ -356,6 +379,14 @@ export async function updateBoardConfig(institutionId: string, actor: Actor, bod
   if (!isAuthority(actor)) throw new ForbiddenError()
   const parsed = boardConfigSchema.safeParse(body)
   if (!parsed.success) throw new BadRequestError('Revisa los títulos, campos y tipos de informe; las claves deben ser únicas')
+  const secretaryEntries = Object.entries(parsed.data.secretaries)
+  if (secretaryEntries.length) {
+    const [parallelCount, teacherCount] = await Promise.all([
+      prisma.parallel.count({ where: { institutionId, id: { in: secretaryEntries.map(([parallelId]) => parallelId) } } }),
+      prisma.user.count({ where: { institutionId, isActive: true, id: { in: secretaryEntries.map(([, userId]) => userId) }, userRoles: { some: { role: { name: 'teacher' } } } } }),
+    ])
+    if (parallelCount !== secretaryEntries.length || teacherCount !== new Set(secretaryEntries.map(([, userId]) => userId)).size) throw new BadRequestError('Selecciona paralelos y docentes activos de esta institución')
+  }
   await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`UPDATE institutions SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{courseBoards}', ${JSON.stringify(parsed.data)}::jsonb, true) WHERE id = ${institutionId}`
     await tx.auditLog.create({ data: { institutionId, userId: actor.userId, action: 'course_board.config', resourceType: 'institution', resourceId: institutionId, newValue: json(parsed.data) } })
