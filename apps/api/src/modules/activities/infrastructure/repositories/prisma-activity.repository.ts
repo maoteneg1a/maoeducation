@@ -74,8 +74,10 @@ export class PrismaActivityRepository {
   private async projectSharingContext(institutionId: string, activityId: string, actorId: string) {
     const activity = await prisma.activity.findFirst({ where: { id: activityId, institutionId, activityType: { code: 'project' } }, include: { grades: true, academicPeriod: { select: { isClosed: true } }, courseAssignment: { include: { subject: true } } } })
     if (!activity || !this.periodProjectMetadata(activity.metadata).periodProject) throw new NotFoundError('Proyecto del período no encontrado')
-    if (activity.courseAssignment.teacherId !== actorId) throw new ConflictError('Solo puedes compartir notas entre tus propias materias')
-    const assignments = await prisma.courseAssignment.findMany({ where: { institutionId, teacherId: actorId, parallelId: activity.courseAssignment.parallelId, academicYearId: activity.courseAssignment.academicYearId, isActive: true }, include: { subject: true }, orderBy: { subject: { name: 'asc' } } })
+    // El scope de la ruta ya valida si el actor puede operar esta asignación.
+    // Las opciones pertenecen al DOCENTE responsable de la materia, no
+    // necesariamente al usuario conectado (un administrador también puede probarla).
+    const assignments = await prisma.courseAssignment.findMany({ where: { institutionId, teacherId: activity.courseAssignment.teacherId, parallelId: activity.courseAssignment.parallelId, academicYearId: activity.courseAssignment.academicYearId, isActive: true }, include: { subject: true }, orderBy: { subject: { name: 'asc' } } })
     return { activity, assignments }
   }
 

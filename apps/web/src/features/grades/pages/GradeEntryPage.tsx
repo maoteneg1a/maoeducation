@@ -1538,12 +1538,15 @@ function ProjectSharingControl({ activityId }: { activityId: string }) {
   if (!data?.options.length) return null
   const original = data.options.filter((row) => row.selected).map((row) => row.courseAssignmentId).sort().join('|')
   const changed = original !== [...selected].sort().join('|')
-  return <Card className="p-3">
-    <p className="text-sm font-medium">Usar estas mismas notas en otras materias que imparto</p>
-    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">{data.options.map((row) => <label key={row.courseAssignmentId} className="flex items-center gap-2 text-sm"><Checkbox checked={selected.includes(row.courseAssignmentId)} onCheckedChange={(checked) => setSelected((current) => checked ? [...current, row.courseAssignmentId] : current.filter((id) => id !== row.courseAssignmentId))} />{row.subjectName}</label>)}</div>
-    <p className="mt-2 text-xs text-muted-foreground">Solo aparecen materias tuyas del mismo paralelo. Al desmarcar una materia conserva su última nota.</p>
-    {changed && <Button className="mt-2" size="sm" variant="outline" loading={mutation.isPending} onClick={() => { if (selected.length > data.options.filter((row) => row.selected).length && !window.confirm('Las notas de esta materia reemplazarán las notas actuales de las materias marcadas. ¿Continuar?')) return; mutation.mutate() }}>Aplicar selección</Button>}
-  </Card>
+  return <details className="rounded-lg border bg-background">
+    <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Compartir esta actividad en otras materias</summary>
+    <div className="border-t px-4 py-3">
+      <p className="text-sm font-medium">Usar estas mismas notas en</p>
+      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">{data.options.map((row) => <label key={row.courseAssignmentId} className="flex items-center gap-2 text-sm"><Checkbox checked={selected.includes(row.courseAssignmentId)} onCheckedChange={(checked) => setSelected((current) => checked ? [...current, row.courseAssignmentId] : current.filter((id) => id !== row.courseAssignmentId))} />{row.subjectName}</label>)}</div>
+      <p className="mt-2 text-xs text-muted-foreground">Solo aparecen materias del mismo docente y paralelo. Al desmarcar una materia conserva su última nota.</p>
+      {changed && <Button className="mt-2" size="sm" variant="outline" loading={mutation.isPending} onClick={() => { if (selected.length > data.options.filter((row) => row.selected).length && !window.confirm('Las notas de esta materia reemplazarán las notas actuales de las materias marcadas. ¿Continuar?')) return; mutation.mutate() }}>Aplicar selección</Button>}
+    </div>
+  </details>
 }
 
 function PeriodProjectActivities({
@@ -1573,15 +1576,18 @@ function PeriodProjectActivities({
     onSuccess: (_, id) => { refresh(); if (selectedActivityId === id) onSelect(''); toast.success('Aspecto eliminado') },
     onError: (error) => toast.error(getErrorMessage(error)),
   })
-  return <Card className="space-y-3 p-4">
-    <div><p className="font-semibold">Proyecto del período</p><p className="text-xs text-muted-foreground">Puedes usar una nota directa o dividir el proyecto en varios aspectos; el sistema los promedia.</p></div>
-    <div className="space-y-2">{activities.map((activity) => <div key={activity.id} className={cn('flex items-center gap-2 rounded-md border p-2', selectedActivityId === activity.id && 'border-primary bg-primary/5')}>
+  return <details className="rounded-lg border bg-background">
+    <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium"><span>Configurar actividades del proyecto</span><Badge variant="secondary">{activities.length}</Badge></summary>
+    <div className="space-y-3 border-t p-4">
+      <p className="text-xs text-muted-foreground">Usa una nota directa o divide el proyecto en varios aspectos; el sistema los promedia.</p>
+      <div className="space-y-2">{activities.map((activity) => <div key={activity.id} className={cn('flex items-center gap-2 rounded-md border p-2', selectedActivityId === activity.id && 'border-primary bg-primary/5')}>
       <button type="button" className="min-w-0 flex-1 truncate text-left text-sm font-medium" onClick={() => onSelect(activity.id)}>{activity.name}</button>
       <Button type="button" variant="ghost" size="sm" title="Cambiar nombre" onClick={() => { const name = window.prompt('Nombre del aspecto del proyecto', activity.name)?.trim(); if (name && name !== activity.name) rename.mutate({ id: activity.id, name }) }}><Pencil className="h-3.5 w-3.5" /></Button>
       <Button type="button" variant="ghost" size="sm" title="Eliminar aspecto" disabled={remove.isPending} onClick={() => { if (window.confirm(`¿Eliminar "${activity.name}"? Solo se puede eliminar si no tiene notas registradas.`)) remove.mutate(activity.id) }}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
     </div>)}</div>
-    <div className="flex gap-2"><Input value={newName} maxLength={200} placeholder="Ej. Investigación, producto final o exposición" onChange={(event) => setNewName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && newName.trim()) add.mutate() }} /><Button type="button" variant="outline" disabled={!newName.trim()} loading={add.isPending} onClick={() => add.mutate()}><Plus className="h-4 w-4" />Agregar actividad</Button></div>
-  </Card>
+      <div className="flex gap-2"><Input value={newName} maxLength={200} placeholder="Ej. Investigación, producto final o exposición" onChange={(event) => setNewName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && newName.trim()) add.mutate() }} /><Button type="button" variant="outline" disabled={!newName.trim()} loading={add.isPending} onClick={() => add.mutate()}><Plus className="h-4 w-4" />Agregar</Button></div>
+    </div>
+  </details>
 }
 
 function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
