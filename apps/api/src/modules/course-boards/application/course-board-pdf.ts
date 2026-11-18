@@ -5,7 +5,8 @@ import type { BoardSnapshot, BoardReportDocument } from '../domain/course-board.
 
 export function buildBoardPdf(snapshot: BoardSnapshot, options: { report?: BoardReportDocument; conclusions?: string; chairName?: string; reports?: BoardReportDocument[] } = {}): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', layout: options.report ? 'portrait' : 'landscape', margin: 34, bufferPages: true })
+    const paperSize = !options.report && (snapshot.subjects.length > 11 || snapshot.rows.length > 27) ? 'A3' : 'A4'
+    const doc = new PDFDocument({ size: paperSize, layout: options.report ? 'portrait' : 'landscape', margin: 34, bufferPages: true })
     const chunks: Buffer[] = []
     doc.on('data', (chunk) => chunks.push(chunk))
     doc.on('error', reject)
@@ -39,39 +40,44 @@ export function buildBoardPdf(snapshot: BoardSnapshot, options: { report?: Board
       paragraph(r.labels.recommendations, r.recommendations)
       doc.moveDown(2).text('Firma: ___________________________________')
     } else {
-      // Distribuye materias en bloques; repite encabezados y alumnos en cada bloque.
-      const blocks = Math.max(1, Math.ceil(snapshot.subjects.length / 8))
-      for (let block = 0; block < blocks; block++) {
-        if (block) doc.addPage()
-        const subjects = snapshot.subjects.slice(block * 8, (block + 1) * 8)
-        const nameWidth = 210, colWidth = (doc.page.width - 68 - nameWidth - 30) / Math.max(subjects.length, 1)
+      // Una sola matriz: nunca separa las materias en bloques.
+      const subjects = snapshot.subjects
+      const table = () => {
+        const nameWidth = 190, numberWidth = 24, tableWidth = doc.page.width - 68
+        const colWidth = (tableWidth - nameWidth - numberWidth) / Math.max(subjects.length, 1)
+        const fontSize = colWidth < 45 ? 7 : 8
+        doc.font('Helvetica-Bold').fontSize(fontSize)
+        const headingHeight = Math.max(22, ...subjects.map((subject) => doc.heightOfString(subject.name, { width: colWidth - 6 }))) + 8
+        doc.font('Helvetica').fontSize(fontSize)
+        const heights = snapshot.rows.map((row) => Math.max(14, doc.heightOfString(row.name, { width: nameWidth - 8 }) + 5))
         function tableHeader() {
-          header(`${snapshot.config.title} · Consolidado${blocks > 1 ? ` (${block + 1}/${blocks})` : ''}`)
+          header(`${snapshot.config.title} · Consolidado`)
           const y = doc.y
-          doc.font('Helvetica-Bold').fontSize(8)
-          const headingHeight = Math.max(34, ...subjects.map((s) => doc.heightOfString(s.name, { width: colWidth - 4 }))) + 8
-          doc.save().fillColor(style.tableHeaderBackground).rect(34, y - 3, doc.page.width - 68, headingHeight).fill().restore()
-          doc.text('N.º', 34, y, { width: 27, height: headingHeight - 4 })
-          doc.text('Apellidos y nombres', 64, y, { width: nameWidth - 4, height: headingHeight - 4 })
-          subjects.forEach((s, i) => doc.text(s.name, 64 + nameWidth + i * colWidth, y, { width: colWidth - 4, height: headingHeight - 4 }))
-          doc.y = y + headingHeight
+          doc.font('Helvetica-Bold').fontSize(fontSize)
+          doc.save().fillColor(style.tableHeaderBackground).rect(34, y - 3, tableWidth, headingHeight).fill().restore()
+          doc.text('N.º', 37, y, { width: numberWidth - 4, height: headingHeight - 4 })
+          doc.text('Apellidos y nombres', 34 + numberWidth + 3, y, { width: nameWidth - 6, height: headingHeight - 4 })
+          subjects.forEach((subject, i) => doc.text(subject.name, 34 + numberWidth + nameWidth + i * colWidth + 3, y, { width: colWidth - 6, height: headingHeight - 4, align: 'center' }))
+          doc.x = 34; doc.y = y + headingHeight
         }
         tableHeader()
         snapshot.rows.forEach((row, index) => {
-          const height = Math.max(24, doc.font('Helvetica').fontSize(8).heightOfString(row.name, { width: nameWidth - 8 }) + 8)
-          if (doc.y + height > doc.page.height - 60) { doc.addPage(); tableHeader() }
+          const height = heights[index]
+          if (doc.y + height > doc.page.height - 64) { doc.addPage({ size: paperSize, layout: 'landscape', margin: 34 }); tableHeader() }
           const y = doc.y
-          doc.font('Helvetica').fontSize(8).text(String(index + 1), 34, y, { width: 27 })
-          doc.text(row.name, 64, y, { width: nameWidth - 8 })
-          subjects.forEach((s, i) => {
-            const g = row.grades.find((item) => item.assignmentId === s.id)
-            doc.text(`${g?.display ?? '—'}${g?.partial ? ' *' : ''}`, 64 + nameWidth + i * colWidth, y, { width: colWidth - 4 })
+          doc.font('Helvetica').fontSize(fontSize).text(String(index + 1), 37, y, { width: numberWidth - 4 })
+          doc.text(row.name, 34 + numberWidth + 3, y, { width: nameWidth - 8 })
+          subjects.forEach((subject, i) => {
+            const grade = row.grades.find((item) => item.assignmentId === subject.id)
+            doc.text(`${grade?.display ?? '—'}${grade?.partial ? ' *' : ''}`, 34 + numberWidth + nameWidth + i * colWidth + 3, y, { width: colWidth - 6, align: 'center' })
           })
-          doc.moveTo(34, y + height - 4).lineTo(doc.page.width - 34, y + height - 4).strokeColor(style.borderColor).stroke()
-          doc.y = y + height
+          doc.moveTo(34, y + height - 3).lineTo(doc.page.width - 34, y + height - 3).strokeColor(style.borderColor).lineWidth(0.3).stroke()
+          doc.x = 34; doc.y = y + height
         })
-        doc.fontSize(8).text('— Sin calificación registrada. * Faltan componentes de la nota del período.', 34, doc.y + 4, { width: doc.page.width - 68 })
+        doc.fontSize(7).text('— Sin calificación registrada. * Faltan componentes de la nota del período.', 34, doc.y + 4, { width: tableWidth })
+        return 0
       }
+      table()
       if (options.conclusions !== undefined) {
         if (snapshot.meeting) {
           doc.addPage({ size: 'A4', layout: 'portrait', margin: 34 })

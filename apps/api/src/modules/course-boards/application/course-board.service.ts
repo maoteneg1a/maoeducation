@@ -19,13 +19,11 @@ import { buildBoardPdf } from './course-board-pdf'
 const person = { id: true, profile: { select: { firstName: true, lastName: true } } } as const
 const name = (p: { firstName: string; lastName: string } | null) => p ? `${p.lastName} ${p.firstName}`.trim() : 'Sin nombre'
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value))
-function broad(actor: Actor) { return isAuthority(actor) || hasPermission(actor, 'reports', 'read', 'all') }
-function accessWhere(actor: Actor, periodId?: string, secretaryParallelIds: string[] = []): Prisma.ParallelWhereInput {
+function broad(actor: Actor) { return isAuthority(actor) || actor.roles.includes('inspector') }
+function accessWhere(actor: Actor, secretaryParallelIds: string[] = []): Prisma.ParallelWhereInput {
   return broad(actor) ? {} : { OR: [
     ...(secretaryParallelIds.length ? [{ id: { in: secretaryParallelIds } }] : []),
     { tutorId: actor.userId },
-    { courseAssignments: { some: { teacherId: actor.userId, isActive: true } } },
-    { courseBoards: { some: { chairId: actor.userId, ...(periodId ? { academicPeriodId: periodId } : {}) } } },
   ] }
 }
 function chairWhere(institutionId: string): Prisma.UserWhereInput {
@@ -36,7 +34,7 @@ function chairWhere(institutionId: string): Prisma.UserWhereInput {
 }
 async function context(institutionId: string, actor: Actor, parallelId: string, periodId: string, secretaryId?: string) {
   const parallel = await prisma.parallel.findFirst({
-    where: { id: parallelId, institutionId, ...accessWhere(actor, periodId, secretaryId === actor.userId ? [parallelId] : []) },
+    where: { id: parallelId, institutionId, ...accessWhere(actor, secretaryId === actor.userId ? [parallelId] : []) },
     include: { tutor: { select: person }, academicYear: true, courseAssignments: { where: { institutionId, isActive: true }, select: { id: true, teacherId: true, teacher: { select: person }, subject: { select: { name: true } } } } },
   })
   if (!parallel) throw new NotFoundError('Curso no encontrado o sin acceso')
@@ -53,8 +51,34 @@ async function accessibleBoard(institutionId: string, actor: Actor, id: string) 
   if (board.status === 'OPEN' && !meeting.background) meeting.background = boardConfig(board.institution.settings).convocationBackground
   return { board: { ...board, meeting }, ...ctx }
 }
-function requireDirector(actor: Actor, board: { chairId: string | null }) {
-  if (!isAuthority(actor) && board.chairId !== actor.userId) throw new ForbiddenError('Solo quien dirige la junta o la autoridad puede realizar esta acción')
+function requireSecretary(actor: Actor, board: { parallelId: string; institution: { settings: unknown } }) {
+  if (boardConfig(board.institution.settings).secretaries[board.parallelId] !== actor.userId) throw new ForbiddenError('Solo la secretaría asignada prepara y cierra el acta')
+}
+export async function boardAccess(institutionId: string, actor: Actor) {
+  if (broad(actor)) return { canAccess: true }
+  const institution = await prisma.institution.findUniqueOrThrow({ where: { id: institutionId }, select: { settings: true } })
+  const secretaryIds = Object.entries(boardConfig(institution.settings).secretaries).filter(([, userId]) => userId === actor.userId).map(([id]) => id)
+  const course = await prisma.parallel.findFirst({ where: { institutionId, ...accessWhere(actor, secretaryIds) }, select: { id: true } })
+  return { canAccess: !!course }
+}
+export function gradesHash(matrix: BoardSnapshot): string {
+  return crypto.createHash('sha256').update(JSON.stringify({ subjects: matrix.subjects.map(({ id, name }) => ({ id, name })), rows: matrix.rows.map(({ id, name, grades }) => ({ id, name, grades: grades.map(({ assignmentId, value, display, partial }) => ({ assignmentId, value, display, partial })) })) })).digest('hex')
+}
+function confirmedGrades(evidence: Array<{ kind: string; snapshot: unknown; uploadedBy: string }>, matrix: BoardSnapshot, tutorId: string | null) {
+  const file = evidence.find((e) => e.kind === 'GRADES_CONFIRMATION' && e.uploadedBy === tutorId)
+  return !!file && (file.snapshot as { gradesHash?: string } | null)?.gradesHash === gradesHash(matrix)
+}
+export async function confirmBoardGrades(institutionId: string, actor: Actor, id: string, expectedHash: string) {
+  const { board, parallel } = await accessibleBoard(institutionId, actor, id)
+  if (parallel.tutorId !== actor.userId) throw new ForbiddenError('Solo el tutor del curso puede confirmar las notas')
+  if (board.status !== 'OPEN') throw new ConflictError('La junta está cerrada')
+  const matrix = await snapshot(institutionId, board.parallelId, board.academicPeriodId)
+  if (gradesHash(matrix) !== expectedHash) throw new ConflictError('Las notas cambiaron. Actualiza y revisa antes de confirmar')
+  const evidence = await prisma.courseBoardEvidence.findMany({ where: { boardId: id, kind: 'GRADES_CONFIRMATION' }, orderBy: { createdAt: 'desc' } })
+  if (confirmedGrades(evidence, matrix, parallel.tutorId)) return { ok: true }
+  matrix.meeting = readMeeting(board.meeting)
+  await saveEvidence(institutionId, actor, board, { kind: 'GRADES_CONFIRMATION', label: 'Consolidado confirmado por el tutor', buffer: await buildBoardPdf(matrix), mimeType: 'application/pdf', fileName: 'consolidado-confirmado.pdf', snapshot: { gradesHash: expectedHash, tutorId: actor.userId, matrix } })
+  return { ok: true }
 }
 export function matrixHash(matrix: BoardSnapshot): string {
   const { generatedAt: _generatedAt, ...content } = matrix
@@ -74,9 +98,8 @@ export async function boardOptions(institutionId: string, actor: Actor, yearId?:
   const secretaryParallelIds = Object.entries(config.secretaries).filter(([, userId]) => userId === actor.userId).map(([parallelId]) => parallelId)
   const [parallels, periods, chairs, secretaryCandidates] = await Promise.all([
     effectiveYearId ? prisma.parallel.findMany({
-      where: { institutionId, academicYearId: effectiveYearId, ...accessWhere(actor, undefined, secretaryParallelIds) },
+      where: { institutionId, academicYearId: effectiveYearId, ...accessWhere(actor, secretaryParallelIds) },
       select: { id: true, name: true, tutorId: true, level: { select: { name: true } },
-        courseAssignments: { where: { institutionId, isActive: true, teacherId: actor.userId }, select: { id: true } },
         courseBoards: { select: { id: true, academicPeriodId: true, status: true, chairId: true, closedAt: true } },
       }, orderBy: [{ level: { sortOrder: 'asc' } }, { name: 'asc' }],
     }) : [],
@@ -91,7 +114,7 @@ export async function boardOptions(institutionId: string, actor: Actor, yearId?:
     }) : [],
   ])
   return { years, yearId: effectiveYearId, periods,
-    parallels: parallels.map((p) => ({ id: p.id, name: `${p.level.name} ${p.name}`, participant: broad(actor) || p.tutorId === actor.userId || p.courseAssignments.length > 0 || config.secretaries[p.id] === actor.userId, secretaryId: config.secretaries[p.id] ?? null, boards: p.courseBoards })),
+    parallels: parallels.map((p) => ({ id: p.id, name: `${p.level.name} ${p.name}`, participant: broad(actor) || p.tutorId === actor.userId || config.secretaries[p.id] === actor.userId, secretaryId: config.secretaries[p.id] ?? null, boards: p.courseBoards })),
     chairs: chairs.map((u) => ({ id: u.id, name: name(u.profile) })), secretaryCandidates: secretaryCandidates.map((u) => ({ id: u.id, name: name(u.profile) })), config, canConfigure: isAuthority(actor),
   }
 }
@@ -131,17 +154,19 @@ export async function boardDetail(institutionId: string, actor: Actor, id: strin
     prisma.institution.findUniqueOrThrow({ where: { id: institutionId }, select: { settings: true } }),
   ])
   const flow = extractReportsFlow(institution.settings)
-  const canDirect = isAuthority(actor) || board.chairId === actor.userId
   const config = boardConfig(institution.settings)
   const secretaryId = config.secretaries[parallel.id] ?? null
   const secretary = secretaryId ? await prisma.user.findFirst({ where: { id: secretaryId, institutionId }, select: person }) : null
   const isSecretary = secretaryId === actor.userId
+  const isTutor = parallel.tutorId === actor.userId
+  const notesConfirmed = confirmedGrades(evidence, matrix, parallel.tutorId)
   return {
     id: board.id, yearId: parallel.academicYearId, status: board.status, revision: board.revision, closedAt: board.closedAt, conclusions: board.conclusions,
     chairId: board.chairId, chairName: board.status === 'CLOSED' && matrix.chairName ? matrix.chairName : board.chair ? name(board.chair.profile) : 'Sin responsable asignado',
-    invitation: board.invitation ? { ...board.invitation, needsUpdate: publishedInvitationHash(evidence, board.invitation.id) !== convocationHash(readMeeting(board.meeting)) } : null, meeting: readMeeting(board.meeting), canEditInvitation: board.status === 'OPEN' && isSecretary, canEditMeeting: board.status === 'OPEN' && (canDirect || parallel.tutorId === actor.userId || isSecretary), canPublishInvitation: board.status === 'OPEN' && isSecretary,
-    canDirect, canUpload: canDirect || parallel.tutorId === actor.userId || (hasPermission(actor, 'formal_reports', 'write', 'own') && parallel.courseAssignments.some((a) => a.teacherId === actor.userId)), canAssignChair: isAuthority(actor), canReport: board.status === 'OPEN' && hasPermission(actor, 'formal_reports', 'write', 'own'),
-    isTutor: parallel.tutorId === actor.userId, isSecretary, secretaryId, secretaryName: secretary ? name(secretary.profile) : null, isAuthority: isAuthority(actor),
+    invitation: board.invitation ? { ...board.invitation, needsUpdate: publishedInvitationHash(evidence, board.invitation.id) !== convocationHash(readMeeting(board.meeting)) } : null, meeting: readMeeting(board.meeting), canEditInvitation: board.status === 'OPEN' && isSecretary, canEditMeeting: board.status === 'OPEN' && isSecretary, canPublishInvitation: board.status === 'OPEN' && isSecretary,
+    canDirect: isSecretary, canReopen: isAuthority(actor), canUpload: isSecretary, canAssignChair: isAuthority(actor), canReport: board.status === 'OPEN' && isTutor && hasPermission(actor, 'formal_reports', 'write', 'own'),
+    gradesHash: gradesHash(matrix), notesConfirmed, canConfirmGrades: board.status === 'OPEN' && isTutor && !notesConfirmed,
+    isTutor: parallel.tutorId === actor.userId, isSecretary, secretaryId, secretaryName: secretary ? name(secretary.profile) : null, isAuthority: broad(actor),
     ownAssignmentIds: parallel.courseAssignments.filter((a) => a.teacherId === actor.userId).map((a) => a.id),
     matrix, matrixHash: matrixHash(matrix),
     evidence: evidence.map((f) => ({ id: f.id, kind: f.kind, label: f.label, fileName: f.fileName, mimeType: f.mimeType, isSigned: f.isSigned, createdAt: f.createdAt, authorName: name(f.uploader.profile), document: f.kind === 'REPORT' ? f.snapshot : null })),
@@ -261,6 +286,7 @@ export async function emitBoardReport(institutionId: string, actor: Actor, id: s
   if (!parsed.success) throw new BadRequestError('Completa la situación y revisa la longitud de los campos del informe')
   const data = parsed.data
   const { board, parallel } = await accessibleBoard(institutionId, actor, id)
+  if (parallel.tutorId !== actor.userId) throw new ForbiddenError('Los informes de esta junta corresponden al tutor')
   if (board.status !== 'OPEN') throw new ConflictError('La junta está cerrada')
   const matrix = await snapshot(institutionId, board.parallelId, board.academicPeriodId)
   const template = matrix.config.reportTypes.find((t) => t.enabled && t.key === data.typeKey)
@@ -285,13 +311,15 @@ export async function emitBoardReport(institutionId: string, actor: Actor, id: s
 }
 
 export async function closeBoard(institutionId: string, actor: Actor, id: string, conclusions: string, expectedRevision: number, expectedMatrixHash: string) {
-  const { board } = await accessibleBoard(institutionId, actor, id)
-  requireDirector(actor, board)
+  const { board, parallel } = await accessibleBoard(institutionId, actor, id)
+  requireSecretary(actor, board)
   if (board.status !== 'OPEN') throw new ConflictError('La junta ya está cerrada')
   if (board.revision !== expectedRevision) throw new ConflictError('Hay nuevos documentos o cambios en la junta. Actualiza y revísalos antes de cerrar')
   if (conclusions.trim().length < 5 || conclusions.length > 12000) throw new BadRequestError('Registra los acuerdos y conclusiones de la junta (5 a 12000 caracteres)')
   const matrix = await snapshot(institutionId, board.parallelId, board.academicPeriodId)
   if (matrixHash(matrix) !== expectedMatrixHash) throw new ConflictError('Las notas o el resumen cambiaron. Actualiza y revisa el consolidado antes de cerrar')
+  const confirmations = await prisma.courseBoardEvidence.findMany({ where: { boardId: id, kind: 'GRADES_CONFIRMATION' }, orderBy: { createdAt: 'desc' } })
+  if (!confirmedGrades(confirmations, matrix, parallel.tutorId)) throw new ConflictError('El tutor debe confirmar las notas actuales antes de cerrar el acta')
   matrix.meeting = readMeeting(board.meeting)
   assertMeetingReady(matrix.meeting, 'MINUTES')
   matrix.chairName = board.chair ? name(board.chair.profile) : matrix.tutorName
@@ -303,16 +331,9 @@ export async function closeBoard(institutionId: string, actor: Actor, id: string
 export async function updateMeeting(institutionId: string, actor: Actor, id: string, body: unknown) {
   const parsed = z.object({ revision: z.number().int().nonnegative(), meeting: meetingDetailsSchema }).safeParse(body)
   if (!parsed.success) throw new BadRequestError('Revisa fechas, horas, nombres y funciones de los participantes')
-  const { board, parallel } = await accessibleBoard(institutionId, actor, id)
-  const secretaryId = boardConfig(board.institution.settings).secretaries[parallel.id]
-  if (!isAuthority(actor) && board.chairId !== actor.userId && parallel.tutorId !== actor.userId && secretaryId !== actor.userId) throw new ForbiddenError('Solo secretaría, el tutor, quien dirige o la autoridad puede preparar la convocatoria')
-  const current = readMeeting(board.meeting)
-  const meeting = secretaryId === actor.userId ? parsed.data.meeting : {
-    ...current,
-    development: parsed.data.meeting.development,
-    actualEndTime: parsed.data.meeting.actualEndTime,
-    participants: current.participants.map((participant, index) => ({ ...participant, attendance: parsed.data.meeting.participants[index]?.attendance ?? participant.attendance })),
-  }
+  const { board } = await accessibleBoard(institutionId, actor, id)
+  requireSecretary(actor, board)
+  const meeting = parsed.data.meeting
   await prisma.$transaction(async (tx) => {
     const updated = await tx.courseBoard.updateMany({ where: { id, institutionId, status: 'OPEN', revision: parsed.data.revision }, data: { meeting: json(meeting), revision: { increment: 1 } } })
     if (!updated.count) throw new ConflictError('La junta cambió o está cerrada. Actualiza antes de guardar')
@@ -322,9 +343,8 @@ export async function updateMeeting(institutionId: string, actor: Actor, id: str
 }
 
 export async function emitMeetingDocument(institutionId: string, actor: Actor, id: string, kind: 'CALL' | 'ATTENDANCE' | 'MINUTES') {
-  const { board, parallel } = await accessibleBoard(institutionId, actor, id)
-  const secretaryId = boardConfig(board.institution.settings).secretaries[parallel.id]
-  if (kind === 'CALL' && secretaryId !== actor.userId) throw new ForbiddenError('Solo la secretaría asignada puede emitir la convocatoria')
+  const { board } = await accessibleBoard(institutionId, actor, id)
+  if (board.status === 'OPEN') requireSecretary(actor, board)
   if (board.status === 'CLOSED' || kind === 'MINUTES') {
     const file = await prisma.courseBoardEvidence.findFirst({ where: { boardId: id, kind }, orderBy: { createdAt: 'desc' }, select: { id: true } })
     if (!file) throw new BadRequestError(kind === 'MINUTES' ? 'El acta se genera al cerrar la junta' : 'Este documento no se emitió antes del cierre')
@@ -339,9 +359,10 @@ export async function emitMeetingDocument(institutionId: string, actor: Actor, i
 
 export async function reopenBoard(institutionId: string, actor: Actor, id: string) {
   const { board } = await accessibleBoard(institutionId, actor, id)
-  requireDirector(actor, board)
+  if (!isAuthority(actor)) throw new ForbiddenError('Solo la autoridad puede reabrir la junta')
   if (board.status !== 'CLOSED') throw new ConflictError('La junta ya está abierta')
   await prisma.$transaction(async (tx) => {
+    await tx.courseBoardEvidence.updateMany({ where: { boardId: id, kind: 'GRADES_CONFIRMATION' }, data: { kind: 'PREVIOUS_CONFIRMATION' } })
     const updated = await tx.courseBoard.updateMany({ where: { id, institutionId, status: 'CLOSED', revision: board.revision }, data: { status: 'OPEN', revision: { increment: 1 }, snapshot: Prisma.DbNull, closedAt: null, closedBy: null } })
     if (!updated.count) throw new ConflictError('La junta cambió. Actualiza la pantalla')
     await tx.auditLog.create({ data: { institutionId, userId: actor.userId, action: 'course_board.reopen', resourceType: 'course_board', resourceId: id } })
@@ -361,8 +382,8 @@ export async function assignBoardChair(institutionId: string, actor: Actor, id: 
 }
 
 export async function uploadBoardEvidence(institutionId: string, actor: Actor, id: string, file: { filename: string; mimetype: string; buffer: Buffer }, signed: boolean) {
-  const { board, parallel } = await accessibleBoard(institutionId, actor, id)
-  if (!isAuthority(actor) && board.chairId !== actor.userId && parallel.tutorId !== actor.userId && !(hasPermission(actor, 'formal_reports', 'write', 'own') && parallel.courseAssignments.some((a) => a.teacherId === actor.userId))) throw new ForbiddenError()
+  const { board } = await accessibleBoard(institutionId, actor, id)
+  requireSecretary(actor, board)
   const institution = await prisma.institution.findUniqueOrThrow({ where: { id: institutionId }, select: { settings: true } })
   const flow = extractReportsFlow(institution.settings)
   const headers: Record<string, boolean> = {

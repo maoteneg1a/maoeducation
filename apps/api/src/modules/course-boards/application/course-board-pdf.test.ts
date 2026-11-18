@@ -10,11 +10,16 @@ export const sampleBoard: BoardSnapshot = {
 }
 
 describe('printable course board documents', () => {
-  it('paginates many students and distributes more than eight subjects across blocks', async () => {
+  it('paginates only by students while retaining all subjects in the same landscape matrix', async () => {
     const pdf = await buildBoardPdf(sampleBoard)
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-')
     const pages = pdf.toString('latin1').match(/\/Type \/Page\b/g) ?? []
-    expect(pages.length).toBeGreaterThanOrEqual(9)
+    expect(pages.length).toBe(2)
+  })
+  it('fits 35 students and nine subjects together on one landscape sheet', async () => {
+    const pdf = await buildBoardPdf({ ...sampleBoard, rows: sampleBoard.rows.slice(0, 35), subjects: sampleBoard.subjects.slice(0, 9) })
+    expect(pdf.toString('latin1').match(/\/Type \/Page\b/g)).toHaveLength(1)
+    expect(pdf.toString('latin1')).toContain('/MediaBox [0 0 1190.55 841.89]')
   })
   it('renders a short report and a closing document with long conclusions', async () => {
     const report = { typeKey: 'general', title: 'Informe general', authorId: 'tutor', authorName: 'Pérez Ana', courseAssignmentId: null, subjectName: null, situation: 'Resumen del curso', actions: 'Acompañamiento', recommendations: 'Continuar seguimiento', labels: { situation: 'Situación', actions: 'Acciones', recommendations: 'Recomendaciones' }, institutionName: sampleBoard.institutionName, parallelName: sampleBoard.parallelName, yearName: sampleBoard.yearName, periodName: sampleBoard.periodName, generatedAt: sampleBoard.generatedAt }
