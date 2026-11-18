@@ -18,6 +18,7 @@ import { ModuleGuard } from './ModuleGuard'
 import { REINFORCEMENT_CASE_MODULES } from '@/shared/lib/modules'
 
 export const router = createBrowserRouter([
+  { path: '/juegos/parame-la-mano/:code?', lazy: () => import('@/features/stop-game/StopGamePage').then(m => ({ Component: m.StopGamePage })), errorElement: <RouteErrorBoundary /> },
   {
     path: '/login',
     element: <LoginPage />,
