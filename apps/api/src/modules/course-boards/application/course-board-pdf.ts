@@ -1,3 +1,4 @@
+import { drawBoardReport } from './board-report-pdf'
 import { documentStyle, installBoardWatermark } from './board-pdf-style'
 import { drawMeetingContent } from './meeting-pdf'
 import PDFDocument from 'pdfkit'
@@ -31,14 +32,7 @@ export function buildBoardPdf(snapshot: BoardSnapshot, options: { report?: Board
       doc.moveDown(0.7)
     }
     if (options.report) {
-      const r = options.report
-      header(r.title)
-      paragraph('Docente', r.authorName)
-      if (r.subjectName) paragraph('Asignatura', r.subjectName)
-      paragraph(r.labels.situation, r.situation)
-      paragraph(r.labels.actions, r.actions)
-      paragraph(r.labels.recommendations, r.recommendations)
-      doc.moveDown(2).text('Firma: ___________________________________')
+      drawBoardReport(doc, snapshot, options.report)
     } else {
       // Una sola matriz: nunca separa las materias en bloques.
       const subjects = snapshot.subjects

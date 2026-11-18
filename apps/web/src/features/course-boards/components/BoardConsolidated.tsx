@@ -6,7 +6,7 @@ import { Button } from '@/shared/components/ui/button'
 import { getErrorMessage } from '@/shared/lib/utils'
 import { normalizeStudentSearch } from '@/shared/lib/student-options'
 import { confirmBoardGrades, type BoardData } from '../api/course-boards.api'
-import { BoardReportDialog } from './BoardReportDialog'
+import { BoardTutorReports } from './BoardTutorReports'
 
 export function BoardConsolidated({ board }: { board: BoardData }) {
   const [search, setSearch] = useState('')
@@ -24,6 +24,6 @@ export function BoardConsolidated({ board }: { board: BoardData }) {
     <div className="max-h-[65vh] overflow-auto rounded-md border"><table className="w-full text-sm"><thead className="sticky top-0 z-20 bg-muted"><tr><th className="sticky left-0 z-30 min-w-56 bg-muted p-3 text-left">Apellidos y nombres</th>{board.matrix.subjects.map((subject) => <th key={subject.id} className="min-w-28 p-3" title={subject.teacherName}>{subject.name}</th>)}</tr></thead><tbody>{rows.map((row) => <tr className="border-t" key={row.id}><th className="sticky left-0 z-10 bg-background p-3 text-left font-medium">{row.name}</th>{row.grades.map((grade) => <td className="p-3 text-center tabular-nums" key={grade.assignmentId}>{grade.display}{grade.partial && <span className="ml-1 text-amber-600">*</span>}</td>)}</tr>)}</tbody></table></div>
     <p className="text-xs text-muted-foreground">— Sin calificación registrada. * Faltan componentes de la nota del período.</p>
     {board.isAuthority && <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm">Observaciones del curso</summary><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th className="p-2 text-left">Estudiante</th>{board.matrix.config.showAttendance && <th className="p-2">Faltas / atrasos</th>}{board.matrix.config.showIncidents && <th className="p-2">Incidencias</th>}{board.matrix.config.showReinforcement && <th className="p-2">Refuerzos</th>}<th className="p-2 text-left">Observación</th></tr></thead><tbody>{board.matrix.rows.map((row) => <tr key={row.id} className="border-t"><td className="p-2">{row.name}</td>{board.matrix.config.showAttendance && <td className="p-2 text-center">{row.absences} / {row.late}</td>}{board.matrix.config.showIncidents && <td className="p-2 text-center">{row.incidents}</td>}{board.matrix.config.showReinforcement && <td className="p-2 text-center">{row.reinforcement}</td>}<td className="p-2">{[row.behavior, row.observation].filter(Boolean).join(' · ') || '—'}</td></tr>)}</tbody></table></div></details>}
-    {board.canReport && <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm">Informe del tutor (opcional)</summary><div className="mt-3"><BoardReportDialog board={board} /></div></details>}
+    {board.isTutor && <BoardTutorReports board={board} />}
   </section>
 }

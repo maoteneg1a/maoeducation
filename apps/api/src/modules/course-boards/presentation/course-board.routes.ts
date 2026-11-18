@@ -45,7 +45,7 @@ export default async function courseBoardRoutes(app: FastifyInstance) {
   })
   app.get<{ Params: { id: string } }>('/course-board-evidence/:id', { schema: { params } }, async (req, reply) => {
     const file = await boards.boardFile(req.user.institutionId, actorOf(req.user), req.params.id)
-    const stream = await storage.getStream(file.storedName)
+    const stream = file.buffer ?? await storage.getStream(file.storedName)
     if (!stream) throw new NotFoundError('El archivo no está disponible')
     reply.header('Content-Type', file.mimeType)
     reply.header('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(file.fileName)}`)

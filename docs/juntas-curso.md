@@ -25,6 +25,14 @@ La publicación se realiza antes de la fecha y hora de reunión. El aviso llega 
 
 Cada junta mantiene un solo aviso. Volver a publicar sin cambios no duplica ni reenvía. Actualizar explícitamente la convocatoria conserva los PDF anteriores y solicita nuevas confirmaciones de invitación. Estas confirmaciones de Avisos son independientes tanto de la asistencia real como de la confirmación de notas del tutor.
 
+## Informes del tutor
+
+El tutor ve los informes ya generados debajo del consolidado y los abre con **Ver / imprimir**, incluso después del cierre. El formulario ofrece únicamente tipos y alcances aún pendientes; **Otro tipo de informe** no permite duplicar el mismo tipo/alcance. La API devuelve el informe existente ante un envío repetido y la revisión de la carpeta impide duplicados por envíos simultáneos.
+
+Los informes nuevos usan tablas con encabezado institucional, logo, año lectivo, datos del docente, período, campos y firma. Cada celda se mide antes de dibujar y se divide con su título de continuación cuando no cabe. Se mantienen colores, etiquetas y marca de agua configurados.
+
+Al consultar informes del formato anterior, el servidor recompone la presentación desde su texto archivado, sin crear otra evidencia ni modificar el PDF original o su contenido guardado. Los informes con formato actualizado (`pdfFormatVersion: 2`) se sirven directamente desde su archivo almacenado.
+
 ## Consolidado horizontal
 
 Todas las materias van juntas, sin bloques de ocho ni títulos “1/2, 2/2”. Los cursos de hasta 27 alumnos y 11 materias usan A4 horizontal; los más grandes usan A3 horizontal para conservar legibilidad. Se compactan las filas y se ajusta la letra al ancho de columnas. Si la lista todavía requiere varias páginas, se pagina solo por alumnos, repitiendo todas las materias y el encabezado. El resultado siempre es un único archivo PDF.

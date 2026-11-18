@@ -186,6 +186,42 @@ suite('course boards with PostgreSQL', () => {
     await expect(boards.emitBoardReport(school, secretary, boardId, { typeKey: 'general', situation: 'Test' })).rejects.toMatchObject({ statusCode: 403 })
     await expect(boards.emitBoardReport(school, tutor, boardId, { typeKey: 'subject', courseAssignmentId: assignmentId, situation: 'Test' })).rejects.toMatchObject({ statusCode: 403 })
   })
+  it('returns the saved report instead of creating another of the same type and scope', async () => {
+    const input = { typeKey: 'general', situation: 'Hallazgo guardado', actions: 'Seguimiento', recommendations: 'Continuar' }
+    const first = await boards.emitBoardReport(school, tutor, boardId, input)
+    const before = await db.courseBoardEvidence.findUniqueOrThrow({ where: { id: first.id } })
+    const revision = (await boards.boardDetail(school, tutor, boardId)).revision
+    expect(await boards.emitBoardReport(school, tutor, boardId, { ...input, situation: 'No debe reemplazar el texto guardado' })).toEqual(first)
+    expect(await db.courseBoardEvidence.count({ where: { boardId, kind: 'REPORT' } })).toBe(1)
+    expect((await db.courseBoardEvidence.findUniqueOrThrow({ where: { id: first.id } })).snapshot).toEqual(before.snapshot)
+    expect((await boards.boardDetail(school, tutor, boardId)).revision).toBe(revision)
+    const secondType = await boards.emitBoardReport(school, tutor, boardId, { ...input, typeKey: 'reinforcement' })
+    expect(secondType.id).not.toBe(first.id)
+  })
+  it('reformats legacy reports from their saved text without mutating the original file or creating another report', async () => {
+    const first = await boards.emitBoardReport(school, tutor, boardId, { typeKey: 'general', situation: 'Texto original del informe' })
+    const file = await db.courseBoardEvidence.findUniqueOrThrow({ where: { id: first.id } })
+    const snapshot = { ...file.snapshot as Record<string, unknown> }
+    delete snapshot.pdfFormatVersion
+    await db.courseBoardEvidence.update({ where: { id: first.id }, data: { snapshot: JSON.parse(JSON.stringify(snapshot)) } })
+    const originalBytes = stored.get(file.storedName)!
+    const view = await boards.boardFile(school, tutor, first.id)
+    expect(view.buffer?.subarray(0, 5).toString()).toBe('%PDF-')
+    expect(stored.get(file.storedName)).toEqual(originalBytes)
+    const reloaded = await db.courseBoardEvidence.findUniqueOrThrow({ where: { id: first.id } })
+    expect(reloaded.snapshot).toEqual(snapshot)
+    expect(await db.courseBoardEvidence.count({ where: { boardId, kind: 'REPORT' } })).toBe(1)
+    const reviewed = await confirm()
+    await boards.closeBoard(school, secretary, boardId, 'Acuerdos del curso', reviewed.revision, reviewed.matrixHash)
+    expect((await boards.boardDetail(school, tutor, boardId)).evidence.find((e) => e.id === first.id)?.document).toMatchObject({ situation: 'Texto original del informe' })
+    expect((await boards.boardFile(school, tutor, first.id)).buffer?.subarray(0, 5).toString()).toBe('%PDF-')
+  })
+  it('prevents duplicate reports from simultaneous submissions', async () => {
+    const results = await Promise.allSettled([1, 2].map(() => boards.emitBoardReport(school, tutor, boardId, { typeKey: 'general', situation: 'Informe enviado una vez' })))
+    expect(results.some((result) => result.status === 'fulfilled')).toBe(true)
+    expect(await db.courseBoardEvidence.count({ where: { boardId, kind: 'REPORT' } })).toBe(1)
+    for (const result of results) if (result.status === 'rejected') expect(result.reason).toMatchObject({ statusCode: 409 })
+  })
   it('publishes a single targeted notice with an independent archived PDF', async () => {
     const detail = await boards.boardDetail(school, secretary, boardId)
     const date = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)

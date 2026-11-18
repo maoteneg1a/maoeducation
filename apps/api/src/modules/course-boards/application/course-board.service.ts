@@ -298,9 +298,15 @@ export async function emitBoardReport(institutionId: string, actor: Actor, id: s
   if (assignment) {
     if (template.authors === 'tutor' || (!authority && assignment.teacherId !== actor.userId)) throw new ForbiddenError('Solo el docente de la asignatura puede emitir este informe')
   } else if (template.authors === 'teacher' || (!authority && !tutor)) throw new ForbiddenError('Selecciona tu asignatura; el informe general corresponde al tutor')
+  const existing = await prisma.courseBoardEvidence.findMany({ where: { boardId: id, kind: 'REPORT' }, select: { id: true, snapshot: true }, orderBy: { createdAt: 'desc' } })
+  const previous = existing.find((file) => {
+    const report = file.snapshot as unknown as BoardReportDocument | null
+    return report?.typeKey === data.typeKey && (report.courseAssignmentId ?? null) === (assignment?.id ?? null)
+  })
+  if (previous) return { id: previous.id }
   const author = await prisma.user.findFirstOrThrow({ where: { id: actor.userId, institutionId }, select: person })
   const document: BoardReportDocument = {
-    typeKey: data.typeKey, title: template.label, authorId: actor.userId, authorName: name(author.profile),
+    pdfFormatVersion: 2, typeKey: data.typeKey, title: template.label, authorId: actor.userId, authorName: name(author.profile),
     courseAssignmentId: assignment?.id ?? null, subjectName: assignment?.subject.name ?? null,
     situation: data.situation, actions: data.actions, recommendations: data.recommendations,
     labels: { situation: matrix.config.situationLabel, actions: matrix.config.actionsLabel, recommendations: matrix.config.recommendationsLabel },
@@ -401,8 +407,16 @@ export async function uploadBoardEvidence(institutionId: string, actor: Actor, i
 export async function boardFile(institutionId: string, actor: Actor, id: string) {
   const file = await prisma.courseBoardEvidence.findFirst({ where: { id, board: { institutionId } } })
   if (!file) throw new NotFoundError('Documento no encontrado')
-  await accessibleBoard(institutionId, actor, file.boardId)
-  return file
+  const { board } = await accessibleBoard(institutionId, actor, file.boardId)
+  const report = file.kind === 'REPORT' ? file.snapshot as unknown as BoardReportDocument | null : null
+  if (report && report.pdfFormatVersion !== 2) {
+    // Recompone el formato desde el texto archivado: no crea otro informe ni modifica el original.
+    const matrix: BoardSnapshot = { institutionName: report.institutionName, parallelName: report.parallelName, yearName: report.yearName, periodName: report.periodName,
+      tutorName: report.authorName, generatedAt: report.generatedAt, meeting: readMeeting(board.meeting), config: boardConfig(board.institution.settings),
+      logoUrl: (board.institution.settings as { branding?: { logoUrl?: string } })?.branding?.logoUrl ?? null, subjects: [], rows: [] }
+    return { ...file, buffer: await buildBoardPdf(matrix, { report }) }
+  }
+  return { ...file, buffer: undefined }
 }
 
 export async function updateBoardConfig(institutionId: string, actor: Actor, body: unknown): Promise<BoardConfig> {
