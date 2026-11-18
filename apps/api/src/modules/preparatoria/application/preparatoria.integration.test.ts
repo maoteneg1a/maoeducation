@@ -27,6 +27,8 @@ suite('Preparatoria and preservation of regular grades with PostgreSQL', () => {
     const makeUser = async (firstName: string) => db.user.create({ data: { institutionId: school, email: `${randomUUID()}@example.test`, passwordHash: 'unused-test', profile: { create: { firstName, lastName: 'Prueba' } } } })
     const [a,t,s,o,c,d] = await Promise.all(['Autoridad','Tutora','Especialista','Otro','Ana','Luis'].map(makeUser))
     const actor = (id: string): PrepActor => ({ sub:id, institutionId:school, roles:['teacher'], permissions:['grades:read:own','grades:write:own','reports:read:all'] })
+    const teacherRole=await db.role.create({data:{institutionId:school,name:'teacher',label:'Docente'}})
+    await db.userRole.createMany({data:[t,s,o].map(u=>({userId:u.id,roleId:teacherRole.id}))})
     admin={...actor(a.id),roles:['admin']};tutor=actor(t.id);specialist=actor(s.id);outsider=actor(o.id);child=c.id;otherChild=d.id
     year=(await db.academicYear.create({ data:{ institutionId:school,name:'2026-2027',startDate:new Date('2026-09-01'),endDate:new Date('2027-07-31'),isActive:true } })).id
     const scheme=await db.academicPeriodScheme.create({data:{institutionId:school,name:'Trimestres',code:'trimestres',periodsCount:3}})
@@ -133,4 +135,62 @@ suite('Preparatoria and preservation of regular grades with PostgreSQL', () => {
     expect(await prep.preparatoryReport(school,first,year,child)).toBeNull()
     expect(await db.preparatoryValue.count({where:{institutionId:school}})).toBe(1)
   })
+  it('keeps B-M and B-V independent with direct teachers, without creating subjects or assignments',async()=>{
+    const levelId=(await db.parallel.findUniqueOrThrow({where:{id:first}})).levelId
+    const [morning,afternoon]=await Promise.all(['B-M','B-V'].map(name=>db.parallel.create({data:{institutionId:school,academicYearId:year,levelId,name,tutorId:tutor.sub}})))
+    await db.studentEnrollment.updateMany({where:{institutionId:school,studentId:child},data:{parallelId:morning.id}})
+    await db.studentEnrollment.updateMany({where:{institutionId:school,studentId:otherChild},data:{parallelId:afternoon.id}})
+    const configure=async(id:string,teacherId:string)=>{
+      const ctx=await prep.prepareProgram(admin,id)
+      return prep.configureProgram(admin,id,{expectedRevision:ctx.program!.revision,enabled:true,reviewed:true,scaleVersion:'2026-00082A',ambitTeachers:Object.fromEntries(AMBITS.map(a=>[a.id,teacherId])),distribution:CATALOG.items.map(i=>({key:i.key,ambit:i.ambit}))})
+    }
+    const bm=await configure(morning.id,outsider.sub),bv=await configure(afternoon.id,specialist.sub)
+    expect((await prep.preparatoryOptions(outsider)).parallels.map(p=>p.id)).toEqual([morning.id])
+    expect((await prep.preparatoryContext(outsider,morning.id)).editableAmbits).toHaveLength(7)
+    await expect(prep.preparatoryContext(outsider,afternoon.id)).rejects.toMatchObject({statusCode:403})
+    const item=CATALOG.items[0]
+    const selected=await prep.selectPeriodLearning(outsider,morning.id,p1,{expectedRevision:bm.program!.revision,itemKeys:[item.key]})
+    await prep.savePreparatoryValues(outsider,morning.id,p1,{expectedRevision:selected.revision,values:[{studentId:child,itemKey:item.key,code:'A+'}]})
+    const selectedV=await prep.selectPeriodLearning(specialist,afternoon.id,p1,{expectedRevision:bv.program!.revision,itemKeys:[item.key]})
+    await prep.savePreparatoryValues(specialist,afternoon.id,p1,{expectedRevision:selectedV.revision,values:[{studentId:otherChild,itemKey:item.key,code:'C+'}]})
+    const headers={authorization:`Bearer ${tokenService.signAccess(outsider)}`}
+    const options=await app.inject({method:'GET',url:`/api/v1/reports/bulletin-options?yearId=${year}&parallelId=${morning.id}`,headers})
+    expect(options.statusCode).toBe(200)
+    expect(options.json().parallels.map((p:{id:string})=>p.id)).toEqual([morning.id])
+    expect(options.json().students.map((s:{id:string})=>s.id)).toEqual([child])
+    const deniedOptions=await app.inject({method:'GET',url:`/api/v1/reports/bulletin-options?yearId=${year}&parallelId=${afternoon.id}`,headers})
+    expect(deniedOptions.json().students).toEqual([])
+    for(const suffix of ['', '/pdf']){
+      const report=await app.inject({method:'GET',url:`/api/v1/reports/bulletin${suffix}?yearId=${year}&parallelId=${morning.id}&studentId=${child}`,headers})
+      expect(report.statusCode).toBe(200)
+      if(!suffix)expect(report.json().preparatoria.rows[0].periods[p1].code).toBe('A+')
+      const denied=await app.inject({method:'GET',url:`/api/v1/reports/bulletin${suffix}?yearId=${year}&parallelId=${afternoon.id}&studentId=${otherChild}`,headers})
+      expect(denied.statusCode).toBe(404)
+    }
+    const batch=await app.inject({method:'GET',url:`/api/v1/reports/bulletin/parallel/pdf?yearId=${year}&parallelId=${morning.id}`,headers})
+    expect(batch.statusCode).toBe(200);expect(batch.rawPayload.subarray(0,5).toString()).toBe('%PDF-')
+    const deniedBatch=await app.inject({method:'GET',url:`/api/v1/reports/bulletin/parallel/pdf?yearId=${year}&parallelId=${afternoon.id}`,headers})
+    expect(deniedBatch.statusCode).toBe(403)
+    expect((await prep.preparatorySheet(specialist,afternoon.id,p1)).values[0].code).toBe('C+')
+    expect(await db.courseAssignment.count({where:{parallelId:{in:[morning.id,afternoon.id]}}})).toBe(0)
+    // Cambiar responsables revoca el acceso anterior, conservando las valoraciones.
+    await configure(morning.id,tutor.sub)
+    await expect(prep.preparatoryContext(outsider,morning.id)).rejects.toMatchObject({statusCode:403})
+    expect((await prep.preparatoryOptions(outsider)).parallels).toEqual([])
+    expect((await prep.preparatorySheet(tutor,morning.id,p1)).values[0].code).toBe('A+')
+    expect((await prep.preparatorySheet(specialist,afternoon.id,p1)).values[0].code).toBe('C+')
+  })
+  it('rejects inactive, non-teacher and foreign-institution responsible users',async()=>{
+    const ctx=await enable()
+    const foreignSchool=await db.institution.create({data:{name:'Otra',code:`PREP_${randomUUID()}`}})
+    const foreign=await db.user.create({data:{institutionId:foreignSchool.id,email:`${randomUUID()}@example.test`,passwordHash:'unused'}})
+    const foreignRole=await db.role.create({data:{institutionId:foreignSchool.id,name:'teacher',label:'Docente'}})
+    await db.userRole.create({data:{userId:foreign.id,roleId:foreignRole.id}})
+    await db.user.update({where:{id:outsider.sub},data:{isActive:false}})
+    for(const invalid of [outsider.sub,child,foreign.id]){
+      await expect(prep.configureProgram(admin,first,{expectedRevision:ctx.program!.revision,enabled:true,reviewed:true,scaleVersion:'2026-00082A',ambitTeachers:{...ctx.program!.ambitTeachers as Record<string,string>,identity:invalid},distribution:CATALOG.items.map(i=>({key:i.key,ambit:i.ambit}))})).rejects.toMatchObject({statusCode:400})
+    }
+    expect((await prep.preparatoryContext(admin,first)).program!.revision).toBe(ctx.program!.revision)
+  })
+
 })

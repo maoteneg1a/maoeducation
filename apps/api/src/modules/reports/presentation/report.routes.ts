@@ -1,3 +1,4 @@
+import { preparatoryTeacherScope } from '../../preparatoria/domain/preparatoria-scope'
 import { preparatoryReport } from '../../preparatoria/application/preparatoria.service'
 import { agreementFor } from '../../../shared/infrastructure/services/agreement.service'
 import { actorOf } from '../../../shared/infrastructure/services/actor'
@@ -317,7 +318,10 @@ export default async function reportRoutes(app: FastifyInstance) {
       },
     },
     async (req, reply) => {
-      await assertParallelInScope(req, req.query.parallelId)
+      const preparatoryAccess = req.user.roles.includes('teacher') && await prisma.parallel.findFirst({
+        where: { id: req.query.parallelId, institutionId: req.user.institutionId, academicYearId: req.query.yearId, ...preparatoryTeacherScope(req.user.sub) }, select: { id: true },
+      })
+      if (!preparatoryAccess) await assertParallelInScope(req, req.query.parallelId)
       const enrollments = await prisma.studentEnrollment.findMany({
         where: {
           institutionId: req.user.institutionId,

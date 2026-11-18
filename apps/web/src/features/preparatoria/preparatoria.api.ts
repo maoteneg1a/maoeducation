@@ -2,7 +2,7 @@ import { apiGet, apiPost, apiPut } from '@/shared/lib/api-client'
 export interface Indicator { key: string; code: string; text: string; ambit: string; competencyCode: string; competencyText: string }
 export interface PrepOption { id: string; name: string; levelName: string; yearId: string; yearName: string; isActiveYear: boolean; enabled: boolean }
 export interface PrepContext {
- parallel: { id: string; name: string; levelName: string; yearId: string; yearName: string }
+ parallel: { id: string; name: string; levelName: string; yearId: string; yearName: string; tutorName: string | null }
  periods: { id: string; name: string; isActive: boolean; isClosed: boolean }[]
  program: null | { id: string; enabled: boolean; revision: number; catalogVersion: string; scaleVersion: string; catalog: Indicator[]; selections: Record<string,string[]>; ambitTeachers: Record<string,string>; reviewedAt: string | null }
  ambits: { id: string; name: string }[]; catalogSource: string; teachers: { id: string; name: string }[]

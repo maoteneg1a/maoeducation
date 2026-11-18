@@ -4,7 +4,7 @@ La modalidad se limita al código de nivel **1B**. No se aplica a Inicial ni de 
 
 ## Flujo sencillo
 
-1. La autoridad abre **Calificar → Tipo de evaluación → Preparatoria · Aprendizajes**, escoge el paralelo y revisa **Configurar Preparatoria**. Los siete ámbitos y 101 indicadores están incluidos; se preparan sin notas y con la modalidad desactivada. Se revisan la distribución, la escala aplicable y los docentes responsables antes de activar ese paralelo.
+1. La autoridad abre **Calificar → Tipo de evaluación → Preparatoria · Aprendizajes**, escoge el paralelo y revisa **Configurar Preparatoria**. Los siete ámbitos y 101 indicadores están incluidos; se preparan sin notas y con la modalidad desactivada. El encabezado identifica grado, paralelo, jornada y año. Se elige un docente para todos los ámbitos y, solo si corresponde, se despliega **Especialistas por ámbito** para cambiar las excepciones. Puede escogerse cualquier docente activo de la institución, sin asignaciones de materias. Se revisan la distribución, la escala aplicable y los responsables antes de activar ese paralelo.
 2. En **Aprendizajes del período**, el docente selecciona únicamente los indicadores que trabajará. Puede reutilizar la selección de otro período o paralelo; no se copian valoraciones.
 3. En la tabla registra las letras por alumno e indicador y pulsa **Guardar valoraciones**. Cada especialista consulta y edita solo sus ámbitos; el tutor y la autoridad pueden consultar el conjunto. El tutor registra fortalezas y recomendaciones generales. La pantalla móvil muestra un estudiante a la vez.
 4. El boletín habitual muestra automáticamente la tabla de ámbitos y aprendizajes cuando corresponde a Primero y su programa está activado. Se puede consultar en pantalla, descargar el PDF individual o el PDF del paralelo, con varias páginas y encabezados repetidos.
@@ -32,3 +32,11 @@ Aplicar `20261117220000_preparatoria_assessment` antes de publicar el frontend. 
 La desactivación conserva el historial y devuelve el boletín de ese paralelo a su flujo habitual. No hay que cambiar `Subject.isQualitative` ni convertir promedios numéricos en valoraciones por indicador. Los otros niveles continúan con la pantalla y boletín existentes.
 
 Las pruebas PostgreSQL solo aceptan `PREPARATORIA_TEST_DATABASE_URL` en `127.0.0.1:55439/juntas_test`. Incluyen una materia compartida entre Primero y Segundo, la conservación de notas y boletín de Segundo, ámbitos, matrícula, institución, períodos cerrados, concurrencia e historial. No se utilizan datos reales.
+
+## Paralelo, jornada y docentes
+
+Cada programa pertenece al ID del paralelo y su año lectivo. Los nombres de la estructura académica distinguen las jornadas, por ejemplo `B-M` (Matutina), `B-V` (Vespertina) y `B-N` (Nocturna). La pantalla muestra estos nombres desarrollados; cuando no hay sufijo conocido indica “Jornada sin indicar”, sin inventar una jornada. No crea otro registro de jornada ni cambia los paralelos existentes.
+
+La configuración de B-M no modifica B-V. Un mismo docente puede recibir uno, varios o todos los ámbitos y trabajar en distintos paralelos. Los responsables se eligen entre usuarios activos con rol docente de la misma institución, independientemente de materias. La tutoría sigue siendo la definida en la estructura académica; asignar ámbitos no cambia al tutor.
+
+El acceso a la tabla y a los boletines individuales o por paralelo contempla estas asignaciones directas. Cambiar un responsable revoca su acceso a los ámbitos anteriores sin borrar valoraciones. La selección de docentes no crea materias ni asignaciones de horario y no amplía el acceso a otros módulos. Esta mejora no requiere otra migración.

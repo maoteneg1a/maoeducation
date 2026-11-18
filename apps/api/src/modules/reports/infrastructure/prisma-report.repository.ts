@@ -1,3 +1,4 @@
+import { preparatoryTeacherScope } from '../../preparatoria/domain/preparatoria-scope'
 import { closedReinforcementPlans } from '../../../shared/infrastructure/services/reinforcement-grade-lock.service'
 import { computePeriodGrades } from '../../../shared/infrastructure/services/period-grades.service'
 import { bulletinGradeColumns } from '../application/services/bulletin-grade-columns'
@@ -527,6 +528,15 @@ export class PrismaReportRepository {
       return { years: [], parallels: [], students: [] }
     }
 
+    // Primero activado no necesita materias para figurar en los boletines.
+    const preparatoryParallels = await prisma.parallel.findMany({
+      where: { institutionId, isActive: true, ...(isAdminLike
+        ? { level: { code: '1B' }, preparatoryProgram: { is: { enabled: true } } }
+        : preparatoryTeacherScope(caller.userId)) },
+      select: { id: true, name: true, academicYearId: true, level: { select: { name: true } }, academicYear: { select: { id: true, name: true, isActive: true } } },
+    })
+    assignments.push(...preparatoryParallels.map(parallel => ({ parallelId: parallel.id, academicYearId: parallel.academicYearId, parallel, academicYear: parallel.academicYear })))
+
     const yearsMap = new Map<string, { id: string; name: string; isActive: boolean }>()
     const parallelsMap = new Map<string, { id: string; name: string; level: { name: string }; academicYearId: string }>()
 
@@ -544,7 +554,7 @@ export class PrismaReportRepository {
       query.yearId ? p.academicYearId === query.yearId : true,
     )
 
-    const students = query.yearId && query.parallelId
+    const students = query.yearId && query.parallelId && allowedParallels.some(p => p.id === query.parallelId)
       ? await prisma.studentEnrollment.findMany({
           where: {
             institutionId,
@@ -629,7 +639,12 @@ export class PrismaReportRepository {
         },
         select: { id: true },
       })
-      if (!canAccess) throw new NotFoundError('No tienes acceso a este paralelo')
+      if (!canAccess) {
+        const preparatoryAccess = await prisma.parallel.findFirst({
+          where: { id: query.parallelId, institutionId, academicYearId: query.yearId, ...preparatoryTeacherScope(caller.userId) }, select: { id: true },
+        })
+        if (!preparatoryAccess) throw new NotFoundError('No tienes acceso a este paralelo')
+      }
     }
 
     const periods = await prisma.academicPeriod.findMany({

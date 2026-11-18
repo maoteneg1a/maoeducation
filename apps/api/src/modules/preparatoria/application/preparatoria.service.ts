@@ -5,6 +5,7 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '.
 import { actorOf, hasPermission, isAuthority } from '../../../shared/infrastructure/services/actor'
 import { STUDENT_ENROLLMENT_ORDER } from '../../../shared/infrastructure/services/enrollment-query'
 import { AMBITS, CATALOG, type CatalogItem, configureSchema, selectionSchema, valuesSchema, isPreparatoryLevel, scaleFor, uniqueKeys } from '../domain/preparatoria-policy'
+import { preparatoryTeacherScope } from '../domain/preparatoria-scope'
 
 export type PrepActor = AccessTokenPayload
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue
@@ -24,7 +25,7 @@ export async function preparatoryOptions(actor: PrepActor) {
   const parallels = await prisma.parallel.findMany({
     where: { institutionId: actor.institutionId, isActive: true,
       level: { code: '1B' },
-      ...(!isAuthority(actorOf(actor)) && { OR: [{ tutorId: actor.sub }, { courseAssignments: { some: { teacherId: actor.sub, isActive: true } } }] }),
+      ...(!isAuthority(actorOf(actor)) && { OR: [{ tutorId: actor.sub }, preparatoryTeacherScope(actor.sub)] }),
     },
     include: { level: true, academicYear: true, preparatoryProgram: { select: { enabled: true } } },
     orderBy: [{ academicYear: { startDate: 'desc' } }, { name: 'asc' }],
@@ -37,21 +38,23 @@ async function context(actor: PrepActor, parallelId: string, periodId?: string) 
   const parallel = await prisma.parallel.findFirst({ where: { id: parallelId, institutionId: actor.institutionId },
     include: { level: true, academicYear: { include: { academicPeriods: { orderBy: { periodNumber: 'asc' } } } },
       tutor: { select: { id: true, profile: { select: { firstName: true, lastName: true } } } },
-      courseAssignments: { where: { isActive: true }, select: { teacherId: true, teacher: { select: { id: true, isActive: true, profile: { select: { firstName: true, lastName: true } } } } } },
     },
   })
   if (!parallel || !isPreparatoryLevel(parallel.level)) throw new NotFoundError('Paralelo de Preparatoria no encontrado')
   const authority = isAuthority(actorOf(actor))
-  const assigned = parallel.courseAssignments.some(a => a.teacherId === actor.sub)
-  if (!authority && (!actor.roles.includes('teacher') || (!assigned && parallel.tutorId !== actor.sub))) throw new ForbiddenError()
-  const teachers = new Map<string, { id: string; name: string }>()
-  if (parallel.tutor) teachers.set(parallel.tutor.id, { id: parallel.tutor.id, name: `${parallel.tutor.profile?.lastName ?? ''} ${parallel.tutor.profile?.firstName ?? ''}`.trim() })
-  for (const a of parallel.courseAssignments) if (a.teacher?.isActive) teachers.set(a.teacher.id, { id: a.teacher.id, name: `${a.teacher.profile?.lastName ?? ''} ${a.teacher.profile?.firstName ?? ''}`.trim() })
-  const coordinator = parallel.tutorId ?? (teachers.size === 1 ? [...teachers.keys()][0] : null)
-  const canConfigure = canWrite(actor) && authority
-  if (periodId && !parallel.academicYear.academicPeriods.some(p => p.id === periodId)) throw new BadRequestError('El período no pertenece al año lectivo de este paralelo')
   const program = await prisma.preparatoryProgram.findFirst({ where: { institutionId: actor.institutionId, parallelId: parallel.id, academicYearId: parallel.academicYearId } })
-  return { parallel, program, authority, teachers: [...teachers.values()], coordinator, canConfigure }
+  const directlyAssigned = !!program?.enabled && Object.values(unpack(program).ambitTeachers).includes(actor.sub)
+  if (!authority && (!actor.roles.includes('teacher') || (!directlyAssigned && parallel.tutorId !== actor.sub))) throw new ForbiddenError()
+  const canConfigure = canWrite(actor) && authority
+  // Las asignaciones de materias y los horarios no determinan quién puede valorar ámbitos.
+  const teachers = canConfigure ? await prisma.user.findMany({
+    where: { institutionId: actor.institutionId, isActive: true, userRoles: { some: { role: { institutionId: actor.institutionId, name: 'teacher' } } } },
+    select: { id: true, profile: { select: { firstName: true, lastName: true } } },
+    orderBy: [{ profile: { lastName: 'asc' } }, { profile: { firstName: 'asc' } }, { id: 'asc' }],
+  }) : []
+  const coordinator = parallel.tutorId
+  if (periodId && !parallel.academicYear.academicPeriods.some(p => p.id === periodId)) throw new BadRequestError('El período no pertenece al año lectivo de este paralelo')
+  return { parallel, program, authority, teachers: teachers.map(t => ({ id: t.id, name: `${t.profile?.lastName ?? ''} ${t.profile?.firstName ?? ''}`.trim() })), coordinator, canConfigure }
 }
 
 export async function preparatoryContext(actor: PrepActor, parallelId: string) {
@@ -60,7 +63,7 @@ export async function preparatoryContext(actor: PrepActor, parallelId: string) {
   const viewAll = ctx.authority || ctx.coordinator === actor.sub
   const visibleAmbits = AMBITS.filter(a => viewAll || data?.ambitTeachers[a.id] === actor.sub)
   return {
-    parallel: { id: ctx.parallel.id, name: ctx.parallel.name, levelName: ctx.parallel.level.name, yearId: ctx.parallel.academicYearId, yearName: ctx.parallel.academicYear.name },
+    parallel: { id: ctx.parallel.id, name: ctx.parallel.name, levelName: ctx.parallel.level.name, yearId: ctx.parallel.academicYearId, yearName: ctx.parallel.academicYear.name, tutorName: ctx.parallel.tutor ? `${ctx.parallel.tutor.profile?.lastName ?? ''} ${ctx.parallel.tutor.profile?.firstName ?? ''}`.trim() : null },
     periods: ctx.parallel.academicYear.academicPeriods.map(p => ({ id: p.id, name: p.name, isActive: p.isActive, isClosed: p.isClosed })),
     program: ctx.program && data ? { ...ctx.program, catalog: data.catalog.filter(item => visibleAmbits.some(a => a.id === item.ambit)) } : null, ambits: visibleAmbits, catalogSource: CATALOG.source,
     teachers: ctx.teachers, canConfigure: ctx.canConfigure,
@@ -107,8 +110,8 @@ export async function configureProgram(actor: PrepActor, parallelId: string, bod
   if (distribution.size !== existing.catalog.length || input.distribution.length !== existing.catalog.length || existing.catalog.some(item => !distribution.has(item.key))) throw new BadRequestError('La distribución debe incluir el catálogo completo, sin duplicados')
   for (const a of AMBITS) {
     const teacherId = input.ambitTeachers[a.id]
-    if (input.enabled && !ctx.teachers.some(t => t.id === teacherId)) throw new BadRequestError(`Asigna un docente autorizado a ${a.name}`)
-    if (teacherId && !ctx.teachers.some(t => t.id === teacherId)) throw new BadRequestError('El docente responsable no está asignado a este paralelo')
+    if (input.enabled && !ctx.teachers.some(t => t.id === teacherId)) throw new BadRequestError(`Asigna un docente activo de la institución a ${a.name}`)
+    if (teacherId && !ctx.teachers.some(t => t.id === teacherId)) throw new BadRequestError('El responsable debe ser un docente activo de esta institución')
   }
   const catalog = existing.catalog.map(item => ({ ...item, ambit: distribution.get(item.key)! }))
   await mutate(actor, ctx, input.expectedRevision, 'preparatoria.configure', async (tx, program) => {

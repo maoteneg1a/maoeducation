@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-const db=vi.hoisted(()=>({parallel:{findFirst:vi.fn(),findMany:vi.fn()},preparatoryProgram:{findFirst:vi.fn(),updateMany:vi.fn(),update:vi.fn(),upsert:vi.fn()},studentEnrollment:{findMany:vi.fn(),count:vi.fn()},preparatoryValue:{findMany:vi.fn(),count:vi.fn(),upsert:vi.fn()},preparatoryComment:{findMany:vi.fn(),upsert:vi.fn()},auditLog:{create:vi.fn()},$transaction:vi.fn()}))
+const db=vi.hoisted(()=>({user:{findMany:vi.fn()},parallel:{findFirst:vi.fn(),findMany:vi.fn()},preparatoryProgram:{findFirst:vi.fn(),updateMany:vi.fn(),update:vi.fn(),upsert:vi.fn()},studentEnrollment:{findMany:vi.fn(),count:vi.fn()},preparatoryValue:{findMany:vi.fn(),count:vi.fn(),upsert:vi.fn()},preparatoryComment:{findMany:vi.fn(),upsert:vi.fn()},auditLog:{create:vi.fn()},$transaction:vi.fn()}))
 vi.mock('../../../shared/infrastructure/database/prisma',()=>({prisma:db}))
 import { preparatoryContext, preparatoryOptions, selectPeriodLearning, savePreparatoryValues, configureProgram, prepareProgram, preparatoryReport, type PrepActor } from './preparatoria.service'
 import { AMBITS, CATALOG, scaleFor, valuesSchema } from '../domain/preparatoria-policy'
@@ -8,7 +8,7 @@ const item=CATALOG.items[0]
 function program(){return {id:'program',parallelId:'parallel',institutionId:'school',academicYearId:'year',revision:3,enabled:true,catalogVersion:CATALOG.version,scaleVersion:'2026-00082A',catalog:CATALOG.items,selections:{p1:[item.key]},ambitTeachers:Object.fromEntries(AMBITS.map(a=>[a.id,'teacher']))}}
 function parallel(){return {id:'parallel',name:'A',institutionId:'school',academicYearId:'year',tutorId:'teacher',level:{code:'1B',name:'Primero',subnivel:'preparatoria'},academicYear:{id:'year',name:'2026',academicPeriods:[{id:'p1',name:'Primero',isActive:true,isClosed:false},{id:'p2',name:'Segundo',isActive:false,isClosed:false}]},tutor:{id:'teacher',profile:{firstName:'Docente',lastName:'Prueba'}},courseAssignments:[{teacherId:'teacher',teacher:{id:'teacher',isActive:true,profile:{firstName:'Docente',lastName:'Prueba'}}}]}}
 beforeEach(()=>{
- vi.resetAllMocks();db.parallel.findFirst.mockResolvedValue(parallel());db.preparatoryProgram.findFirst.mockResolvedValue(program());db.preparatoryProgram.updateMany.mockResolvedValue({count:1});db.studentEnrollment.count.mockResolvedValue(1);db.studentEnrollment.findMany.mockResolvedValue([{student:{id:'student',profile:{firstName:'Ana',lastName:'Prueba',dni:'E001'}}}]);db.preparatoryValue.findMany.mockResolvedValue([]);db.preparatoryComment.findMany.mockResolvedValue([]);db.preparatoryValue.count.mockResolvedValue(0);db.$transaction.mockImplementation(async(fn:any)=>fn(db))
+ vi.resetAllMocks();db.user.findMany.mockResolvedValue([{id:'teacher',profile:{firstName:'Docente',lastName:'Prueba'}}]);db.parallel.findFirst.mockResolvedValue(parallel());db.preparatoryProgram.findFirst.mockResolvedValue(program());db.preparatoryProgram.updateMany.mockResolvedValue({count:1});db.studentEnrollment.count.mockResolvedValue(1);db.studentEnrollment.findMany.mockResolvedValue([{student:{id:'student',profile:{firstName:'Ana',lastName:'Prueba',dni:'E001'}}}]);db.preparatoryValue.findMany.mockResolvedValue([]);db.preparatoryComment.findMany.mockResolvedValue([]);db.preparatoryValue.count.mockResolvedValue(0);db.$transaction.mockImplementation(async(fn:any)=>fn(db))
 })
 describe('ámbito, matrícula y aislamiento de Preparatoria',()=>{
  it('consulta con institución y verifica asignación real, incluso con permiso all',async()=>{
@@ -33,6 +33,15 @@ describe('ámbito, matrícula y aislamiento de Preparatoria',()=>{
   expect(db.preparatoryProgram.upsert).toHaveBeenCalledWith(expect.objectContaining({create:expect.objectContaining({catalog:CATALOG.items,ambitTeachers:Object.fromEntries(AMBITS.map(a=>[a.id,'teacher']))})}))
   expect(db.preparatoryValue.upsert).not.toHaveBeenCalled()
   await expect(prepareProgram(teacher,'parallel')).rejects.toThrow('autoridad')
+ })
+ it('permite ámbitos directos sin materias y solo ofrece docentes activos de la institución a la autoridad',async()=>{
+  db.parallel.findFirst.mockResolvedValue({...parallel(),tutorId:'other',courseAssignments:[]})
+  expect((await preparatoryContext(teacher,'parallel')).editableAmbits).toHaveLength(7)
+  expect(db.user.findMany).not.toHaveBeenCalled()
+  await preparatoryContext({...teacher,roles:['admin']},'parallel')
+  expect(db.user.findMany).toHaveBeenCalledWith(expect.objectContaining({where:{institutionId:'school',isActive:true,userRoles:{some:{role:{institutionId:'school',name:'teacher'}}}}}))
+  db.preparatoryProgram.findFirst.mockResolvedValue({...program(),enabled:false})
+  await expect(preparatoryContext(teacher,'parallel')).rejects.toThrow()
  })
  it('respeta el cierre del período tanto al seleccionar como al valorar',async()=>{
   const course=parallel();course.academicYear.academicPeriods[0].isClosed=true
