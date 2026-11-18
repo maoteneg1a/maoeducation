@@ -10,6 +10,7 @@ export default async function courseBoardRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware)
   app.addHook('preHandler', requirePermission('reports', 'read'))
   const params = { type: 'object', required: ['id'], properties: { id: { type: 'string', minLength: 1 } } }
+  app.get('/course-boards/access', async (req) => boards.boardAccess(req.user.institutionId, actorOf(req.user)))
   app.get<{ Querystring: { yearId?: string } }>('/course-boards/options', async (req) => boards.boardOptions(req.user.institutionId, actorOf(req.user), req.query.yearId))
   app.put<{ Body: unknown }>('/course-boards/config', async (req) => boards.updateBoardConfig(req.user.institutionId, actorOf(req.user), req.body))
   app.post<{ Body: { parallelId: string; periodId: string } }>('/course-boards', {
@@ -20,6 +21,9 @@ export default async function courseBoardRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string }; Body: { revision: number } }>('/course-boards/:id/invitation', {
     schema: { params, body: { type: 'object', additionalProperties: false, required: ['revision'], properties: { revision: { type: 'integer', minimum: 0 } } } },
   }, async (req) => boards.publishInvitation(req.user.institutionId, actorOf(req.user), req.params.id, req.body.revision))
+  app.post<{ Params: { id: string }; Body: { gradesHash: string } }>('/course-boards/:id/confirm-grades', {
+    schema: { params, body: { type: 'object', additionalProperties: false, required: ['gradesHash'], properties: { gradesHash: { type: 'string', pattern: '^[a-f0-9]{64}$' } } } },
+  }, async (req) => boards.confirmBoardGrades(req.user.institutionId, actorOf(req.user), req.params.id, req.body.gradesHash))
   app.post<{ Params: { id: string } }>('/course-boards/:id/consolidated', { schema: { params } }, async (req) => boards.emitConsolidated(req.user.institutionId, actorOf(req.user), req.params.id))
   app.post<{ Params: { id: string }; Body: unknown }>('/course-boards/:id/reports', { schema: { params } }, async (req) => boards.emitBoardReport(req.user.institutionId, actorOf(req.user), req.params.id, req.body))
   app.post<{ Params: { id: string }; Body: { conclusions: string; revision: number; matrixHash: string } }>('/course-boards/:id/close', {

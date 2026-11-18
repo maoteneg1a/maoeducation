@@ -1,3 +1,5 @@
+import { useQuery } from '@tanstack/react-query'
+import { getBoardAccess } from '@/features/course-boards/api/course-boards.api'
 import { useDeceContext } from '@/features/dece/api/dece.api'
 import { isModuleEnabled, REINFORCEMENT_CASE_MODULES } from '@/shared/lib/modules'
 import { NavLink, useLocation } from 'react-router-dom'
@@ -371,11 +373,14 @@ export function useVisibleNavSections(): NavSection[] {
   const { hasPermission, hasAnyRole } = usePermissions()
   const institution = useAuthStore((s) => s.user?.institution ?? null)
 
+  const userId = useAuthStore((s) => s.user?.id)
+  const boardAccess = useQuery({ queryKey: ['course-boards', 'access', institution?.id, userId], queryFn: getBoardAccess, enabled: !!userId && hasPermission('reports:read'), staleTime: 60_000 })
   const deceContext = useDeceContext()
   const enabledModules = institution?.modules ?? null
   const isPersonalAccount = institution?.accountType === 'personal'
 
   const isVisible = (item: NavItem) =>
+    (item.path !== '/course-boards' || boardAccess.data?.canAccess === true) &&
     (item.path !== '/dece' || deceContext.data?.visible === true) &&
     (!item.permission || hasPermission(item.permission)) &&
     (!item.anyPermissions || item.anyPermissions.some(hasPermission)) &&

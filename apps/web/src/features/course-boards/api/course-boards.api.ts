@@ -24,6 +24,7 @@ export interface BoardReport {
   labels: { situation: string; actions: string; recommendations: string }
 }
 export interface BoardData {
+  gradesHash: string; notesConfirmed: boolean; canConfirmGrades: boolean; canReopen: boolean
   id: string; yearId: string; status: string; revision: number; matrixHash: string; closedAt: string | null; conclusions: string
   invitation: { id: string; publishedAt: string; needsUpdate: boolean } | null
   meeting: MeetingDetails; canEditInvitation: boolean; canEditMeeting: boolean; canPublishInvitation: boolean
@@ -60,3 +61,6 @@ export interface InvitationPreview {
 }
 export const previewInvitation = (id: string) => apiGet<InvitationPreview>(`course-boards/${id}/invitation`)
 export const publishInvitation = (id: string, revision: number) => apiPost<{ id: string }>(`course-boards/${id}/invitation`, { revision })
+
+export const getBoardAccess = () => apiGet<{ canAccess: boolean }>('course-boards/access')
+export const confirmBoardGrades = (id: string, gradesHash: string) => apiPost<{ ok: boolean }>(`course-boards/${id}/confirm-grades`, { gradesHash })

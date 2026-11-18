@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   actor: { sub: 'teacher', institutionId: 'school', roles: ['teacher'], permissions: ['reports:read:own'] },
-  previewInvitation: vi.fn(), publishInvitation: vi.fn(), updateMeeting: vi.fn(), emitMeetingDocument: vi.fn(), boardOptions: vi.fn(), updateBoardConfig: vi.fn(), createBoard: vi.fn(), boardDetail: vi.fn(), emitConsolidated: vi.fn(),
+  boardAccess: vi.fn(), confirmBoardGrades: vi.fn(), previewInvitation: vi.fn(), publishInvitation: vi.fn(), updateMeeting: vi.fn(), emitMeetingDocument: vi.fn(), boardOptions: vi.fn(), updateBoardConfig: vi.fn(), createBoard: vi.fn(), boardDetail: vi.fn(), emitConsolidated: vi.fn(),
   emitBoardReport: vi.fn(), closeBoard: vi.fn(), reopenBoard: vi.fn(), assignBoardChair: vi.fn(), uploadBoardEvidence: vi.fn(), boardFile: vi.fn(),
 }))
 vi.mock('../application/course-board.service', () => mocks)
@@ -68,6 +68,14 @@ describe('authenticated course board endpoints', () => {
     const response = await app.inject({ method: 'POST', url: '/course-boards/board/invitation', payload: { revision: 3 } })
     expect(response.statusCode).toBe(200)
     expect(mocks.publishInvitation).toHaveBeenCalledWith('school', expect.objectContaining({ userId: 'teacher' }), 'board', 3)
+  })
+  it('requires a reviewed grade hash before confirming and passes only authenticated scope', async () => {
+    mocks.confirmBoardGrades.mockResolvedValue({ ok: true })
+    const invalid = await app.inject({ method: 'POST', url: '/course-boards/board/confirm-grades', payload: {} })
+    expect(invalid.statusCode).toBe(400)
+    const valid = await app.inject({ method: 'POST', url: '/course-boards/board/confirm-grades', payload: { gradesHash: 'a'.repeat(64) } })
+    expect(valid.statusCode).toBe(200)
+    expect(mocks.confirmBoardGrades).toHaveBeenCalledWith('school', expect.objectContaining({ userId: 'teacher' }), 'board', 'a'.repeat(64))
   })
   it('serves private files with safe headers and no cache', async () => {
     mocks.boardFile.mockResolvedValue({ storedName: 'course-boards/private.pdf', mimeType: 'application/pdf', fileName: 'Acta de junta.pdf' })
