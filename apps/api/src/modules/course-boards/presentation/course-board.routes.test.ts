@@ -77,6 +77,14 @@ describe('authenticated course board endpoints', () => {
     expect(valid.statusCode).toBe(200)
     expect(mocks.confirmBoardGrades).toHaveBeenCalledWith('school', expect.objectContaining({ userId: 'teacher' }), 'board', 'a'.repeat(64))
   })
+  it('serves a corrected legacy report buffer without reading or replacing its archived file', async () => {
+    mocks.boardFile.mockResolvedValue({ storedName: 'course-boards/original.pdf', mimeType: 'application/pdf', fileName: 'informe.pdf', buffer: Buffer.from('%PDF-1.4\nformatted') })
+    const response = await app.inject({ method: 'GET', url: '/course-board-evidence/report' })
+    expect(response.statusCode).toBe(200)
+    expect(response.body).toBe('%PDF-1.4\nformatted')
+    expect(storage.getStream).not.toHaveBeenCalled()
+    expect(response.headers['cache-control']).toBe('private, no-store')
+  })
   it('serves private files with safe headers and no cache', async () => {
     mocks.boardFile.mockResolvedValue({ storedName: 'course-boards/private.pdf', mimeType: 'application/pdf', fileName: 'Acta de junta.pdf' })
     const response = await app.inject({ method: 'GET', url: '/course-board-evidence/file' })

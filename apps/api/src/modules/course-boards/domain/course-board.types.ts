@@ -20,6 +20,7 @@ export interface BoardSnapshot {
   }>
 }
 export interface BoardReportDocument {
+  pdfFormatVersion?: number
   typeKey: string; title: string; authorId: string; authorName: string
   courseAssignmentId: string | null; subjectName: string | null
   situation: string; actions: string; recommendations: string

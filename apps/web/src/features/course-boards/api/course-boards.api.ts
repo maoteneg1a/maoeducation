@@ -19,6 +19,7 @@ export interface BoardOptions {
   chairs: Array<{ id: string; name: string }>; secretaryCandidates: Array<{ id: string; name: string }>; config: BoardConfig; canConfigure: boolean
 }
 export interface BoardReport {
+  typeKey: string; courseAssignmentId: string | null; authorId: string
   title: string; authorName: string; subjectName: string | null
   situation: string; actions: string; recommendations: string
   labels: { situation: string; actions: string; recommendations: string }
