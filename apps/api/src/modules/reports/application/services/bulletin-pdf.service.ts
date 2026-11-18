@@ -1,3 +1,5 @@
+import { drawPreparatoryBulletin } from './preparatoria-pdf'
+import type { PreparatoryReport } from '../../../preparatoria/application/preparatoria.service'
 import { formatScore } from '../../../../shared/domain/agreement-rules'
 import { bulletinGradeColumns, bulletinWeight, type BulletinWeights } from './bulletin-grade-columns'
 import fs from 'fs'
@@ -51,6 +53,7 @@ export interface QualitativeValue {
 }
 
 export interface BulletinPdfData {
+  preparatoria?: PreparatoryReport | null
   institutionName: string
   title: string
   logoUrl: string | null
@@ -127,6 +130,7 @@ export function buildBulletinsPdf(list: BulletinPdfData[]): Promise<Buffer> {
 }
 
 function drawBulletin(doc: PDFKit.PDFDocument, data: BulletinPdfData): void {
+  if (data.preparatoria) return drawPreparatoryBulletin(doc, data, resolveLogo(data.logoUrl))
   const NUM = (n: number | null) => (data.decimals ? formatScore(n, data.decimals) : NUM_ROUND(n))
 
   const pageW = doc.page.width - doc.page.margins.left - doc.page.margins.right

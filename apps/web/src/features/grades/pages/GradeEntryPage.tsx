@@ -1,4 +1,5 @@
 import { comparePersonNames } from '@/shared/lib/person-name'
+import { PreparatoryGrades } from '@/features/preparatoria/PreparatoryGrades'
 import { StudentName } from '../components/StudentName'
 import * as React from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -1643,7 +1644,7 @@ function PeriodProjectGradeGrid({
   </div>
 }
 
-function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
+function GradesPage({ mode, onPendingChange }: { mode: 'entry' | 'summary'; onPendingChange?: (dirty:boolean)=>void }) {
   const qc = useQueryClient()
   const user = useAuthStore((state) => state.user)
   const { hasAnyRole, hasPermission } = usePermissions()
@@ -1851,6 +1852,7 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
   const canShowGrades = !!selectedAssignmentId && !!selectedPeriodId && !!selectedActivityId
   const maxScore = selectedActivity?.maxScore ?? 10
 
+  React.useEffect(() => { onPendingChange?.(modified.size > 0) }, [modified.size, onPendingChange])
   const { confirmDiscard } = useUnsavedChanges(modified.size > 0)
   /** Envuelve un cambio de filtro: si hay notas sin guardar, pide confirmación. */
   const guarded = (setter: (v: string) => void, current: string) => async (value: string) => {
@@ -2288,9 +2290,9 @@ function GradesPage({ mode }: { mode: 'entry' | 'summary' }) {
 }
 
 export function GradeEntryPage() {
-  return <GradesPage mode="entry" />
+  return <PreparatoryGrades>{onPendingChange => <GradesPage mode="entry" onPendingChange={onPendingChange} />}</PreparatoryGrades>
 }
 
 export function GradeConsultationPage() {
-  return <GradesPage mode="summary" />
+  return <PreparatoryGrades>{onPendingChange => <GradesPage mode="summary" onPendingChange={onPendingChange} />}</PreparatoryGrades>
 }

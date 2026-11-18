@@ -18,6 +18,8 @@ datasource db {
 
 model Institution {
   courseBoards CourseBoard[]
+  preparatoryPrograms PreparatoryProgram[]
+
   classAttendanceRecords ClassAttendanceRecord[]
   formativeReinforcementResults FormativeReinforcementResult[]
   id        String   @id @default(uuid())
@@ -95,6 +97,9 @@ model Institution {
 model User {
   chairedCourseBoards CourseBoard[] @relation("CourseBoardChair")
   courseBoardEvidence CourseBoardEvidence[] @relation("CourseBoardUploader")
+  preparatoryValues PreparatoryValue[]
+  preparatoryComments PreparatoryComment[]
+
   classAttendanceAsStudent ClassAttendanceRecord[] @relation("ClassAttendanceStudent")
   classAttendanceRecorded ClassAttendanceRecord[] @relation("ClassAttendanceRecorder")
   formativeReinforcementResults FormativeReinforcementResult[] @relation("FormativeStudent")
@@ -337,6 +342,8 @@ model UserRole {
 // ============================================================
 
 model AcademicYear {
+  preparatoryPrograms PreparatoryProgram[]
+
   id            String   @id @default(uuid())
   institutionId String   @map("institution_id")
   name          String   @db.VarChar(50)
@@ -379,6 +386,9 @@ model AcademicPeriodScheme {
 
 model AcademicPeriod {
   courseBoards CourseBoard[]
+  preparatoryValues PreparatoryValue[]
+  preparatoryComments PreparatoryComment[]
+
   formativeReinforcementResults FormativeReinforcementResult[]
   id             String   @id @default(uuid())
   academicYearId String   @map("academic_year_id")
@@ -428,6 +438,8 @@ model Level {
 
 model Parallel {
   courseBoards CourseBoard[]
+  preparatoryProgram PreparatoryProgram?
+
   id             String  @id @default(uuid())
   institutionId  String  @map("institution_id")
   levelId        String  @map("level_id")
@@ -2936,4 +2948,68 @@ model CourseBoardEvidence {
   uploader User @relation("CourseBoardUploader", fields: [uploadedBy], references: [id])
   @@index([boardId, createdAt])
   @@map("course_board_evidence")
+}
+
+// Evaluación de Preparatoria, aislada de Grade y de las materias compartidas.
+model PreparatoryProgram {
+  id              String @id @default(uuid())
+  institutionId   String @map("institution_id")
+  parallelId      String @unique @map("parallel_id")
+  academicYearId  String @map("academic_year_id")
+  enabled         Boolean @default(false)
+  revision        Int @default(1)
+  catalogVersion  String @map("catalog_version")
+  catalog         Json
+  scaleVersion    String @default("2026-00082A") @map("scale_version")
+  ambitTeachers   Json @default("{}") @map("ambit_teachers")
+  selections      Json @default("{}")
+  reviewedAt      DateTime? @map("reviewed_at")
+  reviewedBy      String? @map("reviewed_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  institution     Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  parallel        Parallel @relation(fields: [parallelId], references: [id], onDelete: Restrict)
+  academicYear    AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  values          PreparatoryValue[]
+  comments        PreparatoryComment[]
+
+  @@index([institutionId, academicYearId])
+  @@map("preparatory_programs")
+}
+
+model PreparatoryValue {
+  id              String @id @default(uuid())
+  institutionId   String @map("institution_id")
+  programId       String @map("program_id")
+  studentId       String @map("student_id")
+  periodId        String @map("period_id")
+  itemKey         String @map("item_key")
+  code            String? @db.VarChar(10)
+  notes           String @default("")
+  recordedBy      String @map("recorded_by")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  student         User @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  period          AcademicPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  program         PreparatoryProgram @relation(fields: [programId], references: [id], onDelete: Restrict)
+
+  @@unique([programId, studentId, periodId, itemKey])
+  @@index([institutionId, studentId])
+  @@map("preparatory_values")
+}
+
+model PreparatoryComment {
+  id              String @id @default(uuid())
+  institutionId   String @map("institution_id")
+  programId       String @map("program_id")
+  studentId       String @map("student_id")
+  periodId        String @map("period_id")
+  text            String
+  recordedBy      String @map("recorded_by")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  student         User @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  period          AcademicPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  program         PreparatoryProgram @relation(fields: [programId], references: [id], onDelete: Restrict)
+
+  @@unique([programId, studentId, periodId])
+  @@map("preparatory_comments")
 }

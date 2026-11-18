@@ -1,3 +1,4 @@
+import type { PrepReport } from '@/features/preparatoria/preparatoria.api'
 import { apiClient, apiGet, apiPut } from '@/shared/lib/api-client'
 
 export interface GradesReportData {
@@ -143,6 +144,8 @@ export interface BulletinSubject {
 }
 
 export interface StudentBulletinData {
+  recommendations?: Array<{ periodId: string; scope: string; text: string }>
+  preparatoria?: PrepReport | null
   institution: { id: string; name: string }
   academicYear: { id: string; name: string }
   parallel: {

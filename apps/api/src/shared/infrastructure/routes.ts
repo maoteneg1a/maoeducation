@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify'
 
 export async function registerRoutes(app: FastifyInstance) {
+  app.register(import('../../modules/preparatoria/presentation/preparatoria.routes'), { prefix: '/api/v1' })
   app.register(import('../../modules/auth/presentation/auth.routes'), { prefix: '/api/v1' })
   app.register(import('../../modules/users/presentation/user.routes'), { prefix: '/api/v1' })
   app.register(import('../../modules/academic/presentation/academic.routes'), { prefix: '/api/v1' })

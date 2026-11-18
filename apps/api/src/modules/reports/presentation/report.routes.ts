@@ -1,3 +1,4 @@
+import { preparatoryReport } from '../../preparatoria/application/preparatoria.service'
 import { agreementFor } from '../../../shared/infrastructure/services/agreement.service'
 import { actorOf } from '../../../shared/infrastructure/services/actor'
 import {
@@ -117,6 +118,7 @@ async function bulletinPdfData(
       institutionRepo.getGradingConfig(user.institutionId),
       agreementFor(user.institutionId, query.yearId),
     ])
+    const preparatoria = await preparatoryReport(user.institutionId, bulletin.parallel?.id ?? '', query.yearId, query.studentId, user)
     const b = branding.effective
     const tutor = bulletin.parallel?.tutor?.profile
     type PG = {
@@ -156,6 +158,7 @@ async function bulletinPdfData(
       finalCode: s.finalCode ?? null,
     })
     return {
+      preparatoria,
       institutionName: b.institutionName || bulletin.institution?.name || '',
       title: b.title ?? '',
       logoUrl: b.logoUrl || null,
@@ -170,9 +173,9 @@ async function bulletinPdfData(
       tutorName: tutor ? `${tutor.lastName} ${tutor.firstName}` : '',
       yearName: bulletin.academicYear?.name ?? '',
       periods: bulletin.periods.map((p: { id: string; name: string }) => ({ id: p.id, name: p.name })),
-      subjects: (bulletin.subjects as Subj[]).map(mapSubject),
-      qualitativeSubjects: ((bulletin.qualitativeSubjects ?? []) as Subj[]).map(mapSubject),
-      overallAverage: bulletin.overallAverage ?? null,
+      subjects: preparatoria ? [] : (bulletin.subjects as Subj[]).map(mapSubject),
+      qualitativeSubjects: preparatoria ? [] : ((bulletin.qualitativeSubjects ?? []) as Subj[]).map(mapSubject),
+      overallAverage: preparatoria ? null : bulletin.overallAverage ?? null,
       qualitativeScale: gradingConfig.qualitativeScale,
       qualitativeValueScale: bulletin.qualitativeValueScale ?? [],
       attendanceByPeriod: (bulletin.attendanceByPeriod ?? []).map((a: {
@@ -275,8 +278,11 @@ export default async function reportRoutes(app: FastifyInstance) {
         agreementFor(req.user.institutionId, req.query.yearId),
         forBulletin(req.user.institutionId, req.query.studentId, bulletin.periods.map((p: { id: string }) => p.id)),
       ])
+      const preparatoria = await preparatoryReport(req.user.institutionId, bulletin.parallel?.id ?? '', req.query.yearId, req.query.studentId, req.user)
       return reply.send({
         ...bulletin,
+        ...(preparatoria ? { subjects: [], qualitativeSubjects: [], overallAverage: null } : {}),
+        preparatoria,
         branding: branding.effective,
         gradingConfig,
         decimals: agreement?.decimals ?? null,

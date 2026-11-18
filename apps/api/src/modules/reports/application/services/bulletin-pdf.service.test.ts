@@ -53,3 +53,17 @@ describe('bulletins with optional grading components', () => {
     expect(pdf.toString('latin1').match(/\/Type\s*\/Page\b/g) ?? []).toHaveLength(1)
   })
 })
+
+import { AMBITS, CATALOG, scaleFor } from '../../../preparatoria/domain/preparatoria-policy'
+import { buildBulletinsPdf } from './bulletin-pdf.service'
+
+describe('boletín extenso de Preparatoria',()=>{
+ const prep: BulletinPdfData = {...DATA, levelName:'Primero',preparatoria:{catalogVersion:CATALOG.version,scaleVersion:'2026-00082A',scale:scaleFor('2026-00082A'),ambits:AMBITS,rows:CATALOG.items.map(i=>({...i,periods:{p1:{selected:true,code:'A+',notes:'Observación de aprendizaje'}}})),comments:[{periodId:'p1',text:'Fortalezas y recomendaciones. '.repeat(120)}]}}
+ it('genera todas las páginas de un expediente extenso y ambos alumnos en lote',async()=>{
+  const single=await buildBulletinPdf(prep),batch=await buildBulletinsPdf([prep,{...prep,studentName:'Segundo estudiante'}])
+  const pages=(pdf:Buffer)=>(pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)??[]).length
+  expect(pages(single)).toBeGreaterThan(3)
+  expect(pages(batch)).toBe(pages(single)*2)
+  expect(single.subarray(0,4).toString()).toBe('%PDF')
+ })
+})

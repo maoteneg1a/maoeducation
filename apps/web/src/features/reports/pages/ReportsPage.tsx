@@ -1,3 +1,4 @@
+import { PreparatoryBulletin } from '@/features/preparatoria/PreparatoryBulletin'
 import { evaluationLabel, gradeSummaryColumns } from '../lib/grade-columns'
 import { useSearchParams } from 'react-router-dom'
 import * as React from 'react'
@@ -129,8 +130,9 @@ function BulletinReportTab() {
   const canEditGlobal = hasPermission('academic_config:manage')
   const canEditOwn = hasAnyRole('teacher', 'admin', 'inspector')
 
-  const [selectedYearId, setSelectedYearId] = React.useState('')
-  const [selectedParallelId, setSelectedParallelId] = React.useState('')
+  const [bulletinParams] = useSearchParams()
+  const [selectedYearId, setSelectedYearId] = React.useState(() => bulletinParams.get('yearId') ?? '')
+  const [selectedParallelId, setSelectedParallelId] = React.useState(() => bulletinParams.get('parallelId') ?? '')
   const [selectedStudentId, setSelectedStudentId] = React.useState('')
   const [enabled, setEnabled] = React.useState(false)
   const downloads = useAsyncAction()
@@ -254,7 +256,7 @@ function BulletinReportTab() {
   const parallels = options?.parallels ?? []
   const students = options?.students ?? []
 
-  const reportHasContent = !!report && (report.subjects.length > 0 || report.attendanceByPeriod.length > 0)
+  const reportHasContent = !!report && (!!report.preparatoria || report.subjects.length > 0 || report.attendanceByPeriod.length > 0)
 
   return (
     <div className="space-y-6">
@@ -424,7 +426,7 @@ function BulletinReportTab() {
             description={getErrorMessage(reportError)}
           />
         )}
-        {reportHasContent && !isLoading && !reportIsError && <BulletinReportView data={report} />}
+        {reportHasContent && !isLoading && !reportIsError && (report.preparatoria ? <PreparatoryBulletin data={report} /> : <BulletinReportView data={report} />)}
         {enabled && report && !reportHasContent && !isLoading && !reportIsError && (
           <EmptyState
             icon={ScrollText}
