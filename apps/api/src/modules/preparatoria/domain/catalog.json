@@ -1,0 +1,814 @@
+{
+  "version": "auleka-preparatoria-indicators-2026-v1",
+  "source": "Banco de competencias de Preparatoria incluido en Auleka. Verificar códigos, textos y organización con el currículo aplicable antes de activar. La distribución inicial por ámbitos es una propuesta editable.",
+  "items": [
+    {
+      "key": "I.CI.1.1.1",
+      "code": "I.CI.1.1.1",
+      "text": "I.CI.1.1.1. Expresa sus datos personales: nombre, apellidos, edad, teléfono, lugar donde vive, números de emergencia y país donde vive.",
+      "ambit": "identity",
+      "competencyCode": "CE.CI.1.1",
+      "competencyText": "Identificar sus características personales, su historia, sus gustos y su pertenencia familiar y comunitaria para reconocer su identidad, interactuar respetuosamente con los demás y valorar la diversidad"
+    },
+    {
+      "key": "I.CI.1.1.2",
+      "code": "I.CI.1.1.2",
+      "text": "I.CI.1.1.2. Reconoce que tiene una historia personal y familiar, y que forma parte de una comunidad y de un núcleo familiar.",
+      "ambit": "identity",
+      "competencyCode": "CE.CI.1.1",
+      "competencyText": "Identificar sus características personales, su historia, sus gustos y su pertenencia familiar y comunitaria para reconocer su identidad, interactuar respetuosamente con los demás y valorar la diversidad"
+    },
+    {
+      "key": "I.CI.1.1.3",
+      "code": "I.CI.1.1.3",
+      "text": "I.CI.1.1.3. Identifica sus gustos, preferencias y características personales, respetando semejanzas y diferencias con los demás.",
+      "ambit": "identity",
+      "competencyCode": "CE.CI.1.1",
+      "competencyText": "Identificar sus características personales, su historia, sus gustos y su pertenencia familiar y comunitaria para reconocer su identidad, interactuar respetuosamente con los demás y valorar la diversidad"
+    },
+    {
+      "key": "I.CI.1.1.4",
+      "code": "I.CI.1.1.4",
+      "text": "I.CI.1.1.4. Reconoce que es un ser que siente, piensa, expresa, opina, interactúa y tiene necesidades.",
+      "ambit": "identity",
+      "competencyCode": "CE.CI.1.1",
+      "competencyText": "Identificar sus características personales, su historia, sus gustos y su pertenencia familiar y comunitaria para reconocer su identidad, interactuar respetuosamente con los demás y valorar la diversidad"
+    },
+    {
+      "key": "I.CI.1.1.5",
+      "code": "I.CI.1.1.5",
+      "text": "I.CI.1.1.5. Participa en actividades familiares y comunitarias, expresando sentido de pertenencia y respeto por las diferencias.",
+      "ambit": "identity",
+      "competencyCode": "CE.CI.1.1",
+      "competencyText": "Identificar sus características personales, su historia, sus gustos y su pertenencia familiar y comunitaria para reconocer su identidad, interactuar respetuosamente con los demás y valorar la diversidad"
+    },
+    {
+      "key": "I.CI.1.2.1",
+      "code": "I.CI.1.2.1",
+      "text": "I.CI.1.2.1. Practica hábitos cotidianos de alimentación, higiene, cuidado personal y social con autonomía progresiva y responsabilidad.",
+      "ambit": "identity",
+      "competencyCode": "CE.CI.1.2",
+      "competencyText": "Demostrar autonomía y responsabilidad en la práctica de hábitos cotidianos para fortalecer su autoestima, seguridad y bienestar emocional"
+    },
+    {
+      "key": "I.CI.1.2.2",
+      "code": "I.CI.1.2.2",
+      "text": "I.CI.1.2.2. Reconoce situaciones de peligro en su entorno cercano, aplicando normas básicas de seguridad y autorregulación para evitar accidentes.",
+      "ambit": "identity",
+      "competencyCode": "CE.CI.1.2",
+      "competencyText": "Demostrar autonomía y responsabilidad en la práctica de hábitos cotidianos para fortalecer su autoestima, seguridad y bienestar emocional"
+    },
+    {
+      "key": "I.CI.1.2.3",
+      "code": "I.CI.1.2.3",
+      "text": "I.CI.1.2.3. Identifica el uso básico de elementos de seguridad vial (casco, cinturón de seguridad, paso de cebra, semáforo), cuidando su bienestar personal.",
+      "ambit": "identity",
+      "competencyCode": "CE.CI.1.2",
+      "competencyText": "Demostrar autonomía y responsabilidad en la práctica de hábitos cotidianos para fortalecer su autoestima, seguridad y bienestar emocional"
+    },
+    {
+      "key": "I.CI.1.2.4",
+      "code": "I.CI.1.2.4",
+      "text": "I.CI.1.2.4. Demuestra autorregulación en sus rutinas diarias incluyendo descanso y actividades organizadas, mostrando responsabilidad, autoestima y cuidado por su bienestar.",
+      "ambit": "identity",
+      "competencyCode": "CE.CI.1.2",
+      "competencyText": "Demostrar autonomía y responsabilidad en la práctica de hábitos cotidianos para fortalecer su autoestima, seguridad y bienestar emocional"
+    },
+    {
+      "key": "I.CI.1.2.5",
+      "code": "I.CI.1.2.5",
+      "text": "I.CI.1.2.5. Selecciona ropa adecuada según las condiciones climáticas y situaciones sociales para su cuidado y su bienestar personal.",
+      "ambit": "identity",
+      "competencyCode": "CE.CI.1.2",
+      "competencyText": "Demostrar autonomía y responsabilidad en la práctica de hábitos cotidianos para fortalecer su autoestima, seguridad y bienestar emocional"
+    },
+    {
+      "key": "I.CI.1.3.1",
+      "code": "I.CI.1.3.1",
+      "text": "I.CI.1.3.1. Practica normas y acuerdos de convivencia grupal, respetando las opiniones e ideas de sí mismo y de otros.",
+      "ambit": "coexistence",
+      "competencyCode": "CE.CI.1.3",
+      "competencyText": "Participar en la construcción y cumplimiento de acuerdos grupales para favorecer la convivencia armónica, el respeto por las diferencias individuales y el reconocimiento de derechos y responsabilidades"
+    },
+    {
+      "key": "I.CI.1.3.2",
+      "code": "I.CI.1.3.2",
+      "text": "I.CI.1.3.2. Reconoce sus derechos y responsabilidades, diferenciando comportamientos positivos y negativos en su entorno.",
+      "ambit": "coexistence",
+      "competencyCode": "CE.CI.1.3",
+      "competencyText": "Participar en la construcción y cumplimiento de acuerdos grupales para favorecer la convivencia armónica, el respeto por las diferencias individuales y el reconocimiento de derechos y responsabilidades"
+    },
+    {
+      "key": "I.CI.1.3.3",
+      "code": "I.CI.1.3.3",
+      "text": "I.CI.1.3.3. Resuelve conflictos mediante el diálogo, acuerdos simples, el uso de un lenguaje respetuoso, la empatía y la cooperación para favorecer la convivencia armónica.",
+      "ambit": "coexistence",
+      "competencyCode": "CE.CI.1.3",
+      "competencyText": "Participar en la construcción y cumplimiento de acuerdos grupales para favorecer la convivencia armónica, el respeto por las diferencias individuales y el reconocimiento de derechos y responsabilidades"
+    },
+    {
+      "key": "I.CI.1.4.1",
+      "code": "I.CI.1.4.1",
+      "text": "I.CI.1.4.1. Reconoce la organización y dependencias de la vivienda y de la institución educativa, identificando la utilidad de los espacios.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.4",
+      "competencyText": "Reconocer los espacios cotidianos de la vivienda, la escuela y los servicios básicos y de emergencia, valorando su organización, utilidad y función en la vida diaria"
+    },
+    {
+      "key": "I.CI.1.4.2",
+      "code": "I.CI.1.4.2",
+      "text": "I.CI.1.4.2. Reconoce la función de las entidades que brindan servicios básicos y de emergencia en su comunidad, valorando el trabajo de las personas que las integran.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.4",
+      "competencyText": "Reconocer los espacios cotidianos de la vivienda, la escuela y los servicios básicos y de emergencia, valorando su organización, utilidad y función en la vida diaria"
+    },
+    {
+      "key": "I.CI.1.4.3",
+      "code": "I.CI.1.4.3",
+      "text": "I.CI.1.4.3. Cuida los espacios y recursos del hogar, la escuela y la comunidad mediante prácticas sencillas de ahorro y gestión de desechos.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.4",
+      "competencyText": "Reconocer los espacios cotidianos de la vivienda, la escuela y los servicios básicos y de emergencia, valorando su organización, utilidad y función en la vida diaria"
+    },
+    {
+      "key": "I.CI.1.5.1",
+      "code": "I.CI.1.5.1",
+      "text": "I.CI.1.5.1. Reconoce la función de los medios de transporte en situaciones cotidianas.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.5",
+      "competencyText": "Identificar la función de los medios de transporte y comunicación, así como los principales ocupaciones de su comunidad, para valorar su importancia y practicar normas básicas de seguridad en la vida cotidiana"
+    },
+    {
+      "key": "I.CI.1.5.2",
+      "code": "I.CI.1.5.2",
+      "text": "I.CI.1.5.2. Reconoce los medios de transporte que contaminan y aquellos que contribuyen al cuidado del ambiente.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.5",
+      "competencyText": "Identificar la función de los medios de transporte y comunicación, así como los principales ocupaciones de su comunidad, para valorar su importancia y practicar normas básicas de seguridad en la vida cotidiana"
+    },
+    {
+      "key": "I.CI.1.5.3",
+      "code": "I.CI.1.5.3",
+      "text": "I.CI.1.5.3. Identifica las principales profesiones y oficios de su comunidad, reconociendo la importancia del trabajo para el bienestar colectivo.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.5",
+      "competencyText": "Identificar la función de los medios de transporte y comunicación, así como los principales ocupaciones de su comunidad, para valorar su importancia y practicar normas básicas de seguridad en la vida cotidiana"
+    },
+    {
+      "key": "I.CI.1.5.4",
+      "code": "I.CI.1.5.4",
+      "text": "I.CI.1.5.4. Aplica normas básicas de seguridad en situaciones de riesgo.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.5",
+      "competencyText": "Identificar la función de los medios de transporte y comunicación, así como los principales ocupaciones de su comunidad, para valorar su importancia y practicar normas básicas de seguridad en la vida cotidiana"
+    },
+    {
+      "key": "I.CI.1.5.5",
+      "code": "I.CI.1.5.5",
+      "text": "I.CI.1.5.5. Reconoce diferentes medios de comunicación y su utilidad en situaciones cotidianas.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.5",
+      "competencyText": "Identificar la función de los medios de transporte y comunicación, así como los principales ocupaciones de su comunidad, para valorar su importancia y practicar normas básicas de seguridad en la vida cotidiana"
+    },
+    {
+      "key": "I.CI.1.6.1",
+      "code": "I.CI.1.6.1",
+      "text": "I.CI.1.6.1. Identifica manifestaciones culturales de su comunidad y del Ecuador, como la música, la conida, las festividades y las tradiciones.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.6",
+      "competencyText": "Identificar las manifestaciones culturales de su comunidad y del Ecuador para valorar la diversidad cultural, fortalecer el sentido de pertenencia y participar en actividades culturales y cívicas"
+    },
+    {
+      "key": "I.CI.1.6.2",
+      "code": "I.CI.1.6.2",
+      "text": "I.CI.1.6.2. Participa en actividades culturales y cívicas de su entorno, demostrando respeto por la diversidad cultural, los símbolos patrios y el sentido de pertenencia de su comunidad y país.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.6",
+      "competencyText": "Identificar las manifestaciones culturales de su comunidad y del Ecuador para valorar la diversidad cultural, fortalecer el sentido de pertenencia y participar en actividades culturales y cívicas"
+    },
+    {
+      "key": "I.CI.1.7.1",
+      "code": "I.CI.1.7.1",
+      "text": "I.CI.1.7.1. Diferencia entre necesidades y deseos al participar en actividades lúdicas de simulación.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.7",
+      "competencyText": "Participar en situaciones lúdicas relacionadas con el uso del dinero en el entorno familiar y escolar para diferenciar entre necesidades y deseos, practicar el consumo responsable, el intercambio y el ahorro"
+    },
+    {
+      "key": "I.CI.1.7.2",
+      "code": "I.CI.1.7.2",
+      "text": "I.CI.1.7.2. Participa en experiencias de ahorro simbólico con responsabilidad en el cuidado de sus recursos.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.7",
+      "competencyText": "Participar en situaciones lúdicas relacionadas con el uso del dinero en el entorno familiar y escolar para diferenciar entre necesidades y deseos, practicar el consumo responsable, el intercambio y el ahorro"
+    },
+    {
+      "key": "I.CI.1.7.3",
+      "code": "I.CI.1.7.3",
+      "text": "I.CI.1.7.3. Relaciona el dinero con el trabajo mediante actividades de intercambio o trueque, demostrando actitudes de solidaridad y colaboración en situaciones cotidianas.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.7",
+      "competencyText": "Participar en situaciones lúdicas relacionadas con el uso del dinero en el entorno familiar y escolar para diferenciar entre necesidades y deseos, practicar el consumo responsable, el intercambio y el ahorro"
+    },
+    {
+      "key": "I.CI.1.8.1",
+      "code": "I.CI.1.8.1",
+      "text": "I.CI.1.8.1. Identifica las características, necesidades (alimento, aire y agua) y hábitats de los seres vivos, reconociendo tipos de plantas y animales de su entorno.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.8",
+      "competencyText": "Comprender las características, necesidades y cambios de los seres vivos y de la materia inerte presentes en su entorno, mediante la observación, la descripción, la comparación y la clasificación, para desarrollar actitudes de curiosidad, respeto, cuidado e interés por la naturaleza y sus relaciones con el entorno"
+    },
+    {
+      "key": "I.CI.1.8.2",
+      "code": "I.CI.1.8.2",
+      "text": "I.CI.1.8.2. Diferencia objetos inertes y de seres vivos de su entorno en función de sus características, necesidades y hábitats.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.8",
+      "competencyText": "Comprender las características, necesidades y cambios de los seres vivos y de la materia inerte presentes en su entorno, mediante la observación, la descripción, la comparación y la clasificación, para desarrollar actitudes de curiosidad, respeto, cuidado e interés por la naturaleza y sus relaciones con el entorno"
+    },
+    {
+      "key": "I.CI.1.8.3",
+      "code": "I.CI.1.8.3",
+      "text": "I.CI.1.8.3. Demuestra actitudes de curiosidad, respeto y cuidado hacia las plantas, los animales y sus hábitats.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.8",
+      "competencyText": "Comprender las características, necesidades y cambios de los seres vivos y de la materia inerte presentes en su entorno, mediante la observación, la descripción, la comparación y la clasificación, para desarrollar actitudes de curiosidad, respeto, cuidado e interés por la naturaleza y sus relaciones con el entorno"
+    },
+    {
+      "key": "I.CI.0.9.26",
+      "code": "I.CI.0.9.26",
+      "text": "I.CI.0.9.26. Relaciona las emociones básicas de alegría, tristeza, ira y miedo con eventos cotidianos.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.9",
+      "competencyText": "Identificar las partes de su cuerpo, los órganos de los sentidos y sus funciones mediante experiencias sensoriales, la exploración, la observación y la comparación, para construir una imagen corporal positiva, aceptarse, expresarse y practicar hábitos de vida saludable orientados al cuidado de su cuerpo"
+    },
+    {
+      "key": "I.CI.0.9.27",
+      "code": "I.CI.0.9.27",
+      "text": "I.CI.0.9.27. Expresa emociones (alegría, tristeza, ira y miedo) en diferentes contextos",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.9",
+      "competencyText": "Identificar las partes de su cuerpo, los órganos de los sentidos y sus funciones mediante experiencias sensoriales, la exploración, la observación y la comparación, para construir una imagen corporal positiva, aceptarse, expresarse y practicar hábitos de vida saludable orientados al cuidado de su cuerpo"
+    },
+    {
+      "key": "I.CI.0.9.28",
+      "code": "I.CI.0.9.28",
+      "text": "I.CI.0.9.28. Respeta normas básicas de convivencia en actividades cotidianas.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.9",
+      "competencyText": "Identificar las partes de su cuerpo, los órganos de los sentidos y sus funciones mediante experiencias sensoriales, la exploración, la observación y la comparación, para construir una imagen corporal positiva, aceptarse, expresarse y practicar hábitos de vida saludable orientados al cuidado de su cuerpo"
+    },
+    {
+      "key": "I.CI.0.9.29",
+      "code": "I.CI.0.9.29",
+      "text": "I.CI.0.9.29. Aplica acciones sencillas para regular progresivamente sus emociones con acompañamiento del adulto.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.9",
+      "competencyText": "Identificar las partes de su cuerpo, los órganos de los sentidos y sus funciones mediante experiencias sensoriales, la exploración, la observación y la comparación, para construir una imagen corporal positiva, aceptarse, expresarse y practicar hábitos de vida saludable orientados al cuidado de su cuerpo"
+    },
+    {
+      "key": "I.CI.1.10.1",
+      "code": "I.CI.1.10.1",
+      "text": "I.CI.1.10.1. Clasifica objetos de su entorno según propiedades físicas y el tipo de material del que están elaborados.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.10",
+      "competencyText": "Identificar las propiedades físicas de los objetos y materiales de su entorno mediante la observación y la experimentación de los cambios producidos por la fuerza, el agua, la luz y el calor, para comunicar sus descubrimientos y observaciones de forma oral y gráfica"
+    },
+    {
+      "key": "I.CI.1.10.2",
+      "code": "I.CI.1.10.2",
+      "text": "I.CI.1.10.2. Experimenta cambios en objetos y materiales producidos por la fuerza, el agua, la luz y el calor, relacionándolos con situaciones cotidianas.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.10",
+      "competencyText": "Identificar las propiedades físicas de los objetos y materiales de su entorno mediante la observación y la experimentación de los cambios producidos por la fuerza, el agua, la luz y el calor, para comunicar sus descubrimientos y observaciones de forma oral y gráfica"
+    },
+    {
+      "key": "I.CI.1.10.3",
+      "code": "I.CI.1.10.3",
+      "text": "I.CI.1.10.3. Comunica oral y gráficamente sus observaciones y resultados de la experimentación, demostrando curiosidad e interés por la exploración y el aprendizaje.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.10",
+      "competencyText": "Identificar las propiedades físicas de los objetos y materiales de su entorno mediante la observación y la experimentación de los cambios producidos por la fuerza, el agua, la luz y el calor, para comunicar sus descubrimientos y observaciones de forma oral y gráfica"
+    },
+    {
+      "key": "I.CI.1.11.1",
+      "code": "I.CI.1.11.1",
+      "text": "I.CI.1.11.1. Identifica diferentes fuentes de luz mediante la observación de su entorno inmediato.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.11",
+      "competencyText": "Reconocer las principales fuentes de luz y sonido según su origen e intensidad para diferenciar el sonido del ruido, reconocer situaciones que pueden afectar la salud y practicar medidas de autocuidado"
+    },
+    {
+      "key": "I.CI.1.11.2",
+      "code": "I.CI.1.11.2",
+      "text": "I.CI.1.11.2. Distingue sonidos y ruidos presentes en su entorno inmediato.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.11",
+      "competencyText": "Reconocer las principales fuentes de luz y sonido según su origen e intensidad para diferenciar el sonido del ruido, reconocer situaciones que pueden afectar la salud y practicar medidas de autocuidado"
+    },
+    {
+      "key": "I.CI.1.11.3",
+      "code": "I.CI.1.11.3",
+      "text": "I.CI.1.11.3. Identifica situaciones en las que la luz intensa o el ruido excesivo pueden afectar su salud y practica medidas de autocuidado, como alejarse de ruidos fuertes o proteger los ojos de luces brillantes.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.11",
+      "competencyText": "Reconocer las principales fuentes de luz y sonido según su origen e intensidad para diferenciar el sonido del ruido, reconocer situaciones que pueden afectar la salud y practicar medidas de autocuidado"
+    },
+    {
+      "key": "I.CI.1.12.1",
+      "code": "I.CI.1.12.1",
+      "text": "I.CI.1.12.1. Describe las características de los elementos naturales y construidos que forman parte del paisaje local.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.12",
+      "competencyText": "Identificar las características del paisaje local mediante el reconocimiento de sus elementos naturales y construidos, del tiempo atmosférico y de situaciones de contaminación, para valorar la importancia del cuidado del ambiente y sus efectos en los seres vivos"
+    },
+    {
+      "key": "I.CI.1.12.2",
+      "code": "I.CI.1.12.2",
+      "text": "I.CI.1.12.2. Reconoce las características y cambios del tiempo atmosférico y sus efectos en los seres vivos.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.12",
+      "competencyText": "Identificar las características del paisaje local mediante el reconocimiento de sus elementos naturales y construidos, del tiempo atmosférico y de situaciones de contaminación, para valorar la importancia del cuidado del ambiente y sus efectos en los seres vivos"
+    },
+    {
+      "key": "I.CI.1.12.3",
+      "code": "I.CI.1.12.3",
+      "text": "I.CI.1.12.3. Identifica situaciones de contaminación y espacios no sostenibles en su localidad, participando en acciones simples de cuidado del paisaje y del ambiente.",
+      "ambit": "environment",
+      "competencyCode": "CE.CI.1.12",
+      "competencyText": "Identificar las características del paisaje local mediante el reconocimiento de sus elementos naturales y construidos, del tiempo atmosférico y de situaciones de contaminación, para valorar la importancia del cuidado del ambiente y sus efectos en los seres vivos"
+    },
+    {
+      "key": "I.CI.1.13.1",
+      "code": "I.CI.1.13.1",
+      "text": "I.CI.1.13.1. Clasifica objetos de su entorno según su color, tamaño, longitud, textura y forma en situaciones cotidianas.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.13",
+      "competencyText": "Desarrollar del pensamiento lógico mediante la exploración, comparación, clasificación y organización de objetos y situaciones de su entorno, para establecer relaciones, secuencias y patrones en contextos significativos y resolver situaciones cotidianas con interés, perseverancia y satisfacción por sus descubrimientos"
+    },
+    {
+      "key": "I.CI.1.13.2",
+      "code": "I.CI.1.13.2",
+      "text": "I.CI.1.13.2. Describe la ubicación de objetos del entorno utilizando nociones espaciales básicas.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.13",
+      "competencyText": "Desarrollar del pensamiento lógico mediante la exploración, comparación, clasificación y organización de objetos y situaciones de su entorno, para establecer relaciones, secuencias y patrones en contextos significativos y resolver situaciones cotidianas con interés, perseverancia y satisfacción por sus descubrimientos"
+    },
+    {
+      "key": "I.CI.1.13.3",
+      "code": "I.CI.1.13.3",
+      "text": "I.CI.1.13.3. Construye series y patrones utilizando objetos, sonidos, movimientos y agrupaciones de elementos del entorno.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.13",
+      "competencyText": "Desarrollar del pensamiento lógico mediante la exploración, comparación, clasificación y organización de objetos y situaciones de su entorno, para establecer relaciones, secuencias y patrones en contextos significativos y resolver situaciones cotidianas con interés, perseverancia y satisfacción por sus descubrimientos"
+    },
+    {
+      "key": "I.CI.1.13.4",
+      "code": "I.CI.1.13.4",
+      "text": "I.CI.1.13.4. Explica los criterios utilizados para agrupar, ordenar y establecer relaciones entre objetos de su entorno.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.13",
+      "competencyText": "Desarrollar del pensamiento lógico mediante la exploración, comparación, clasificación y organización de objetos y situaciones de su entorno, para establecer relaciones, secuencias y patrones en contextos significativos y resolver situaciones cotidianas con interés, perseverancia y satisfacción por sus descubrimientos"
+    },
+    {
+      "key": "I.CI.1.14.1",
+      "code": "I.CI.1.14.1",
+      "text": "I.CI.1.14.1. Ordena secuencias numéricas ascendentes y descendentes con números naturales del 1 al 10 y con números ordinales hasta el quinto, para explicar situaciones cotidianas.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.14",
+      "competencyText": "Resolver situaciones cotidianas mediante el conteo, la comparación de cantidades y el uso de adiciones y sustracciones con material concreto, para establecer relaciones numéricas, comunicar soluciones y proponer estrategias en contextos significativos de su entorno con confianza, iniciativa y perseverancia ante los desafíos matemáticos"
+    },
+    {
+      "key": "I.CI.1.14.2",
+      "code": "I.CI.1.14.2",
+      "text": "I.CI.1.14.2. Resuelve situaciones cotidianas de comparación, adición y sustracción, utilizando colecciones de objetos con números naturales hasta el 10 y el conteo de colecciones de objetos hasta el 20.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.14",
+      "competencyText": "Resolver situaciones cotidianas mediante el conteo, la comparación de cantidades y el uso de adiciones y sustracciones con material concreto, para establecer relaciones numéricas, comunicar soluciones y proponer estrategias en contextos significativos de su entorno con confianza, iniciativa y perseverancia ante los desafíos matemáticos"
+    },
+    {
+      "key": "I.CI.1.14.3",
+      "code": "I.CI.1.14.3",
+      "text": "I.CI.1.14.3. Explica el proceso de resolución de problemas matemáticos cotidianos, demostrando comprensión del concepto de cantidad y proponiendo diferentes estrategias de solución.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.14",
+      "competencyText": "Resolver situaciones cotidianas mediante el conteo, la comparación de cantidades y el uso de adiciones y sustracciones con material concreto, para establecer relaciones numéricas, comunicar soluciones y proponer estrategias en contextos significativos de su entorno con confianza, iniciativa y perseverancia ante los desafíos matemáticos"
+    },
+    {
+      "key": "I.CI.1.15.1",
+      "code": "I.CI.1.15.1",
+      "text": "I.CI.1.15.1. Reconoce objetos del entorno, figuras y cuerpos geométricos presentes en elementos de uso cotidiano.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.15",
+      "competencyText": "Representar cuerpos geométricos, figuras y relaciones espaciales mediante la observación, la manipulación y la comparación de objetos del entorno, para describir sus características, posiciones y tamaños en contextos significativos, desarrollando progresivamente nociones geométricas y espaciales con curiosidad, creatividad y confianza al comunicar sus observaciones"
+    },
+    {
+      "key": "I.CI.1.15.2",
+      "code": "I.CI.1.15.2",
+      "text": "I.CI.1.15.2. Clasifica objetos del entorno según su tamaño, longitud, capacidad, peso o temperatura, y expresa verbalmente los criterios de la agrupación.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.15",
+      "competencyText": "Representar cuerpos geométricos, figuras y relaciones espaciales mediante la observación, la manipulación y la comparación de objetos del entorno, para describir sus características, posiciones y tamaños en contextos significativos, desarrollando progresivamente nociones geométricas y espaciales con curiosidad, creatividad y confianza al comunicar sus observaciones"
+    },
+    {
+      "key": "I.CI.1.15.3",
+      "code": "I.CI.1.15.3",
+      "text": "I.CI.1.15.3. Describe la ubicación de objetos (arriba/abajo, cerca/lejos, dentro/fuera) utilizando nociones espaciales en espacios conocidos, representando mediante dibujos o construcciones simples las relaciones espaciales observadas.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.15",
+      "competencyText": "Representar cuerpos geométricos, figuras y relaciones espaciales mediante la observación, la manipulación y la comparación de objetos del entorno, para describir sus características, posiciones y tamaños en contextos significativos, desarrollando progresivamente nociones geométricas y espaciales con curiosidad, creatividad y confianza al comunicar sus observaciones"
+    },
+    {
+      "key": "I.CI.0.16.5",
+      "code": "I.CI.0.16.5",
+      "text": "I.CI.0.16.05. Participa con interés en actividades de lectura compartida.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.16",
+      "competencyText": "Organizar magnitudes físicas y temporales de su entorno, mediante la medición no convencional, el reconocimiento del valor monetario y la secuenciación temporal, para interpretar y resolver situaciones cotidianas de manera progresivamente autónoma"
+    },
+    {
+      "key": "I.CI.0.16.6",
+      "code": "I.CI.0.16.6",
+      "text": "I.CI.0.16.06. Responde preguntas sencillas sobre textos escuchados.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.16",
+      "competencyText": "Organizar magnitudes físicas y temporales de su entorno, mediante la medición no convencional, el reconocimiento del valor monetario y la secuenciación temporal, para interpretar y resolver situaciones cotidianas de manera progresivamente autónoma"
+    },
+    {
+      "key": "I.CI.0.16.7",
+      "code": "I.CI.0.16.7",
+      "text": "I.CI.0.16.07. Relata hechos de cuentos con apoyo, manteniendo una secuencia narrativa básica.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.16",
+      "competencyText": "Organizar magnitudes físicas y temporales de su entorno, mediante la medición no convencional, el reconocimiento del valor monetario y la secuenciación temporal, para interpretar y resolver situaciones cotidianas de manera progresivamente autónoma"
+    },
+    {
+      "key": "I.CI.0.16.8",
+      "code": "I.CI.0.16.8",
+      "text": "I.CI.0.16.08. Expresa comentarios, opiniones o experiencias relacionadas con los textos escuchados.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.16",
+      "competencyText": "Organizar magnitudes físicas y temporales de su entorno, mediante la medición no convencional, el reconocimiento del valor monetario y la secuenciación temporal, para interpretar y resolver situaciones cotidianas de manera progresivamente autónoma"
+    },
+    {
+      "key": "I.CI.1.17.1",
+      "code": "I.CI.1.17.1",
+      "text": "I.CI.1.17.1. Representa datos de situaciones cotidianas mediante pictogramas y tablas simples de frecuencia, identificando eventos probables y no probables del entorno.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.17",
+      "competencyText": "Investigar eventos y fenómenos del entorno inmediato mediante la observación, recolección, organización e interpretación de información, para reconocer patrones, establecer relaciones y tomar decisiones sencillas en situaciones cotidianas"
+    },
+    {
+      "key": "I.CI.1.17.2",
+      "code": "I.CI.1.17.2",
+      "text": "I.CI.1.17.2. Registra información sobre eventos de su entorno identificando patrones simples mediante dibujos, símbolos o explicaciones orales.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.17",
+      "competencyText": "Investigar eventos y fenómenos del entorno inmediato mediante la observación, recolección, organización e interpretación de información, para reconocer patrones, establecer relaciones y tomar decisiones sencillas en situaciones cotidianas"
+    },
+    {
+      "key": "I.CI.1.17.3",
+      "code": "I.CI.1.17.3",
+      "text": "I.CI.1.17.3. Utiliza la información recolectada para tomar decisiones sencillas en su vida diaria (qué ropa usar según el clima, cuándo regar una planta, qué juego elegir según el número de participantes), explicando el porqué de sus decisiones.",
+      "ambit": "math",
+      "competencyCode": "CE.CI.1.17",
+      "competencyText": "Investigar eventos y fenómenos del entorno inmediato mediante la observación, recolección, organización e interpretación de información, para reconocer patrones, establecer relaciones y tomar decisiones sencillas en situaciones cotidianas"
+    },
+    {
+      "key": "I.CI.1.18.1",
+      "code": "I.CI.1.18.1",
+      "text": "I.CI.1.18.1. Interpreta la silueta y los paratextos (soporte, formato, tipografía, imagen, color, estructura externa) de diversos textos escritos cotidianos para deducir su contenido y uso.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.18",
+      "competencyText": "Interpretar textos escritos de uso cotidiano a partir de la observación de imágenes, títulos, símbolos, formatos y otros paratextos, diferenciando la imagen del texto escrito para comprender de qué tratan, qué comunican y para qué sirven"
+    },
+    {
+      "key": "I.CI.1.18.2",
+      "code": "I.CI.1.18.2",
+      "text": "I.CI.1.18.2. Diferencia la imagen del texto escrito en diversos materiales impresos (cuentos, carteles, etiquetas, señalética), explicando cómo cada elemento aporta información diferente y demuestra curiosidad por explorar nuevos tipos de textos de su entorno.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.18",
+      "competencyText": "Interpretar textos escritos de uso cotidiano a partir de la observación de imágenes, títulos, símbolos, formatos y otros paratextos, diferenciando la imagen del texto escrito para comprender de qué tratan, qué comunican y para qué sirven"
+    },
+    {
+      "key": "I.CI.1.19.1",
+      "code": "I.CI.1.19.1",
+      "text": "I.CI.1.19.1. Reconoce palabras y expresiones coloquiales de su localidad (términos, dichos populares, entre otros) así como la entonación y pronunciación de diferentes dialectos del habla castellana del país, interactuando respetuosamente con sus hablantes.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.19",
+      "competencyText": "Comprender las características del lenguaje coloquial de su región, incluyendo términos y expresiones populares, para reconocer la diversidad de dialectos y lenguas del Ecuador e interactuar con sus hablantes de manera respetuosa y efectiva"
+    },
+    {
+      "key": "I.CI.1.19.2",
+      "code": "I.CI.1.19.2",
+      "text": "I.CI.1.19.2. Utiliza expresiones coloquiales de su región en situaciones cotidianas, demostrando aprecio por la diversidad lingüística mediante juegos, canciones y narraciones que incluyen expresiones de diferentes dialectos o lenguas originarias.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.19",
+      "competencyText": "Comprender las características del lenguaje coloquial de su región, incluyendo términos y expresiones populares, para reconocer la diversidad de dialectos y lenguas del Ecuador e interactuar con sus hablantes de manera respetuosa y efectiva"
+    },
+    {
+      "key": "I.CI.1.20.1",
+      "code": "I.CI.1.20.1",
+      "text": "I.CI.1.20.1. Adapta el tono de voz, los gestos, la entonación y el vocabulario según la situación comunicativa.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.20",
+      "competencyText": "Participación en situaciones de comunicación oral con diferentes propósitos e interlocutores, mediante el uso de recursos lingüísticos, expresivos y audiovisuales, para comunicar ideas, pensamientos y experiencias personales de manera clara y respetuosa, adaptando el tono de voz, la entonación, los gestos y el vocabulario al contexto comunicativo, y demostrando interés por expresarse y escuchar a los demás"
+    },
+    {
+      "key": "I.CI.1.20.2",
+      "code": "I.CI.1.20.2",
+      "text": "I.CI.1.20.2. Participa activamente en conversaciones, narraciones y recitaciones con diferentes interlocutores (pares, adultos y grupos), comunicando sus ideas de manera clara y respetuosa, y demostrando interés por escuchar y responder apropiadamente a los demás.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.20",
+      "competencyText": "Participación en situaciones de comunicación oral con diferentes propósitos e interlocutores, mediante el uso de recursos lingüísticos, expresivos y audiovisuales, para comunicar ideas, pensamientos y experiencias personales de manera clara y respetuosa, adaptando el tono de voz, la entonación, los gestos y el vocabulario al contexto comunicativo, y demostrando interés por expresarse y escuchar a los demás"
+    },
+    {
+      "key": "I.CI.1.20.3",
+      "code": "I.CI.1.20.3",
+      "text": "I.CI.1.20.3. Emplea recursos visuales y audiovisuales para acompañar sus expresiones orales en situaciones comunicativas creativas.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.20",
+      "competencyText": "Participación en situaciones de comunicación oral con diferentes propósitos e interlocutores, mediante el uso de recursos lingüísticos, expresivos y audiovisuales, para comunicar ideas, pensamientos y experiencias personales de manera clara y respetuosa, adaptando el tono de voz, la entonación, los gestos y el vocabulario al contexto comunicativo, y demostrando interés por expresarse y escuchar a los demás"
+    },
+    {
+      "key": "I.CI.1.21.1",
+      "code": "I.CI.1.21.1",
+      "text": "I.CI.1.21.1. Explora textos impresos de su entorno, diferenciando entre imagen y palabras, identificando los elementos del texto (personajes, escenarios y eventos) y relacionando el contenido con sus experiencias y conocimientos previos.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.21",
+      "competencyText": "Comprender palabras de su entorno mediante la relación entre imágenes, textos impresos y experiencias personales, para identificar información, anticipar situaciones y comunicar ideas sobre lo leído, demostrando interés y disfrute por la lectura"
+    },
+    {
+      "key": "I.CI.1.21.2",
+      "code": "I.CI.1.21.2",
+      "text": "I.CI.1.21.2. Anticipa situaciones y expresa ideas sobre el contenido de textos impresos a partir de imágenes, palabras y experiencias personales, mostrando interés y disfrute por compartir lo leído.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.21",
+      "competencyText": "Comprender palabras de su entorno mediante la relación entre imágenes, textos impresos y experiencias personales, para identificar información, anticipar situaciones y comunicar ideas sobre lo leído, demostrando interés y disfrute por la lectura"
+    },
+    {
+      "key": "I.CI.1.22.1",
+      "code": "I.CI.1.22.1",
+      "text": "I.CI.1.22.1. Utiliza recursos impresos y digitales de la biblioteca del aula para explorar la lectura como fuente de placer y aprendizaje, registrando la información obtenida mediante dibujos y otras representaciones gráficas.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.22",
+      "competencyText": "Utilizar la lectura como fuente de placer y aprendizaje mediante la exploración de recursos impresos y digitales, para obtener información y representarla gráficamente a través de dibujos y otras producciones visuales, demostrando interés, disfrute y participación en la elección de textos de su entorno"
+    },
+    {
+      "key": "I.CI.1.22.2",
+      "code": "I.CI.1.22.2",
+      "text": "I.CI.1.22.2. Demuestra disfrute por la lectura, eligiendo voluntariamente libros de su interés, compartiendo con entusiasmo lo leído y creando representaciones gráficas creativas que reflejan su comprensión personal de los textos.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.22",
+      "competencyText": "Utilizar la lectura como fuente de placer y aprendizaje mediante la exploración de recursos impresos y digitales, para obtener información y representarla gráficamente a través de dibujos y otras producciones visuales, demostrando interés, disfrute y participación en la elección de textos de su entorno"
+    },
+    {
+      "key": "I.CI.1.23.1",
+      "code": "I.CI.1.23.1",
+      "text": "I.CI.1.23.1. Utiliza códigos propios de la escritura y diferentes recursos para representar ideas, sentimientos y expresiones mediante producciones gráficas y escritas. y demostrando iniciativa e interés por la escritura mediante el uso de sus propios códigos.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.23",
+      "competencyText": "Producir de textos escritos mediante el uso de códigos propios y la exploración inicial de la conciencia lingüística, para la expresión de ideas, sentimientos y experiencias en creaciones individuales y colectivas, demostrando interés, creatividad e iniciativa en la escritura"
+    },
+    {
+      "key": "I.CI.1.23.2",
+      "code": "I.CI.1.23.2",
+      "text": "I.CI.1.23.2. Participa en la creación colectiva de cuentos y poemas sencillos, aportando ideas creativas, expresando experiencias personales.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.23",
+      "competencyText": "Producir de textos escritos mediante el uso de códigos propios y la exploración inicial de la conciencia lingüística, para la expresión de ideas, sentimientos y experiencias en creaciones individuales y colectivas, demostrando interés, creatividad e iniciativa en la escritura"
+    },
+    {
+      "key": "I.CI.1.24.1",
+      "code": "I.CI.1.24.1",
+      "text": "I.CI.1.24.1. Disfruta la escucha de textos literarios, mostrando atención e interés por las palabras e ideas y estableciendo relaciones entre lo escuchado y sus experiencias personales.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.24",
+      "competencyText": "Disfrutar la escucha de textos literarios mediante la apreciación de palabras e ideas, para representándolos de manera creativa a través de dibujos, escenificaciones o códigos propios y establecer conexiones significativas entre los textos y su entorno personal"
+    },
+    {
+      "key": "I.CI.1.24.2",
+      "code": "I.CI.1.24.2",
+      "text": "I.CI.1.24.2. Representa de forma creativa pasajes de textos literarios escuchados mediante dibujos, escenificaciones corporales o códigos propios, demostrando comprensión del contenido.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.24",
+      "competencyText": "Disfrutar la escucha de textos literarios mediante la apreciación de palabras e ideas, para representándolos de manera creativa a través de dibujos, escenificaciones o códigos propios y establecer conexiones significativas entre los textos y su entorno personal"
+    },
+    {
+      "key": "I.CI.1.24.3",
+      "code": "I.CI.1.24.3",
+      "text": "I.CI.1.24.3. Identifica personajes, acciones y emociones presentes en textos literarios escuchados y expresa oralmente sus apreciaciones sobre las ideas del texto.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.24",
+      "competencyText": "Disfrutar la escucha de textos literarios mediante la apreciación de palabras e ideas, para representándolos de manera creativa a través de dibujos, escenificaciones o códigos propios y establecer conexiones significativas entre los textos y su entorno personal"
+    },
+    {
+      "key": "I.CI.1.25.1",
+      "code": "I.CI.1.25.1",
+      "text": "I.CI.1.25.1. Reconoce la función de íconos básicos en dispositivos digitales, utilizando herramientas digitales sencillas.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.25",
+      "competencyText": "Interactuar con dispositivos y herramientas digitales para explorar, crear, comunicarse y disfrutar, mediante la selección de recursos lúdicos adecuados, la aplicación de normas básicas de seguridad digital y el uso responsable de la tecnología en actividades cotidianas, demostrando curiosidad, cuidado y participación guiada en entornos digitales"
+    },
+    {
+      "key": "I.CI.1.25.2",
+      "code": "I.CI.1.25.2",
+      "text": "I.CI.1.25.2. Utiliza herramientas digitales básicas para seleccionar juegos, videos y canciones adecuados a su edad y nivel de desarrollo, y crear producciones digitales sencillas, como dibujos o representaciones gráficas, con apoyo del docente.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.25",
+      "competencyText": "Interactuar con dispositivos y herramientas digitales para explorar, crear, comunicarse y disfrutar, mediante la selección de recursos lúdicos adecuados, la aplicación de normas básicas de seguridad digital y el uso responsable de la tecnología en actividades cotidianas, demostrando curiosidad, cuidado y participación guiada en entornos digitales"
+    },
+    {
+      "key": "I.CI.1.25.3",
+      "code": "I.CI.1.25.3",
+      "text": "I.CI.1.25.3. Usa dispositivos digitales de manera responsable, respetando turnos y tiempos de uso, y reconoce su utilidad en actividades cotidianas con orientación docente.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.25",
+      "competencyText": "Interactuar con dispositivos y herramientas digitales para explorar, crear, comunicarse y disfrutar, mediante la selección de recursos lúdicos adecuados, la aplicación de normas básicas de seguridad digital y el uso responsable de la tecnología en actividades cotidianas, demostrando curiosidad, cuidado y participación guiada en entornos digitales"
+    },
+    {
+      "key": "I.CI.1.25.4",
+      "code": "I.CI.1.25.4",
+      "text": "I.CI.1.25.4. Resuelve problemas digitales sencillos con perseverancia, probando estrategias básicas o solicitando ayuda cuando es necesario, sin abandonar la actividad fácilmente.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.25",
+      "competencyText": "Interactuar con dispositivos y herramientas digitales para explorar, crear, comunicarse y disfrutar, mediante la selección de recursos lúdicos adecuados, la aplicación de normas básicas de seguridad digital y el uso responsable de la tecnología en actividades cotidianas, demostrando curiosidad, cuidado y participación guiada en entornos digitales"
+    },
+    {
+      "key": "I.CI.1.25.5",
+      "code": "I.CI.1.25.5",
+      "text": "I.CI.1.25.5. Aplica normas básicas de seguridad digital, como no compartir claves, pedir ayuda a un adulto antes de usar dispositivos y no responder mensajes de personas desconocidas.",
+      "ambit": "language",
+      "competencyCode": "CE.CI.1.25",
+      "competencyText": "Interactuar con dispositivos y herramientas digitales para explorar, crear, comunicarse y disfrutar, mediante la selección de recursos lúdicos adecuados, la aplicación de normas básicas de seguridad digital y el uso responsable de la tecnología en actividades cotidianas, demostrando curiosidad, cuidado y participación guiada en entornos digitales"
+    },
+    {
+      "key": "I.ECA.1.1.1",
+      "code": "I.ECA.1.1.1",
+      "text": "I.ECA.1.1.1. Explora las cualidades sensoriales de la voz, el cuerpo y elementos del entorno natural y artificial.",
+      "ambit": "artistic",
+      "competencyCode": "CE.ECA.1.1",
+      "competencyText": "Explorar las cualidades sensoriales del propio cuerpo y de sonidos, imágenes, texturas, olores, sabores del entorno natural y artificial mediante el juego, la voz, el cuerpo y diversas formas de representación artística para comunicar emociones, ideas y experiencias con curiosidad y disfrute"
+    },
+    {
+      "key": "I.ECA.1.1.2",
+      "code": "I.ECA.1.1.2",
+      "text": "I.ECA.1.1.2. Diferencia las cualidades sensoriales de imágenes, sonidos, olores, sabores, texturas y movimientos corporales en experiencias de exploración.",
+      "ambit": "artistic",
+      "competencyCode": "CE.ECA.1.1",
+      "competencyText": "Explorar las cualidades sensoriales del propio cuerpo y de sonidos, imágenes, texturas, olores, sabores del entorno natural y artificial mediante el juego, la voz, el cuerpo y diversas formas de representación artística para comunicar emociones, ideas y experiencias con curiosidad y disfrute"
+    },
+    {
+      "key": "I.ECA.1.1.3",
+      "code": "I.ECA.1.1.3",
+      "text": "I.ECA.1.1.3. Expresa emociones, gustos e ideas mediante el lenguaje verbal, corporal, gráfico y sonoro en situaciones lúdicas.",
+      "ambit": "artistic",
+      "competencyCode": "CE.ECA.1.1",
+      "competencyText": "Explorar las cualidades sensoriales del propio cuerpo y de sonidos, imágenes, texturas, olores, sabores del entorno natural y artificial mediante el juego, la voz, el cuerpo y diversas formas de representación artística para comunicar emociones, ideas y experiencias con curiosidad y disfrute"
+    },
+    {
+      "key": "I.ECA.1.1.4",
+      "code": "I.ECA.1.1.4",
+      "text": "I.ECA.1.1.4. Muestra curiosidad y disfrute por la exploración sensorial.",
+      "ambit": "artistic",
+      "competencyCode": "CE.ECA.1.1",
+      "competencyText": "Explorar las cualidades sensoriales del propio cuerpo y de sonidos, imágenes, texturas, olores, sabores del entorno natural y artificial mediante el juego, la voz, el cuerpo y diversas formas de representación artística para comunicar emociones, ideas y experiencias con curiosidad y disfrute"
+    },
+    {
+      "key": "I.ECA.1.2.1",
+      "code": "I.ECA.1.2.1",
+      "text": "I.ECA.1.2.1. Diferencia manifestaciones culturales y artísticas del entorno próximo, identificando a sus actores o creadores y expresa las emociones que le generan.",
+      "ambit": "artistic",
+      "competencyCode": "CE.ECA.1.2",
+      "competencyText": "Participar en manifestaciones culturales y artísticas del entorno próximo, identificando a sus actores y expresando las ideas, emociones y experiencias mediante lenguajes verbales, corporales y gráficos para valorar la diversidad cultural y fortalecer su sensibilidad artística"
+    },
+    {
+      "key": "I.ECA.1.2.2",
+      "code": "I.ECA.1.2.2",
+      "text": "I.ECA.1.2.2. Reconoce mediante lenguaje corporal, gráfico o verbal, emociones básicas (alegría, tristeza, calma, sorpresa) al observar imágenes o escuchar piezas musicales.",
+      "ambit": "artistic",
+      "competencyCode": "CE.ECA.1.2",
+      "competencyText": "Participar en manifestaciones culturales y artísticas del entorno próximo, identificando a sus actores y expresando las ideas, emociones y experiencias mediante lenguajes verbales, corporales y gráficos para valorar la diversidad cultural y fortalecer su sensibilidad artística"
+    },
+    {
+      "key": "I.ECA.1.3.1",
+      "code": "I.ECA.1.3.1",
+      "text": "I.ECA.1.3.1. Crea producciones artísticas individuales sencillas (dibujos, sonidos, movimientos) para expresar lo que siente, piensa o imagina.",
+      "ambit": "artistic",
+      "competencyCode": "CE.ECA.1.3",
+      "competencyText": "Crear producciones artísticas individuales sencillas mediante lenguajes gráficos, sonoros y corporales para expresar emociones, vivencias e ideas, fortaleciendo la autoexpresión, la confianza y la creatividad"
+    },
+    {
+      "key": "I.ECA.1.3.2",
+      "code": "I.ECA.1.3.2",
+      "text": "I.ECA.1.3.2. Explora las posibilidades expresivas de su cuerpo en actividades de movimiento y dramatización.",
+      "ambit": "artistic",
+      "competencyCode": "CE.ECA.1.3",
+      "competencyText": "Crear producciones artísticas individuales sencillas mediante lenguajes gráficos, sonoros y corporales para expresar emociones, vivencias e ideas, fortaleciendo la autoexpresión, la confianza y la creatividad"
+    },
+    {
+      "key": "I.ECA.1.4.1",
+      "code": "I.ECA.1.4.1",
+      "text": "I.ECA.1.4.1. Participa en producciones artísticas colectivas mostrando cooperación, empatía y respeto hacia los demás.",
+      "ambit": "artistic",
+      "competencyCode": "CE.ECA.1.4",
+      "competencyText": "Participar en creaciones artísticas colectivas mediante juegos y actividades libres o dirigidas, con cooperación, respeto por las ideas de los demás y sentido de pertenencia al grupo, para fortalecer la convivencia y el aprendizaje compartido"
+    },
+    {
+      "key": "I.ECA.1.4.2",
+      "code": "I.ECA.1.4.2",
+      "text": "I.ECA.1.4.2. Sigue la planificación del trabajo en producciones colectivas, aportando ideas y asumiendo responsabilidades compartidas.",
+      "ambit": "artistic",
+      "competencyCode": "CE.ECA.1.4",
+      "competencyText": "Participar en creaciones artísticas colectivas mediante juegos y actividades libres o dirigidas, con cooperación, respeto por las ideas de los demás y sentido de pertenencia al grupo, para fortalecer la convivencia y el aprendizaje compartido"
+    },
+    {
+      "key": "I.EF.1.1.1",
+      "code": "I.EF.1.1.1",
+      "text": "I.EF.1.1.1. Adapta sus acciones motrices básicas durante las actividades lúdicas, regulando el movimiento corporal en concordancia con sus ritmos internos, fatiga y el propósito específico de cada juego .",
+      "ambit": "body",
+      "competencyCode": "CE.EF.1.1",
+      "competencyText": "Participar en diferentes tipos de juegos ajustando sus acciones motrices en función de sus estados corporales, ritmos internos y objetivo de los juegos, comprendiendo la necesidad de respetar reglas, roles y acuerdos simples para el cuidado de sí mismo, sus pares y el ambiente de aprendizaje e identificando las características básicas y los materiales necesarios para la construcción de implementos"
+    },
+    {
+      "key": "I.EF.1.1.2",
+      "code": "I.EF.1.1.2",
+      "text": "I.EF.1.1.2. Cumple las reglas, roles asignados y acuerdos básicos de convivencia establecidos para el juego, demostrando una actitud de respeto mutuo y juego limpio con sus compañeros.",
+      "ambit": "body",
+      "competencyCode": "CE.EF.1.1",
+      "competencyText": "Participar en diferentes tipos de juegos ajustando sus acciones motrices en función de sus estados corporales, ritmos internos y objetivo de los juegos, comprendiendo la necesidad de respetar reglas, roles y acuerdos simples para el cuidado de sí mismo, sus pares y el ambiente de aprendizaje e identificando las características básicas y los materiales necesarios para la construcción de implementos"
+    },
+    {
+      "key": "I.EF.1.1.3",
+      "code": "I.EF.1.1.3",
+      "text": "I.EF.1.1.3. Aplica normas colectivas de seguridad e higiene durante las prácticas expresivo-comunicativas, protegiendo su integridad física, la de sus pares y el estado del entorno de aprendizaje.",
+      "ambit": "body",
+      "competencyCode": "CE.EF.1.1",
+      "competencyText": "Participar en diferentes tipos de juegos ajustando sus acciones motrices en función de sus estados corporales, ritmos internos y objetivo de los juegos, comprendiendo la necesidad de respetar reglas, roles y acuerdos simples para el cuidado de sí mismo, sus pares y el ambiente de aprendizaje e identificando las características básicas y los materiales necesarios para la construcción de implementos"
+    },
+    {
+      "key": "I.EF.1.2.1",
+      "code": "I.EF.1.2.1",
+      "text": "I.EF.1.2.1. Desempeña el rol asignado dentro de diferentes juegos individuales y colectivos, ejecutando accionesmotrices que responden de manera pertinente a las metas y la lógica de la actividad lúdica .",
+      "ambit": "body",
+      "competencyCode": "CE.EF.1.2",
+      "competencyText": "Resolver situaciones motrices individuales y colectivas en los juegos mediante la aplicación de reglas y el reconocimiento de sus características, garantizando el cuidado, la seguridad y la higiene personal y grupal"
+    },
+    {
+      "key": "I.EF.1.2.2",
+      "code": "I.EF.1.2.2",
+      "text": "I.EF.1.2.2. Respeta las reglas y acuerdos de convivencia construidos colectivamente para el juego, manifestando conductas que aseguran de forma corresponsable el cuidado, la seguridad y la higiene propia y del grupo.",
+      "ambit": "body",
+      "competencyCode": "CE.EF.1.2",
+      "competencyText": "Resolver situaciones motrices individuales y colectivas en los juegos mediante la aplicación de reglas y el reconocimiento de sus características, garantizando el cuidado, la seguridad y la higiene personal y grupal"
+    },
+    {
+      "key": "I.EF.1.3.1",
+      "code": "I.EF.1.3.1",
+      "text": "I.EF.1.3.1. Expresa posiciones y movimientos corporales durante las prácticas gimnásticas, manifestando coherencia entre la acción motriz, sus propias emociones y las sensaciones percibidas en sus compañeros.",
+      "ambit": "body",
+      "competencyCode": "CE.EF.1.3",
+      "competencyText": "Ejecutar prácticas gimnásticas individuales y colectivas mediante el reconocimiento de las posiciones, movimientos y capacidades del propio cuerpo, valorando la diversidad y las posibilidades motrices individuales"
+    },
+    {
+      "key": "I.EF.1.3.2",
+      "code": "I.EF.1.3.2",
+      "text": "I.EF.1.3.2. Corrige la ejecución de habilidades motrices básicas, destrezas y acrobacias sencillas, identificando de manera autónoma sus dificultades y aciertos para resolver de forma pertinente cada desafío gimnástico.",
+      "ambit": "body",
+      "competencyCode": "CE.EF.1.3",
+      "competencyText": "Ejecutar prácticas gimnásticas individuales y colectivas mediante el reconocimiento de las posiciones, movimientos y capacidades del propio cuerpo, valorando la diversidad y las posibilidades motrices individuales"
+    },
+    {
+      "key": "I.EF.1.4.1",
+      "code": "I.EF.1.4.1",
+      "text": "I.EF.1.4.1. Cumple los acuerdos de seguridad e higiene establecidos para la ejecución de acrobacias sencillas, manifestando acciones concretas de autocuidado, protección hacia sus pares y preservación del ambiente de aprendizaje.",
+      "ambit": "body",
+      "competencyCode": "CE.EF.1.4",
+      "competencyText": "Realizar destrezas gimnásticas y acrobacias individuales o colectivas mediante el cumplimiento de acuerdos de seguridad y el cuidado corporal, demostrando una actitud de autosuperación y respeto por el entorno de trabajo"
+    },
+    {
+      "key": "I.EF.1.5.1",
+      "code": "I.EF.1.5.1",
+      "text": "I.EF.1.5.1. Describe las características básicas y los elementos culturales de las prácticas expresivo-comunicativas de su entorno cercano, utilizándolos como referentes para la construcción de su propia identidad corporal.",
+      "ambit": "body",
+      "competencyCode": "CE.EF.1.5",
+      "competencyText": "Reconocer las prácticas corporales expresivo- comunicativas del contexto local y nacional como saberes culturales fundamentales, ejerciendo el derecho a participar y aprender de ellas en igualdad de condiciones"
+    },
+    {
+      "key": "I.EF.1.6.1",
+      "code": "I.EF.1.6.1",
+      "text": "I.EF.1.6.1. Comunica mensajes, estados de ánimo y emociones a través del uso creativo de recursos expresivos como gestos, posturas y variaciones de movimiento en relación con el tiempo y el espacio.",
+      "ambit": "body",
+      "competencyCode": "CE.EF.1.6",
+      "competencyText": "Interpretar mensajes y estados emocionales mediante la participación en diversas prácticas corporales expresivo- comunicativas, utilizando los propios recursos expresivos, estableciendo acuerdos simples y valorando la diversidad cultural y personal del grupo"
+    },
+    {
+      "key": "I.EF.1.6.2",
+      "code": "I.EF.1.6.2",
+      "text": "I.EF.1.6.2. Establece pautas sencillas de convivencia con sus pares que facilitan la organización y participación equitativa en las actividades expresivo-comunicativas.",
+      "ambit": "body",
+      "competencyCode": "CE.EF.1.6",
+      "competencyText": "Interpretar mensajes y estados emocionales mediante la participación en diversas prácticas corporales expresivo- comunicativas, utilizando los propios recursos expresivos, estableciendo acuerdos simples y valorando la diversidad cultural y personal del grupo"
+    }
+  ]
+}
