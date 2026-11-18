@@ -3013,3 +3013,29 @@ model PreparatoryComment {
   @@unique([programId, studentId, periodId])
   @@map("preparatory_comments")
 }
+
+// Juegos públicos: invitados independientes de las cuentas e instituciones escolares.
+model StopGameRoom {
+  id        String @id @default(uuid())
+  code      String @unique @db.VarChar(6)
+  state     Json
+  revision  Int @default(0)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  guests    StopGameGuest[]
+
+  @@index([expiresAt])
+  @@map("stop_game_rooms")
+}
+
+model StopGameGuest {
+  id        String @id @default(uuid())
+  roomId    String @map("room_id")
+  tokenHash String @unique @map("token_hash") @db.VarChar(64)
+  lastSeen  DateTime @default(now()) @map("last_seen")
+  room      StopGameRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@map("stop_game_guests")
+}
