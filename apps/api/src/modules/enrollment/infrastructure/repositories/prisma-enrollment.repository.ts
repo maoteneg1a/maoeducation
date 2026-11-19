@@ -113,10 +113,11 @@ export class PrismaEnrollmentRepository {
     }
   }
 
-  async list(institutionId: string, parallelId?: string, yearId?: string) {
+  async list(institutionId: string, parallelId?: string, yearId?: string, includeInactive = false) {
     return prisma.studentEnrollment.findMany({
       where: {
         institutionId,
+        ...(!includeInactive && { status: 'active' }),
         ...(parallelId && { parallelId }),
         ...(yearId && { academicYearId: yearId }),
       },
@@ -126,10 +127,11 @@ export class PrismaEnrollmentRepository {
   }
 
   /** Matrículas restringidas a un conjunto de paralelos (alcance del docente). */
-  async listForTeacher(institutionId: string, parallelIds: string[], yearId?: string) {
+  async listForTeacher(institutionId: string, parallelIds: string[], yearId?: string, includeInactive = false) {
     return prisma.studentEnrollment.findMany({
       where: {
         institutionId,
+        ...(!includeInactive && { status: 'active' }),
         parallelId: { in: parallelIds },
         ...(yearId && { academicYearId: yearId }),
       },
@@ -147,7 +149,7 @@ export class PrismaEnrollmentRepository {
         userRoles: { some: { role: { name: 'student' } } },
         // Scope para docentes: solo estudiantes matriculados en sus paralelos
         ...(parallelIds && {
-          studentEnrollments: { some: { parallelId: { in: parallelIds } } },
+          studentEnrollments: { some: { parallelId: { in: parallelIds }, status: 'active' } },
         }),
         ...(term && {
           OR: [

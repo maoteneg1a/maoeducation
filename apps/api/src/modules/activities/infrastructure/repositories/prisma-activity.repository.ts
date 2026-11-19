@@ -464,7 +464,7 @@ export class PrismaActivityRepository {
 
     // Get all enrolled students in the parallel/year
     const enrollments = await prisma.studentEnrollment.findMany({
-      where: { institutionId, parallelId, academicYearId },
+      where: { institutionId, parallelId, academicYearId, status: 'active' },
       orderBy: STUDENT_ENROLLMENT_ORDER,
       include: {
         student: {
@@ -483,10 +483,8 @@ export class PrismaActivityRepository {
     const gradeMap = new Map(grades.map((g) => [g.studentId, g]))
     const closedPlans = await closedReinforcementPlans(prisma, institutionId, enrollments.map((enrollment) => ({ studentId: enrollment.studentId, courseAssignmentId: activity.courseAssignmentId, academicPeriodId: activity.academicPeriodId, recordedAt: gradeMap.get(enrollment.studentId)?.gradedAt ?? gradeMap.get(enrollment.studentId)?.createdAt ?? new Date(8640000000000000) })))
 
-    // Merge: cada estudiante activo recibe su nota (o null). Los retirados solo
-    // aparecen si ya tenían nota registrada (historial), para no ensuciar la lista.
+    // Las notas anteriores se conservan y vuelven a mostrarse si se reactiva la matrícula.
     return enrollments
-      .filter((enrollment) => enrollment.status === 'active' || gradeMap.has(enrollment.studentId))
       .map((enrollment) => ({
       student: enrollment.student,
       enrollmentStatus: enrollment.status,

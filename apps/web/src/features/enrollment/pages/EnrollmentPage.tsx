@@ -99,6 +99,7 @@ function useEnrollments(yearId: string, parallelId: string) {
     queryKey: ['enrollments', yearId, parallelId],
     queryFn: () =>
       listEnrollments({
+        includeInactive: 'true',
         ...(yearId ? { yearId } : {}),
         ...(parallelId ? { parallelId } : {}),
       }),
@@ -140,7 +141,7 @@ function useUpdateStatus(yearId: string, parallelId: string) {
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       updateEnrollmentStatus(id, status),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['enrollments', yearId, parallelId] })
+      qc.invalidateQueries()
       toast.success('Estado actualizado correctamente')
     },
     onError: (err) => toast.error(getErrorMessage(err)),
@@ -391,6 +392,7 @@ export function EnrollmentPage() {
   // Filter state
   const [yearId, setYearId] = useState('')
   const [parallelId, setParallelId] = useState('')
+  const [statusFilter, setStatusFilter] = useState('active')
 
   // Dialog state
   const [singleOpen, setSingleOpen] = useState(false)
@@ -798,6 +800,17 @@ export function EnrollmentPage() {
             </SelectContent>
           </Select>
         </div>
+        <div className="w-full sm:w-52">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger aria-label="Filtrar por estado"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Activos</SelectItem>
+              <SelectItem value="withdrawn">Retirados</SelectItem>
+              <SelectItem value="transferred">Trasladados</SelectItem>
+              <SelectItem value="all">Todos los estados</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         {canCreateEnrollment && visibleParallels.find((p) => p.id === parallelId) && (
           <TransferEnrollmentsDialog
             key={parallelId}
@@ -824,16 +837,16 @@ export function EnrollmentPage() {
       {/* Table */}
       <DataTable
         columns={columns}
-        data={enrollments}
+        data={enrollments.filter((enrollment) => statusFilter === 'all' || enrollment.status === statusFilter)}
         isLoading={enrollmentsLoading}
         emptyMessage={
           !yearId || !parallelId
             ? 'Selecciona un año y paralelo para ver las matrículas'
-            : 'No hay estudiantes matriculados en este paralelo'
+            : 'No hay matrículas para el estado seleccionado'
         }
         emptyDescription={
           yearId && parallelId
-            ? 'Usa el botón "Nueva Matrícula" para agregar estudiantes'
+            ? 'Para recuperar a un estudiante, selecciona Retirados y cambia su estado a Activo.'
             : undefined
         }
       />

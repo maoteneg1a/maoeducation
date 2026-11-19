@@ -154,6 +154,7 @@ export class PrismaReportRepository {
         institutionId,
         parallelId: assignment.parallelId,
         academicYearId: assignment.academicYearId,
+        ...(!studentIdFilter && { status: 'active' }),
         ...(studentIdFilter ? { studentId: studentIdFilter } : {}),
       },
       include: {
