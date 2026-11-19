@@ -22,7 +22,7 @@ import {
  */
 export async function computePeriodGrades(
   institutionId: string,
-  params: { assignmentIds: string[]; periodIds: string[]; studentIds: string[]; gradingScaleMax: number; ignoreFormativeApplications?: boolean },
+  params: { assignmentIds: string[]; periodIds: string[]; studentIds: string[]; gradingScaleMax: number; ignoreFormativeApplications?: boolean; studentsByAssignment?: Map<string, string[]> },
   db: Prisma.TransactionClient = prisma,
 ): Promise<Map<string, PeriodSummary>> {
   const { assignmentIds, periodIds, studentIds, gradingScaleMax } = params
@@ -71,7 +71,7 @@ export async function computePeriodGrades(
     act: { id: string; maxScore: unknown; activityType: { code: string }; grades: Array<{ studentId: string; score: unknown; baseScore: unknown; reinforcementScore: unknown; reinforcementMode: string | null }> },
   ) => {
     const byStudent = new Map(act.grades.map((g) => [g.studentId, effectiveActivityScore(g)]))
-    for (const sId of studentIds) {
+    for (const sId of params.studentsByAssignment ? (params.studentsByAssignment.get(assignmentId) ?? []) : studentIds) {
       const k = `${sId}:${assignmentId}:${periodId}`
       if (!bucket.has(k)) bucket.set(k, new Map())
       const groups = bucket.get(k)!
@@ -94,8 +94,11 @@ export async function computePeriodGrades(
     orderBy: { id: 'asc' },
     select: { studentId: true, insumoId: true, score: true, insumo: { select: { courseAssignmentId: true, academicPeriodId: true, name: true } } },
   })
+  const manualByKey = new Map<string, Map<string, number>>()
   for (const m of manual) {
     const key = `${m.studentId}:${m.insumo.courseAssignmentId}:${m.insumo.academicPeriodId}`
+    if (!manualByKey.has(key)) manualByKey.set(key, new Map())
+    if (!manualByKey.get(key)!.has(m.insumoId)) manualByKey.get(key)!.set(m.insumoId, Number(m.score))
     if (!bucket.has(key)) bucket.set(key, new Map())
     if (!bucket.get(key)!.has(m.insumoId)) bucket.get(key)!.set(m.insumoId, { id: m.insumoId, name: m.insumo.name, activities: [] })
   }
@@ -105,9 +108,9 @@ export async function computePeriodGrades(
     const w = weights.get(assignmentId)
     if (!w) continue
     let summary = computePeriodSummary([...groups.values()], w.examWeight, gradingScaleMax, w.projectWeight ?? undefined)
-    const overrides = manual.filter((m) => `${m.studentId}:${m.insumo.courseAssignmentId}:${m.insumo.academicPeriodId}` === k)
-    if (overrides.length) {
-      summary.insumoAvgs = summary.insumoAvgs.map((i) => ({ ...i, avg: overrides.find((m) => m.insumoId === i.id)?.score != null ? Number(overrides.find((m) => m.insumoId === i.id)!.score) : i.avg }))
+    const overrides = manualByKey.get(k)
+    if (overrides?.size) {
+      summary.insumoAvgs = summary.insumoAvgs.map((i) => ({ ...i, avg: overrides.get(i.id) ?? i.avg }))
       summary.insumosBase = average(summary.insumoAvgs.map((i) => i.avg))
       summary.total = periodTotal(summary.insumosBase, summary.summativeAvg, w.examWeight, summary.hasSummative)
     }

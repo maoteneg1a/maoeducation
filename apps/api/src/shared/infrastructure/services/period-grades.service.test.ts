@@ -26,6 +26,19 @@ beforeEach(() => {
 })
 
 describe('resumen único del período con refuerzo', () => {
+  it('limita las actividades a los estudiantes de cada asignación sin perder notas ausentes', async () => {
+    const result = await computePeriodGrades('school', {
+      ...params,
+      studentIds: ['student', 'other'],
+      studentsByAssignment: new Map([['assignment', ['student']]]),
+    })
+    expect(result.get(key)?.insumosBase).toBe(5.5)
+    expect(result.has('other:assignment:period')).toBe(false)
+    db.insumo.findMany.mockResolvedValue([{ id: 'a', name: 'Tareas', courseAssignmentId: 'assignment', academicPeriodId: 'period', activities: [{ id: 'a1', maxScore: 10, activityType: { code: 'task' }, grades: [] }] }])
+    const withoutGrade = await computePeriodGrades('school', { ...params, studentsByAssignment: new Map([['assignment', ['student']]]) })
+    expect(withoutGrade.has(key)).toBe(true)
+    expect(withoutGrade.get(key)?.insumosBase).toBeNull()
+  })
   it('conserva los resultados anteriores sin ninguna aplicación', async () => {
     const summary = (await computePeriodGrades('school', params)).get(key)!
     expect(summary.insumosBase).toBe(5.5)
