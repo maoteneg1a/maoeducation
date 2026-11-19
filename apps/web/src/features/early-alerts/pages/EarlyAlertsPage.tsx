@@ -36,8 +36,9 @@ export function EarlyAlertsPage() {
   const canSeeAll = hasPermission('early_alerts:read:all')
   const [yearId, setYearId] = React.useState('')
   const [periodId, setPeriodId] = React.useState('')
-  const [parallelId, setParallelId] = React.useState('all')
+  const [parallelId, setParallelId] = React.useState('')
   const [status, setStatus] = React.useState<EarlyAlertStatus | 'all'>('OPEN')
+  const [tab, setTab] = React.useState('alerts')
   const [composerFor, setComposerFor] = React.useState<EarlyAlertItem | null>(null)
   const [dismissFor, setDismissFor] = React.useState<EarlyAlertItem | null>(null)
   const [startAlerts, setStartAlerts] = React.useState<EarlyAlertItem[]>([])
@@ -52,7 +53,7 @@ export function EarlyAlertsPage() {
   React.useEffect(() => {
     if (!yearId && years.length) setYearId(years.find((y) => y.isActive)?.id ?? years[0].id)
   }, [yearId, years])
-  React.useEffect(() => { setPeriodId(''); setParallelId('all') }, [yearId])
+  React.useEffect(() => { setPeriodId(''); setParallelId('') }, [yearId])
   React.useEffect(() => {
     if (!periodId && periods.length) setPeriodId(periods.find((p) => p.isActive)?.id ?? periods[0].id)
   }, [periodId, periods])
@@ -60,14 +61,26 @@ export function EarlyAlertsPage() {
   const listKey = ['early-alerts-v2', periodId, parallelId, status]
   const { data, isLoading } = useQuery({
     queryKey: listKey,
-    queryFn: () => earlyAlertsApi.list({ periodId, parallelId: parallelId === 'all' ? undefined : parallelId, status }),
-    enabled: !!periodId,
+    queryFn: () => earlyAlertsApi.list({ periodId, parallelId: !parallelId || parallelId === 'all' ? undefined : parallelId, status }),
+    enabled: !!periodId && (!canSeeAll || !!parallelId),
   })
-  const { data: summary } = useQuery({
+  const canSummarizeList = parallelId === 'all' && status === 'OPEN'
+  const { data: fetchedSummary } = useQuery({
     queryKey: ['early-alerts-summary', periodId],
     queryFn: () => earlyAlertsApi.summary(periodId),
-    enabled: !!periodId && canSeeAll,
+    enabled: !!periodId && canSeeAll && parallelId === 'all' && tab === 'summary' && !canSummarizeList,
   })
+  const summary = canSummarizeList && data ? (() => {
+    const parallels = new Map<string, { parallelId: string; parallel: string; open: number; withoutReports: number; withCase: number }>()
+    for (const item of data.items) {
+      const row = parallels.get(item.parallel.id) ?? { parallelId: item.parallel.id, parallel: `${item.parallel.levelName} ${item.parallel.name}`, open: 0, withoutReports: 0, withCase: 0 }
+      row.open++
+      if (item.reports.every((report) => report.sent === 0)) row.withoutReports++
+      if (item.reinforcementCase) row.withCase++
+      parallels.set(item.parallel.id, row)
+    }
+    return { period: data.period, parallels: [...parallels.values()] }
+  })() : canSummarizeList ? undefined : fetchedSummary
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['early-alerts-v2'] })
@@ -99,7 +112,7 @@ export function EarlyAlertsPage() {
         </Select>
         {canSeeAll && (
           <Select value={parallelId} onValueChange={setParallelId}>
-            <SelectTrigger className="w-full sm:w-60"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-60"><SelectValue placeholder="Selecciona un paralelo" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos los paralelos</SelectItem>
               {parallels.map((p) => <SelectItem key={p.id} value={p.id}>{p.level.name} - {p.name}</SelectItem>)}
@@ -129,7 +142,7 @@ export function EarlyAlertsPage() {
         </div>
       )}
 
-      <Tabs defaultValue="alerts">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="alerts">Alertas por asignatura</TabsTrigger>
           {canSeeAll && <TabsTrigger value="summary">Por paralelo</TabsTrigger>}
@@ -137,7 +150,7 @@ export function EarlyAlertsPage() {
         </TabsList>
 
         <TabsContent value="alerts" className="mt-4">
-          {isLoading || !periodId ? <PageLoader /> : !data || data.items.length === 0 ? (
+          {canSeeAll && !parallelId ? <Card><CardContent><EmptyState icon={AlertTriangle} title="Selecciona un paralelo" description="Elige un paralelo para consultar sus alertas." /></CardContent></Card> : isLoading || !periodId ? <PageLoader /> : !data || data.items.length === 0 ? (
             <Card><CardContent><EmptyState icon={CheckCircle2} title="Sin alertas" description="No hay alertas con el filtro seleccionado." /></CardContent></Card>
           ) : (
             <div className="space-y-3">
@@ -172,7 +185,7 @@ export function EarlyAlertsPage() {
 
         {canSeeAll && (
           <TabsContent value="summary" className="mt-4">
-            {!summary ? <PageLoader /> : summary.parallels.length === 0 ? (
+            {parallelId !== 'all' ? <Card><CardContent><EmptyState icon={AlertTriangle} title="Selecciona todos los paralelos" description="El resumen reúne las alertas de toda la institución." /></CardContent></Card> : !summary ? <PageLoader /> : summary.parallels.length === 0 ? (
               <Card><CardContent><EmptyState icon={CheckCircle2} title="Sin alertas abiertas" /></CardContent></Card>
             ) : (
               <div className="overflow-x-auto rounded-lg border">
@@ -181,7 +194,7 @@ export function EarlyAlertsPage() {
                   <tbody>
                     {summary.parallels.map((p) => (
                       <tr key={p.parallelId} className="border-t">
-                        <td className="p-3"><button className="font-medium text-primary hover:underline" onClick={() => setParallelId(p.parallelId)}>{p.parallel}</button></td>
+                        <td className="p-3"><button className="font-medium text-primary hover:underline" onClick={() => { setParallelId(p.parallelId); setTab('alerts') }}>{p.parallel}</button></td>
                         <td className="p-3 text-right">{p.open}</td>
                         <td className="p-3 text-right">{p.withoutReports > 0 ? <Badge variant="destructive">{p.withoutReports}</Badge> : 0}</td>
                         <td className="p-3 text-right">{p.withCase}</td>

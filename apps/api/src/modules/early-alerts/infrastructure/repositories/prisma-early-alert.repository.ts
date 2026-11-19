@@ -103,6 +103,7 @@ export class PrismaEarlyAlertRepository {
       assignmentIds: assignments.map((a) => a.id),
       periodIds: [period.id],
       studentIds: enrollments.map((e) => e.studentId),
+      studentsByAssignment: new Map(assignments.map((a) => [a.id, studentsByParallel.get(a.parallelId) ?? []])),
       gradingScaleMax,
     })
     const existing = await prisma.earlyAlert.findMany({
