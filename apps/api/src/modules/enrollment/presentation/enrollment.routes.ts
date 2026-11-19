@@ -26,7 +26,7 @@ const repo = new PrismaEnrollmentRepository()
 export default async function enrollmentRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware)
 
-  app.get<{ Querystring: { parallelId?: string; yearId?: string } }>(
+  app.get<{ Querystring: { parallelId?: string; yearId?: string; includeInactive?: string } }>(
     '/enrollments',
     { preHandler: [requirePermission('enrollment', 'read', 'own')] },
     async (req, reply) => {
@@ -34,7 +34,7 @@ export default async function enrollmentRoutes(app: FastifyInstance) {
 
       // Staff privilegiado (admin/rector/dece/inspector) ve toda la institución.
       if (isPrivilegedStaff(roles)) {
-        const enrollments = await repo.list(institutionId, req.query.parallelId, req.query.yearId)
+        const enrollments = await repo.list(institutionId, req.query.parallelId, req.query.yearId, req.query.includeInactive === 'true')
         return reply.send(enrollments)
       }
 
@@ -51,6 +51,7 @@ export default async function enrollmentRoutes(app: FastifyInstance) {
         institutionId,
         req.query.parallelId ? [req.query.parallelId] : allowed,
         req.query.yearId,
+        req.query.includeInactive === 'true',
       )
       return reply.send(enrollments)
     },
