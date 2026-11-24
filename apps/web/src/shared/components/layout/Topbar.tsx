@@ -1,5 +1,8 @@
 import { MySignatureDialog } from '@/features/user-signature/components/MySignatureDialog'
 import { useState } from 'react'
+import { Capacitor } from '@capacitor/core'
+import { useIsFetching, useQueryClient } from '@tanstack/react-query'
+import { RefreshCw } from 'lucide-react'
 import { Menu, LogOut, KeyRound, Search, Sun, Moon, Monitor, ChevronDown, PenLine } from 'lucide-react'
 import { ChildSwitcher } from '@/features/guardian/components/ChildSwitcher'
 import { useNavigate } from 'react-router-dom'
@@ -41,6 +44,8 @@ const THEME_OPTIONS: Array<{ value: ThemeMode; label: string; icon: React.Elemen
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 
 export function Topbar({ onMobileMenuClick }: TopbarProps) {
+  const queries = useQueryClient()
+  const isFetching = useIsFetching()
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const theme = useUIStore((s) => s.theme)
   const setTheme = useUIStore((s) => s.setTheme)
@@ -110,6 +115,14 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
       {/* User menu */}
       <div className="flex shrink-0 items-center gap-1 sm:gap-3">
         <AiUsageBadge />
+        {Capacitor.isNativePlatform() && (
+          <button type="button" title="Actualizar" aria-label="Actualizar pantalla"
+            disabled={isFetching > 0}
+            className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted disabled:opacity-50"
+            onClick={() => void queries.refetchQueries({ type: 'active' })}>
+            <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} aria-hidden="true" />
+          </button>
+        )}
         <NotificationCenter />
 
         <DropdownMenu modal={false}>

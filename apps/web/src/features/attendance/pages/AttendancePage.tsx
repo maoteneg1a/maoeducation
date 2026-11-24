@@ -643,6 +643,7 @@ function FamilyAttendancePage() {
 
   if (isLoading) return <PageLoader />
   if (!studentId || !data) return <EmptyState icon={Users} title="Sin estudiante seleccionado" description="Selecciona un estudiante para consultar su asistencia." />
+  const records = [...data.records, ...(data.classRecords ?? [])].sort((a, b) => b.date.localeCompare(a.date))
 
   return (
     <div className="space-y-5 p-4 sm:p-6">
@@ -663,16 +664,16 @@ function FamilyAttendancePage() {
         </div>
       </Card>
 
-      {data.records.length === 0 ? (
+      {records.length === 0 ? (
         <EmptyState icon={CheckCircle2} title="Sin novedades de asistencia" description="No hay ausencias ni atrasos registrados." />
       ) : (
         <div className="space-y-2">
-          {data.records.map((record) => (
+          {records.map((record) => (
             <Card key={record.id}>
               <div className="flex items-center justify-between gap-3 p-3 sm:p-4">
                 <div className="min-w-0">
                   <p className="text-sm font-medium">{formatAttendanceDate(record.date)}</p>
-                  <p className="truncate text-xs text-muted-foreground">{record.subject?.name ?? 'Jornada diaria'}{record.notes ? ` · ${record.notes}` : ''}</p>
+                  <p className="truncate text-xs text-muted-foreground">{record.subject?.name ?? 'Jornada diaria'}{'period' in record ? ` · Hora ${record.period}` : ''}{record.notes ? ` · ${record.notes}` : ''}</p>
                 </div>
                 <Badge variant={record.status === 'absent' ? 'destructive' : 'warning'}>{record.status === 'absent' ? 'Ausente' : 'Tarde'}</Badge>
               </div>

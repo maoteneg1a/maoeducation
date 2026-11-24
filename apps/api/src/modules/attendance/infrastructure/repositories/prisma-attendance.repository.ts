@@ -317,13 +317,20 @@ export class PrismaAttendanceRepository {
     })
     if (!enrollment) throw new NotFoundError('Estudiante sin matrícula')
 
-    const records = await prisma.attendanceRecord.findMany({
+    const [records, classRecords] = await Promise.all([prisma.attendanceRecord.findMany({
       where: { institutionId, studentId, status: { in: ['absent', 'late'] } },
       include: {
         courseAssignment: { include: { subject: { select: { name: true } } } },
       },
       orderBy: { date: 'desc' },
-    })
+    }), prisma.classAttendanceRecord.findMany({
+      where: {
+        institutionId, studentId, status: { in: ['absent', 'late'] },
+        courseAssignment: { parallel: { level: { attendanceMode: 'per_subject' } } },
+      },
+      select: { id: true, date: true, period: true, status: true, notes: true, courseAssignment: { select: { subject: { select: { name: true } } } } },
+      orderBy: [{ date: 'desc' }, { period: 'asc' }],
+    })])
 
     const { parallel } = enrollment
     return {
@@ -343,6 +350,14 @@ export class PrismaAttendanceRepository {
         status: r.status as 'absent' | 'late',
         notes: r.notes ?? null,
         subject: r.courseAssignment ? { name: r.courseAssignment.subject.name } : null,
+      })),
+      classRecords: classRecords.map(r => ({
+        id: r.id,
+        date: r.date.toISOString().slice(0, 10),
+        status: r.status as 'absent' | 'late',
+        notes: r.notes ?? null,
+        subject: r.courseAssignment.subject,
+        period: r.period,
       })),
     }
   }
