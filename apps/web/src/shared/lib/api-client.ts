@@ -1,4 +1,5 @@
 import ky, { HTTPError } from 'ky'
+import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { useAuthStore } from '@/store/auth.store'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? ''
@@ -9,7 +10,10 @@ let refreshPromise: Promise<string> | null = null
 function doRefresh(): Promise<string> {
   if (!refreshPromise) {
     refreshPromise = ky
-      .post(`${API_BASE}/api/v1/auth/refresh`, { credentials: 'include' })
+      .post(`${API_BASE}/api/v1/auth/refresh`, {
+        credentials: 'include',
+        ...(Capacitor.isNativePlatform() ? { json: {} } : {}),
+      })
       .json<{ accessToken: string }>()
       .then((r) => {
         useAuthStore.getState().setAccessToken(r.accessToken)
@@ -97,4 +101,25 @@ export async function apiPatch<T>(url: string, data?: unknown): Promise<T> {
 
 export async function apiDelete(url: string): Promise<void> {
   await apiClient.delete(url)
+}
+
+export async function getNativeAttachment(endpoint: string) {
+  const prefix = new URL(`${API_BASE}/api/v1/`, location.origin)
+  const url = new URL(endpoint, prefix)
+  if (!url.href.startsWith(prefix.href)) throw new Error('Ruta de adjunto inválida')
+  const download = (token: string | null) => CapacitorHttp.get({
+    url: url.href,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    responseType: 'blob',
+    disableRedirects: true,
+    connectTimeout: 10_000,
+    readTimeout: 30_000,
+  })
+  let response = await download(useAuthStore.getState().accessToken)
+  if (response.status === 401) response = await download(await doRefresh())
+  if (response.status !== 200 || typeof response.data !== 'string' || !response.data) {
+    throw new Error('No se pudo descargar el adjunto')
+  }
+  const mime = Object.entries(response.headers).find(([key]) => key.toLowerCase() === 'content-type')?.[1]
+  return { data: response.data, mime: mime?.split(';')[0] || 'application/octet-stream' }
 }

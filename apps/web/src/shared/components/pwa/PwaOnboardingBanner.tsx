@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { Bell, Smartphone, X, Share, Plus, MoreVertical } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { usePushNotifications } from '@/shared/hooks/usePushNotifications'
@@ -22,6 +23,11 @@ function dismiss() {
  * Se oculta al presionar X y no vuelve por 30 días.
  */
 export function PwaOnboardingBanner() {
+  if (Capacitor.isNativePlatform()) return null
+  return <BrowserOnboardingBanner />
+}
+
+function BrowserOnboardingBanner() {
   const push = usePushNotifications()
   const pwa = usePwaInstall()
   const [hidden, setHidden] = useState(isDismissed)

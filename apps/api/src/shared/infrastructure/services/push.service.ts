@@ -1,6 +1,7 @@
 import webpush from 'web-push'
 import { env } from '../../../config/env'
 import { prisma } from '../database/prisma'
+import { sendNativePush } from '../../../modules/mobile/native-push'
 
 export interface PushPayload {
   title: string
@@ -22,6 +23,9 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
   // tiene permiso push, está sin conexión o su suscripción ya venció.
   await prisma.userNotification.create({
     data: { userId, title: payload.title, body: payload.body, url: payload.url },
+  })
+  void sendNativePush(userId).catch(() => {
+    console.warn('No se pudo enviar el aviso push nativo')
   })
   init()
   if (!initialized) return

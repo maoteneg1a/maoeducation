@@ -1,4 +1,5 @@
-import { apiPost } from '@/shared/lib/api-client'
+import { apiClient, apiPost } from '@/shared/lib/api-client'
+import { Capacitor } from '@capacitor/core'
 import type { AuthUser } from '@/store/auth.store'
 
 export interface LoginPayload {
@@ -14,6 +15,6 @@ export interface LoginResponse {
 
 export const authApi = {
   login: (payload: LoginPayload) => apiPost<LoginResponse>('auth/login', payload),
-  logout: () => apiPost<void>('auth/logout'),
+  logout: async () => { await apiClient.post('auth/logout', Capacitor.isNativePlatform() ? { json: {} } : undefined) },
   me: () => apiPost<AuthUser>('auth/me'),
 }
