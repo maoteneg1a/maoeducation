@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
-import { useState, type ElementType, type ReactNode } from 'react'
+import { useState, type ElementType,  } from 'react'
 import { RequestJustificationDialog } from '@/features/attendance/components/RequestJustificationDialog'
 import { Link } from 'react-router-dom'
 import { BookOpen, CalendarClock, ClipboardCheck, GraduationCap } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card'
 import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { apiGet } from '@/shared/lib/api-client'
 import { usePermissions } from '@/shared/hooks/usePermissions'
 import { useGuardianStudentId } from '@/features/guardian/components/ChildSwitcher'
+import { useScheduleClock } from '@/features/schedules/lib/use-schedule-clock'
 import { GuardianReportsCard } from '@/features/formal-reports/components/GuardianReportsCard'
 
 interface TodayData {
@@ -37,70 +37,47 @@ export function FamilyToday() {
 
   const [justifyOpen, setJustifyOpen] = useState(false)
 
+  const { time } = useScheduleClock()
+
   if (isLoading) return <PageLoader />
   if (!data) return null
 
+  const current = data.schedule.find(item => item.startTime <= time && time < item.endTime)
+  const next = data.schedule.find(item => item.startTime > time)
+  const latestGrade = data.recentGrades[0]
+  const attendance = data.attendance[0]
+  const canJustify = data.attendance.some(item => ['absent', 'late'].includes(item.status))
+
   return (
-    <section className="space-y-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 shadow-sm sm:p-5" aria-labelledby="family-today-title">
+    <section className="space-y-3" aria-labelledby="family-today-title">
       <div>
         <h2 id="family-today-title" className="text-xl font-bold tracking-tight">Hoy</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{data.student.parallel} · {data.student.academicYear}</p>
+        <p className="text-sm text-muted-foreground">{data.student.parallel} · {data.student.academicYear}</p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <TodayCard title="Horario de hoy" icon={CalendarClock} href="/schedules" empty="No hay clases registradas para hoy">
-          {data.schedule.map((item) => (
-            <div key={item.id} className="flex items-start justify-between gap-3 border-b py-2 last:border-0">
-              <div><p className="text-sm font-medium">{item.subject}</p><p className="text-xs text-muted-foreground">{item.teacher ?? 'Docente'}{item.room ? ` · ${item.room}` : ''}</p></div>
-              <span className="whitespace-nowrap text-xs font-medium">{item.startTime}–{item.endTime}</span>
-            </div>
-          ))}
-        </TodayCard>
-        <TodayCard title="Próximos deberes" icon={ClipboardCheck} href="/tasks" empty="No hay deberes próximos">
-          {data.tasks.slice(0, 5).map((item) => (
-            <div key={item.id} className="border-b py-2 last:border-0"><p className="text-sm font-medium">{item.title}</p><p className="text-xs text-muted-foreground">{item.subject} · entrega {new Date(item.dueDate).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' })}</p></div>
-          ))}
-        </TodayCard>
-        <TodayCard title="Calificaciones recientes" icon={GraduationCap} href="/grades/consulta" empty="No hay calificaciones recientes">
-          {data.recentGrades.map((item) => (
-            <div key={item.id} className="flex items-center justify-between gap-3 border-b py-2 last:border-0"><div><p className="text-sm font-medium">{item.activity}</p><p className="text-xs text-muted-foreground">{item.subject}</p></div><span className="font-semibold tabular-nums">{item.score.toFixed(2)} / {item.maxScore}</span></div>
-          ))}
-        </TodayCard>
-        <TodayCard
-          title="Asistencia reciente"
-          icon={BookOpen}
-          href="/attendance"
-          empty="Sin novedades de asistencia"
-          action={
-            data.attendance.some((a) => a.status === 'absent' || a.status === 'late') ? (
-              <button type="button" onClick={() => setJustifyOpen(true)} className="text-xs font-medium text-primary hover:underline">
-                Justificar
-              </button>
-            ) : undefined
-          }
-        >
-          {data.attendance.map((item) => (
-            <div key={item.id} className="flex items-center justify-between gap-3 border-b py-2 last:border-0"><div><p className="text-sm font-medium">{attendanceLabel[item.status] ?? item.status}</p><p className="text-xs text-muted-foreground">{item.subject ?? 'Jornada diaria'}</p></div><span className="text-xs">{new Date(item.date).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' })}</span></div>
-          ))}
-        </TodayCard>
+      <Link to="/schedules" className="block rounded-xl border border-fuchsia-700/10 bg-fuchsia-50 p-3 text-fuchsia-800 hover:shadow-sm dark:bg-fuchsia-950 dark:text-fuchsia-200">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-medium">
+          <span className="flex items-center gap-2"><CalendarClock className="h-4 w-4" aria-hidden="true" />{current ? 'En curso' : 'Horario de hoy'}</span>
+          <span>Ver agenda →</span>
+        </div>
+        {current && <p className="mt-1 text-sm font-semibold">{current.subject} <span className="font-normal">· hasta las {current.endTime}</span></p>}
+        {next && <p className="mt-1 text-sm">{current ? 'Después' : 'Próxima clase'} · {next.startTime} · {next.subject}</p>}
+        {!current && !next && <p className="mt-1 text-sm">{data.schedule.length ? 'La jornada terminó' : 'Sin clases registradas para hoy'}</p>}
+      </Link>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <SummaryTile title="Deberes" icon={ClipboardCheck} href="/tasks" color="bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200" detail={data.tasks.length === 8 ? '8 o más próximos' : `${data.tasks.length} próximos`} />
+        <SummaryTile title="Calificaciones" icon={GraduationCap} href="/grades/consulta" color="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200" detail={latestGrade ? `Última: ${latestGrade.score.toFixed(2)} / ${latestGrade.maxScore}` : 'Sin notas recientes'} />
+        <SummaryTile title="Asistencia" icon={BookOpen} href="/attendance" color="bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-200" detail={attendance ? attendanceLabel[attendance.status] ?? attendance.status : 'Sin novedades'} />
       </div>
+      {canJustify && <button type="button" onClick={() => setJustifyOpen(true)} className="text-sm font-medium text-primary hover:underline">Justificar asistencia</button>}
       {isGuardian && <GuardianReportsCard />}
       <RequestJustificationDialog studentId={data.student.id} open={justifyOpen} onOpenChange={setJustifyOpen} />
     </section>
   )
 }
 
-function TodayCard({ title, icon: Icon, href, empty, action, children }: { title: string; icon: ElementType; href: string; empty: string; action?: ReactNode; children: ReactNode }) {
-  const hasItems = Array.isArray(children) ? children.length > 0 : !!children
-  return (
-    <Card className="h-full bg-background/95 shadow-sm">
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 pb-2">
-        <CardTitle className="flex min-w-0 items-center gap-2 text-base leading-snug"><Icon className="h-5 w-5 shrink-0 text-primary" /><span>{title}</span></CardTitle>
-        <div className="ml-auto flex shrink-0 items-center gap-3">
-          {action}
-          <Link to={href} className="text-xs font-medium text-primary hover:underline">Ver todo</Link>
-        </div>
-      </CardHeader>
-      <CardContent className="text-sm">{hasItems ? children : <p className="py-5 text-center text-sm text-muted-foreground">{empty}</p>}</CardContent>
-    </Card>
-  )
+function SummaryTile({ title, icon: Icon, href, detail, color }: { title: string; icon: ElementType; href: string; detail: string; color: string }) {
+  return <Link to={href} className={`flex min-w-0 items-center gap-2 rounded-xl border border-current/10 p-3 hover:shadow-sm ${color}`}>
+    <span className="hidden shrink-0 rounded-lg bg-white/60 p-2 min-[375px]:inline-flex dark:bg-black/10"><Icon className="h-4 w-4" aria-hidden="true" /></span>
+    <span className="min-w-0 break-words text-sm font-semibold">{title}<span className="block text-xs font-normal">{detail}</span></span>
+  </Link>
 }

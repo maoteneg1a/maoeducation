@@ -154,7 +154,9 @@ export default async function dashboardRoutes(app: FastifyInstance) {
       prisma.scheduleEntry.findMany({
         where: {
           institutionId,
-          weekday: now.getDay(),
+          weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(
+            new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: 'America/Guayaquil' }).format(now),
+          ),
           courseAssignment: {
             parallelId: enrollment.parallelId,
             academicYearId: enrollment.academicYearId,
