@@ -215,6 +215,8 @@ export const platformApi = {
 
   getInstitutionOverview: (id: string) =>
     platformGet<InstitutionOverview>(`platform/institutions/${id}/overview`),
+  setInstitutionNativePush: (id: string, nativePush: boolean) =>
+    platformPatch<{ nativePush: boolean }>(`platform/institutions/${id}/mobile-features`, { nativePush }),
   addInstitutionNote: (id: string, body: string) =>
     platformPost<unknown>(`platform/institutions/${id}/notes`, { body }),
   deleteInstitutionNote: (id: string, noteId: string) =>
@@ -357,6 +359,8 @@ export interface InstitutionOverview {
     accountType: 'school' | 'personal'
     isTestInstitution: boolean
     modules: string[] | null
+    nativePushEnabled?: boolean
+    nativePushAvailable?: boolean
   }
   usage: {
     activeYear: string | null
