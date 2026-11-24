@@ -1,9 +1,12 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './app'
+import { Capacitor } from '@capacitor/core'
+import { MobilePolicyGate } from './features/mobile/MobilePolicyGate'
+import { NativePushSetup } from './features/mobile/NativePushSetup'
 import './globals.css'
 
-if ('serviceWorker' in navigator) {
+if (!Capacitor.isNativePlatform() && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {})
   })
@@ -11,6 +14,6 @@ if ('serviceWorker' in navigator) {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <MobilePolicyGate><NativePushSetup /><App /></MobilePolicyGate>
   </React.StrictMode>,
 )

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff, Check } from 'lucide-react'
 import { useState } from 'react'
+import { mobileDemoInstitution } from '@/features/mobile/mobile-demo'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
@@ -45,13 +46,13 @@ export function LoginPage() {
 
   const institutionForm = useForm<InstitutionForm>({
     resolver: zodResolver(institutionSchema),
-    defaultValues: { institutionCode: getRememberedInstitutionCode() },
+    defaultValues: { institutionCode: mobileDemoInstitution ?? getRememberedInstitutionCode() },
   })
   const personalForm = useForm<PersonalForm>({ resolver: zodResolver(personalSchema) })
 
   if (isAuthenticated) return <Navigate to="/dashboard" replace />
 
-  const isPersonal = loginType === 'personal'
+  const isPersonal = !mobileDemoInstitution && loginType === 'personal'
 
   return (
     <div className="min-h-screen flex">
@@ -107,7 +108,7 @@ export function LoginPage() {
           </div>
 
           {/* Selector de tipo de cuenta */}
-          <div className="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-lg">
+          {mobileDemoInstitution ? <p className="text-sm text-muted-foreground">Beta Android · Escuela Demo</p> : <div className="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-lg">
             <button
               type="button"
               onClick={() => setLoginType('institution')}
@@ -126,7 +127,7 @@ export function LoginPage() {
             >
               Profesor personal
             </button>
-          </div>
+          </div>}
 
           {isPersonal ? (
             <form key="personal" autoComplete="on" onSubmit={personalForm.handleSubmit((data) => loginPersonal(data))} className="space-y-4">
@@ -178,6 +179,9 @@ export function LoginPage() {
                 <Label htmlFor="institutionCode">Código de institución</Label>
                 <Input
                   id="institutionCode"
+                  type="text"
+                  inputMode="text"
+                  readOnly={!!mobileDemoInstitution}
                   autoCapitalize="characters"
                   autoCorrect="off"
                   spellCheck={false}

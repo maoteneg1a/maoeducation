@@ -7,6 +7,9 @@ build/
 .env.backup.local
 /backups/
 /.local-setup/
+/.gradle-local/
+/apps/web/android/app/google-services.json
+/apps/api/uploads/messages/auleka-mobile-pilot.pdf
 *.dump
 *.log
 .DS_Store

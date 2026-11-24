@@ -94,7 +94,7 @@ export class PrismaActivityRepository {
     if (activity.academicPeriod.isClosed) throw new ConflictError('El período está cerrado')
     const allowed = new Set(assignments.map((row) => row.id)); const selectedIds = [...new Set(courseAssignmentIds)]
     if (selectedIds.some((id) => id === activity.courseAssignmentId || !allowed.has(id))) throw new ConflictError('Solo puedes compartir con materias tuyas del mismo paralelo')
-    const targets: typeof activity[] = []
+    const targets: Awaited<ReturnType<PrismaActivityRepository['ensurePeriodProjectActivity']>>[] = []
     for (const assignmentId of selectedIds) targets.push(await this.ensurePeriodProjectActivity(institutionId, assignmentId, activity.academicPeriodId, actorId))
     const oldGroup = this.periodProjectMetadata(activity.metadata).projectGradeShareGroupId
     const group = selectedIds.length ? oldGroup ?? randomUUID() : undefined

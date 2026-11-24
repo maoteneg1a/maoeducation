@@ -5,7 +5,7 @@ import { ChildSwitcher } from '@/features/guardian/components/ChildSwitcher'
 import { useNavigate } from 'react-router-dom'
 import { useUIStore, type ThemeMode } from '@/store/ui.store'
 import { useAuthStore } from '@/store/auth.store'
-import { apiPost } from '@/shared/lib/api-client'
+import { authApi } from '@/features/auth/api/auth.api'
 import { roleLabel } from '@/shared/lib/roles'
 import { ChangePasswordDialog } from '@/features/auth/components/ChangePasswordDialog'
 import { AiUsageBadge } from '@/features/ai-assistant/components/AiUsageBadge'
@@ -25,6 +25,7 @@ import {
 } from '@/shared/components/ui/dropdown-menu'
 import { openCommandPalette } from './CommandPalette'
 import { detachPushSubscription } from '@/shared/lib/push-subscription'
+import { detachNativePush } from '@/features/mobile/NativePushSetup'
 import { InstitutionIdentity } from './InstitutionIdentity'
 
 interface TopbarProps {
@@ -49,8 +50,9 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
   const [pwOpen, setPwOpen] = useState(false)
 
   async function handleLogout() {
+    try { await detachNativePush() } catch { /* Local logout still proceeds. */ }
     try { await detachPushSubscription() } catch (error) { console.warn('No se pudo desvincular el dispositivo al cerrar sesión', error) }
-    try { await apiPost('/auth/logout') } catch { /* ignore */ }
+    try { await authApi.logout() } catch { /* ignore */ }
     clearAuth()
     navigate('/login')
   }
