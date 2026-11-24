@@ -1,6 +1,7 @@
 import { App as NativeApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { useEffect, useState, type ReactNode } from 'react'
+import { queryClient } from '@/shared/lib/query-client'
 
 type Notice = { status: 'maintenance' } | {
   status: 'update_required' | 'update_available'
@@ -51,7 +52,11 @@ export function MobilePolicyGate({ children }: { children: ReactNode }) {
       }
     }
     void refresh()
-    const listener = NativeApp.addListener('appStateChange', ({ isActive }) => { if (isActive) void refresh() })
+    const listener = NativeApp.addListener('appStateChange', ({ isActive }) => {
+      if (!isActive) return
+      void refresh()
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    })
     return () => {
       active = false
       request?.abort()

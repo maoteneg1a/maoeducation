@@ -15,6 +15,7 @@ export function NotificationCenter() {
     queryKey: ['notifications'],
     queryFn: notificationsApi.list,
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   })
   const refresh = () => qc.invalidateQueries({ queryKey: ['notifications'] })
   const markRead = useMutation({ mutationFn: notificationsApi.markRead, onSuccess: refresh })
@@ -36,7 +37,10 @@ export function NotificationCenter() {
 
   return (
     <div ref={rootRef} className="relative">
-      <Button variant="ghost" size="icon" className="relative h-8 w-8" title="Notificaciones" onClick={() => setOpen((value) => !value)}>
+      <Button variant="ghost" size="icon" className="relative h-8 w-8" title="Notificaciones" onClick={() => {
+        if (!open) void refresh()
+        setOpen(!open)
+      }}>
         <Bell className="h-4 w-4" />
         {!!data?.unread && (
           <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
@@ -45,7 +49,7 @@ export function NotificationCenter() {
         )}
       </Button>
       {open && (
-        <div className="fixed inset-x-3 top-14 z-50 max-h-[70vh] overflow-hidden rounded-lg border bg-background shadow-xl sm:absolute sm:inset-auto sm:right-0 sm:top-10 sm:w-96">
+        <div className="fixed inset-x-3 top-[calc(3.5rem+var(--auleka-top-inset,0px))] z-50 max-h-[70vh] overflow-hidden rounded-lg border bg-background shadow-xl sm:absolute sm:inset-auto sm:right-0 sm:top-10 sm:w-96">
           <div className="flex items-center justify-between border-b p-3">
             <div><p className="font-semibold">Notificaciones</p><p className="text-xs text-muted-foreground">{data?.unread ?? 0} sin leer</p></div>
             <Button variant="ghost" size="sm" disabled={!data?.unread} onClick={() => markAll.mutate()}><CheckCheck className="h-4 w-4" /> Leer todas</Button>

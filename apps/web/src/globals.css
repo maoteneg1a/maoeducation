@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+.auleka-android {
+  --auleka-top-inset: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --auleka-bottom-inset: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+}
+
+.auleka-android #root {
+  padding-top: var(--auleka-top-inset);
+  padding-bottom: var(--auleka-bottom-inset);
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

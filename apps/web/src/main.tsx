@@ -6,6 +6,10 @@ import { MobilePolicyGate } from './features/mobile/MobilePolicyGate'
 import { NativePushSetup } from './features/mobile/NativePushSetup'
 import './globals.css'
 
+if (Capacitor.getPlatform() === 'android') {
+  document.documentElement.classList.add('auleka-android')
+}
+
 if (!Capacitor.isNativePlatform() && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {})

@@ -84,6 +84,7 @@ export interface StudentAbsencesData {
   parallelName: string
   levelName: string
   records: StudentAbsenceRecord[]
+  classRecords?: Array<StudentAbsenceRecord & { period: number }>
 }
 
 export function searchStudents(search: string) {
