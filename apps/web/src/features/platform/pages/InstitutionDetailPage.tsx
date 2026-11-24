@@ -4,6 +4,7 @@ import {
   Activity,
   AlertCircle,
   ArrowLeft,
+  Bell,
   CalendarCheck,
   ClipboardList,
   GraduationCap,
@@ -39,6 +40,7 @@ import {
   useDeleteInstitutionNote,
   useInstitutionOverview,
   usePlatformRole,
+  useSetInstitutionNativePush,
   useSetSubscriptionLimits,
 } from '../hooks/usePlatform'
 import type { InstitutionOverview, SubscriptionState } from '../api/platform.api'
@@ -160,7 +162,8 @@ function BackLink() {
 
 function InstitutionDetail({ data }: { data: InstitutionOverview }) {
   const { institution, usage, subscription, payments, admins, notes, recentActivity } = data
-  const { can } = usePlatformRole()
+  const { can, isOwner } = usePlatformRole()
+  const setMobilePush = useSetInstitutionNativePush(institution.id)
   const [limitsOpen, setLimitsOpen] = useState(false)
 
   return (
@@ -198,6 +201,33 @@ function InstitutionDetail({ data }: { data: InstitutionOverview }) {
           </div>
         </div>
       </div>
+
+      {isOwner && (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
+            <div className="flex items-start gap-3">
+              <Bell className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+              <div>
+                <h2 className="text-sm font-semibold">Notificaciones push en Android</h2>
+                <p className="text-sm text-muted-foreground">Alumnos y representantes de esta institución.</p>
+                {institution.nativePushAvailable === false && <p className="mt-1 text-xs text-muted-foreground">El envío de Android está desactivado en el servidor.</p>}
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                role="switch"
+                aria-label="Notificaciones push en Android"
+                className="h-5 w-5 accent-primary"
+                checked={institution.nativePushEnabled === true}
+                disabled={setMobilePush.isPending || institution.nativePushAvailable === undefined}
+                onChange={event => setMobilePush.mutate(event.currentTarget.checked)}
+              />
+              {setMobilePush.isPending ? 'Guardando…' : institution.nativePushEnabled ? 'Activado' : 'Desactivado'}
+            </label>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Uso */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

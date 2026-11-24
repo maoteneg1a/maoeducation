@@ -361,6 +361,18 @@ export function useInstitutionOverview(institutionId: string) {
   })
 }
 
+export function useSetInstitutionNativePush(institutionId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (nativePush: boolean) => platformApi.setInstitutionNativePush(institutionId, nativePush),
+    onSuccess: async ({ nativePush }) => {
+      await qc.invalidateQueries({ queryKey: platformKeys.overview(institutionId) })
+      toast.success(nativePush ? 'Push Android habilitado' : 'Push Android deshabilitado')
+    },
+    onError: error => toast.error(getErrorMessage(error)),
+  })
+}
+
 export function useAddInstitutionNote(institutionId: string) {
   const qc = useQueryClient()
   return useMutation({

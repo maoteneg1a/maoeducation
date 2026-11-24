@@ -38,7 +38,7 @@ La app consulta `GET /api/v1/mobile/policy` con la plataforma y el número de co
 | `MOBILE_ANDROID_MAINTENANCE` | Muestra la pantalla de mantenimiento si vale `true`. |
 | `MOBILE_ANDROID_NATIVE_PUSH` | Reserva el indicador para notificaciones nativas. |
 
-Para iOS se usa el prefijo `MOBILE_IOS_`. Las variables de versión y mantenimiento aplican a toda la plataforma. La API de la rama agrega `GET /api/v1/mobile/features` para consultar la habilitación efectiva y `PATCH /api/v1/mobile/features` con `{"nativePush":true}` para la administración de su propia institución.
+Para iOS se usa el prefijo `MOBILE_IOS_`. Las variables de versión y mantenimiento aplican a toda la plataforma. El superadmin activa el push por institución desde **Superadmin → Instituciones → ficha de la institución → Notificaciones push en Android**. Solo el rol propietario de plataforma puede cambiar esta bandera. La app consulta la habilitación efectiva mediante `GET /api/v1/mobile/features`.
 
 ### Push nativo Android
 

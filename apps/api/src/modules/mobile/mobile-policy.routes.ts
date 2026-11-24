@@ -1,6 +1,5 @@
 import type { FastifyInstance } from 'fastify'
 import { authMiddleware } from '../../shared/infrastructure/middleware/auth.middleware'
-import { requirePermission } from '../../shared/infrastructure/middleware/rbac.middleware'
 import { prisma } from '../../shared/infrastructure/database/prisma'
 import { nativePushEnabled } from './native-push'
 
@@ -81,28 +80,5 @@ export default async function mobilePolicyRoutes(app: FastifyInstance) {
   }, async (req, reply) => {
     await prisma.nativePushDevice.deleteMany({ where: { token: req.body.token, userId: req.user.sub } })
     return reply.code(204).send()
-  })
-  app.patch<{ Body: { nativePush: boolean } }>('/mobile/features', {
-    preHandler: [authMiddleware, requirePermission('institution_config', 'manage')],
-    schema: {
-      body: {
-        type: 'object',
-        required: ['nativePush'],
-        additionalProperties: false,
-        properties: { nativePush: { type: 'boolean' } },
-      },
-    },
-  }, async (req, reply) => {
-    const mobile = JSON.stringify({ nativePush: req.body.nativePush })
-    await prisma.$executeRaw`
-      UPDATE institutions
-      SET settings = jsonb_set(
-        settings,
-        '{mobile}',
-        COALESCE(settings->'mobile', '{}'::jsonb) || ${mobile}::jsonb
-      )
-      WHERE id = ${req.user.institutionId}
-    `
-    return reply.header('Cache-Control', 'no-store').send({ nativePush: req.body.nativePush })
   })
 }
