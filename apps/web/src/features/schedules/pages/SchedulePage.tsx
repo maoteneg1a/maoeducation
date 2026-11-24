@@ -212,7 +212,7 @@ export function SchedulePage() {
       {isLoading ? (
         <div className="text-center py-10 text-muted-foreground">Cargando horario...</div>
       ) : (
-        <ScheduleOverview entries={entries} onDelete={canManage ? handleDelete : undefined} />
+        <ScheduleOverview entries={entries} preferAgenda={isReadOnlyStudent} onDelete={canManage ? handleDelete : undefined} />
       )}
 
       {/* Create dialog */}

@@ -5,9 +5,11 @@ import { cn } from '@/shared/lib/utils'
 import type { ScheduleEntry } from '../api/schedules.api'
 import { getScheduleSubjectPalette, groupScheduleBySubject, SCHEDULE_DAYS } from '../lib/schedule-presentation'
 import { getScheduleTimeSlots } from '../lib/schedule-time-slots'
+import { useScheduleClock } from '../lib/use-schedule-clock'
 
 interface Props {
   entries: ScheduleEntry[]
+  preferAgenda?: boolean
   onDelete?: (entry: ScheduleEntry) => void
 }
 
@@ -25,7 +27,48 @@ function ScheduleBlock({ entry, onDelete, showSubject = true }: { entry: Schedul
   </div>
 }
 
-export function ScheduleOverview({ entries, onDelete }: Props) {
+function DailyAgenda({ entries }: { entries: ScheduleEntry[] }) {
+  const { weekday, time } = useScheduleClock()
+  const [selectedDay, setSelectedDay] = useState<number | null>(null)
+  const day = selectedDay ?? weekday
+  const blocks = entries.filter(entry => entry.weekday === day && entry.startTime < entry.endTime)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+  const periods: ScheduleEntry[] = []
+  for (const block of blocks) {
+    const previous = periods[periods.length - 1]
+    if (previous?.endTime === block.startTime && previous.courseAssignment.id === block.courseAssignment.id &&
+      previous.room === block.room) {
+      periods[periods.length - 1] = { ...previous, endTime: block.endTime }
+    } else {
+      periods.push(block)
+    }
+  }
+  const past = periods.filter(block => day === weekday && block.endTime <= time)
+  const remaining = periods.filter(block => !past.includes(block))
+  function item(block: ScheduleEntry) {
+    const current = day === weekday && block.startTime <= time && time < block.endTime
+    const { subject, teacher } = block.courseAssignment
+    const profile = teacher?.profile
+    return <li key={block.id} className={cn('grid grid-cols-[3.25rem_minmax(0,1fr)] gap-2 rounded-xl border p-3', current ? 'border-fuchsia-300 bg-fuchsia-50 dark:border-fuchsia-700 dark:bg-fuchsia-950' : 'bg-card')}>
+      <span className="text-xs tabular-nums text-muted-foreground">{block.startTime}<br />{block.endTime}</span>
+      <div className="min-w-0">
+        {current && <p className="text-xs font-semibold text-fuchsia-800 dark:text-fuchsia-200">En curso</p>}
+        <p className="break-words text-sm font-semibold">{subject.name}</p>
+        {(profile || block.room) && <p className="text-xs text-muted-foreground">{[profile && `${profile.firstName} ${profile.lastName}`, block.room].filter(Boolean).join(' · ')}</p>}
+      </div>
+    </li>
+  }
+  return <div className="space-y-3">
+    <div className="flex flex-wrap gap-2" role="group" aria-label="Día de la agenda">
+      <button type="button" aria-pressed={selectedDay === null} onClick={() => setSelectedDay(null)} className="min-h-10 rounded-lg border px-3 text-xs aria-pressed:bg-muted aria-pressed:font-semibold">Hoy</button>
+      {SCHEDULE_DAYS.map(option => <button key={option.value} type="button" aria-pressed={selectedDay === option.value} onClick={() => setSelectedDay(option.value)} className="min-h-10 rounded-lg border px-3 text-xs aria-pressed:bg-muted aria-pressed:font-semibold">{option.label}</button>)}
+    </div>
+    {past.length > 0 && <details className="rounded-lg border p-3 text-sm"><summary className="cursor-pointer">{past.length} {past.length === 1 ? 'clase finalizada' : 'clases finalizadas'}</summary><ul className="mt-2 space-y-2">{past.map(item)}</ul></details>}
+    {remaining.length > 0 ? <ul className="space-y-2">{remaining.map(item)}</ul> : <p className="text-sm text-muted-foreground">{past.length ? 'La jornada terminó.' : 'Sin clases registradas para este día.'}</p>}
+  </div>
+}
+
+export function ScheduleOverview({ entries, onDelete, preferAgenda }: Props) {
   const [subjectId, setSubjectId] = useState<string | null>(null)
   const groups = groupScheduleBySubject(entries)
   useEffect(() => {
@@ -35,9 +78,10 @@ export function ScheduleOverview({ entries, onDelete }: Props) {
   const visibleGroups = subjectId ? groups.filter(group => group.subject.id === subjectId) : groups
   const timeSlots = getScheduleTimeSlots(visibleEntries)
 
-  return <Tabs defaultValue="week" className="space-y-4">
+  return <Tabs defaultValue={preferAgenda ? 'day' : 'week'} className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <TabsList aria-label="Vista del horario" className="h-10">
+        {preferAgenda && <TabsTrigger value="day" className="py-1.5"><Clock3 className="h-4 w-4" aria-hidden="true" />Agenda</TabsTrigger>}
         <TabsTrigger value="week" className="py-1.5"><CalendarDays className="h-4 w-4" aria-hidden="true" />Semana</TabsTrigger>
         <TabsTrigger value="subjects" className="py-1.5"><Layers3 className="h-4 w-4" aria-hidden="true" />Por materia</TabsTrigger>
       </TabsList>
@@ -52,6 +96,7 @@ export function ScheduleOverview({ entries, onDelete }: Props) {
         </button>
       })}
     </div>}
+    {preferAgenda && <TabsContent value="day"><DailyAgenda entries={visibleEntries} /></TabsContent>}
     <TabsContent value="week">
       <div className="overflow-x-auto rounded-xl border bg-background">
         <table className="w-full table-fixed text-sm">
