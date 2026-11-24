@@ -15,6 +15,27 @@ const DAY_MS = 86_400_000
 export default async function platformConsoleRoutes(app: FastifyInstance) {
   const auth = [platformAuthMiddleware]
 
+  app.patch<{ Params: { id: string }; Body: { nativePush: boolean } }>('/platform/institutions/:id/mobile-features', {
+    preHandler: [...auth, requirePlatformRole('owner')],
+    schema: {
+      body: {
+        type: 'object',
+        required: ['nativePush'],
+        additionalProperties: false,
+        properties: { nativePush: { type: 'boolean' } },
+      },
+    },
+  }, async (req, reply) => {
+    const mobile = JSON.stringify({ nativePush: req.body.nativePush })
+    const changed = await prisma.$executeRaw`
+      UPDATE institutions
+      SET settings = jsonb_set(settings, '{mobile}', COALESCE(settings->'mobile', '{}'::jsonb) || ${mobile}::jsonb)
+      WHERE id = ${req.params.id}
+    `
+    if (!changed) throw new NotFoundError('Institución no encontrada')
+    return reply.header('Cache-Control', 'no-store').send({ nativePush: req.body.nativePush })
+  })
+
   // ─── Ficha 360° de una institución ─────────────────────────────────────────
   app.get<{ Params: { id: string } }>('/platform/institutions/:id/overview', { preHandler: auth }, async (req) => {
     const id = req.params.id
@@ -77,7 +98,7 @@ export default async function platformConsoleRoutes(app: FastifyInstance) {
       select: { id: true, name: true, email: true },
     })
     const authorName = new Map(noteAuthors.map((a) => [a.id, a.name || a.email]))
-    const settings = (institution.settings ?? {}) as { modules?: string[]; accountType?: string; isTestInstitution?: boolean }
+    const settings = (institution.settings ?? {}) as { modules?: string[]; accountType?: string; isTestInstitution?: boolean; mobile?: { nativePush?: boolean } }
 
     return {
       institution: {
@@ -89,6 +110,8 @@ export default async function platformConsoleRoutes(app: FastifyInstance) {
         accountType: settings.accountType === 'personal' ? 'personal' : 'school',
         isTestInstitution: settings.isTestInstitution ?? false,
         modules: settings.modules ?? null,
+        nativePushEnabled: settings.mobile?.nativePush === true,
+        nativePushAvailable: process.env.MOBILE_ANDROID_NATIVE_PUSH === 'true' && !!process.env.FCM_SERVICE_ACCOUNT_JSON,
       },
       usage: {
         activeYear: activeYear?.name ?? null,
