@@ -6,6 +6,7 @@ import { actorOf, hasPermission, isAuthority } from '../../../shared/infrastruct
 import { STUDENT_ENROLLMENT_ORDER } from '../../../shared/infrastructure/services/enrollment-query'
 import { AMBITS, CATALOG, type CatalogItem, configureSchema, historicalCompetencies, selectionSchema, valuesSchema, isPreparatoryLevel, scaleFor, uniqueKeys } from '../domain/preparatoria-policy'
 import { preparatoryTeacherScope } from '../domain/preparatoria-scope'
+import { preparatoryBulletinLayout } from '../domain/preparatoria-bulletin-layout'
 
 export type PrepActor = AccessTokenPayload
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue
@@ -260,7 +261,15 @@ export async function savePreparatoryValues(actor: PrepActor, parallelId: string
 
 /** Usado solo después de que el informe habitual verifica la autorización sobre el estudiante. */
 export async function preparatoryReport(institutionId: string, parallelId: string, yearId: string, studentId: string, viewer?: Pick<PrepActor, 'sub' | 'roles'>) {
-  const parallel = await prisma.parallel.findFirst({ where: { id: parallelId, institutionId, academicYearId: yearId }, select: { tutorId: true, level: { select: { code: true, subnivel: true } } } })
+  const parallel = await prisma.parallel.findFirst({
+    where: { id: parallelId, institutionId, academicYearId: yearId },
+    select: {
+      tutorId: true,
+      level: { select: { code: true, subnivel: true } },
+      institution: { select: { code: true } },
+      academicYear: { select: { name: true } },
+    },
+  })
   if (!parallel || !isPreparatoryLevel(parallel.level)) return null
   const program = await prisma.preparatoryProgram.findFirst({ where: { institutionId, parallelId, academicYearId: yearId, enabled: true } })
   if (!program) return null
@@ -269,6 +278,7 @@ export async function preparatoryReport(institutionId: string, parallelId: strin
     prisma.preparatoryComment.findMany({ where: { institutionId, programId: program.id, studentId } }),
   ])
   const data = unpack(program)
+  const layout = preparatoryBulletinLayout(parallel.institution.code, parallel.academicYear.name)
   const restricted = !!viewer && viewer.roles.includes('teacher') && !viewer.roles.some(role => ['admin','rector'].includes(role)) && parallel.tutorId !== viewer.sub
   const evaluated = new Set(values.map(value => value.itemKey))
   const keys = new Set([...Object.values(data.selections).flat(), ...evaluated])
@@ -277,8 +287,8 @@ export async function preparatoryReport(institutionId: string, parallelId: strin
     ...data.catalog.filter(item => keys.has(item.key)).map(item => ({ ...item, historicalCompetency: false })),
     ...historicalCompetencies(data.catalog).filter(item => evaluated.has(item.key)).map(item => ({ ...item, historicalCompetency: true })),
   ]
-  return { catalogVersion: program.catalogVersion, scaleVersion: program.scaleVersion, scale: scaleFor(program.scaleVersion), ambits: AMBITS,
-    rows: rows.filter(item => !restricted || data.ambitTeachers[item.ambit] === viewer!.sub).map(item => ({ ...item, periods: Object.fromEntries(periods.map(periodId => {
+  return { catalogVersion: program.catalogVersion, scaleVersion: program.scaleVersion, scale: scaleFor(program.scaleVersion), ambits: layout.ambits,
+    rows: rows.filter(item => !restricted || data.ambitTeachers[item.ambit] === viewer!.sub).map(item => ({ ...item, ambit: layout.ambitFor(item), periods: Object.fromEntries(periods.map(periodId => {
       const value = values.find(v => v.itemKey === item.key && v.periodId === periodId)
       const selected = item.historicalCompetency
         ? !!value && (data.storedSelections[periodId]?.includes(item.key) ?? false)
