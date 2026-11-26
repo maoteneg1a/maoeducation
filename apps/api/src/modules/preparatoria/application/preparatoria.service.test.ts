@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-const db=vi.hoisted(()=>({user:{findMany:vi.fn()},parallel:{findFirst:vi.fn(),findMany:vi.fn()},preparatoryProgram:{findFirst:vi.fn(),updateMany:vi.fn(),update:vi.fn(),upsert:vi.fn()},studentEnrollment:{findMany:vi.fn(),count:vi.fn()},preparatoryValue:{findMany:vi.fn(),count:vi.fn(),upsert:vi.fn()},preparatoryComment:{findMany:vi.fn(),upsert:vi.fn()},auditLog:{create:vi.fn()},$transaction:vi.fn()}))
+const db=vi.hoisted(()=>({user:{findMany:vi.fn()},parallel:{findFirst:vi.fn(),findMany:vi.fn()},preparatoryProgram:{findFirst:vi.fn(),findMany:vi.fn(),updateMany:vi.fn(),update:vi.fn(),upsert:vi.fn()},studentEnrollment:{findMany:vi.fn(),count:vi.fn()},preparatoryValue:{findMany:vi.fn(),count:vi.fn(),upsert:vi.fn()},preparatoryComment:{findMany:vi.fn(),upsert:vi.fn()},auditLog:{create:vi.fn()},$executeRaw:vi.fn(),$transaction:vi.fn()}))
 vi.mock('../../../shared/infrastructure/database/prisma',()=>({prisma:db}))
 import { preparatoryContext, preparatoryOptions, selectPeriodLearning, savePreparatoryValues, configureProgram, prepareProgram, preparatoryReport, type PrepActor } from './preparatoria.service'
 import { AMBITS, CATALOG, scaleFor, valuesSchema } from '../domain/preparatoria-policy'
