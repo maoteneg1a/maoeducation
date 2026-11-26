@@ -8,34 +8,34 @@ import { useAuthStore } from '@/store/auth.store'
  * - defaultPeriodId: active period for the active year
  * - activeYear, assignments, periods (for rendering selectors)
  */
-export function useTeacherDefaults() {
+export function useTeacherDefaults(excludedParallels?: ReadonlySet<string>) {
   const user = useAuthStore((s) => s.user)
 
-  const { data: years = [] } = useAcademicYears()
-  const activeYear = years.find((y) => y.isActive)
+  const years = useAcademicYears()
+  const activeYear = years.data?.find((y) => y.isActive)
 
-  const { data: ownAssignments = [] } = useCourseAssignments(
+  const ownAssignmentQuery = useCourseAssignments(
     activeYear ? { academicYearId: activeYear.id } : undefined,
   )
-  const { data: allConsultableAssignments = [] } = useCourseAssignments(
+  const consultableAssignmentQuery = useCourseAssignments(
     activeYear ? { academicYearId: activeYear.id, scope: 'consultable' } : { scope: 'consultable' },
   )
 
   // Filter to teacher's own assignments
   const assignments = React.useMemo(() => {
-    if (!user) return ownAssignments
-    if (user.roles.includes('admin') || user.roles.includes('rector') || user.roles.includes('inspector')) return ownAssignments
-    return ownAssignments.filter((a) => a.teacherId === user.id)
-  }, [ownAssignments, user])
+    const available = (ownAssignmentQuery.data ?? []).filter(assignment => !excludedParallels?.has(assignment.parallelId))
+    if (!user || user.roles.some(role => ['admin', 'rector', 'inspector'].includes(role))) return available
+    return available.filter(assignment => assignment.teacherId === user.id)
+  }, [ownAssignmentQuery.data, excludedParallels, user])
 
   // Lectura: además de sus materias, el tutor consulta todas las asignaturas
   // de los paralelos que tiene a cargo. La escritura sigue limitada en backend.
   const consultableAssignments = React.useMemo(() => {
-    if (!user) return allConsultableAssignments
-    if (user.roles.includes('admin') || user.roles.includes('rector') || user.roles.includes('inspector')) return allConsultableAssignments
+    const available = (consultableAssignmentQuery.data ?? []).filter(assignment => !excludedParallels?.has(assignment.parallelId))
+    if (!user || user.roles.some(role => ['admin', 'rector', 'inspector'].includes(role))) return available
     const tutored = new Set(user.tutorParallelIds ?? [])
-    return allConsultableAssignments.filter((a) => a.teacherId === user.id || tutored.has(a.parallelId))
-  }, [allConsultableAssignments, user])
+    return available.filter(assignment => assignment.teacherId === user.id || tutored.has(assignment.parallelId))
+  }, [consultableAssignmentQuery.data, excludedParallels, user])
 
   // Pick default assignment:
   // 1. If teacher tutors a parallel → use that parallel's assignment
@@ -75,5 +75,9 @@ export function useTeacherDefaults() {
     defaultAssignmentId,
     defaultConsultationAssignmentId,
     defaultPeriodId,
+    assignmentsPending: years.isPending || ownAssignmentQuery.isPending,
+    consultableAssignmentsPending: years.isPending || ownAssignmentQuery.isPending || consultableAssignmentQuery.isPending,
+    assignmentsError: years.isError || ownAssignmentQuery.isError,
+    consultableAssignmentsError: years.isError || ownAssignmentQuery.isError || consultableAssignmentQuery.isError,
   }
 }
