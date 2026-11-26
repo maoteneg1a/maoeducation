@@ -1,52 +1,34 @@
 import { z } from 'zod'
 import catalog from './catalog.json'
 
-export const AXES = [
-  { id: 'personal', name: 'Personal, social y cultural' },
-  { id: 'discovery', name: 'Descubrimiento del medio natural' },
-  { id: 'expression', name: 'Expresión y comunicación' },
-] as const
-
 export const AMBITS = [
-  { id: 'identity', name: 'Identidad y autonomía', axis: 'personal' },
-  { id: 'coexistence', name: 'Convivencia', axis: 'personal' },
-  { id: 'environment', name: 'Descubrimiento y comprensión del medio natural y cultural', axis: 'discovery' },
-  { id: 'math', name: 'Relaciones lógico-matemáticas', axis: 'discovery' },
-  { id: 'language', name: 'Comprensión y expresión oral y escrita', axis: 'expression' },
-  { id: 'artistic', name: 'Comprensión y expresión artística', axis: 'expression' },
-  { id: 'body', name: 'Expresión corporal', axis: 'expression' },
+  { id: 'identity', name: 'Identidad y autonomía' },
+  { id: 'coexistence', name: 'Convivencia' },
+  { id: 'environment', name: 'Descubrimiento y comprensión del medio natural y cultural' },
+  { id: 'math', name: 'Relaciones lógico-matemáticas' },
+  { id: 'language', name: 'Comprensión y expresión oral y escrita' },
+  { id: 'artistic', name: 'Comprensión y expresión artística' },
+  { id: 'body', name: 'Expresión corporal' },
 ] as const
 export type AmbitId = typeof AMBITS[number]['id']
 export interface CatalogItem { key: string; code: string; text: string; ambit: AmbitId; competencyCode: string; competencyText: string }
 export const CATALOG = { ...catalog, items: catalog.items.map(item => ({ ...item, text: item.text.startsWith(item.code) ? item.text.slice(item.code.length).replace(/^[.\s]+/, '') : item.text })) } as { version: string; source: string; items: CatalogItem[] }
 
-export interface PreparatoryCompetency {
-  key: string
-  code: string
-  text: string
-  ambit: AmbitId
-  indicators: { key: string; code: string; text: string }[]
-}
+const defaultCompetencyAmbits = new Map(CATALOG.items.map(item => [item.competencyCode, item.ambit]))
 
-const defaultAmbits = new Map(CATALOG.items.map(item => [item.competencyCode, item.ambit]))
-
-export function preparatoryCompetencies(indicators: CatalogItem[]): PreparatoryCompetency[] {
-  const byCode = new Map<string, CatalogItem[]>()
+/** Reconstruye las etiquetas y los permisos de las competencias ya valoradas. */
+export function historicalCompetencies(indicators: CatalogItem[]): CatalogItem[] {
+  const byCode = new Map<string, CatalogItem>()
   for (const indicator of indicators) {
-    const group = byCode.get(indicator.competencyCode)
-    if (group) group.push(indicator)
-    else byCode.set(indicator.competencyCode, [indicator])
-  }
-  return [...byCode].map(([code, group]) => {
-    const [first] = group
-    // Las distribuciones anteriores podían repartir los indicadores de una misma competencia.
-    const ambit = group.every(indicator => indicator.ambit === first.ambit)
-      ? first.ambit : defaultAmbits.get(code) ?? first.ambit
-    return {
-      key: code, code, text: first.competencyText, ambit,
-      indicators: group.map(({ key, code, text }) => ({ key, code, text })),
+    const code = indicator.competencyCode
+    const current = byCode.get(code)
+    if (!current) {
+      byCode.set(code, { ...indicator, key: code, code, text: indicator.competencyText })
+    } else if (current.ambit !== indicator.ambit) {
+      current.ambit = defaultCompetencyAmbits.get(code) ?? current.ambit
     }
-  })
+  }
+  return [...byCode.values()]
 }
 
 export const CODES = ['A+', 'A-', 'B+', 'B-', 'C+', 'C-', 'D+', 'D-', 'E+', 'E-', 'NE'] as const

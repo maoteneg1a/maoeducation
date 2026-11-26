@@ -21,7 +21,7 @@ export function LearningSelection({ ctx, options, periodId, done }: {
   const [expectedRevision] = useState(program.revision)
   const [keys, setKeys] = useState(program.selections[periodId] ?? [])
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('')
+  const [ambit, setAmbit] = useState('')
   const [busy, setBusy] = useState(false)
   const [source, setSource] = useState(ctx.parallel.id)
   const [sourcePeriod, setSourcePeriod] = useState('')
@@ -33,8 +33,7 @@ export function LearningSelection({ ctx, options, periodId, done }: {
   const canEdit = (ambitId: string) => !isClosed && ctx.editableAmbits.includes(ambitId)
   const selectedKeys = new Set(keys)
   const visibleItems = program.catalog.filter(item =>
-    (!filter || item.ambit === filter || ctx.ambits.some(ambit => ambit.id === item.ambit && ambit.axis === filter)) &&
-    normalize(item.code + ' ' + item.text).includes(normalize(search)),
+    (!ambit || item.ambit === ambit) && normalize(item.code + ' ' + item.text).includes(normalize(search)),
   )
 
   function updateSelection(itemKeys: string[], checked: boolean) {
@@ -64,7 +63,7 @@ export function LearningSelection({ ctx, options, periodId, done }: {
     setBusy(true)
     try {
       await prepApi.selection(ctx.parallel.id, periodId, { expectedRevision, itemKeys: keys })
-      toast.success('Competencias del período guardadas')
+      toast.success('Aprendizajes del período guardados')
       await done()
     } catch (error) {
       toast.error(getErrorMessage(error))
@@ -77,25 +76,21 @@ export function LearningSelection({ ctx, options, periodId, done }: {
     <div className="space-y-4">
       <fieldset className="space-y-2 rounded-lg border p-3">
         <legend className="px-1 text-sm font-medium">Ámbitos del período</legend>
-        <p className="text-sm text-muted-foreground">Marca un ámbito para incluir todas las competencias que puedes editar en él, o elige las competencias una por una.</p>
-        <div className="grid gap-2">
-          {ctx.axes.map(axis => {
-            const areas = ctx.ambits.filter(area => area.axis === axis.id)
-            const areaKeys = program.catalog.filter(item => canEdit(item.ambit) && areas.some(area => area.id === item.ambit)).map(item => item.key)
+        <p className="text-sm text-muted-foreground">Marca un ámbito para incluir todos sus indicadores. Puedes ajustar la selección individual abajo.</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {ctx.ambits.map(area => {
+            const areaKeys = program.catalog.filter(item => item.ambit === area.id).map(item => item.key)
             const count = areaKeys.filter(key => selectedKeys.has(key)).length
             return (
-              <label key={axis.id} className="flex items-start gap-2 rounded-md border p-2 text-sm">
+              <label key={area.id} className="flex items-start gap-2 rounded-md border p-2 text-sm">
                 <Checkbox
                   ref={input => { if (input) input.indeterminate = count > 0 && count < areaKeys.length }}
                   className="mt-0.5"
                   checked={count > 0 && count === areaKeys.length}
-                  disabled={busy || !areaKeys.length}
+                  disabled={busy || !canEdit(area.id) || !areaKeys.length}
                   onCheckedChange={checked => updateSelection(areaKeys, checked)}
                 />
-                <span>
-                  {axis.name} {!!areaKeys.length && <span className="whitespace-nowrap text-muted-foreground">· {count}/{areaKeys.length}</span>}
-                  <span className="block text-xs text-muted-foreground">{areas.map(area => area.name).join(' · ')}</span>
-                </span>
+                <span>{area.name} <span className="whitespace-nowrap text-muted-foreground">· {count}/{areaKeys.length}</span></span>
               </label>
             )
           })}
@@ -118,15 +113,10 @@ export function LearningSelection({ ctx, options, periodId, done }: {
       </details>
 
       <div className="flex flex-wrap gap-2">
-        <Input aria-label="Buscar competencia" className="flex-1" placeholder="Buscar competencia…" value={search} onChange={event => setSearch(event.target.value)} />
-        <select aria-label="Filtrar competencias por ámbito" className={selectClass} value={filter} onChange={event => setFilter(event.target.value)}>
+        <Input aria-label="Buscar indicador" className="flex-1" placeholder="Buscar indicador…" value={search} onChange={event => setSearch(event.target.value)} />
+        <select aria-label="Filtrar indicadores por ámbito" className={selectClass} value={ambit} onChange={event => setAmbit(event.target.value)}>
           <option value="">Todos los ámbitos</option>
-          {ctx.axes.map(axis => (
-            <optgroup key={axis.id} label={axis.name}>
-              <option value={axis.id}>Todo el ámbito</option>
-              {ctx.ambits.filter(area => area.axis === axis.id).map(area => <option key={area.id} value={area.id}>{area.name}</option>)}
-            </optgroup>
-          ))}
+          {ctx.ambits.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}
         </select>
       </div>
       <div className="max-h-80 space-y-3 overflow-y-auto">
@@ -142,7 +132,7 @@ export function LearningSelection({ ctx, options, periodId, done }: {
       </div>
       <div className="flex items-center gap-3">
         <Button disabled={busy || !ctx.editableAmbits.length || isClosed} onClick={() => void save()}>Guardar selección</Button>
-        <span className="text-sm">{program.catalog.filter(item => selectedKeys.has(item.key)).length} competencias seleccionadas</span>
+        <span className="text-sm">{program.catalog.filter(item => selectedKeys.has(item.key)).length} indicadores seleccionados</span>
       </div>
     </div>
   )
