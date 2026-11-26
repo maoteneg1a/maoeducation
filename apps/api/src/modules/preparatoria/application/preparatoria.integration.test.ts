@@ -14,9 +14,8 @@ import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { buildApp } from '../../../app'
 import { tokenService } from '../../../shared/infrastructure/services/token.service'
 import * as prep from './preparatoria.service'
-import { AMBITS, AXES, CATALOG, preparatoryCompetencies } from '../domain/preparatoria-policy'
+import { AMBITS, CATALOG } from '../domain/preparatoria-policy'
 
-const competencies = preparatoryCompetencies(CATALOG.items)
 const suite = process.env.PREPARATORIA_TEST_DATABASE_URL ? describe : describe.skip
 suite('Preparatoria and preservation of regular grades with PostgreSQL', () => {
   const db = prisma as PrismaClient
@@ -51,19 +50,18 @@ suite('Preparatoria and preservation of regular grades with PostgreSQL', () => {
   afterAll(async()=>{await app.close();await db.$disconnect()})
   async function enable() {
     const ctx=await prep.prepareProgram(admin,first)
-    return prep.configureProgram(admin,first,{expectedRevision:ctx.program!.revision,enabled:true,reviewed:true,scaleVersion:'2026-00082A',ambitTeachers:{...ctx.program!.ambitTeachers as Record<string,string>,artistic:specialist.sub},distribution:competencies.map(item=>({key:item.key,ambit:item.ambit}))})
+    return prep.configureProgram(admin,first,{expectedRevision:ctx.program!.revision,enabled:true,reviewed:true,scaleVersion:'2026-00082A',ambitTeachers:{...ctx.program!.ambitTeachers as Record<string,string>,artistic:specialist.sub},distribution:CATALOG.items.map(item=>({key:item.key,ambit:item.ambit}))})
   }
   const token=()=>tokenService.signAccess(admin)
   async function bulletin(parallelId:string,studentId:string,pdf=false){
     return app.inject({method:'GET',url:`/api/v1/reports/bulletin${pdf?'/pdf':''}?${new URLSearchParams({yearId:year,parallelId,studentId})}`,headers:{authorization:`Bearer ${token()}`}})
   }
-  it('preloads three axes with all 35 competencies but does not activate, grade, or alter shared subjects',async()=>{
+  it('preloads all seven ambits and 101 indicators but does not activate, grade, or alter shared subjects',async()=>{
     const options=await prep.preparatoryOptions(admin)
     expect(options.parallels.map(p=>p.id)).toEqual([first])
     const ctx=await prep.prepareProgram(admin,first)
     expect(ctx.program).toMatchObject({enabled:false,catalogVersion:CATALOG.version})
-    expect(ctx.program!.catalog).toHaveLength(35)
-    expect(ctx.axes).toEqual(AXES)
+    expect(ctx.program!.catalog).toHaveLength(101)
     expect(Object.keys(ctx.program!.ambitTeachers as object)).toHaveLength(7)
     expect(ctx.ambits).toEqual(AMBITS)
     expect(await db.preparatoryValue.count({where:{institutionId:school}})).toBe(0)
@@ -73,13 +71,13 @@ suite('Preparatoria and preservation of regular grades with PostgreSQL', () => {
   })
   it('keeps pending, explicit NE and the following trimester independent and audits changes',async()=>{
     await enable()
-    const items=competencies.filter(i=>i.ambit==='identity').slice(0,2)
+    const items=CATALOG.items.filter(i=>i.ambit==='identity').slice(0,2)
     let ctx=await prep.preparatoryContext(tutor,first)
     const selected=await prep.selectPeriodLearning(tutor,first,p1,{expectedRevision:ctx.program!.revision,itemKeys:items.map(i=>i.key)})
     const saved=await prep.savePreparatoryValues(tutor,first,p1,{expectedRevision:selected.revision,values:[{studentId:child,itemKey:items[0].key,code:'NE'}],comments:[{studentId:child,text:'Avances observados'}]})
     expect(saved.values).toHaveLength(1);expect(saved.values[0].code).toBe('NE')
     expect((await prep.preparatorySheet(tutor,first,p2)).values).toEqual([])
-    const secondTermKeys = competencies.filter(item => item.ambit === 'math').map(item => item.key)
+    const secondTermKeys = CATALOG.items.filter(item => item.ambit === 'math').map(item => item.key)
     const secondTerm = await prep.selectPeriodLearning(tutor,first,p2,{expectedRevision:saved.revision,itemKeys:secondTermKeys})
     expect(secondTerm.selectedKeys).toEqual(secondTermKeys)
     expect(secondTerm.values).toEqual([])
@@ -91,7 +89,7 @@ suite('Preparatoria and preservation of regular grades with PostgreSQL', () => {
     expect(await db.auditLog.count({where:{institutionId:school,action:'preparatoria.values'}})).toBe(1)
   })
   it('enforces authorized ambits, enrolled students and institution boundaries',async()=>{
-    const ctx=await enable(),art=competencies.find(i=>i.ambit==='artistic')!,math=competencies.find(i=>i.ambit==='math')!
+    const ctx=await enable(),art=CATALOG.items.find(i=>i.ambit==='artistic')!,math=CATALOG.items.find(i=>i.ambit==='math')!
     const selected=await prep.selectPeriodLearning(admin,first,p1,{expectedRevision:ctx.program!.revision,itemKeys:[art.key,math.key]})
     await expect(prep.savePreparatoryValues(specialist,first,p1,{expectedRevision:selected.revision,values:[{studentId:child,itemKey:math.key,code:'A+'}]})).rejects.toMatchObject({statusCode:403})
     await expect(prep.savePreparatoryValues(tutor,first,p1,{expectedRevision:selected.revision,values:[{studentId:otherChild,itemKey:math.key,code:'A+'}]})).rejects.toMatchObject({statusCode:400})
@@ -110,7 +108,7 @@ suite('Preparatoria and preservation of regular grades with PostgreSQL', () => {
     await expect(prep.savePreparatoryValues(specialist,first,p1,{expectedRevision:completed.revision,values:[],comments:[{studentId:child,text:'General'}]})).rejects.toMatchObject({statusCode:403})
   })
   it('respects closed periods and revision conflicts without overwriting',async()=>{
-    const ctx=await enable(),item=competencies[0]
+    const ctx=await enable(),item=CATALOG.items[0]
     const selected=await prep.selectPeriodLearning(tutor,first,p1,{expectedRevision:ctx.program!.revision,itemKeys:[item.key]})
     const saved=await prep.savePreparatoryValues(tutor,first,p1,{expectedRevision:selected.revision,values:[{studentId:child,itemKey:item.key,code:'A-'}]})
     await expect(prep.savePreparatoryValues(tutor,first,p1,{expectedRevision:selected.revision,values:[{studentId:child,itemKey:item.key,code:'C+'}]})).rejects.toMatchObject({statusCode:409})
@@ -118,38 +116,42 @@ suite('Preparatoria and preservation of regular grades with PostgreSQL', () => {
     await expect(prep.savePreparatoryValues(tutor,first,p1,{expectedRevision:saved.revision,values:[]})).rejects.toMatchObject({statusCode:409})
     expect((await db.preparatoryValue.findFirstOrThrow({where:{institutionId:school}})).code).toBe('A-')
   })
-  it('opens the previous planning by competency and preserves indicator grades as historical rows', async () => {
+  it('restores indicator selection and preserves competency values in the bulletin', async () => {
     const ctx = await enable()
     const programId = ctx.program!.id
-    const competency = competencies[0]
-    const [firstIndicator, secondIndicator] = competency.indicators
+    const item = CATALOG.items[0]
+    const matchingKeys = CATALOG.items.filter(indicator => indicator.competencyCode === item.competencyCode).map(indicator => indicator.key)
     await db.preparatoryProgram.update({
-      where: { id: programId }, data: { selections: { [p1]: [firstIndicator.key, secondIndicator.key] } },
+      where: { id: programId }, data: { selections: { [p1]: [item.competencyCode], [p2]: [item.competencyCode] } },
     })
     await db.preparatoryValue.create({ data: {
       institutionId: school, programId, studentId: child, periodId: p1,
-      itemKey: firstIndicator.key, code: 'C+', notes: 'Evidencia anterior', recordedBy: tutor.sub,
+      itemKey: item.competencyCode, code: 'C+', notes: 'Valoración por competencia', recordedBy: tutor.sub,
     } })
     const sheet = await prep.preparatorySheet(tutor, first, p1)
-    expect(sheet.selectedKeys).toEqual([competency.key])
+    expect(sheet.selectedKeys).toEqual(matchingKeys)
     expect(sheet.values).toEqual([])
     await expect(prep.savePreparatoryValues(tutor, first, p1, {
-      expectedRevision: sheet.revision, values: [{ studentId: child, itemKey: firstIndicator.key, code: 'A+' }],
+      expectedRevision: sheet.revision, values: [{ studentId: child, itemKey: item.competencyCode, code: 'A+' }],
     })).rejects.toMatchObject({ statusCode: 400 })
-    const itemKeys = [competency.key]
-    const updated = await prep.selectPeriodLearning(tutor, first, p1, { expectedRevision: sheet.revision, itemKeys })
+    const updated = await prep.selectPeriodLearning(tutor, first, p1, { expectedRevision: sheet.revision, itemKeys: [item.key] })
     await prep.savePreparatoryValues(tutor, first, p1, {
-      expectedRevision: updated.revision, values: [{ studentId: child, itemKey: competency.key, code: 'B+' }],
+      expectedRevision: updated.revision, values: [{ studentId: child, itemKey: item.key, code: 'B+' }],
     })
+    const stored = await db.preparatoryProgram.findUniqueOrThrow({ where: { id: programId } })
+    expect(stored.selections).toEqual({ [p1]: [item.key], [p2]: [item.competencyCode] })
     const report = await prep.preparatoryReport(school, first, year, child)
-    expect(report?.rows).toEqual([
-      expect.objectContaining({ key: competency.key, historical: false, periods: { [p1]: { selected: true, code: 'B+', notes: '' } } }),
-      expect.objectContaining({ key: firstIndicator.key, historical: true, periods: { [p1]: { selected: false, code: 'C+', notes: 'Evidencia anterior' } } }),
-    ])
+    expect(report?.rows.find(row => row.key === item.key)).toMatchObject({
+      historicalCompetency: false, periods: { [p1]: { selected: true, code: 'B+' }, [p2]: { selected: true, code: null } },
+    })
+    expect(report?.rows.find(row => row.key === item.competencyCode)).toMatchObject({
+      historicalCompetency: true, periods: { [p1]: { selected: false, code: 'C+', notes: 'Valoración por competencia' }, [p2]: { selected: false, code: null } },
+    })
+    expect((await bulletin(first, child, true)).statusCode).toBe(200)
   })
   it('changes only the enabled first-grade report, preserving numeric grades and the second-grade bulletin',async()=>{
     const before=await bulletin(second,otherChild);expect(before.statusCode).toBe(200)
-    const ctx=await enable(),item=competencies[0]
+    const ctx=await enable(),item=CATALOG.items[0]
     const selected=await prep.selectPeriodLearning(tutor,first,p1,{expectedRevision:ctx.program!.revision,itemKeys:[item.key]})
     await prep.savePreparatoryValues(tutor,first,p1,{expectedRevision:selected.revision,values:[{studentId:child,itemKey:item.key,code:'B+'}]})
     const firstReport=await bulletin(first,child);expect(firstReport.statusCode).toBe(200)
@@ -163,13 +165,13 @@ suite('Preparatoria and preservation of regular grades with PostgreSQL', () => {
     expect((await db.manualInsumoAverage.findMany({where:{institutionId:school},orderBy:{score:'asc'}})).map(v=>Number(v.score))).toEqual([7.75,8.5])
   })
   it('ignores a wrongly enabled program for another grade and preserves values after disabling first grade',async()=>{
-    const ctx=await enable(),item=competencies[0]
+    const ctx=await enable(),item=CATALOG.items[0]
     await db.preparatoryProgram.create({data:{institutionId:school,parallelId:second,academicYearId:year,enabled:true,catalogVersion:'invalid',catalog:[]}})
     expect(await prep.preparatoryReport(school,second,year,otherChild)).toBeNull()
     const selected=await prep.selectPeriodLearning(tutor,first,p1,{expectedRevision:ctx.program!.revision,itemKeys:[item.key]})
     const saved=await prep.savePreparatoryValues(tutor,first,p1,{expectedRevision:selected.revision,values:[{studentId:child,itemKey:item.key,code:'A+'}]})
     const current=await prep.preparatoryContext(admin,first)
-    await prep.configureProgram(admin,first,{expectedRevision:saved.revision,enabled:false,reviewed:true,scaleVersion:'2026-00082A',ambitTeachers:current.program!.ambitTeachers,distribution:competencies.map(i=>({key:i.key,ambit:i.ambit}))})
+    await prep.configureProgram(admin,first,{expectedRevision:saved.revision,enabled:false,reviewed:true,scaleVersion:'2026-00082A',ambitTeachers:current.program!.ambitTeachers,distribution:CATALOG.items.map(i=>({key:i.key,ambit:i.ambit}))})
     expect(await prep.preparatoryReport(school,first,year,child)).toBeNull()
     expect(await db.preparatoryValue.count({where:{institutionId:school}})).toBe(1)
   })
@@ -180,13 +182,13 @@ suite('Preparatoria and preservation of regular grades with PostgreSQL', () => {
     await db.studentEnrollment.updateMany({where:{institutionId:school,studentId:otherChild},data:{parallelId:afternoon.id}})
     const configure=async(id:string,teacherId:string)=>{
       const ctx=await prep.prepareProgram(admin,id)
-      return prep.configureProgram(admin,id,{expectedRevision:ctx.program!.revision,enabled:true,reviewed:true,scaleVersion:'2026-00082A',ambitTeachers:Object.fromEntries(AMBITS.map(a=>[a.id,teacherId])),distribution:competencies.map(i=>({key:i.key,ambit:i.ambit}))})
+      return prep.configureProgram(admin,id,{expectedRevision:ctx.program!.revision,enabled:true,reviewed:true,scaleVersion:'2026-00082A',ambitTeachers:Object.fromEntries(AMBITS.map(a=>[a.id,teacherId])),distribution:CATALOG.items.map(i=>({key:i.key,ambit:i.ambit}))})
     }
     const bm=await configure(morning.id,outsider.sub),bv=await configure(afternoon.id,specialist.sub)
     expect((await prep.preparatoryOptions(outsider)).parallels.map(p=>p.id)).toEqual([morning.id])
     expect((await prep.preparatoryContext(outsider,morning.id)).editableAmbits).toHaveLength(7)
     await expect(prep.preparatoryContext(outsider,afternoon.id)).rejects.toMatchObject({statusCode:403})
-    const item=competencies[0]
+    const item=CATALOG.items[0]
     const selected=await prep.selectPeriodLearning(outsider,morning.id,p1,{expectedRevision:bm.program!.revision,itemKeys:[item.key]})
     await prep.savePreparatoryValues(outsider,morning.id,p1,{expectedRevision:selected.revision,values:[{studentId:child,itemKey:item.key,code:'A+'}]})
     const selectedV=await prep.selectPeriodLearning(specialist,afternoon.id,p1,{expectedRevision:bv.program!.revision,itemKeys:[item.key]})
@@ -226,7 +228,7 @@ suite('Preparatoria and preservation of regular grades with PostgreSQL', () => {
     await db.userRole.create({data:{userId:foreign.id,roleId:foreignRole.id}})
     await db.user.update({where:{id:outsider.sub},data:{isActive:false}})
     for(const invalid of [outsider.sub,child,foreign.id]){
-      await expect(prep.configureProgram(admin,first,{expectedRevision:ctx.program!.revision,enabled:true,reviewed:true,scaleVersion:'2026-00082A',ambitTeachers:{...ctx.program!.ambitTeachers as Record<string,string>,identity:invalid},distribution:competencies.map(i=>({key:i.key,ambit:i.ambit}))})).rejects.toMatchObject({statusCode:400})
+      await expect(prep.configureProgram(admin,first,{expectedRevision:ctx.program!.revision,enabled:true,reviewed:true,scaleVersion:'2026-00082A',ambitTeachers:{...ctx.program!.ambitTeachers as Record<string,string>,identity:invalid},distribution:CATALOG.items.map(i=>({key:i.key,ambit:i.ambit}))})).rejects.toMatchObject({statusCode:400})
     }
     expect((await prep.preparatoryContext(admin,first)).program!.revision).toBe(ctx.program!.revision)
   })
@@ -240,9 +242,9 @@ suite('Preparatoria and preservation of regular grades with PostgreSQL', () => {
     const b = await addParallel('B-M', specialist.sub)
     const bBefore = await prep.prepareProgram(admin, b.id)
     const aBefore = await prep.prepareProgram(admin, first)
-    const item = competencies[0]
+    const item = CATALOG.items[0]
     const movedAmbit = item.ambit === 'math' ? 'language' : 'math'
-    const distribution = competencies.map(i => ({ key: i.key, ambit: i.key === item.key ? movedAmbit : i.ambit }))
+    const distribution = CATALOG.items.map(i => ({ key: i.key, ambit: i.key === item.key ? movedAmbit : i.ambit }))
     const aConfig = { expectedRevision: aBefore.program!.revision, enabled: true, reviewed: true, scaleVersion: '2026-00082A', ambitTeachers: aBefore.program!.ambitTeachers, distribution }
     const a = await prep.configureProgram(admin, first, aConfig)
     const bAfter = await prep.preparatoryContext(admin, b.id)
@@ -261,7 +263,7 @@ suite('Preparatoria and preservation of regular grades with PostgreSQL', () => {
     await prep.savePreparatoryValues(tutor, first, p1, { expectedRevision: selection.revision, values: [{ studentId: child, itemKey: item.key, code: 'A+' }] })
     expect((await prep.preparatoryContext(admin, b.id)).curriculumLocked).toBe(true)
     await expect(prep.configureProgram(admin, b.id, {
-      ...bConfig, expectedRevision: bAfter.program!.revision, distribution: competencies.map(i => ({ key: i.key, ambit: i.ambit })),
+      ...bConfig, expectedRevision: bAfter.program!.revision, distribution: CATALOG.items.map(i => ({ key: i.key, ambit: i.ambit })),
     })).rejects.toMatchObject({ statusCode: 409 })
     const reassigned = await prep.configureProgram(admin, b.id, {
       ...bConfig, expectedRevision: bAfter.program!.revision, ambitTeachers: Object.fromEntries(AMBITS.map(ambit => [ambit.id, outsider.sub])),

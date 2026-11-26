@@ -4,26 +4,26 @@ La modalidad se limita al código de nivel **1B**. No se aplica a Inicial ni de 
 
 ## Flujo sencillo
 
-1. La autoridad abre **Configuración → Preparatoria** y escoge un paralelo. Los tres ámbitos principales y la distribución de competencias se comparten entre los paralelos de Primero del mismo año lectivo. En la misma pantalla, la autoridad revisa la escala y asigna los responsables de ese paralelo antes de activarlo. Puede elegir un docente para todos los ámbitos y usar **Especialistas por componente** para las excepciones.
-2. En **Calificar → Preparatoria · Competencias → Elegir competencias**, el docente selecciona los ámbitos que trabajará en ese trimestre y puede ajustar competencias individuales. Cada selección corresponde al paralelo y período elegidos. También se puede reutilizar la selección de otro período o paralelo sin copiar valoraciones.
-3. En la tabla registra las letras por estudiante y competencia y pulsa **Guardar valoraciones**. Cada especialista consulta y edita solo sus ámbitos; el tutor y la autoridad pueden consultar el conjunto. El tutor registra fortalezas y recomendaciones generales. La pantalla móvil muestra un estudiante a la vez.
-4. El boletín habitual muestra automáticamente la tabla de ámbitos y competencias cuando corresponde a Primero y su programa está activado. Se puede consultar en pantalla, descargar el PDF individual o el PDF del paralelo, con varias páginas y encabezados repetidos.
+1. La autoridad abre **Configuración → Preparatoria** y escoge un paralelo. Los siete ámbitos y su distribución de indicadores se comparten entre los paralelos de Primero del mismo año lectivo. En la misma pantalla, la autoridad revisa la escala y asigna los responsables de ese paralelo antes de activarlo. Puede elegir un docente para todos los ámbitos y usar **Especialistas por ámbito** para las excepciones.
+2. En **Calificar → Preparatoria · Aprendizajes → Elegir aprendizajes**, el docente selecciona los ámbitos que trabajará en ese trimestre y puede ajustar indicadores individuales. Cada selección corresponde al paralelo y período elegidos. También se puede reutilizar la selección de otro período o paralelo sin copiar valoraciones.
+3. En la tabla registra las letras por alumno e indicador y pulsa **Guardar valoraciones**. Cada especialista consulta y edita solo sus ámbitos; el tutor y la autoridad pueden consultar el conjunto. El tutor registra fortalezas y recomendaciones generales. La pantalla móvil muestra un estudiante a la vez.
+4. El boletín habitual muestra automáticamente la tabla de ámbitos y aprendizajes cuando corresponde a Primero y su programa está activado. Se puede consultar en pantalla, descargar el PDF individual o el PDF del paralelo, con varias páginas y encabezados repetidos.
 
 **Pendiente** es una celda sin valoración; **NE** se elige expresamente para un aprendizaje no trabajado. Ninguno se convierte en cero. No se calculan promedios numéricos de estas letras.
 
 Los períodos cerrados se consultan sin modificar la selección ni las valoraciones. Se advierte al salir o cambiar de curso con datos pendientes, también al cambiar desde las notas regulares a Preparatoria. La revisión del programa evita sobrescribir cambios concurrentes.
 
-## Ámbitos y competencias
+## Ámbitos precargados
 
-| Ámbito principal | Componentes |
-|---|---|
-| Personal, social y cultural | Identidad y autonomía, Convivencia |
-| Descubrimiento del medio natural | Descubrimiento y comprensión del medio natural y cultural, Relaciones lógico-matemáticas |
-| Expresión y comunicación | Comprensión y expresión oral y escrita, Comprensión y expresión artística, Expresión corporal |
+- Identidad y autonomía.
+- Convivencia.
+- Descubrimiento y comprensión del medio natural y cultural.
+- Relaciones lógico-matemáticas.
+- Comprensión y expresión oral y escrita.
+- Comprensión y expresión artística.
+- Expresión corporal.
 
-El banco de Preparatoria incluido en Auleka ofrece 35 competencias a partir de los códigos de su catálogo. Los indicadores se consultan como referencia en la celda de la competencia. Se guarda una valoración por competencia, estudiante y período.
-
-Las valoraciones del grado protegen la distribución compartida. Las valoraciones de cada paralelo protegen su escala. Al retirar una competencia de la selección se conserva su valoración en el boletín. Las valoraciones anteriores por indicador aparecen como registros históricos independientes. Si el trimestre ya tenía una selección por indicadores, se muestran las competencias asociadas como selección inicial, sin copiar las valoraciones.
+El catálogo conserva su código y versión. Las valoraciones del grado protegen la distribución compartida. Las valoraciones de cada paralelo protegen su escala. Los indicadores retirados de la selección conservan su valoración histórica en el informe. Si se había seleccionado una competencia, se muestran sus indicadores como selección inicial del trimestre. Las valoraciones por competencia quedan en el boletín como registros históricos independientes.
 
 ## Instalación y conservación
 

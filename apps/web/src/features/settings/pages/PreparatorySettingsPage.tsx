@@ -115,27 +115,19 @@ function ProgramConfiguration({ ctx, done }: { ctx: PrepContext; done: (updated:
     <div className="space-y-4">
       <section className="space-y-3 rounded-lg border p-4">
         <h2 className="font-semibold">Ámbitos de {ctx.parallel.levelName} · {ctx.parallel.yearName}</h2>
-        <p className="text-sm text-muted-foreground">Todos los paralelos del grado comparten los tres ámbitos y la distribución de competencias durante este año lectivo.</p>
-        <ul className="grid gap-2 text-sm sm:grid-cols-3">
-          {ctx.axes.map(axis => <li key={axis.id}>
-            <strong>{axis.name}</strong>
-            <span className="block text-xs text-muted-foreground">{ctx.ambits.filter(ambit => ambit.axis === axis.id).map(ambit => ambit.name).join(' · ')}</span>
-          </li>)}
-        </ul>
+        <p className="text-sm text-muted-foreground">Todos los paralelos del grado comparten los siete ámbitos y la distribución de indicadores durante este año lectivo.</p>
         {curriculumLocked && <p className="text-sm text-muted-foreground">La distribución está protegida porque el grado ya tiene valoraciones.</p>}
         {!program ? <Button disabled={busy} onClick={() => void prepare()}>Preparar este paralelo</Button> :
           <details>
-            <summary className="cursor-pointer text-sm font-medium">Revisar distribución · {program.catalog.length} competencias</summary>
+            <summary className="cursor-pointer text-sm font-medium">Revisar distribución · {program.catalog.length} indicadores</summary>
             <p className="my-3 text-xs text-muted-foreground">{ctx.catalogSource}</p>
-            <Input aria-label="Buscar competencia" className="my-3" placeholder="Buscar competencia…" value={filter} onChange={event => setFilter(event.target.value)} />
+            <Input aria-label="Buscar indicador" className="my-3" placeholder="Buscar indicador…" value={filter} onChange={event => setFilter(event.target.value)} />
             <div className="max-h-80 space-y-3 overflow-y-auto">
               {matchingItems?.map(item => (
                 <label key={item.key} className="grid gap-1 border-b pb-3 text-sm">
                   <span>{item.code} · {item.text}</span>
                   <select className={selectClass} disabled={busy || curriculumLocked} value={distribution[item.key]} onChange={event => setDistribution(previous => ({ ...previous, [item.key]: event.target.value }))}>
-                    {ctx.axes.map(axis => <optgroup key={axis.id} label={axis.name}>
-                      {ctx.ambits.filter(ambit => ambit.axis === axis.id).map(ambit => <option key={ambit.id} value={ambit.id}>{ambit.name}</option>)}
-                    </optgroup>)}
+                    {ctx.ambits.map(ambit => <option key={ambit.id} value={ambit.id}>{ambit.name}</option>)}
                   </select>
                 </label>
               ))}
@@ -177,21 +169,16 @@ function ProgramConfiguration({ ctx, done }: { ctx: PrepContext; done: (updated:
             </select>
           </label>
           <details>
-            <summary className="cursor-pointer text-sm font-medium">Especialistas por componente (opcional)</summary>
+            <summary className="cursor-pointer text-sm font-medium">Especialistas por ámbito (opcional)</summary>
             <div className="mt-3 space-y-3">
-              {ctx.axes.map(axis => (
-                <fieldset key={axis.id} className="space-y-2">
-                  <legend className="mb-1 text-sm font-medium">{axis.name}</legend>
-                  {ctx.ambits.filter(ambit => ambit.axis === axis.id).map(ambit => (
-                    <label key={ambit.id} className="grid items-center gap-2 text-sm sm:grid-cols-2">
-                      {ambit.name}
-                      <select className={selectClass} disabled={busy} value={teachers[ambit.id] ?? ''} onChange={event => setTeachers(previous => ({ ...previous, [ambit.id]: event.target.value }))}>
-                        <option value="">Seleccionar docente</option>
-                        {teacherOptions}
-                      </select>
-                    </label>
-                  ))}
-                </fieldset>
+              {ctx.ambits.map(ambit => (
+                <label key={ambit.id} className="grid items-center gap-2 text-sm sm:grid-cols-2">
+                  {ambit.name}
+                  <select className={selectClass} disabled={busy} value={teachers[ambit.id] ?? ''} onChange={event => setTeachers(previous => ({ ...previous, [ambit.id]: event.target.value }))}>
+                    <option value="">Seleccionar docente</option>
+                    {teacherOptions}
+                  </select>
+                </label>
               ))}
             </div>
           </details>

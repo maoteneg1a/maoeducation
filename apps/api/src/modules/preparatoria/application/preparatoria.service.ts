@@ -4,7 +4,7 @@ import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../../shared/domain/errors/app.errors'
 import { actorOf, hasPermission, isAuthority } from '../../../shared/infrastructure/services/actor'
 import { STUDENT_ENROLLMENT_ORDER } from '../../../shared/infrastructure/services/enrollment-query'
-import { AMBITS, AXES, CATALOG, type CatalogItem, configureSchema, selectionSchema, valuesSchema, isPreparatoryLevel, preparatoryCompetencies, scaleFor, uniqueKeys } from '../domain/preparatoria-policy'
+import { AMBITS, CATALOG, type CatalogItem, configureSchema, historicalCompetencies, selectionSchema, valuesSchema, isPreparatoryLevel, scaleFor, uniqueKeys } from '../domain/preparatoria-policy'
 import { preparatoryTeacherScope } from '../domain/preparatoria-scope'
 
 export type PrepActor = AccessTokenPayload
@@ -17,18 +17,20 @@ function parse<T>(schema: { safeParse: (v: unknown) => { success: true; data: T 
   return result.data
 }
 function unpack(program: { catalog: unknown; selections: unknown; ambitTeachers: unknown }) {
-  const indicators = program.catalog as CatalogItem[]
-  const catalog = preparatoryCompetencies(indicators)
-  const competencyKeys = new Map(catalog.flatMap(competency => [
-    [competency.key, competency.key] as const,
-    ...competency.indicators.map(indicator => [indicator.key, competency.key] as const),
-  ]))
+  const catalog = program.catalog as CatalogItem[]
   const storedSelections = program.selections as Record<string, string[]>
-  // Reutilizar la planificación anterior sin convertir sus valoraciones.
+  const indicatorKeys = new Set(catalog.map(item => item.key))
+  const indicatorsByCompetency = new Map<string, string[]>()
+  for (const item of catalog) {
+    const group = indicatorsByCompetency.get(item.competencyCode)
+    if (group) group.push(item.key)
+    else indicatorsByCompetency.set(item.competencyCode, [item.key])
+  }
+  // Recupera la selección de indicadores sin convertir las valoraciones anteriores.
   const selections = Object.fromEntries(Object.entries(storedSelections).map(([periodId, keys]) => [
-    periodId, [...new Set(keys.flatMap(key => competencyKeys.get(key) ?? []))],
+    periodId, [...new Set(keys.flatMap(key => indicatorKeys.has(key) ? [key] : indicatorsByCompetency.get(key) ?? []))],
   ]))
-  return { catalog, indicators, selections, storedSelections, ambitTeachers: program.ambitTeachers as Record<string, string> }
+  return { catalog, selections, storedSelections, ambitTeachers: program.ambitTeachers as Record<string, string> }
 }
 
 type GradeScope = { institutionId: string; academicYearId: string; levelId: string }
@@ -90,10 +92,7 @@ export async function preparatoryContext(actor: PrepActor, parallelId: string) {
   return {
     parallel: { id: ctx.parallel.id, name: ctx.parallel.name, levelName: ctx.parallel.level.name, yearId: ctx.parallel.academicYearId, yearName: ctx.parallel.academicYear.name, tutorName: ctx.parallel.tutor ? `${ctx.parallel.tutor.profile?.lastName ?? ''} ${ctx.parallel.tutor.profile?.firstName ?? ''}`.trim() : null },
     periods: ctx.parallel.academicYear.academicPeriods.map(p => ({ id: p.id, name: p.name, isActive: p.isActive, isClosed: p.isClosed })),
-    program: ctx.program && data ? { ...ctx.program, catalog: visibleAmbits.flatMap(ambit => data.catalog.filter(item => item.ambit === ambit.id)), selections: data.selections } : null,
-    axes: AXES.filter(axis => visibleAmbits.some(ambit => ambit.axis === axis.id)),
-    ambits: visibleAmbits,
-    catalogSource: 'Banco de Preparatoria incluido en Auleka. Revisa los códigos, textos y organización con el currículo aplicable antes de activar.',
+    program: ctx.program && data ? { ...ctx.program, catalog: data.catalog.filter(item => visibleAmbits.some(a => a.id === item.ambit)), selections: data.selections } : null, ambits: visibleAmbits, catalogSource: CATALOG.source,
     teachers: ctx.teachers, canConfigure: ctx.canConfigure, curriculumLocked,
     editableAmbits: canWrite(actor) && ctx.program?.enabled ? AMBITS.filter(a => ctx.authority || data?.ambitTeachers[a.id] === actor.sub).map(a => a.id) : [],
     canComment: canWrite(actor) && (ctx.authority || ctx.coordinator === actor.sub),
@@ -151,15 +150,13 @@ export async function configureProgram(actor: PrepActor, parallelId: string, bod
     if (input.enabled && !ctx.teachers.some(t => t.id === teacherId)) throw new BadRequestError(`Asigna un docente activo de la institución a ${a.name}`)
     if (teacherId && !ctx.teachers.some(t => t.id === teacherId)) throw new BadRequestError('El responsable debe ser un docente activo de esta institución')
   }
-  const changed = new Set(existing.catalog.filter(item => item.ambit !== distribution.get(item.key)).map(item => item.key))
-  const applyDistribution = (indicators: CatalogItem[], moved: Set<string>) =>
-    indicators.map(item => moved.has(item.competencyCode) ? { ...item, ambit: distribution.get(item.competencyCode)! } : item)
-  const catalog = applyDistribution(existing.indicators, changed)
+  const catalog = existing.catalog.map(item => ({ ...item, ambit: distribution.get(item.key)! }))
+  const distributionChanged = existing.catalog.some(item => item.ambit !== distribution.get(item.key))
   await mutate(actor, ctx, input.expectedRevision, 'preparatoria.configure', async (tx, program) => {
     if (input.scaleVersion !== program.scaleVersion && await tx.preparatoryValue.count({ where: { programId: program.id } })) {
       throw new ConflictError('La escala de este paralelo tiene valoraciones históricas.')
     }
-    if (changed.size) {
+    if (distributionChanged) {
       const scope = gradePrograms(ctx.parallel)
       const graded = await tx.preparatoryProgram.findFirst({ where: { ...scope, values: { some: {} } }, select: { id: true } })
       if (graded) throw new ConflictError('La distribución del grado está protegida porque ya existen valoraciones históricas.')
@@ -169,13 +166,11 @@ export async function configureProgram(actor: PrepActor, parallelId: string, bod
       })
       for (const sibling of siblings) {
         const oldCatalog = sibling.catalog as unknown as CatalogItem[]
-        const oldCompetencies = preparatoryCompetencies(oldCatalog)
-        if (sibling.catalogVersion !== program.catalogVersion || oldCompetencies.length !== distribution.size || oldCompetencies.some(item => !distribution.has(item.key))) {
+        if (sibling.catalogVersion !== program.catalogVersion || oldCatalog.length !== catalog.length || oldCatalog.some(item => !distribution.has(item.key))) {
           throw new ConflictError('Hay versiones de catálogo incompatibles entre los paralelos de este grado.')
         }
-        const siblingChanges = new Set(oldCompetencies.filter(item => item.ambit !== distribution.get(item.key)).map(item => item.key))
-        if (!siblingChanges.size) continue
-        const newCatalog = applyDistribution(oldCatalog, siblingChanges)
+        if (oldCatalog.every(item => item.ambit === distribution.get(item.key))) continue
+        const newCatalog = oldCatalog.map(item => ({ ...item, ambit: distribution.get(item.key)! }))
         await tx.preparatoryProgram.update({
           where: { id: sibling.id }, data: { catalog: json(newCatalog), revision: { increment: 1 } },
         })
@@ -188,7 +183,7 @@ export async function configureProgram(actor: PrepActor, parallelId: string, bod
     }
     const update = { enabled: input.enabled, catalog: json(catalog), scaleVersion: input.scaleVersion, ambitTeachers: json(input.ambitTeachers), reviewedAt: new Date(), reviewedBy: actor.sub }
     await tx.preparatoryProgram.update({ where: { id: program.id }, data: update })
-    return { oldValue: { enabled: program.enabled, catalog: existing.indicators, scaleVersion: program.scaleVersion, ambitTeachers: existing.ambitTeachers }, newValue: update, result: null }
+    return { oldValue: { enabled: program.enabled, catalog: existing.catalog, scaleVersion: program.scaleVersion, ambitTeachers: existing.ambitTeachers }, newValue: update, result: null }
   })
   return preparatoryContext(actor, parallelId)
 }
@@ -201,9 +196,9 @@ export async function selectPeriodLearning(actor: PrepActor, parallelId: string,
   const data = unpack(ctx.program)
   const editable = new Set(AMBITS.filter(a => canWrite(actor) && (ctx.authority || data.ambitTeachers[a.id] === actor.sub)).map(a => a.id))
   const existing = data.selections[periodId] ?? []
-  if (!uniqueKeys(input.itemKeys) || input.itemKeys.some(key => !data.catalog.some(item => item.key === key))) throw new BadRequestError('La selección contiene competencias desconocidas o repetidas')
+  if (!uniqueKeys(input.itemKeys) || input.itemKeys.some(key => !data.catalog.some(item => item.key === key))) throw new BadRequestError('La selección contiene indicadores desconocidos o repetidos')
   const changed = new Set([...existing, ...input.itemKeys].filter(key => existing.includes(key) !== input.itemKeys.includes(key)))
-  if ([...changed].some(key => !editable.has(data.catalog.find(item => item.key === key)!.ambit))) throw new ForbiddenError('Solo puedes seleccionar competencias de tus ámbitos asignados')
+  if ([...changed].some(key => !editable.has(data.catalog.find(item => item.key === key)!.ambit))) throw new ForbiddenError('Solo puedes seleccionar aprendizajes de tus ámbitos asignados')
   if (!canWrite(actor)) throw new ForbiddenError()
   await mutate(actor, ctx, input.expectedRevision, 'preparatoria.selection', async (tx, program) => {
     const selections = { ...data.storedSelections, [periodId]: input.itemKeys }
@@ -239,7 +234,7 @@ export async function savePreparatoryValues(actor: PrepActor, parallelId: string
   if (!uniqueKeys(input.values.map(v => `${v.studentId}:${v.itemKey}`)) || !uniqueKeys(input.comments.map(c => c.studentId))) throw new BadRequestError('Hay estudiantes o celdas duplicadas')
   for (const value of input.values) {
     const item = data.catalog.find(i => i.key === value.itemKey)
-    if (!item || !data.selections[periodId]?.includes(value.itemKey)) throw new BadRequestError('Selecciona una competencia del período antes de valorarla')
+    if (!item || !data.selections[periodId]?.includes(value.itemKey)) throw new BadRequestError('El aprendizaje no está seleccionado para este período')
     if (!ctx.authority && data.ambitTeachers[item.ambit] !== actor.sub) throw new ForbiddenError('Este ámbito está asignado a otro docente')
   }
   if (input.comments.length && !ctx.authority && ctx.coordinator !== actor.sub) throw new ForbiddenError('Las recomendaciones generales las registra el docente coordinador')
@@ -276,20 +271,20 @@ export async function preparatoryReport(institutionId: string, parallelId: strin
   const data = unpack(program)
   const restricted = !!viewer && viewer.roles.includes('teacher') && !viewer.roles.some(role => ['admin','rector'].includes(role)) && parallel.tutorId !== viewer.sub
   const evaluated = new Set(values.map(value => value.itemKey))
-  const selected = new Set(Object.values(data.selections).flat())
+  const keys = new Set([...Object.values(data.selections).flat(), ...evaluated])
   const periods = [...new Set([...Object.keys(data.selections), ...values.map(value => value.periodId)])]
   const rows = [
-    ...data.catalog.filter(item => selected.has(item.key) || evaluated.has(item.key)).map(item => ({ item, historical: false })),
-    ...data.indicators.filter(item => evaluated.has(item.key)).map(item => ({ item, historical: true })),
+    ...data.catalog.filter(item => keys.has(item.key)).map(item => ({ ...item, historicalCompetency: false })),
+    ...historicalCompetencies(data.catalog).filter(item => evaluated.has(item.key)).map(item => ({ ...item, historicalCompetency: true })),
   ]
-  return { catalogVersion: program.catalogVersion, scaleVersion: program.scaleVersion, scale: scaleFor(program.scaleVersion), axes: AXES, ambits: AMBITS,
-    rows: rows.filter(({ item }) => !restricted || data.ambitTeachers[item.ambit] === viewer!.sub).map(({ item: { key, code, text, ambit }, historical }) => ({
-      key, code, text, ambit, historical, periods: Object.fromEntries(periods.map(periodId => {
-        const value = values.find(row => row.itemKey === key && row.periodId === periodId)
-        const selection = historical ? data.storedSelections : data.selections
-        return [periodId, { selected: historical ? !!value && (selection[periodId]?.includes(key) ?? false) : selection[periodId]?.includes(key) ?? false, code: value?.code ?? null, notes: value?.notes ?? '' }]
-      })),
-    })),
+  return { catalogVersion: program.catalogVersion, scaleVersion: program.scaleVersion, scale: scaleFor(program.scaleVersion), ambits: AMBITS,
+    rows: rows.filter(item => !restricted || data.ambitTeachers[item.ambit] === viewer!.sub).map(item => ({ ...item, periods: Object.fromEntries(periods.map(periodId => {
+      const value = values.find(v => v.itemKey === item.key && v.periodId === periodId)
+      const selected = item.historicalCompetency
+        ? !!value && (data.storedSelections[periodId]?.includes(item.key) ?? false)
+        : data.selections[periodId]?.includes(item.key) ?? false
+      return [periodId, { selected, code: value?.code ?? null, notes: value?.notes ?? '' }]
+    })) })),
     comments: restricted ? [] : comments.map(c => ({ periodId: c.periodId, text: c.text })),
   }
 }

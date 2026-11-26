@@ -1,6 +1,6 @@
 import type { BulletinPdfData } from './bulletin-pdf.service'
 
-/** Informe exclusivo de Primero por competencias, con sus valoraciones históricas. */
+/** Informe exclusivo de Primero: conserva todas las destrezas y repite encabezados al paginar. */
 export function drawPreparatoryBulletin(doc: PDFKit.PDFDocument, data: BulletinPdfData, logo: Buffer | string | null) {
   const report = data.preparatoria!
   const left = 24, width = doc.page.width - 48, bottom = doc.page.height - 42
@@ -15,7 +15,7 @@ export function drawPreparatoryBulletin(doc: PDFKit.PDFDocument, data: BulletinP
     const institutionHeight = height(data.institutionName, width - 60, 12, true)
     text(data.institutionName, left + 52, y, width - 60, 12, true)
     y += Math.max(52, institutionHeight + 10)
-    const baseTitle = data.title || 'INFORME DE COMPETENCIAS'
+    const baseTitle = data.title || 'INFORME DE APRENDIZAJES'
     const title = baseTitle.toLocaleLowerCase('es').includes('preparatoria') ? baseTitle : `${baseTitle} · PREPARATORIA`
     text(title, left, y, width, 11, true); y += height(title, width, 11, true) + 8
     const student = `${data.studentName} · Identificación: ${data.studentDni ?? '—'}`
@@ -24,7 +24,7 @@ export function drawPreparatoryBulletin(doc: PDFKit.PDFDocument, data: BulletinP
     text(course, left, y, width); y += height(course, width) + 12
     const headingHeight = Math.max(26, ...data.periods.map(p => height(p.name, colWidth - 8, 8, true) + 12))
     doc.rect(left, y, width, headingHeight).fill('#edf2f8')
-    text('Ámbito / competencia evaluada', left + 6, y + 6, labelWidth - 12, 9, true)
+    text('Ámbito / aprendizaje evaluado', left + 6, y + 6, labelWidth - 12, 9, true)
     data.periods.forEach((p, i) => text(p.name, left + labelWidth + i * colWidth + 4, y + 6, colWidth - 8, 8, true))
     y += headingHeight
     // El pie tiene posición absoluta; no debe crear una página automática adicional.
@@ -68,14 +68,12 @@ export function drawPreparatoryBulletin(doc: PDFKit.PDFDocument, data: BulletinP
     need(h + 34); doc.rect(left, y, width, h).fill('#e9eef5'); text(name, left + 6, y + 6, width - 12, 9, true); y += h
   }
   header()
-  for (const ambit of report.axes.flatMap(axis => report.ambits.filter(ambit => ambit.axis === axis.id).map(ambit => ({
-    ...ambit, name: `${axis.name} · ${ambit.name}`,
-  })))) {
+  for (const ambit of report.ambits) {
     const rows = report.rows.filter(row => row.ambit === ambit.id)
     if (!rows.length) continue
     ambitHeading(ambit.name)
     for (const row of rows) {
-      let remaining = `${row.historical ? 'Indicador histórico · ' : ''}${row.code} · ${row.text}`
+      let remaining = `${row.historicalCompetency ? 'Competencia histórica · ' : ''}${row.code} · ${row.text}`
       while (remaining) {
         const previous = page
         need(34)
@@ -94,13 +92,13 @@ export function drawPreparatoryBulletin(doc: PDFKit.PDFDocument, data: BulletinP
     }
   }
   y += 10
-  paragraph('Lectura del informe', 'Pendiente: competencia seleccionada sin valoración. —: no seleccionada en este período. NE: no trabajada.')
+  paragraph('Lectura del informe', 'Pendiente: aprendizaje seleccionado sin valoración. —: no seleccionado en este período. NE: no trabajado. No se calculan promedios numéricos.')
   paragraph('Escala cualitativa', report.scale.map(s => `${s.code}: ${s.label}`).join(' · '))
   for (const p of data.periods) {
     const comment = report.comments.find(c => c.periodId === p.id)?.text
     if (comment) paragraph(`${p.name} · Fortalezas y recomendaciones`, comment)
     const notes = report.rows.filter(row => row.periods[p.id]?.notes).map(row => `${row.code}: ${row.periods[p.id].notes}`).join('\n')
-    if (notes) paragraph(`${p.name} · Observaciones de evaluación`, notes)
+    if (notes) paragraph(`${p.name} · Observaciones de aprendizajes`, notes)
     const attendance = data.attendanceByPeriod.find(a => a.periodId === p.id), behavior = data.behaviorByPeriod.find(b => b.periodId === p.id)
     paragraph(`${p.name} · Asistencia y comportamiento`, `${attendance ? `Días asistidos: ${attendance.attendedDays} · Faltas justificadas: ${attendance.justifiedAbsences} · Faltas injustificadas: ${attendance.unjustifiedAbsences} · Atrasos: ${attendance.lateCount}` : 'Sin registro de asistencia'}\nComportamiento: ${behavior?.code ?? 'Pendiente'}${behavior?.notes ? ` · ${behavior.notes}` : ''}`)
   }
