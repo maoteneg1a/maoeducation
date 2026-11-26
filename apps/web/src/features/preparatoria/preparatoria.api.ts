@@ -6,7 +6,7 @@ export interface PrepContext {
  periods: { id: string; name: string; isActive: boolean; isClosed: boolean }[]
  program: null | { id: string; enabled: boolean; revision: number; catalogVersion: string; scaleVersion: string; catalog: Indicator[]; selections: Record<string,string[]>; ambitTeachers: Record<string,string>; reviewedAt: string | null }
  ambits: { id: string; name: string }[]; catalogSource: string; teachers: { id: string; name: string }[]
- canConfigure: boolean; editableAmbits: string[]; canComment: boolean; scale: { code: string; label: string }[]
+ canConfigure: boolean; curriculumLocked: boolean; editableAmbits: string[]; canComment: boolean; scale: { code: string; label: string }[]
 }
 export interface PrepValue { studentId: string; itemKey: string; code: string | null; notes: string }
 export interface PrepComment { studentId: string; text: string }

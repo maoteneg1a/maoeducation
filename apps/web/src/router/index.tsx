@@ -646,6 +646,19 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      {
+        path: 'settings/preparatoria',
+        element: <PermissionGuard permission="academic_config:manage" />,
+        children: [
+          {
+            index: true,
+            lazy: () =>
+              import('@/features/settings/pages/PreparatorySettingsPage').then((m) => ({
+                Component: m.PreparatorySettingsPage,
+              })),
+          },
+        ],
+      },
       // ---- Settings / Juntas de curso ----
       {
         path: 'settings/juntas-curso',

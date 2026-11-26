@@ -20,6 +20,17 @@ function unpack(program: { catalog: unknown; selections: unknown; ambitTeachers:
   return { catalog: program.catalog as CatalogItem[], selections: program.selections as Record<string, string[]>, ambitTeachers: program.ambitTeachers as Record<string, string> }
 }
 
+type GradeScope = { institutionId: string; academicYearId: string; levelId: string }
+function gradePrograms({ institutionId, academicYearId, levelId }: GradeScope): Prisma.PreparatoryProgramWhereInput {
+  return { institutionId, academicYearId, parallel: { institutionId, academicYearId, levelId } }
+}
+
+async function lockGrade(tx: Prisma.TransactionClient, grade: GradeScope) {
+  // Una valoración nueva y un cambio de distribución del grado no pueden cruzarse.
+  const key = `preparatoria:${grade.institutionId}:${grade.academicYearId}:${grade.levelId}`
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`
+}
+
 export async function preparatoryOptions(actor: PrepActor) {
   if (!canRead(actor) || (!isAuthority(actorOf(actor)) && !actor.roles.includes('teacher'))) return { parallels: [] }
   const parallels = await prisma.parallel.findMany({
@@ -62,11 +73,14 @@ export async function preparatoryContext(actor: PrepActor, parallelId: string) {
   const data = ctx.program ? unpack(ctx.program) : null
   const viewAll = ctx.authority || ctx.coordinator === actor.sub
   const visibleAmbits = AMBITS.filter(a => viewAll || data?.ambitTeachers[a.id] === actor.sub)
+  const curriculumLocked = ctx.canConfigure && !!await prisma.preparatoryProgram.findFirst({
+    where: { ...gradePrograms(ctx.parallel), values: { some: {} } }, select: { id: true },
+  })
   return {
     parallel: { id: ctx.parallel.id, name: ctx.parallel.name, levelName: ctx.parallel.level.name, yearId: ctx.parallel.academicYearId, yearName: ctx.parallel.academicYear.name, tutorName: ctx.parallel.tutor ? `${ctx.parallel.tutor.profile?.lastName ?? ''} ${ctx.parallel.tutor.profile?.firstName ?? ''}`.trim() : null },
     periods: ctx.parallel.academicYear.academicPeriods.map(p => ({ id: p.id, name: p.name, isActive: p.isActive, isClosed: p.isClosed })),
     program: ctx.program && data ? { ...ctx.program, catalog: data.catalog.filter(item => visibleAmbits.some(a => a.id === item.ambit)) } : null, ambits: visibleAmbits, catalogSource: CATALOG.source,
-    teachers: ctx.teachers, canConfigure: ctx.canConfigure,
+    teachers: ctx.teachers, canConfigure: ctx.canConfigure, curriculumLocked,
     editableAmbits: canWrite(actor) && ctx.program?.enabled ? AMBITS.filter(a => ctx.authority || data?.ambitTeachers[a.id] === actor.sub).map(a => a.id) : [],
     canComment: canWrite(actor) && (ctx.authority || ctx.coordinator === actor.sub),
     scale: scaleFor(ctx.program?.scaleVersion ?? '2026-00082A'),
@@ -77,11 +91,20 @@ export async function prepareProgram(actor: PrepActor, parallelId: string) {
   const ctx = await context(actor, parallelId)
   if (!ctx.canConfigure) throw new ForbiddenError('Solo la autoridad puede activar la modalidad de Primero de Básica')
   if (ctx.program) return preparatoryContext(actor, parallelId)
-  await prisma.preparatoryProgram.upsert({ where: { parallelId }, update: {}, create: {
-    institutionId: actor.institutionId, parallelId, academicYearId: ctx.parallel.academicYearId,
-    enabled: false, catalogVersion: CATALOG.version, catalog: json(CATALOG.items),
-    ambitTeachers: json(Object.fromEntries(AMBITS.map(a => [a.id, ctx.coordinator ?? '']))),
-  } })
+  await prisma.$transaction(async tx => {
+    await lockGrade(tx, ctx.parallel)
+    // Preferir un catálogo con valoraciones, seguido de uno revisado.
+    const source = await tx.preparatoryProgram.findFirst({
+      where: gradePrograms(ctx.parallel),
+      orderBy: [{ values: { _count: 'desc' } }, { reviewedAt: { sort: 'desc', nulls: 'last' } }, { id: 'asc' }],
+      select: { catalogVersion: true, catalog: true },
+    })
+    await tx.preparatoryProgram.upsert({ where: { parallelId }, update: {}, create: {
+      institutionId: actor.institutionId, parallelId, academicYearId: ctx.parallel.academicYearId,
+      enabled: false, catalogVersion: source?.catalogVersion ?? CATALOG.version, catalog: json(source?.catalog ?? CATALOG.items),
+      ambitTeachers: json(Object.fromEntries(AMBITS.map(a => [a.id, ctx.coordinator ?? '']))),
+    } })
+  }, { timeout: 30000 })
   return preparatoryContext(actor, parallelId)
 }
 
@@ -91,6 +114,7 @@ async function mutate<T>(actor: PrepActor, ctx: Awaited<ReturnType<typeof contex
   if (!program) throw new BadRequestError('Prepara primero el catálogo de Preparatoria')
   if (program.revision !== expectedRevision) throw new ConflictError('La información cambió en otra sesión. Recarga antes de guardar; tus cambios no se han aplicado.')
   return prisma.$transaction(async tx => {
+    await lockGrade(tx, ctx.parallel)
     const locked = await tx.preparatoryProgram.updateMany({ where: { id: program.id, institutionId: actor.institutionId, revision: expectedRevision }, data: { revision: { increment: 1 } } })
     if (locked.count !== 1) throw new ConflictError('La información cambió en otra sesión. Recarga antes de guardar.')
     const output = await operation(tx, program)
@@ -114,9 +138,36 @@ export async function configureProgram(actor: PrepActor, parallelId: string, bod
     if (teacherId && !ctx.teachers.some(t => t.id === teacherId)) throw new BadRequestError('El responsable debe ser un docente activo de esta institución')
   }
   const catalog = existing.catalog.map(item => ({ ...item, ambit: distribution.get(item.key)! }))
+  const distributionChanged = existing.catalog.some(item => item.ambit !== distribution.get(item.key))
   await mutate(actor, ctx, input.expectedRevision, 'preparatoria.configure', async (tx, program) => {
-    const hasValues = await tx.preparatoryValue.count({ where: { programId: program.id } })
-    if (hasValues && (JSON.stringify(catalog) !== JSON.stringify(existing.catalog) || input.scaleVersion !== program.scaleVersion)) throw new ConflictError('El catálogo y la escala tienen valoraciones históricas. No pueden redefinirse; conserva esta versión.')
+    if (input.scaleVersion !== program.scaleVersion && await tx.preparatoryValue.count({ where: { programId: program.id } })) {
+      throw new ConflictError('La escala de este paralelo tiene valoraciones históricas.')
+    }
+    if (distributionChanged) {
+      const scope = gradePrograms(ctx.parallel)
+      const graded = await tx.preparatoryProgram.findFirst({ where: { ...scope, values: { some: {} } }, select: { id: true } })
+      if (graded) throw new ConflictError('La distribución del grado está protegida porque ya existen valoraciones históricas.')
+      const siblings = await tx.preparatoryProgram.findMany({
+        where: { ...scope, id: { not: program.id } },
+        select: { id: true, catalog: true, catalogVersion: true },
+      })
+      for (const sibling of siblings) {
+        const oldCatalog = sibling.catalog as unknown as CatalogItem[]
+        if (sibling.catalogVersion !== program.catalogVersion || oldCatalog.length !== catalog.length || oldCatalog.some(item => !distribution.has(item.key))) {
+          throw new ConflictError('Hay versiones de catálogo incompatibles entre los paralelos de este grado.')
+        }
+        if (oldCatalog.every(item => item.ambit === distribution.get(item.key))) continue
+        const newCatalog = oldCatalog.map(item => ({ ...item, ambit: distribution.get(item.key)! }))
+        await tx.preparatoryProgram.update({
+          where: { id: sibling.id }, data: { catalog: json(newCatalog), revision: { increment: 1 } },
+        })
+        await tx.auditLog.create({
+          data: { institutionId: actor.institutionId, userId: actor.sub, impersonatorId: actor.impersonatedBy,
+            action: 'preparatoria.distribution', resourceType: 'preparatoria', resourceId: sibling.id,
+            oldValue: json({ catalog: oldCatalog }), newValue: json({ catalog: newCatalog, sourceParallelId: parallelId }) },
+        })
+      }
+    }
     const update = { enabled: input.enabled, catalog: json(catalog), scaleVersion: input.scaleVersion, ambitTeachers: json(input.ambitTeachers), reviewedAt: new Date(), reviewedBy: actor.sub }
     await tx.preparatoryProgram.update({ where: { id: program.id }, data: update })
     return { oldValue: { enabled: program.enabled, catalog: existing.catalog, scaleVersion: program.scaleVersion, ambitTeachers: existing.ambitTeachers }, newValue: update, result: null }
