@@ -6,7 +6,7 @@ import { AMBITS, CATALOG, scaleFor, valuesSchema } from '../domain/preparatoria-
 const teacher={sub:'teacher',institutionId:'school',roles:['teacher'],permissions:['grades:read:own','grades:write:own']} as PrepActor
 const item=CATALOG.items[0]
 function program(){return {id:'program',parallelId:'parallel',institutionId:'school',academicYearId:'year',revision:3,enabled:true,catalogVersion:CATALOG.version,scaleVersion:'2026-00082A',catalog:CATALOG.items,selections:{p1:[item.key]},ambitTeachers:Object.fromEntries(AMBITS.map(a=>[a.id,'teacher']))}}
-function parallel(){return {id:'parallel',name:'A',institutionId:'school',academicYearId:'year',tutorId:'teacher',level:{code:'1B',name:'Primero',subnivel:'preparatoria'},academicYear:{id:'year',name:'2026',academicPeriods:[{id:'p1',name:'Primero',isActive:true,isClosed:false},{id:'p2',name:'Segundo',isActive:false,isClosed:false}]},tutor:{id:'teacher',profile:{firstName:'Docente',lastName:'Prueba'}},courseAssignments:[{teacherId:'teacher',teacher:{id:'teacher',isActive:true,profile:{firstName:'Docente',lastName:'Prueba'}}}]}}
+function parallel(){return {id:'parallel',name:'A',institutionId:'school',institution:{code:'SCHOOL'},academicYearId:'year',tutorId:'teacher',level:{code:'1B',name:'Primero',subnivel:'preparatoria'},academicYear:{id:'year',name:'2026',academicPeriods:[{id:'p1',name:'Primero',isActive:true,isClosed:false},{id:'p2',name:'Segundo',isActive:false,isClosed:false}]},tutor:{id:'teacher',profile:{firstName:'Docente',lastName:'Prueba'}},courseAssignments:[{teacherId:'teacher',teacher:{id:'teacher',isActive:true,profile:{firstName:'Docente',lastName:'Prueba'}}}]}}
 beforeEach(()=>{
  vi.resetAllMocks();db.user.findMany.mockResolvedValue([{id:'teacher',profile:{firstName:'Docente',lastName:'Prueba'}}]);db.parallel.findFirst.mockResolvedValue(parallel());db.preparatoryProgram.findFirst.mockResolvedValue(program());db.preparatoryProgram.updateMany.mockResolvedValue({count:1});db.studentEnrollment.count.mockResolvedValue(1);db.studentEnrollment.findMany.mockResolvedValue([{student:{id:'student',profile:{firstName:'Ana',lastName:'Prueba',dni:'E001'}}}]);db.preparatoryValue.findMany.mockResolvedValue([]);db.preparatoryComment.findMany.mockResolvedValue([]);db.preparatoryValue.count.mockResolvedValue(0);db.$transaction.mockImplementation(async(fn:any)=>fn(db))
 })
@@ -90,6 +90,41 @@ describe('ámbito, matrícula y aislamiento de Preparatoria',()=>{
   const report=await preparatoryReport('school','parallel','year','student')
   expect(report?.rows[0].periods.p1).toEqual({selected:false,code:'B-',notes:'Logro histórico'})
   expect(db.preparatoryProgram.findFirst).toHaveBeenCalledWith({where:{institutionId:'school',parallelId:'parallel',academicYearId:'year',enabled:true}})
+ })
+ it('aplica la plantilla de UEEU del año lectivo y conserva los permisos del ámbito curricular', async () => {
+  const course = parallel()
+  db.parallel.findFirst.mockResolvedValue({ ...course, institution: { code: 'UEEU' }, academicYear: { ...course.academicYear, name: '2026-2027' } })
+  const workbookKeys = ['I.CI.1.13.1', 'I.CI.1.13.2', 'I.CI.1.13.4', 'I.CI.1.7.2', 'I.CI.1.12.1', 'I.CI.0.9.26', 'I.CI.1.10.1']
+  const unlistedMathKey = 'I.CI.1.13.3'
+  const mathTeacher = { ...teacher, sub: 'specialist' }
+  db.preparatoryProgram.findFirst.mockResolvedValue({
+   ...program(), selections: { p1: [...workbookKeys, unlistedMathKey] }, ambitTeachers: { math: 'specialist', environment: 'teacher' },
+  })
+  db.preparatoryValue.findMany.mockResolvedValue([{ itemKey: workbookKeys[0], periodId: 'p1', code: 'B+', notes: 'Observación conservada' }])
+  const report = await preparatoryReport('school', 'parallel', 'year', 'student')
+  const groups = Object.fromEntries(report!.rows.map(row => [row.key, row.ambit]))
+  expect(workbookKeys.map(key => groups[key])).toEqual(['personal', 'personal', 'personal', 'discovery', 'discovery', 'discovery', 'expression'])
+  expect(groups[unlistedMathKey]).toBe('discovery')
+  expect(report!.ambits.map(ambit => ambit.name)).toEqual([
+   'Ámbito 1 · Personal Social y Cultural',
+   'Ámbito 2 · Descubrimiento del Medio Natural',
+   'Ámbito 3 · Expresión y Comunicación',
+  ])
+  expect(report!.rows.find(row => row.key === workbookKeys[0])?.periods.p1).toEqual({ selected: true, code: 'B+', notes: 'Observación conservada' })
+  const restricted = await preparatoryReport('school', 'parallel', 'year', 'student', mathTeacher)
+  expect(restricted!.rows.map(row => row.key)).toEqual(expect.arrayContaining([...workbookKeys.slice(0, 4), unlistedMathKey]))
+  expect(restricted!.rows).toHaveLength(5)
+  const context = await preparatoryContext(mathTeacher, 'parallel')
+  expect(context.editableAmbits).toEqual(['math'])
+  expect(context.program?.catalog.find(item => item.key === workbookKeys[0])?.ambit).toBe('math')
+  expect(db.preparatoryProgram.update).not.toHaveBeenCalled()
+  expect(db.preparatoryValue.upsert).not.toHaveBeenCalled()
+  db.parallel.findFirst.mockResolvedValueOnce({ ...course, institution: { code: 'UEEU' } }).mockResolvedValueOnce(course)
+  for (let i = 0; i < 2; i++) {
+   const standard = await preparatoryReport('school', 'parallel', 'year', 'student')
+   expect(standard!.ambits).toEqual(AMBITS)
+   expect(standard!.rows.find(row => row.key === workbookKeys[0])?.ambit).toBe('math')
+  }
  })
  it('impide redefinir catálogo o escala cuando ya hay valoraciones',async()=>{
   db.preparatoryValue.count.mockResolvedValue(1)

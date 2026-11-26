@@ -8,13 +8,17 @@ export function drawPreparatoryBulletin(doc: PDFKit.PDFDocument, data: BulletinP
   let y = 24, page = 0
   function font(size = 9, bold = false) { doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(size).fillColor('#172033') }
   function height(value: string, w: number, size = 9, bold = false) { font(size, bold); return doc.heightOfString(value, { width: w, lineGap: 2 }) }
-  function text(value: string, x: number, top: number, w: number, size = 9, bold = false) { font(size, bold); doc.text(value, x, top, { width: w, lineGap: 2 }) }
+  function text(value: string, x: number, top: number, w: number, size = 9, bold = false, align: 'left' | 'center' = 'left') {
+    font(size, bold)
+    doc.text(value, x, top, { width: w, lineGap: 2, align })
+  }
   function header() {
     page++; y = 24
     if (logo) { try { doc.image(logo, left, y, { fit: [42, 42] }) } catch { /* Un logo inválido no impide emitir el informe. */ } }
-    const institutionHeight = height(data.institutionName, width - 60, 12, true)
-    text(data.institutionName, left + 52, y, width - 60, 12, true)
-    y += Math.max(52, institutionHeight + 10)
+    const institutionOffset = logo ? 52 : 0
+    const institutionHeight = height(data.institutionName, width - institutionOffset, 12, true)
+    text(data.institutionName, left + institutionOffset, y, width - institutionOffset, 12, true)
+    y += Math.max(logo ? 52 : 0, institutionHeight + 10)
     const baseTitle = data.title || 'INFORME DE APRENDIZAJES'
     const title = baseTitle.toLocaleLowerCase('es').includes('preparatoria') ? baseTitle : `${baseTitle} · PREPARATORIA`
     text(title, left, y, width, 11, true); y += height(title, width, 11, true) + 8
@@ -22,19 +26,25 @@ export function drawPreparatoryBulletin(doc: PDFKit.PDFDocument, data: BulletinP
     text(student, left, y, width, 9, true); y += height(student, width, 9, true) + 6
     const course = `${data.levelName} ${data.parallelName} · ${data.yearName} · Tutor/a: ${data.tutorName || '—'}`
     text(course, left, y, width); y += height(course, width) + 12
-    const headingHeight = Math.max(26, ...data.periods.map(p => height(p.name, colWidth - 8, 8, true) + 12))
-    doc.rect(left, y, width, headingHeight).fill('#edf2f8')
-    text('Ámbito / aprendizaje evaluado', left + 6, y + 6, labelWidth - 12, 9, true)
-    data.periods.forEach((p, i) => text(p.name, left + labelWidth + i * colWidth + 4, y + 6, colWidth - 8, 8, true))
-    y += headingHeight
     // El pie tiene posición absoluta; no debe crear una página automática adicional.
     const margin = doc.page.margins.bottom
     doc.page.margins.bottom = 0
     doc.font('Helvetica').fontSize(7).fillColor('#64748b').text(`Auleka · Preparatoria · página ${page}`, left, doc.page.height - 26, { width, align: 'right', lineBreak: false })
     doc.page.margins.bottom = margin
   }
-  function next() { doc.addPage({ size: 'A4', layout: 'landscape', margin: 24 }); header() }
-  function need(h: number) { if (y + h > bottom) next() }
+  function learningHeader() {
+    const headingHeight = Math.max(26, ...data.periods.map(p => height(p.name, colWidth - 8, 8, true) + 12))
+    doc.rect(left, y, width, headingHeight).fill('#edf2f8')
+    text('Ámbito / aprendizaje evaluado', left + 6, y + 6, labelWidth - 12, 9, true)
+    data.periods.forEach((p, i) => text(p.name, left + labelWidth + i * colWidth + 4, y + 6, colWidth - 8, 8, true))
+    y += headingHeight
+  }
+  function next(withLearningHeader = false) {
+    doc.addPage({ size: 'A4', layout: 'landscape', margin: 24 })
+    header()
+    if (withLearningHeader) learningHeader()
+  }
+  function need(h: number, withLearningHeader = false) { if (y + h > bottom) next(withLearningHeader) }
   function prefix(value: string, w: number, available: number) {
     let low = 0, high = value.length
     while (low < high) {
@@ -65,9 +75,49 @@ export function drawPreparatoryBulletin(doc: PDFKit.PDFDocument, data: BulletinP
   }
   function ambitHeading(name: string) {
     const h = Math.max(24, height(name, width - 12, 9, true) + 12)
-    need(h + 34); doc.rect(left, y, width, h).fill('#e9eef5'); text(name, left + 6, y + 6, width - 12, 9, true); y += h
+    need(h + 34, true); doc.rect(left, y, width, h).fill('#e9eef5'); text(name, left + 6, y + 6, width - 12, 9, true); y += h
   }
+
+  const attendance = new Map(data.attendanceByPeriod.map(row => [row.periodId, row]))
+  const behavior = new Map(data.behaviorByPeriod.map(row => [row.periodId, row]))
+
+  function attendanceAndBehaviorTable() {
+    if (!data.periods.length) return
+    const metricWidth = width * 0.42
+    const periodWidth = (width - metricWidth) / data.periods.length
+    const headings = ['Indicador', ...data.periods.map(period => period.name)]
+    const rows = [
+      ['Días asistidos', ...data.periods.map(period => String(attendance.get(period.id)?.attendedDays ?? '—'))],
+      ['Faltas justificadas', ...data.periods.map(period => String(attendance.get(period.id)?.justifiedAbsences ?? '—'))],
+      ['Faltas injustificadas', ...data.periods.map(period => String(attendance.get(period.id)?.unjustifiedAbsences ?? '—'))],
+      ['Atrasos', ...data.periods.map(period => String(attendance.get(period.id)?.lateCount ?? '—'))],
+      ['Comportamiento', ...data.periods.map(period => behavior.get(period.id)?.code ?? 'Pendiente')],
+    ]
+    const cellWidth = (index: number) => index === 0 ? metricWidth : periodWidth
+    const headingHeight = Math.max(19, ...headings.map((value, index) => height(value, cellWidth(index) - 12, 8, true) + 6))
+    const rowHeights = rows.map(row => Math.max(16, ...row.map((value, index) => height(value, cellWidth(index) - 12, 8) + 6)))
+    const titleHeight = 17
+    need(titleHeight + headingHeight + rowHeights.reduce((sum, h) => sum + h, 0))
+    text('Asistencia y comportamiento', left, y, width, 9, true)
+    y += titleHeight
+    for (const [index, row] of [headings, ...rows].entries()) {
+      const isHeader = index === 0
+      const rowHeight = isHeader ? headingHeight : rowHeights[index - 1]
+      if (isHeader) doc.rect(left, y, width, rowHeight).fill('#edf2f8')
+      let x = left
+      for (const [column, value] of row.entries()) {
+        const w = cellWidth(column)
+        doc.strokeColor('#dce3ec').lineWidth(0.5).rect(x, y, w, rowHeight).stroke()
+        text(value, x + 6, y + 3, w - 12, 8, isHeader, column === 0 ? 'left' : 'center')
+        x += w
+      }
+      y += rowHeight
+    }
+    y += 10
+  }
+
   header()
+  if (report.rows.length) learningHeader()
   for (const ambit of report.ambits) {
     const rows = report.rows.filter(row => row.ambit === ambit.id)
     if (!rows.length) continue
@@ -76,10 +126,10 @@ export function drawPreparatoryBulletin(doc: PDFKit.PDFDocument, data: BulletinP
       let remaining = `${row.historicalCompetency ? 'Competencia histórica · ' : ''}${row.code} · ${row.text}`
       while (remaining) {
         const previous = page
-        need(34)
+        need(34, true)
         if (previous !== page) ambitHeading(`${ambit.name} (continuación)`)
         const count = prefix(remaining, labelWidth - 12, bottom - y - 12)
-        if (!count) { next(); ambitHeading(`${ambit.name} (continuación)`); continue }
+        if (!count) { next(true); ambitHeading(`${ambit.name} (continuación)`); continue }
         const chunk = remaining.slice(0, count), h = Math.max(32, height(chunk, labelWidth - 12) + 12)
         text(chunk, left + 6, y + 6, labelWidth - 12)
         data.periods.forEach((p, i) => {
@@ -92,15 +142,22 @@ export function drawPreparatoryBulletin(doc: PDFKit.PDFDocument, data: BulletinP
     }
   }
   y += 10
+  attendanceAndBehaviorTable()
   paragraph('Lectura del informe', 'Pendiente: aprendizaje seleccionado sin valoración. —: no seleccionado en este período. NE: no trabajado. No se calculan promedios numéricos.')
-  paragraph('Escala cualitativa', report.scale.map(s => `${s.code}: ${s.label}`).join(' · '))
+  const scaleByLabel = new Map<string, string[]>()
+  for (const { code, label } of report.scale) {
+    const codes = scaleByLabel.get(label)
+    if (codes) codes.push(code)
+    else scaleByLabel.set(label, [code])
+  }
+  paragraph('Escala cualitativa', Array.from(scaleByLabel, ([label, codes]) => `${codes.join(', ')}: ${label}`).join(' · '))
   for (const p of data.periods) {
     const comment = report.comments.find(c => c.periodId === p.id)?.text
     if (comment) paragraph(`${p.name} · Fortalezas y recomendaciones`, comment)
     const notes = report.rows.filter(row => row.periods[p.id]?.notes).map(row => `${row.code}: ${row.periods[p.id].notes}`).join('\n')
     if (notes) paragraph(`${p.name} · Observaciones de aprendizajes`, notes)
-    const attendance = data.attendanceByPeriod.find(a => a.periodId === p.id), behavior = data.behaviorByPeriod.find(b => b.periodId === p.id)
-    paragraph(`${p.name} · Asistencia y comportamiento`, `${attendance ? `Días asistidos: ${attendance.attendedDays} · Faltas justificadas: ${attendance.justifiedAbsences} · Faltas injustificadas: ${attendance.unjustifiedAbsences} · Atrasos: ${attendance.lateCount}` : 'Sin registro de asistencia'}\nComportamiento: ${behavior?.code ?? 'Pendiente'}${behavior?.notes ? ` · ${behavior.notes}` : ''}`)
+    const behaviorNotes = behavior.get(p.id)?.notes
+    if (behaviorNotes) paragraph(`${p.name} · Observación de comportamiento`, behaviorNotes)
   }
   for (const r of data.recommendations ?? []) paragraph(`${data.periods.find(p => p.id === r.periodId)?.name ?? ''} · Recomendaciones`, r.text)
   const teacher = `${data.teacherLabel || 'Docente tutor/a'}: ${data.tutorName || '________________'}`
