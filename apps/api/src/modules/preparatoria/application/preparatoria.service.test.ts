@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const db=vi.hoisted(()=>({user:{findMany:vi.fn()},parallel:{findFirst:vi.fn(),findMany:vi.fn()},preparatoryProgram:{findFirst:vi.fn(),findMany:vi.fn(),updateMany:vi.fn(),update:vi.fn(),upsert:vi.fn()},studentEnrollment:{findMany:vi.fn(),count:vi.fn()},preparatoryValue:{findMany:vi.fn(),count:vi.fn(),upsert:vi.fn()},preparatoryComment:{findMany:vi.fn(),upsert:vi.fn()},auditLog:{create:vi.fn()},$executeRaw:vi.fn(),$transaction:vi.fn()}))
 vi.mock('../../../shared/infrastructure/database/prisma',()=>({prisma:db}))
 import { preparatoryContext, preparatoryOptions, selectPeriodLearning, savePreparatoryValues, configureProgram, prepareProgram, preparatoryReport, type PrepActor } from './preparatoria.service'
-import { AMBITS, CATALOG, scaleFor, valuesSchema } from '../domain/preparatoria-policy'
+import { AMBITS, CATALOG, preparatoryCompetencies, scaleFor, valuesSchema } from '../domain/preparatoria-policy'
 const teacher={sub:'teacher',institutionId:'school',roles:['teacher'],permissions:['grades:read:own','grades:write:own']} as PrepActor
-const item=CATALOG.items[0]
+const competencies=preparatoryCompetencies(CATALOG.items)
+const item=competencies[0]
 function program(){return {id:'program',parallelId:'parallel',institutionId:'school',academicYearId:'year',revision:3,enabled:true,catalogVersion:CATALOG.version,scaleVersion:'2026-00082A',catalog:CATALOG.items,selections:{p1:[item.key]},ambitTeachers:Object.fromEntries(AMBITS.map(a=>[a.id,'teacher']))}}
 function parallel(){return {id:'parallel',name:'A',institutionId:'school',academicYearId:'year',tutorId:'teacher',level:{code:'1B',name:'Primero',subnivel:'preparatoria'},academicYear:{id:'year',name:'2026',academicPeriods:[{id:'p1',name:'Primero',isActive:true,isClosed:false},{id:'p2',name:'Segundo',isActive:false,isClosed:false}]},tutor:{id:'teacher',profile:{firstName:'Docente',lastName:'Prueba'}},courseAssignments:[{teacherId:'teacher',teacher:{id:'teacher',isActive:true,profile:{firstName:'Docente',lastName:'Prueba'}}}]}}
 beforeEach(()=>{
@@ -93,7 +94,7 @@ describe('ámbito, matrícula y aislamiento de Preparatoria',()=>{
  })
  it('impide redefinir catálogo o escala cuando ya hay valoraciones',async()=>{
   db.preparatoryValue.count.mockResolvedValue(1)
-  await expect(configureProgram({...teacher,roles:['admin']},'parallel',{expectedRevision:3,enabled:true,reviewed:true,scaleVersion:'2025-INSTRUCTIVO',ambitTeachers:program().ambitTeachers,distribution:CATALOG.items.map(i=>({key:i.key,ambit:i.ambit}))})).rejects.toThrow('históricas')
+  await expect(configureProgram({...teacher,roles:['admin']},'parallel',{expectedRevision:3,enabled:true,reviewed:true,scaleVersion:'2025-INSTRUCTIVO',ambitTeachers:program().ambitTeachers,distribution:competencies.map(i=>({key:i.key,ambit:i.ambit}))})).rejects.toThrow('históricas')
   expect(db.preparatoryProgram.update).not.toHaveBeenCalled()
  })
  it('exige códigos válidos y sin campos arbitrarios',()=>{
