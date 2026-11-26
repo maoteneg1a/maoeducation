@@ -1,9 +1,11 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BookOpen, Save, Search, FileText, History } from 'lucide-react'
+import { Save, Search, FileText, History } from 'lucide-react'
 import { toast } from 'sonner'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth.store'
+import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
+import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { confirmDialog } from '@/shared/components/ui/confirm-dialog'
@@ -18,21 +20,80 @@ import { LearningSelection } from './LearningSelection'
 const selectClass = 'rounded-md border bg-background px-3 py-2 text-sm max-w-full disabled:opacity-60'
 const normalize = (s:string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase()
 
-/** El flujo numérico se conserva íntegro y solo se monta cuando está seleccionado. */
-export function PreparatoryGrades({ children }: {children:(onPendingChange:(dirty:boolean)=>void)=>ReactNode}) {
- const user = useAuthStore(s=>s.user)
- const options = useQuery({queryKey:['preparatoria-options',user?.institutionId,user?.id],queryFn:prepApi.options})
- const [mode,setMode] = useState('regular')
- const [regularDirty,setRegularDirty] = useState(false)
- const changeMode = async(next:string)=>{if(regularDirty&&!await confirmDialog({title:'¿Descartar los cambios sin guardar?',description:'Guarda las notas antes de cambiar de modalidad o descarta los cambios.',confirmText:'Descartar cambios',cancelText:'Seguir editando',destructive:true}))return;setRegularDirty(false);setMode(next)}
- if (mode==='prep' && options.data?.parallels.length) return <PreparatoryWorkspace options={options.data.parallels} onExit={()=>setMode('regular')}/>
- if (!options.data?.parallels.length) return <>{children(setRegularDirty)}</>
- return <div className="space-y-5"><div className="flex flex-wrap gap-3 items-center px-4 pt-4 sm:px-6"><BookOpen className="h-5 w-5"/><span className="font-medium">Tipo de evaluación</span><select aria-label="Tipo de evaluación" className={selectClass} value={mode} onChange={e=>void changeMode(e.target.value)}><option value="regular">Calificaciones por asignatura</option><option value="prep">Preparatoria · Aprendizajes</option></select></div>{mode==='prep'?<PreparatoryWorkspace options={options.data.parallels} onExit={()=>setMode('regular')}/>:children(setRegularDirty)}</div>
+type GradeView = 'regular' | 'prep'
+type RegularGradesProps = {
+  teacherDefaults: ReturnType<typeof useTeacherDefaults>
+  onPendingChange: (dirty: boolean) => void
+  ignoreAssignmentLink: boolean
+  onOpenPreparatory?: () => void
 }
 
-function PreparatoryWorkspace({options,onExit}:{options:PrepOption[];onExit:()=>void}) {
+export function PreparatoryGrades({ mode, children }: {
+  mode: 'entry' | 'summary'
+  children: (props: RegularGradesProps) => ReactNode
+}) {
+  const user = useAuthStore(state => state.user)
+  const [params] = useSearchParams()
+  const authority = !!user?.roles.some(role => role === 'admin' || role === 'rector')
+  const eligible = authority || !!user?.roles.includes('teacher')
+  const options = useQuery({
+    queryKey: ['preparatoria-options', user?.institutionId, user?.id],
+    queryFn: prepApi.options,
+    enabled: eligible,
+  })
+  const parallels = options.data?.parallels ?? []
+  const enabledParallels = useMemo(
+    () => new Set(options.data?.parallels.filter(parallel => parallel.enabled).map(parallel => parallel.id)),
+    [options.data],
+  )
+  const teacherDefaults = useTeacherDefaults(enabledParallels)
+  const [view, setView] = useState<GradeView | null>(null)
+  const [regularDirty, setRegularDirty] = useState(false)
+
+  const consultation = mode === 'summary'
+  const regularAssignments = consultation ? teacherDefaults.consultableAssignments : teacherDefaults.assignments
+  const pending = consultation ? teacherDefaults.consultableAssignmentsPending : teacherDefaults.assignmentsPending
+  const assignmentError = consultation ? teacherDefaults.consultableAssignmentsError : teacherDefaults.assignmentsError
+
+  if (eligible && (options.isPending || (parallels.length > 0 && pending))) return <PageLoader />
+
+  const hasPreparatory = parallels.length > 0
+  const hasRegular = regularAssignments.length > 0 || assignmentError
+  const regularLink = regularAssignments.some(assignment => assignment.id === params.get('assignmentId'))
+  const activePreparatory = parallels.some(parallel => parallel.isActiveYear)
+  const defaultView = !hasRegular || (!authority && activePreparatory && !regularLink) ? 'prep' : 'regular'
+  const showPreparatory = hasPreparatory && (!hasRegular || (view ?? defaultView) === 'prep')
+
+  async function openPreparatory() {
+    if (regularDirty && !await confirmDialog({
+      title: '¿Descartar los cambios sin guardar?',
+      description: 'Guarda las notas antes de abrir Preparatoria o descarta los cambios.',
+      confirmText: 'Descartar cambios',
+      cancelText: 'Seguir editando',
+      destructive: true,
+    })) return
+    setRegularDirty(false)
+    setView('prep')
+  }
+
+  if (showPreparatory) {
+    return <PreparatoryWorkspace options={parallels} onExit={hasRegular ? () => setView('regular') : undefined} />
+  }
+  return <>{children({
+    teacherDefaults,
+    onPendingChange: setRegularDirty,
+    ignoreAssignmentLink: hasPreparatory && !assignmentError && !regularLink,
+    onOpenPreparatory: hasPreparatory ? () => void openPreparatory() : undefined,
+  })}</>
+}
+
+function PreparatoryWorkspace({ options, onExit }: { options: PrepOption[]; onExit?: () => void }) {
  const user = useAuthStore(s=>s.user)
- const [parallelId,setParallel] = useState(options.find(p=>p.isActiveYear)?.id??options[0].id)
+ const [parallelChoice,setParallel] = useState('')
+ const parallelId = options.find(p=>p.id===parallelChoice)?.id
+   ?? options.find(p=>p.isActiveYear&&p.enabled)?.id
+   ?? options.find(p=>p.isActiveYear)?.id
+   ?? options[0].id
  const [periodChoice,setPeriod] = useState('')
  const [search,setSearch] = useState(''), [ambit,setAmbit] = useState(''), [studentChoice,setStudentChoice] = useState('')
  const [values,setValues] = useState<Record<string,PrepValue>>({}), [comments,setComments] = useState<Record<string,PrepComment>>({})
@@ -61,8 +122,10 @@ function PreparatoryWorkspace({options,onExit}:{options:PrepOption[];onExit:()=>
  const items = ctx?.program?.catalog.filter(i=>sheet.data?.selectedKeys.includes(i.key)&&(!ambit||i.ambit===ambit))??[]
  const open = (p:typeof panel)=>void change(()=>setPanel(p))
  return <section className="min-w-0 space-y-5 p-4 sm:p-6">
-  <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">Aprendizajes de Preparatoria</h1><p className="text-muted-foreground">Valoración cualitativa por estudiante y período.</p></div><Button variant="outline" onClick={()=>void change(onExit)}>Volver a asignaturas</Button></div>
-  <div className="flex flex-wrap gap-3"><label className="grid gap-1 text-sm">Curso, jornada y año<select className={selectClass} value={parallelId} disabled={saving} onChange={e=>{const next=e.target.value;void change(()=>{setParallel(next);setPeriod('');setAmbit('');setStudentChoice('')})}}>{options.map(p=><option key={p.id} value={p.id}>{preparatoryParallelLabel(p)}</option>)}</select></label><label className="grid gap-1 text-sm">Período<select className={selectClass} value={periodId} disabled={saving} onChange={e=>{const next=e.target.value;void change(()=>setPeriod(next))}}>{ctx?.periods.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label></div>
+  <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">Calificar Preparatoria</h1><p className="text-muted-foreground">Valoración cualitativa por estudiante y período.</p></div>{onExit&&<Button variant="outline" disabled={saving} onClick={()=>void change(onExit)}>Calificaciones por asignatura</Button>}</div>
+  <div className="flex flex-wrap gap-3">{options.length === 1
+   ? <p className="self-end py-2 text-sm font-medium">{preparatoryParallelLabel(options[0])}</p>
+   : <label className="grid gap-1 text-sm">Curso, jornada y año<select className={selectClass} value={parallelId} disabled={saving} onChange={e=>{const next=e.target.value;void change(()=>{setParallel(next);setPeriod('');setAmbit('');setStudentChoice('')})}}>{options.map(p=><option key={p.id} value={p.id}>{preparatoryParallelLabel(p)}</option>)}</select></label>}<label className="grid gap-1 text-sm">Período<select className={selectClass} value={periodId} disabled={saving} onChange={e=>{const next=e.target.value;void change(()=>setPeriod(next))}}>{ctx?.periods.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label></div>
   {periodClosed&&<p className="rounded border p-3 text-sm">Período cerrado: solo consulta.</p>}
   {context.isLoading&&<p role="status">Cargando Preparatoria…</p>}
   {context.isError&&<p role="alert" className="text-destructive">{getErrorMessage(context.error)} <Button variant="outline" onClick={()=>void context.refetch()}>Reintentar</Button></p>}

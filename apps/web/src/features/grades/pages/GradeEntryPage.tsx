@@ -34,7 +34,7 @@ import { PageLoader } from '@/shared/components/feedback/loading-spinner'
 import { EmptyState } from '@/shared/components/feedback/empty-state'
 import { getErrorMessage, cn } from '@/shared/lib/utils'
 import { activitiesApi, type StudentGrade, type GradeInput, type GradeStatus } from '@/features/activities/api/activities.api'
-import { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
+import type { useTeacherDefaults } from '@/features/academic/hooks/useTeacherDefaults'
 import { getGradesReport, getMyGrades, type GradesReportData, type MyGradesSubject } from '@/features/reports/api/reports.api'
 import { useGuardianStudentId } from '@/features/guardian/components/ChildSwitcher'
 import { academicApi, type AcademicPeriod } from '@/features/academic/api/academic.api'
@@ -1644,18 +1644,23 @@ function PeriodProjectGradeGrid({
   </div>
 }
 
-function GradesPage({ mode, onPendingChange }: { mode: 'entry' | 'summary'; onPendingChange?: (dirty:boolean)=>void }) {
+function GradesPage({ mode, teacherDefaults, onPendingChange, onOpenPreparatory, ignoreAssignmentLink }: {
+  mode: 'entry' | 'summary'
+  teacherDefaults: ReturnType<typeof useTeacherDefaults>
+  onPendingChange: (dirty: boolean) => void
+  ignoreAssignmentLink: boolean
+  onOpenPreparatory?: () => void
+}) {
   const qc = useQueryClient()
   const user = useAuthStore((state) => state.user)
   const { hasAnyRole, hasPermission } = usePermissions()
   const isStudentOrGuardian = hasAnyRole('student', 'guardian')
   const canEnterManualGrades = !isStudentOrGuardian && hasPermission('grades:write')
   const [searchParams] = useSearchParams()
-  const requestedAssignmentId = isStudentOrGuardian ? '' : (searchParams.get('assignmentId') ?? '')
+  const requestedAssignmentId = isStudentOrGuardian || ignoreAssignmentLink ? '' : (searchParams.get('assignmentId') ?? '')
   const requestedPeriodId = isStudentOrGuardian ? '' : (searchParams.get('periodId') ?? '')
-  const requestedActivityId = isStudentOrGuardian ? '' : (searchParams.get('activityId') ?? '')
+  const requestedActivityId = isStudentOrGuardian || ignoreAssignmentLink ? '' : (searchParams.get('activityId') ?? '')
 
-  const teacherDefaults = useTeacherDefaults()
   const { data: gradingConfig } = useGradingConfig()
 
   // Student: load their own assignments + periods (backend resolves the active year)
@@ -1930,7 +1935,7 @@ function GradesPage({ mode, onPendingChange }: { mode: 'entry' | 'summary'; onPe
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             {isStudentOrGuardian ? 'Mis calificaciones' : consultationMode ? 'Consultar notas' : 'Calificar'}
@@ -1943,6 +1948,7 @@ function GradesPage({ mode, onPendingChange }: { mode: 'entry' | 'summary'; onPe
                 : 'Registra las calificaciones de las materias que impartes'}
           </p>
         </div>
+        {onOpenPreparatory && <Button variant="outline" onClick={onOpenPreparatory}>Preparatoria</Button>}
       </div>
 
       {/* Tabs */}
@@ -2290,9 +2296,9 @@ function GradesPage({ mode, onPendingChange }: { mode: 'entry' | 'summary'; onPe
 }
 
 export function GradeEntryPage() {
-  return <PreparatoryGrades>{onPendingChange => <GradesPage mode="entry" onPendingChange={onPendingChange} />}</PreparatoryGrades>
+  return <PreparatoryGrades mode="entry">{props => <GradesPage mode="entry" {...props} />}</PreparatoryGrades>
 }
 
 export function GradeConsultationPage() {
-  return <PreparatoryGrades>{onPendingChange => <GradesPage mode="summary" onPendingChange={onPendingChange} />}</PreparatoryGrades>
+  return <PreparatoryGrades mode="summary">{props => <GradesPage mode="summary" {...props} />}</PreparatoryGrades>
 }
