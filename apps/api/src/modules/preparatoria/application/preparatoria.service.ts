@@ -4,7 +4,7 @@ import { prisma } from '../../../shared/infrastructure/database/prisma'
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../../shared/domain/errors/app.errors'
 import { actorOf, hasPermission, isAuthority } from '../../../shared/infrastructure/services/actor'
 import { STUDENT_ENROLLMENT_ORDER } from '../../../shared/infrastructure/services/enrollment-query'
-import { AMBITS, CATALOG, type CatalogItem, configureSchema, historicalCompetencies, selectionSchema, valuesSchema, isPreparatoryLevel, scaleFor, uniqueKeys } from '../domain/preparatoria-policy'
+import { AMBITS, CATALOG, UEEU_FIRST_TERM_INDICATOR_KEYS, type CatalogItem, configureSchema, historicalCompetencies, selectionSchema, valuesSchema, isPreparatoryLevel, scaleFor, uniqueKeys } from '../domain/preparatoria-policy'
 import { preparatoryTeacherScope } from '../domain/preparatoria-scope'
 import { preparatoryBulletinLayout } from '../domain/preparatoria-bulletin-layout'
 
@@ -61,7 +61,7 @@ export async function preparatoryOptions(actor: PrepActor) {
 async function context(actor: PrepActor, parallelId: string, periodId?: string) {
   if (!canRead(actor)) throw new ForbiddenError()
   const parallel = await prisma.parallel.findFirst({ where: { id: parallelId, institutionId: actor.institutionId },
-    include: { level: true, academicYear: { include: { academicPeriods: { orderBy: { periodNumber: 'asc' } } } },
+    include: { institution: { select: { code: true } }, level: true, academicYear: { include: { academicPeriods: { orderBy: { periodNumber: 'asc' } } } },
       tutor: { select: { id: true, profile: { select: { firstName: true, lastName: true } } } },
     },
   })
@@ -113,10 +113,18 @@ export async function prepareProgram(actor: PrepActor, parallelId: string) {
       orderBy: [{ values: { _count: 'desc' } }, { reviewedAt: { sort: 'desc', nulls: 'last' } }, { id: 'asc' }],
       select: { catalogVersion: true, catalog: true },
     })
+    const programCatalog = (source?.catalog ?? CATALOG.items) as unknown as CatalogItem[]
+    const firstPeriod = ctx.parallel.academicYear.academicPeriods[0]
+    const hasInstitutionalTemplate = UEEU_FIRST_TERM_INDICATOR_KEYS.every(key => programCatalog.some(item => item.key === key))
+    const defaultSelections = ctx.parallel.institution.code.trim().toUpperCase() === 'UEEU'
+      && ctx.parallel.academicYear.name === '2026-2027' && firstPeriod && hasInstitutionalTemplate
+      ? { [firstPeriod.id]: [...UEEU_FIRST_TERM_INDICATOR_KEYS] }
+      : {}
     await tx.preparatoryProgram.upsert({ where: { parallelId }, update: {}, create: {
       institutionId: actor.institutionId, parallelId, academicYearId: ctx.parallel.academicYearId,
-      enabled: false, catalogVersion: source?.catalogVersion ?? CATALOG.version, catalog: json(source?.catalog ?? CATALOG.items),
+      enabled: false, catalogVersion: source?.catalogVersion ?? CATALOG.version, catalog: json(programCatalog),
       ambitTeachers: json(Object.fromEntries(AMBITS.map(a => [a.id, ctx.coordinator ?? '']))),
+      selections: json(defaultSelections),
     } })
   }, { timeout: 30000 })
   return preparatoryContext(actor, parallelId)

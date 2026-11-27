@@ -115,7 +115,7 @@ function ProgramConfiguration({ ctx, done }: { ctx: PrepContext; done: (updated:
     <div className="space-y-4">
       <section className="space-y-3 rounded-lg border p-4">
         <h2 className="font-semibold">Ámbitos de {ctx.parallel.levelName} · {ctx.parallel.yearName}</h2>
-        <p className="text-sm text-muted-foreground">Todos los paralelos del grado comparten los siete ámbitos y la distribución de indicadores durante este año lectivo.</p>
+        <p className="text-sm text-muted-foreground">Todos los paralelos del grado comparten los ocho ámbitos y la distribución de indicadores durante este año lectivo.</p>
         {curriculumLocked && <p className="text-sm text-muted-foreground">La distribución está protegida porque el grado ya tiene valoraciones.</p>}
         {!program ? <Button disabled={busy} onClick={() => void prepare()}>Preparar este paralelo</Button> :
           <details>

@@ -4,7 +4,7 @@ La modalidad se limita al código de nivel **1B**. No se aplica a Inicial ni de 
 
 ## Flujo sencillo
 
-1. La autoridad abre **Configuración → Preparatoria** y escoge un paralelo. Los siete ámbitos y su distribución de indicadores se comparten entre los paralelos de Primero del mismo año lectivo. En la misma pantalla, la autoridad revisa la escala y asigna los responsables de ese paralelo antes de activarlo. Puede elegir un docente para todos los ámbitos y usar **Especialistas por ámbito** para las excepciones.
+1. La autoridad abre **Configuración → Preparatoria** y escoge un paralelo. Los ocho ámbitos y su distribución de indicadores se comparten entre los paralelos de Primero del mismo año lectivo. En la misma pantalla, la autoridad revisa la escala y asigna los responsables de ese paralelo antes de activarlo. Puede elegir un docente para todos los ámbitos y usar **Especialistas por ámbito** para las excepciones.
 2. Al abrir **Calificar**, los docentes con Preparatoria en el año activo entran a **Calificar Preparatoria**. Quienes también tienen asignaturas pueden cambiar con **Calificaciones por asignatura** o **Preparatoria**. En **Elegir aprendizajes**, el docente selecciona los ámbitos que trabajará en ese trimestre y puede ajustar indicadores individuales. Cada selección corresponde al paralelo y período elegidos. También se puede reutilizar la selección de otro período o paralelo sin copiar valoraciones.
 3. En la tabla registra las letras por alumno e indicador y pulsa **Guardar valoraciones**. Cada especialista consulta y edita solo sus ámbitos; el tutor y la autoridad pueden consultar el conjunto. El tutor registra fortalezas y recomendaciones generales. La pantalla móvil muestra un estudiante a la vez.
 4. El boletín habitual muestra automáticamente la tabla de ámbitos y aprendizajes cuando corresponde a Primero y su programa está activado. Se puede consultar en pantalla, descargar el PDF individual o el PDF del paralelo, con varias páginas y encabezados repetidos.
@@ -12,6 +12,8 @@ La modalidad se limita al código de nivel **1B**. No se aplica a Inicial ni de 
 **Pendiente** es una celda sin valoración; **NE** se elige expresamente para un aprendizaje no trabajado. Ninguno se convierte en cero. No se calculan promedios numéricos de estas letras.
 
 Los períodos cerrados se consultan sin modificar la selección ni las valoraciones. Se advierte al salir o cambiar de curso con datos pendientes, también al cambiar desde las notas regulares a Preparatoria. La revisión del programa evita sobrescribir cambios concurrentes.
+
+Para UEEU 2026–2027, el primer trimestre se inicializa con los 25 indicadores institucionales entregados en `INDICADORES 1ER TRIMESTRE.docx` y el indicador único **Proyecto**. La plantilla se aplica a todos los paralelos de Primero de Básica compatibles, conserva valoraciones previas y no modifica las selecciones de los otros trimestres.
 
 ## Ámbitos precargados
 
@@ -22,6 +24,7 @@ Los períodos cerrados se consultan sin modificar la selección ni las valoracio
 - Comprensión y expresión oral y escrita.
 - Comprensión y expresión artística.
 - Expresión corporal.
+- Proyecto.
 
 El catálogo conserva su código y versión. Las valoraciones del grado protegen la distribución compartida. Las valoraciones de cada paralelo protegen su escala. Los indicadores retirados de la selección conservan su valoración histórica en el informe. Si se había seleccionado una competencia, se muestran sus indicadores como selección inicial del trimestre. Las valoraciones por competencia quedan en el boletín como registros históricos independientes.
 
