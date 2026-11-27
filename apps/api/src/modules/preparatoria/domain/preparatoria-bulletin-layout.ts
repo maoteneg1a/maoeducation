@@ -4,6 +4,7 @@ const workbookAmbits = [
   { id: 'personal', name: 'Ámbito 1 · Personal Social y Cultural' },
   { id: 'discovery', name: 'Ámbito 2 · Descubrimiento del Medio Natural' },
   { id: 'expression', name: 'Ámbito 3 · Expresión y Comunicación' },
+  { id: 'project', name: 'Ámbito 4 · Proyecto' },
 ] as const
 
 type WorkbookAmbit = typeof workbookAmbits[number]['id']
@@ -16,6 +17,7 @@ const byCurricularAmbit: Record<AmbitId, WorkbookAmbit> = {
   language: 'expression',
   artistic: 'expression',
   body: 'expression',
+  project: 'project',
 }
 
 // Encabezados combinados C13:M13 y códigos de la fila 14 en la lista de cotejo de la institución.

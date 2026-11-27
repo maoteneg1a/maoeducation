@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const db=vi.hoisted(()=>({user:{findMany:vi.fn()},parallel:{findFirst:vi.fn(),findMany:vi.fn()},preparatoryProgram:{findFirst:vi.fn(),findMany:vi.fn(),updateMany:vi.fn(),update:vi.fn(),upsert:vi.fn()},studentEnrollment:{findMany:vi.fn(),count:vi.fn()},preparatoryValue:{findMany:vi.fn(),count:vi.fn(),upsert:vi.fn()},preparatoryComment:{findMany:vi.fn(),upsert:vi.fn()},auditLog:{create:vi.fn()},$executeRaw:vi.fn(),$transaction:vi.fn()}))
 vi.mock('../../../shared/infrastructure/database/prisma',()=>({prisma:db}))
 import { preparatoryContext, preparatoryOptions, selectPeriodLearning, savePreparatoryValues, configureProgram, prepareProgram, preparatoryReport, type PrepActor } from './preparatoria.service'
-import { AMBITS, CATALOG, scaleFor, valuesSchema } from '../domain/preparatoria-policy'
+import { AMBITS, CATALOG, UEEU_FIRST_TERM_INDICATOR_KEYS, scaleFor, valuesSchema } from '../domain/preparatoria-policy'
 const teacher={sub:'teacher',institutionId:'school',roles:['teacher'],permissions:['grades:read:own','grades:write:own']} as PrepActor
 const item=CATALOG.items[0]
 function program(){return {id:'program',parallelId:'parallel',institutionId:'school',academicYearId:'year',revision:3,enabled:true,catalogVersion:CATALOG.version,scaleVersion:'2026-00082A',catalog:CATALOG.items,selections:{p1:[item.key]},ambitTeachers:Object.fromEntries(AMBITS.map(a=>[a.id,'teacher']))}}
@@ -34,9 +34,20 @@ describe('ámbito, matrícula y aislamiento de Preparatoria',()=>{
   expect(db.preparatoryValue.upsert).not.toHaveBeenCalled()
   await expect(prepareProgram(teacher,'parallel')).rejects.toThrow('autoridad')
  })
+ it('precarga los 25 indicadores institucionales y Proyecto en todos los paralelos UEEU 2026-2027',async()=>{
+  const course=parallel()
+  db.parallel.findFirst.mockResolvedValue({...course,institution:{code:'UEEU'},academicYear:{...course.academicYear,name:'2026-2027'}})
+  db.preparatoryProgram.findFirst.mockResolvedValue(null)
+  await prepareProgram({...teacher,roles:['admin']},'parallel')
+  expect(db.preparatoryProgram.upsert).toHaveBeenCalledWith(expect.objectContaining({create:expect.objectContaining({
+   selections:{p1:[...UEEU_FIRST_TERM_INDICATOR_KEYS]},
+  })}))
+  expect(UEEU_FIRST_TERM_INDICATOR_KEYS).toHaveLength(26)
+  expect(UEEU_FIRST_TERM_INDICATOR_KEYS.every(key=>CATALOG.items.some(item=>item.key===key))).toBe(true)
+ })
  it('permite ámbitos directos sin materias y solo ofrece docentes activos de la institución a la autoridad',async()=>{
   db.parallel.findFirst.mockResolvedValue({...parallel(),tutorId:'other',courseAssignments:[]})
-  expect((await preparatoryContext(teacher,'parallel')).editableAmbits).toHaveLength(7)
+  expect((await preparatoryContext(teacher,'parallel')).editableAmbits).toHaveLength(8)
   expect(db.user.findMany).not.toHaveBeenCalled()
   await preparatoryContext({...teacher,roles:['admin']},'parallel')
   expect(db.user.findMany).toHaveBeenCalledWith(expect.objectContaining({where:{institutionId:'school',isActive:true,userRoles:{some:{role:{institutionId:'school',name:'teacher'}}}}}))
@@ -109,6 +120,7 @@ describe('ámbito, matrícula y aislamiento de Preparatoria',()=>{
    'Ámbito 1 · Personal Social y Cultural',
    'Ámbito 2 · Descubrimiento del Medio Natural',
    'Ámbito 3 · Expresión y Comunicación',
+   'Ámbito 4 · Proyecto',
   ])
   expect(report!.rows.find(row => row.key === workbookKeys[0])?.periods.p1).toEqual({ selected: true, code: 'B+', notes: 'Observación conservada' })
   const restricted = await preparatoryReport('school', 'parallel', 'year', 'student', mathTeacher)

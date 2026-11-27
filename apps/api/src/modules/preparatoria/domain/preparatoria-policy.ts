@@ -9,10 +9,52 @@ export const AMBITS = [
   { id: 'language', name: 'Comprensión y expresión oral y escrita' },
   { id: 'artistic', name: 'Comprensión y expresión artística' },
   { id: 'body', name: 'Expresión corporal' },
+  { id: 'project', name: 'Proyecto' },
 ] as const
 export type AmbitId = typeof AMBITS[number]['id']
 export interface CatalogItem { key: string; code: string; text: string; ambit: AmbitId; competencyCode: string; competencyText: string }
-export const CATALOG = { ...catalog, items: catalog.items.map(item => ({ ...item, text: item.text.startsWith(item.code) ? item.text.slice(item.code.length).replace(/^[.\s]+/, '') : item.text })) } as { version: string; source: string; items: CatalogItem[] }
+const projectIndicator: CatalogItem = {
+  key: 'PROYECTO',
+  code: 'PROYECTO',
+  text: 'Proyecto',
+  ambit: 'project',
+  competencyCode: 'PROYECTO',
+  competencyText: 'Proyecto',
+}
+export const CATALOG = { ...catalog, items: [
+  ...catalog.items.map(item => ({ ...item, text: item.text.startsWith(item.code) ? item.text.slice(item.code.length).replace(/^[.\s]+/, '') : item.text })),
+  projectIndicator,
+] } as { version: string; source: string; items: CatalogItem[] }
+
+// Selección institucional entregada para el primer trimestre de UEEU 2026–2027.
+export const UEEU_FIRST_TERM_INDICATOR_KEYS = [
+  'I.CI.1.1.1',
+  'I.CI.0.9.26',
+  'I.CI.0.9.27',
+  'I.CI.0.9.28',
+  'I.CI.1.2.1',
+  'I.CI.1.2.2',
+  'I.CI.1.8.1',
+  'I.CI.1.8.2',
+  'I.CI.1.8.3',
+  'I.CI.1.13.1',
+  'I.CI.1.13.2',
+  'I.CI.1.13.3',
+  'I.CI.1.13.4',
+  'I.CI.1.14.1',
+  'I.CI.1.15.1',
+  'I.CI.1.15.2',
+  'I.CI.1.15.3',
+  'I.CI.1.18.1',
+  'I.CI.1.18.2',
+  'I.CI.1.21.1',
+  'I.CI.1.21.2',
+  'I.CI.1.22.1',
+  'I.CI.1.22.2',
+  'I.CI.1.23.1',
+  'I.CI.1.23.2',
+  'PROYECTO',
+] as const
 
 const defaultCompetencyAmbits = new Map(CATALOG.items.map(item => [item.competencyCode, item.ambit]))
 
@@ -39,7 +81,7 @@ export function scaleFor(version: string) {
 }
 export const contextSchema = z.object({ parallelId: z.string().min(1), periodId: z.string().min(1).optional() })
 const revision = z.number().int().min(1)
-const ambit = z.enum(['identity', 'coexistence', 'environment', 'math', 'language', 'artistic', 'body'])
+const ambit = z.enum(['identity', 'coexistence', 'environment', 'math', 'language', 'artistic', 'body', 'project'])
 export const configureSchema = z.object({
   expectedRevision: revision, enabled: z.boolean(), reviewed: z.literal(true),
   scaleVersion: z.enum(['2026-00082A', '2025-INSTRUCTIVO']),
